@@ -5,6 +5,37 @@
  */
 'use strict';
 
+/* ─── Polyfills: window.apiPost / window.showToast ─────────────────────── */
+if (typeof window.apiPost !== 'function') {
+    window.apiPost = async function(payload) {
+        // Auto-detect base from current URL — e.g. localhost/wealthdash
+        const pathParts = window.location.pathname.split('/');
+        const appSegment = pathParts[1] ? '/' + pathParts[1] : '';
+        const base = window.WD?.appUrl || window.APP_URL || appSegment;
+        const fd   = new FormData();
+        Object.entries(payload).forEach(([k, v]) => { if (v !== undefined && v !== null) fd.append(k, v); });
+        const csrf = window.WD?.csrf || window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        if (csrf) fd.append('_csrf_token', csrf);
+        const res  = await fetch(`${base}/api/?action=${payload.action}`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    };
+}
+
+if (typeof window.showToast !== 'function') {
+    window.showToast = function(msg, type = 'success') {
+        // Try app's existing toast if available
+        if (typeof showToast === 'function' && showToast !== window.showToast) { showToast(msg, type); return; }
+        const el = document.createElement('div');
+        el.textContent = msg;
+        el.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:8px;
+            font-size:14px;color:#fff;background:${type === 'error' ? '#ef4444' : '#22c55e'};
+            box-shadow:0 4px 12px rgba(0,0,0,.2);transition:opacity .3s;`;
+        document.body.appendChild(el);
+        setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+    };
+}
+
 /* ─── Shared helpers ───────────────────────────────────────────────────────── */
 function inrFmt(n) {
     return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,13 +71,23 @@ const pageId = document.body.dataset.page || '';
 ══════════════════════════════════════════════════════════════════════════ */
 if (document.getElementById('fySummaryBody')) {
     let reportData = null;
-    const portId = () => window.WD?.selectedPortfolio;
+    const portId = () =>
+        window.WD?.selectedPortfolio ||
+        document.getElementById('portfolioSelect')?.value ||
+        document.querySelector('[data-portfolio-id]')?.dataset.portfolioId ||
+        '';
 
     async function loadFyReport(fy = '') {
         document.getElementById('fySummaryBody').innerHTML =
             `<tr><td colspan="10" class="text-center"><span class="spinner"></span></td></tr>`;
+        const pid = portId();
+        if (!pid) {
+            document.getElementById('fySummaryBody').innerHTML =
+                `<tr><td colspan="10" class="text-center text-secondary">Please select a portfolio to view FY Gains.</td></tr>`;
+            return;
+        }
         try {
-            const res = await window.apiPost({ action: 'report_fy_gains', portfolio_id: portId(), fy });
+            const res = await window.apiPost({ action: 'report_fy_gains', portfolio_id: pid, fy });
             if (!res.success) { window.showToast(res.message, 'error'); return; }
             reportData = res.data;
             renderFyFilters(reportData.fy_list);
@@ -230,7 +271,8 @@ if (document.getElementById('fySummaryBody')) {
         });
     }
 
-    if (portId()) loadFyReport();
+    // Always attempt load — portId fallback handles missing WD object
+    loadFyReport();
     window.addEventListener('portfolioChanged', () => loadFyReport(fyFilterEl?.value || ''));
 }
 
