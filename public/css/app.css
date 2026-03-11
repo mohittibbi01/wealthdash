@@ -1597,3 +1597,44 @@ html, body { overflow-x: hidden; }
 .data-table .text-center,.table .text-center { text-align: center !important; }
 .data-table .text-left,  .table .text-left   { text-align: left !important; }
 .data-table td:nth-child(2) { text-align: left; }
+
+
+
+
+
+
+
+
+
+
+/* ── SIDEBAR SCROLL FIX ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.15) transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.15);
+  border-radius: 4px;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+}

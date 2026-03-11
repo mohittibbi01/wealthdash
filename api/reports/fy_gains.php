@@ -326,13 +326,12 @@ unset($fy);
 
 krsort($fyData);
 
-$allFyList = DB::fetchAll(
-    "SELECT DISTINCT investment_fy FROM mf_transactions WHERE portfolio_id = ? AND investment_fy IS NOT NULL
-     UNION
-     SELECT DISTINCT investment_fy FROM stock_transactions WHERE portfolio_id = ? AND investment_fy IS NOT NULL
-     ORDER BY investment_fy DESC",
-    [$portfolioId, $portfolioId]
-);
+// ✅ FIX: Only show FYs where actual SELL transactions happened
+$sellFySet = [];
+foreach ($mfGains    as $g) { $sellFySet[$g['fy']] = true; }
+foreach ($stockGains as $g) { $sellFySet[$g['fy']] = true; }
+krsort($sellFySet);
+$allFyList = array_keys($sellFySet);
 
 json_response(true, 'FY Gains report loaded.', [
     'fy_summary'         => array_values($fyData),
@@ -340,7 +339,7 @@ json_response(true, 'FY Gains report loaded.', [
     'stock_gains_detail' => $stockGains,
     'mf_dividends'       => $mfDividends,
     'stock_dividends'    => $stockDividends,
-    'fy_list'            => array_column($allFyList, 'investment_fy'),
+    'fy_list'            => $allFyList,
     'filter_fy'          => $filterFy,
     'ltcg_exemption'     => LTCG_EXEMPTION_LIMIT,
 ]);
