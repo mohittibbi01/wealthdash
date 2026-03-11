@@ -284,7 +284,13 @@ input, select, textarea { font-family: inherit; }
   overflow-y: auto;
   z-index: 100;
   transition: transform var(--transition);
-}
+} 
+ 
+.sidebar::-webkit-scrollbar {
+  display: none;
+} 
+
+
 
 .sidebar-overlay {
   display: none; position: fixed; inset: 0;
