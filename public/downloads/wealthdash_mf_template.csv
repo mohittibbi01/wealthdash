@@ -1,0 +1,9 @@
+portfolio,fund_name,scheme_code,folio,platform,txn_type,txn_date,units,nav,notes
+My Portfolio,Axis Bluechip Fund - Direct Growth,120503,12345678/10,Zerodha Coin,BUY,01-01-2024,100.000,45.2300,Monthly SIP
+My Portfolio,Axis Bluechip Fund - Direct Growth,120503,12345678/10,Zerodha Coin,BUY,01-02-2024,95.123,47.5600,Monthly SIP
+My Portfolio,SBI Small Cap Fund - Direct Growth,125497,98765432/10,Groww,BUY,15-02-2024,50.000,120.5600,Lump sum
+My Portfolio,Mirae Asset Large Cap Fund - Direct Growth,118825,11223344/55,Kuvera,BUY,10-03-2023,200.000,82.1200,
+My Portfolio,Mirae Asset Large Cap Fund - Direct Growth,118825,11223344/55,Kuvera,SELL,10-03-2024,50.000,98.4500,Partial redemption
+My Portfolio,HDFC Mid-Cap Opportunities - Direct Growth,118989,55443322/10,Direct AMC,BUY,05-04-2023,75.500,95.3300,
+My Portfolio,Parag Parikh Flexi Cap - Direct Growth,122639,77889900/10,MF Central,BUY,01-05-2023,150.000,55.7800,SIP
+My Portfolio,Parag Parikh Flexi Cap - Direct Growth,122639,77889900/10,MF Central,BUY,01-06-2023,148.500,56.2100,SIP

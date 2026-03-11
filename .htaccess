@@ -1,0 +1,32 @@
+Options -Indexes
+ServerSignature Off
+
+# URL Rewriting
+RewriteEngine On
+RewriteBase /wealthdash/
+
+# Redirect to HTTPS (production only - comment out on XAMPP)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Front controller
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+
+# Block sensitive files
+<Files ".env">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files "composer.json">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Block direct access to folders
+<FilesMatch "\.(sql|log|sh|bat)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
