@@ -824,7 +824,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Load data on first switch
       if (which === 'realized') {
-        // Reset FY filter to "All FYs" on first open
         const rFy = document.getElementById('rFilterFy');
         if (rFy && !RG.loaded) rFy.value = '';
         if (!RG.loaded) loadRealizedGains();
@@ -858,11 +857,10 @@ document.addEventListener('DOMContentLoaded', () => {
 const RG = { data: [], loaded: false };
 
 async function loadRealizedGains() {
-  // fy_gains API requires a portfolio_id — use selected or fall back to first option
   const sel = document.getElementById('rFilterPortfolio');
   let portfolioId = sel?.value || '';
   if (!portfolioId && sel && sel.options.length > 1) {
-    portfolioId = sel.options[1].value; // first real portfolio
+    portfolioId = sel.options[1].value;
     sel.value = portfolioId;
   }
   if (!portfolioId) {
@@ -872,7 +870,6 @@ async function loadRealizedGains() {
   }
   const fyEl = document.getElementById('rFilterFy');
   const fy   = fyEl?.value || '';
-  // If a specific FY is selected, filter by it — otherwise send blank to get ALL years
 
   const body = document.getElementById('realizedBody');
   body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:32px;"><div class="spinner"></div><p style="color:var(--text-muted);margin-top:10px;">Loading...</p></td></tr>`;
@@ -891,7 +888,8 @@ async function loadRealizedGains() {
       return;
     }
 
-    RG.data   = json.mf_gains_detail || [];
+    // ✅ FIX: API wraps data inside json.data — read from correct path
+    RG.data   = json.data?.mf_gains_detail || [];
     RG.loaded = true;
     renderRealized();
   } catch(e) {
@@ -1010,7 +1008,8 @@ async function loadDividends() {
       return;
     }
 
-    DIV.data   = json.mf_dividends || [];
+    // ✅ FIX: API wraps data inside json.data — read from correct path
+    DIV.data   = json.data?.mf_dividends || [];
     DIV.loaded = true;
     renderDividends();
   } catch(e) {
