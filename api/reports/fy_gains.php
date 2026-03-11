@@ -3,6 +3,9 @@
  * WealthDash — FY Gains Report
  * LTCG + STCG + Dividends broken down by Financial Year
  * POST /api/?action=report_fy_gains
+ *
+ * ✅ FIX: Proper FIFO lot tracking across multiple SELL transactions
+ *         Each buy lot is consumed only once — remaining units carry forward
  */
 declare(strict_types=1);
 defined('WEALTHDASH') or die('Direct access not permitted.');
@@ -24,93 +27,120 @@ function get_fy(string $date): string {
     return $m >= 4 ? "{$y}-" . substr((string)($y + 1), -2) : ($y - 1) . '-' . substr((string)$y, -2);
 }
 
-/* ─── 1. MF SELL transactions → realised gains ───────────────────────────── */
-$mfSells = DB::fetchAll(
-    "SELECT t.id, t.fund_id, t.folio_number, t.txn_date, t.units AS sell_units,
-            t.nav AS sell_nav, t.value_at_cost AS sell_value,
-            f.scheme_name, f.category, f.sub_category,
-            fh.name AS fund_house
-     FROM mf_transactions t
-     JOIN funds f ON f.id = t.fund_id
-     JOIN fund_houses fh ON fh.id = f.fund_house_id
-     WHERE t.portfolio_id = ?
-       AND t.transaction_type IN ('SELL','SWITCH_OUT','SWP')
-     ORDER BY t.txn_date ASC",
+/* ─── 1. MF SELL transactions → realised gains (PROPER FIFO) ─────────────── */
+
+// Get all distinct fund+folio combos that have sells
+$mfCombos = DB::fetchAll(
+    "SELECT DISTINCT fund_id, folio_number
+     FROM mf_transactions
+     WHERE portfolio_id = ?
+       AND transaction_type IN ('SELL','SWITCH_OUT','SWP')",
     [$portfolioId]
 );
 
-/* For each SELL we do FIFO cost matching from BUY transactions */
 $mfGains = [];
-foreach ($mfSells as $sell) {
-    $sellDate  = $sell['txn_date'];
-    $sellFy    = get_fy($sellDate);
-    if ($filterFy && $sellFy !== $filterFy) continue;
 
-    $remainUnits = (float) $sell['sell_units'];
-    $sellNav     = (float) $sell['sell_nav'];
-    $totalCost   = 0.0;
-    $proceeds    = round($remainUnits * $sellNav, 2);
+foreach ($mfCombos as $combo) {
+    $fundId    = (int) $combo['fund_id'];
+    $folio     = ($combo['folio_number'] !== '' && $combo['folio_number'] !== null)
+                 ? $combo['folio_number'] : null;
 
-    // FIFO: get BUYs for same fund+folio on or before sell date
-    // Normalise folio: treat empty string same as NULL for robust matching
-    $sellFolio = (isset($sell['folio_number']) && $sell['folio_number'] !== '')
-                 ? $sell['folio_number'] : null;
-    $buys = DB::fetchAll(
-        "SELECT txn_date, units, nav, value_at_cost
-         FROM mf_transactions
-         WHERE portfolio_id = ?
-           AND fund_id = ?
-           AND (
-               (? IS NOT NULL AND (folio_number = ? OR folio_number IS NULL OR folio_number = ''))
-               OR
-               (? IS NULL AND (folio_number IS NULL OR folio_number = ''))
-           )
-           AND transaction_type IN ('BUY','SWITCH_IN','STP_IN','DIV_REINVEST')
-           AND txn_date <= ?
-         ORDER BY txn_date ASC",
-        [$portfolioId, $sell['fund_id'], $sellFolio, $sellFolio, $sellFolio, $sellDate]
+    // Get ALL transactions for this fund+folio in chronological order
+    $allTxns = DB::fetchAll(
+        "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
+                f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
+         FROM mf_transactions t
+         JOIN funds f ON f.id = t.fund_id
+         JOIN fund_houses fh ON fh.id = f.fund_house_id
+         WHERE t.portfolio_id = ?
+           AND t.fund_id = ?
+           AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL) OR (? IS NULL AND (t.folio_number IS NULL OR t.folio_number = '')) OR (? IS NOT NULL AND t.folio_number IS NULL))
+         ORDER BY t.txn_date ASC, t.id ASC",
+        [$portfolioId, $fundId, $folio, $folio, $folio, $folio]
     );
 
-    // Simple FIFO
-    foreach ($buys as $buy) {
-        if ($remainUnits <= 0) break;
-        $available = (float) $buy['units'];
-        $used      = min($available, $remainUnits);
-        $costNav   = (float) $buy['nav'];
-        $totalCost += $used * $costNav;
-        $remainUnits -= $used;
+    // Build FIFO queue from BUY transactions, process SELLs in order
+    $queue = []; // ['units' => float, 'nav' => float, 'date' => string]
+
+    foreach ($allTxns as $t) {
+        $type  = $t['transaction_type'];
+        $units = (float) $t['units'];
+        $nav   = (float) $t['nav'];
+        $date  = $t['txn_date'];
+
+        if (in_array($type, ['BUY', 'DIV_REINVEST', 'SWITCH_IN', 'STP_IN'])) {
+            // Add to FIFO queue
+            $queue[] = ['units' => $units, 'nav' => $nav, 'date' => $date];
+
+        } elseif (in_array($type, ['SELL', 'SWITCH_OUT', 'SWP'])) {
+            $sellFy = get_fy($date);
+            if ($filterFy && $sellFy !== $filterFy) {
+                // Still consume from queue even if filtered out, to keep FIFO state correct
+                $remaining = $units;
+                while ($remaining > 0.0001 && !empty($queue)) {
+                    $lot = &$queue[0];
+                    if ($lot['units'] <= $remaining) {
+                        $remaining -= $lot['units'];
+                        array_shift($queue);
+                    } else {
+                        $lot['units'] -= $remaining;
+                        $remaining = 0;
+                    }
+                    unset($lot);
+                }
+                continue;
+            }
+
+            $remaining  = $units;
+            $totalCost  = 0.0;
+            $proceeds   = round($units * $nav, 2);
+            $firstBuyDate = !empty($queue) ? $queue[0]['date'] : $date;
+
+            // FIFO: consume from earliest lots
+            while ($remaining > 0.0001 && !empty($queue)) {
+                $lot = &$queue[0];
+                if ($lot['units'] <= $remaining) {
+                    $totalCost += $lot['units'] * $lot['nav'];
+                    $remaining -= $lot['units'];
+                    array_shift($queue);
+                } else {
+                    $totalCost    += $remaining * $lot['nav'];
+                    $lot['units'] -= $remaining;
+                    $remaining     = 0;
+                }
+                unset($lot);
+            }
+
+            $gain     = round($proceeds - $totalCost, 2);
+            $days     = (int)(new DateTime($date))->diff(new DateTime($firstBuyDate))->days;
+
+            $cat      = strtolower($t['category'] ?? '');
+            $assetType = (strpos($cat, 'debt') !== false || strpos($cat, 'liquid') !== false
+                          || strpos($cat, 'money market') !== false || strpos($cat, 'credit') !== false)
+                         ? 'debt' : (strpos($cat, 'elss') !== false ? 'elss' : 'equity');
+
+            $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuyDate, $date, $assetType);
+
+            $mfGains[] = [
+                'asset_class'  => 'Mutual Fund',
+                'name'         => $t['scheme_name'],
+                'fund_house'   => $t['fund_house'],
+                'category'     => $t['category'],
+                'folio'        => $combo['folio_number'],
+                'sell_date'    => format_date($date),
+                'units'        => $units,
+                'sell_nav'     => $nav,
+                'proceeds'     => $proceeds,
+                'cost'         => round($totalCost, 2),
+                'gain'         => $gain,
+                'days_held'    => $days,
+                'gain_type'    => $taxInfo['gain_type'],
+                'tax_rate'     => $taxInfo['tax_rate'],
+                'tax_amount'   => $taxInfo['tax_amount'],
+                'fy'           => $sellFy,
+            ];
+        }
     }
-
-    $gain     = $proceeds - $totalCost;
-    $firstBuy = $buys[0]['txn_date'] ?? $sellDate;
-    $days     = (int) (new DateTime($sellDate))->diff(new DateTime($firstBuy))->days;
-
-    // Determine asset class
-    $cat = strtolower($sell['category'] ?? '');
-    $assetType = (strpos($cat, 'debt') !== false || strpos($cat, 'liquid') !== false
-                  || strpos($cat, 'money market') !== false || strpos($cat, 'credit') !== false)
-                 ? 'debt' : (strpos($cat, 'elss') !== false ? 'elss' : 'equity');
-
-    $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuy, $sellDate, $assetType);
-
-    $mfGains[] = [
-        'asset_class'  => 'Mutual Fund',
-        'name'         => $sell['scheme_name'],
-        'fund_house'   => $sell['fund_house'],
-        'category'     => $sell['category'],
-        'folio'        => $sell['folio_number'],
-        'sell_date'    => format_date($sellDate),
-        'units'        => (float) $sell['sell_units'],
-        'sell_nav'     => $sellNav,
-        'proceeds'     => $proceeds,
-        'cost'         => round($totalCost, 2),
-        'gain'         => round($gain, 2),
-        'days_held'    => $days,
-        'gain_type'    => $taxInfo['gain_type'],
-        'tax_rate'     => $taxInfo['tax_rate'],
-        'tax_amount'   => $taxInfo['tax_amount'],
-        'fy'           => $sellFy,
-    ];
 }
 
 /* ─── 2. STOCK SELL transactions → realised gains ───────────────────────── */
@@ -231,7 +261,7 @@ foreach ($stDivRows as $row) {
     ];
 }
 
-/* ─── 5. Aggregate by FY ──────────────────────────────────────────────────── */
+/* ─── 5. Aggregate by FY ─────────────────────────────────────────────────── */
 $allGains = array_merge($mfGains, $stockGains);
 $fyData   = [];
 
@@ -272,10 +302,7 @@ foreach ($allGains as $g) {
         $fyData[$fy]['slab_gains'] += $gainAmt;
     }
     $fyData[$fy]['total_gains'] += $gainAmt;
-
-    // Approx tax
-    $taxAmt = (float)($g['tax_amount'] ?? 0);
-    $fyData[$fy]['total_tax_approx'] += $taxAmt;
+    $fyData[$fy]['total_tax_approx'] += (float)($g['tax_amount'] ?? 0);
 }
 
 foreach ($mfDividends as $d) {
@@ -289,7 +316,6 @@ foreach ($stockDividends as $d) {
     $fyData[$fy]['stock_dividends'] += (float)$d['amount'];
 }
 
-// Round all values
 foreach ($fyData as &$fy) {
     foreach (['ltcg_equity','ltcg_debt','stcg_equity','stcg_debt','slab_gains','total_gains','mf_dividends','stock_dividends','total_tax_approx'] as $k) {
         $fy[$k] = round($fy[$k] ?? 0.0, 2);
@@ -298,9 +324,8 @@ foreach ($fyData as &$fy) {
 }
 unset($fy);
 
-krsort($fyData); // most recent FY first
+krsort($fyData);
 
-// Get distinct FYs for filter dropdown
 $allFyList = DB::fetchAll(
     "SELECT DISTINCT investment_fy FROM mf_transactions WHERE portfolio_id = ? AND investment_fy IS NOT NULL
      UNION
@@ -310,12 +335,12 @@ $allFyList = DB::fetchAll(
 );
 
 json_response(true, 'FY Gains report loaded.', [
-    'fy_summary'       => array_values($fyData),
-    'mf_gains_detail'  => $mfGains,
+    'fy_summary'         => array_values($fyData),
+    'mf_gains_detail'    => $mfGains,
     'stock_gains_detail' => $stockGains,
-    'mf_dividends'     => $mfDividends,
-    'stock_dividends'  => $stockDividends,
-    'fy_list'          => array_column($allFyList, 'investment_fy'),
-    'filter_fy'        => $filterFy,
-    'ltcg_exemption'   => LTCG_EXEMPTION_LIMIT,
+    'mf_dividends'       => $mfDividends,
+    'stock_dividends'    => $stockDividends,
+    'fy_list'            => array_column($allFyList, 'investment_fy'),
+    'filter_fy'          => $filterFy,
+    'ltcg_exemption'     => LTCG_EXEMPTION_LIMIT,
 ]);

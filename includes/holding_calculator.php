@@ -239,9 +239,6 @@ class HoldingCalculator {
                 $totalQty += $qty;
 
             } elseif ($type === 'SPLIT') {
-                // Adjust all quantities in queue by split ratio
-                // ratio stored as "2:1" means 2 new shares per 1 old
-                // Simplified: multiply qty by ratio (handled when processing corporate actions)
                 $totalQty += $qty; // pre-processed split units
             }
         }
@@ -379,19 +376,26 @@ class HoldingCalculator {
 /**
  * Recalculate MF holding for a specific fund+folio combination
  * Called after add/edit/delete transactions
+ *
+ * ✅ FIX: $folio is now ?string (nullable) — handles optional folio numbers
+ *         Empty string is normalized to null so DB NULL comparisons work correctly
  */
-function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, string $folio = ''): void {
-    // Fetch all transactions in order
+function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, ?string $folio = null): void {
+    // Normalize: treat empty string same as null
+    if ($folio === '') $folio = null;
+
+    // Fetch all transactions in order — handle NULL folio with IS NULL check
     $stmt = $db->prepare("
         SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
                t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
                f.lock_in_days, f.category, f.sub_category
         FROM mf_transactions t
         JOIN funds f ON f.id = t.fund_id
-        WHERE t.portfolio_id = ? AND t.fund_id = ? AND t.folio_number = ?
+        WHERE t.portfolio_id = ? AND t.fund_id = ?
+          AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL))
         ORDER BY t.txn_date ASC, t.id ASC
     ");
-    $stmt->execute([$portfolio_id, $fund_id, $folio]);
+    $stmt->execute([$portfolio_id, $fund_id, $folio, $folio]);
     $txns = $stmt->fetchAll();
 
     // ── FIFO cost basis ────────────────────────────────
@@ -456,7 +460,6 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, strin
 
     if (!empty($txns) && $valueNow > 0) {
         $xirr_val = xirr_from_txns($txns, $valueNow, date('Y-m-d')) ?? 0.0;
-        // Fallback to simple CAGR if XIRR didn't converge
         if ($xirr_val == 0.0 && $firstPurchase && $totalInvested > 0) {
             $days_held = (int)((strtotime('today') - strtotime($firstPurchase)) / 86400);
             if ($days_held > 0) {
@@ -467,12 +470,10 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, strin
     }
     $cagr = $xirr_val;
 
-    // LTCG date = first purchase + min_ltcg_days
     $ltcgDate   = $firstPurchase ? date('Y-m-d', strtotime($firstPurchase) + ($minLtcgDays * 86400)) : null;
     $lockInDate = ($firstPurchase && $lockInDays > 0)
                     ? date('Y-m-d', strtotime($firstPurchase) + ($lockInDays * 86400)) : null;
 
-    // Withdrawable date = later of ltcg_date and lock_in_date
     $withdrawableDate = null;
     if ($ltcgDate && $lockInDate) {
         $withdrawableDate = $lockInDate > $ltcgDate ? $lockInDate : $ltcgDate;
@@ -480,12 +481,10 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, strin
         $withdrawableDate = $ltcgDate;
     }
 
-    // Gain type
-    $today   = date('Y-m-d');
+    $today    = date('Y-m-d');
     $gainType = 'STCG';
     if ($firstPurchase && $ltcgDate && $today >= $ltcgDate) $gainType = 'LTCG';
 
-    // Withdrawable FY
     $withdrawableFy = null;
     if ($ltcgDate) {
         $ltcgYear = (int)date('Y', strtotime($ltcgDate));
@@ -494,7 +493,6 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, strin
         $withdrawableFy = $fy . '-' . substr((string)($fy + 1), -2);
     }
 
-    // Fix: select row with highest nav directly (no non-aggregate bare column)
     $highestNavStmt = $db->prepare("
         SELECT nav AS max_nav, nav_date FROM nav_history
         WHERE fund_id = ? ORDER BY nav DESC LIMIT 1
@@ -504,9 +502,13 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, strin
     $highestNav     = $hn ? (float)$hn['max_nav'] : $latestNav;
     $highestNavDate = $hn ? $hn['nav_date'] : $latestNavDate;
 
-    // Upsert mf_holdings
-    $existStmt = $db->prepare("SELECT id FROM mf_holdings WHERE portfolio_id=? AND fund_id=? AND folio_number=?");
-    $existStmt->execute([$portfolio_id, $fund_id, $folio]);
+    // ✅ FIX: Upsert also uses NULL-safe comparison for folio
+    $existStmt = $db->prepare("
+        SELECT id FROM mf_holdings
+        WHERE portfolio_id = ? AND fund_id = ?
+          AND (folio_number = ? OR (folio_number IS NULL AND ? IS NULL))
+    ");
+    $existStmt->execute([$portfolio_id, $fund_id, $folio, $folio]);
     $existing = $existStmt->fetch();
 
     if ($existing) {
