@@ -1482,3 +1482,112 @@ html, body { overflow-x: hidden; }
 .badge-stcg { background: #FFFBEB; color: #B45309; }
 [data-theme="dark"] .badge-stcg { background: #451A03; color: #FCD34D; }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ============================================================
+   PATCH v2 — Softer borders + Sidebar scrollbar hidden
+   Paste this at the very END of app.css (replace old patch)
+   ============================================================ */
+
+/* ── 1. Sidebar — scrollbar completely hidden ──────────────*/
+.sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+.main-wrapper {
+  overflow-x: hidden;
+}
+
+/* ── 2. data-table — Softer grid lines ─────────────────────*/
+.data-table {
+  border: 1px solid var(--border);
+  border-collapse: collapse;
+}
+.data-table thead th {
+  border-right: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--border-strong);
+  padding: 10px 14px;
+  text-align: center;
+  vertical-align: middle;
+  background: var(--bg-surface-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.data-table thead th:last-child { border-right: none; }
+.data-table tbody td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.data-table tbody td:last-child  { border-right: none; }
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tfoot td {
+  border-right: 1px solid var(--border);
+  border-top: 1.5px solid var(--border-strong);
+  padding: 10px 14px;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 600;
+  background: var(--bg-surface-2);
+}
+.data-table tfoot td:last-child { border-right: none; }
+.data-table tbody tr:hover { background: var(--bg-surface-2); }
+
+/* ── 3. Generic .table — same soft grid lines ──────────────*/
+.table { border-collapse: collapse; }
+.table thead th {
+  border-right: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--border-strong);
+  text-align: center;
+  vertical-align: middle;
+}
+.table thead th:last-child { border-right: none; }
+.table tbody td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  vertical-align: middle;
+}
+.table tbody td:last-child  { border-right: none; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table tfoot td {
+  border-right: 1px solid var(--border);
+  border-top: 1.5px solid var(--border-strong);
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 600;
+  background: var(--bg-surface-2);
+}
+.table tfoot td:last-child { border-right: none; }
+
+/* ── 4. Alignment overrides ────────────────────────────────*/
+.data-table .text-right, .table .text-right { text-align: right !important; }
+.data-table .text-center,.table .text-center { text-align: center !important; }
+.data-table .text-left,  .table .text-left   { text-align: left !important; }
+.data-table td:nth-child(2) { text-align: left; }

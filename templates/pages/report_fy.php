@@ -83,10 +83,10 @@ ob_start();
     <div class="card-header">
         <h3 class="card-title">Gain/Loss Details</h3>
         <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab(this,'mfGainsTab')">MF Gains</button>
-            <button class="tab-btn" onclick="switchTab(this,'stockGainsTab')">Stock Gains</button>
-            <button class="tab-btn" onclick="switchTab(this,'mfDivTab')">MF Dividends</button>
-            <button class="tab-btn" onclick="switchTab(this,'stDivTab')">Stock Dividends</button>
+            <button class="tab-btn active" data-tab="mfGainsTab">MF Gains</button>
+            <button class="tab-btn" data-tab="stockGainsTab">Stock Gains</button>
+            <button class="tab-btn" data-tab="mfDivTab">MF Dividends</button>
+            <button class="tab-btn" data-tab="stDivTab">Stock Dividends</button>
         </div>
     </div>
 
@@ -185,14 +185,7 @@ ob_start();
 </div>
 
 <script>
-function switchTab(btn, tabId) {
-    const card = btn.closest('.card');
-    card.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    card.querySelectorAll('.tab-panel').forEach(p => { p.style.display='none'; p.classList.remove('active'); });
-    btn.classList.add('active');
-    const panel = document.getElementById(tabId);
-    if (panel) { panel.style.display='block'; panel.classList.add('active'); }
-}
+// Tab switching handled by reports.js via data-tab attributes
 </script>
 <script src="<?= APP_URL ?>/public/js/reports.js?v=4"></script>
 
