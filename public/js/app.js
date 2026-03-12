@@ -58,11 +58,28 @@ function toggleUserMenu() {
   trigger?.setAttribute('aria-expanded', open);
 }
 
-// Close dropdown when clicking outside
+// ============================================================
+// PORTFOLIO DROPDOWN
+// ============================================================
+function togglePortfolioDropdown() {
+  const menu     = document.getElementById('portfolioSelectorMenu');
+  const dropdown = document.getElementById('portfolioDropdown');
+  const trigger  = menu?.querySelector('.portfolio-trigger');
+  const open = dropdown.classList.toggle('open');
+  menu.classList.toggle('open', open);
+  trigger?.setAttribute('aria-expanded', open);
+}
+
+// Close both dropdowns when clicking outside
 document.addEventListener('click', (e) => {
-  const menu = document.getElementById('userMenu');
-  if (menu && !menu.contains(e.target)) {
+  const userMenu = document.getElementById('userMenu');
+  if (userMenu && !userMenu.contains(e.target)) {
     document.getElementById('userDropdown')?.classList.remove('open');
+  }
+  const pfMenu = document.getElementById('portfolioSelectorMenu');
+  if (pfMenu && !pfMenu.contains(e.target)) {
+    document.getElementById('portfolioDropdown')?.classList.remove('open');
+    pfMenu.classList.remove('open');
   }
 });
 
@@ -420,3 +437,93 @@ function toggleSidebarCollapse() {
     document.body.classList.add('sidebar-collapsed');
   }
 })();
+// ============================================================
+// CUSTOM FILTER DROPDOWNS
+// Universal initializer for <select data-custom-dropdown>
+// Keeps original <select> hidden, syncs value + fires 'change'
+// ============================================================
+function initCustomFilterDropdowns() {
+  document.querySelectorAll('select[data-custom-dropdown]').forEach(sel => {
+    // Skip if already initialized
+    if (sel.dataset.customInit) return;
+    sel.dataset.customInit = '1';
+    sel.style.display = 'none';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'cfd-wrapper';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'cfd-trigger';
+
+    const label = document.createElement('span');
+    label.className = 'cfd-label';
+    label.textContent = sel.options[sel.selectedIndex]?.text || '';
+
+    const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('class', 'cfd-chevron');
+    chevron.setAttribute('width', '13');
+    chevron.setAttribute('height', '13');
+    chevron.setAttribute('viewBox', '0 0 24 24');
+    chevron.setAttribute('fill', 'none');
+    chevron.setAttribute('stroke', 'currentColor');
+    chevron.setAttribute('stroke-width', '2');
+    chevron.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+
+    trigger.appendChild(label);
+    trigger.appendChild(chevron);
+
+    const menu = document.createElement('div');
+    menu.className = 'cfd-menu';
+
+    function buildMenu() {
+      menu.innerHTML = '';
+      Array.from(sel.options).forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cfd-item' + (opt.value === sel.value ? ' active' : '');
+        btn.textContent = opt.text;
+        btn.dataset.value = opt.value;
+        btn.addEventListener('click', () => {
+          sel.value = opt.value;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+          label.textContent = opt.text;
+          menu.querySelectorAll('.cfd-item').forEach(b => b.classList.toggle('active', b.dataset.value === opt.value));
+          closeMenu();
+        });
+        menu.appendChild(btn);
+      });
+    }
+
+    function openMenu() {
+      buildMenu();
+      menu.classList.add('open');
+      wrapper.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    function closeMenu() {
+      menu.classList.remove('open');
+      wrapper.classList.remove('open');
+      trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.contains('open') ? closeMenu() : openMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!wrapper.contains(e.target)) closeMenu();
+    });
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(menu);
+    sel.parentNode.insertBefore(wrapper, sel);
+    wrapper.appendChild(sel);
+  });
+}
+
+// Auto-init on DOMContentLoaded + re-init support for dynamic tabs
+document.addEventListener('DOMContentLoaded', initCustomFilterDropdowns);
+// Also expose globally so tab switches can re-init
+window.initCustomFilterDropdowns = initCustomFilterDropdowns;

@@ -99,13 +99,13 @@ ob_start();
 <div id="tabHoldings">
 <div class="mf-filter-bar">
   <div class="mf-filter-selects">
-    <select id="filterPortfolio" class="filter-select">
+    <select id="filterPortfolio" class="filter-select" data-custom-dropdown>
       <option value="">All Portfolios</option>
       <?php foreach ($portfolios as $p): ?>
       <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
       <?php endforeach; ?>
     </select>
-    <select id="filterCategory" class="filter-select">
+    <select id="filterCategory" class="filter-select" data-custom-dropdown>
       <option value="">All Categories</option>
       <option value="Equity">Equity</option>
       <option value="Debt">Debt</option>
@@ -114,7 +114,7 @@ ob_start();
       <option value="ELSS">ELSS</option>
       <option value="Liquid">Liquid</option>
     </select>
-    <select id="filterGainType" class="filter-select">
+    <select id="filterGainType" class="filter-select" data-custom-dropdown>
       <option value="">All Types</option>
       <option value="LTCG">LTCG</option>
       <option value="STCG">STCG</option>
@@ -201,13 +201,13 @@ ob_start();
 
 <!-- Filter bar -->
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-  <select id="rFilterPortfolio" class="filter-select">
+  <select id="rFilterPortfolio" class="filter-select" data-custom-dropdown>
     <option value="">All Portfolios</option>
     <?php foreach ($portfolios as $p): ?>
     <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
     <?php endforeach; ?>
   </select>
-  <select id="rFilterFy" class="filter-select">
+  <select id="rFilterFy" class="filter-select" data-custom-dropdown>
     <option value="">All FYs</option>
     <?php
     $curYear = (int)date('Y'); $curMon = (int)date('n');
@@ -219,7 +219,7 @@ ob_start();
     }
     ?>
   </select>
-  <select id="rFilterType" class="filter-select">
+  <select id="rFilterType" class="filter-select" data-custom-dropdown>
     <option value="">LTCG + STCG</option>
     <option value="LTCG">LTCG only</option>
     <option value="STCG">STCG only</option>
@@ -289,13 +289,13 @@ ob_start();
 
 <!-- Filter -->
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-  <select id="dFilterPortfolio" class="filter-select">
+  <select id="dFilterPortfolio" class="filter-select" data-custom-dropdown>
     <option value="">All Portfolios</option>
     <?php foreach ($portfolios as $p): ?>
     <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
     <?php endforeach; ?>
   </select>
-  <select id="dFilterFy" class="filter-select">
+  <select id="dFilterFy" class="filter-select" data-custom-dropdown>
     <option value="">All FYs</option>
     <?php
     for ($i = 0; $i < 8; $i++) {

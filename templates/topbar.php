@@ -36,20 +36,74 @@ $selectedPortfolioId = $_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id
 
 <div class="topbar-right">
 
-  <!-- Portfolio Selector -->
-  <?php if (!empty($portfolios)): ?>
-  <div class="portfolio-selector">
-    <label for="portfolioSelect" class="sr-only">Select Portfolio</label>
-    <select id="portfolioSelect" class="form-select" onchange="switchPortfolio(this.value)">
-      <?php foreach ($portfolios as $p): ?>
-        <option value="<?= e($p['id']) ?>"
-          <?= $p['id'] == $selectedPortfolioId ? 'selected' : '' ?>
-          data-color="<?= e($p['color']) ?>">
-          <?= e($p['name']) ?>
-          <?php if (isset($p['is_owner']) && !$p['is_owner']): ?>(Shared)<?php endif; ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
+  <!-- Portfolio Selector (Custom Dropdown) -->
+  <?php if (!empty($portfolios)):
+    $activePortfolio = null;
+    foreach ($portfolios as $p) {
+      if ($p['id'] == $selectedPortfolioId) { $activePortfolio = $p; break; }
+    }
+    if (!$activePortfolio) $activePortfolio = $portfolios[0];
+  ?>
+  <!-- Hidden select for compatibility with reports.js -->
+  <select id="portfolioSelect" style="display:none;">
+    <?php foreach ($portfolios as $p): ?>
+      <option value="<?= e($p['id']) ?>" <?= $p['id'] == $selectedPortfolioId ? 'selected' : '' ?>><?= e($p['name']) ?></option>
+    <?php endforeach; ?>
+  </select>
+
+  <div class="portfolio-selector-custom" id="portfolioSelectorMenu">
+    <button class="portfolio-trigger" onclick="togglePortfolioDropdown()" aria-expanded="false">
+      <div class="portfolio-trigger-dot" style="background: <?= e($activePortfolio['color'] ?? '#2563EB') ?>;"></div>
+      <span class="portfolio-trigger-name" id="activePfName"><?= e($activePortfolio['name']) ?></span>
+      <?php if (isset($activePortfolio['is_owner']) && !$activePortfolio['is_owner']): ?>
+        <span class="portfolio-shared-badge">Shared</span>
+      <?php endif; ?>
+      <svg class="portfolio-trigger-chevron" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+
+    <div class="portfolio-dropdown" id="portfolioDropdown">
+      <div class="portfolio-dropdown-header">
+        <span>My Portfolios</span>
+      </div>
+      <ul class="portfolio-dropdown-list">
+        <?php foreach ($portfolios as $p):
+          $isActive = $p['id'] == $selectedPortfolioId;
+          $initial  = strtoupper(substr($p['name'], 0, 1));
+          $color    = $p['color'] ?? '#2563EB';
+          $isShared = isset($p['is_owner']) && !$p['is_owner'];
+        ?>
+        <li>
+          <button class="portfolio-dropdown-item <?= $isActive ? 'active' : '' ?>"
+                  onclick="switchPortfolio(<?= (int)$p['id'] ?>)">
+            <div class="portfolio-item-icon" style="background: <?= e($color) ?>20; color: <?= e($color) ?>;">
+              <?= $initial ?>
+            </div>
+            <div class="portfolio-item-info">
+              <span class="portfolio-item-name"><?= e($p['name']) ?></span>
+              <?php if ($isShared): ?>
+                <span class="portfolio-item-tag">Shared</span>
+              <?php endif; ?>
+            </div>
+            <?php if ($isActive): ?>
+            <svg class="portfolio-item-check" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <?php endif; ?>
+          </button>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <div class="portfolio-dropdown-footer">
+        <button class="portfolio-new-btn" onclick="openNewPortfolioModal(); togglePortfolioDropdown();">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New Portfolio
+        </button>
+      </div>
+    </div>
   </div>
   <?php endif; ?>
 

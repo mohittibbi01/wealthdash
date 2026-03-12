@@ -59,7 +59,74 @@ try {
 
     $db->beginTransaction();
 
-    $del = $db->prepare("DELETE FROM mf_transactions WHERE id = ?");
+    // ── If deleting a BUY-side txn, check no SELL becomes orphaned ──
+    $txnDetail = $db->prepare("
+        SELECT transaction_type, units, fund_id, folio_number, portfolio_id, txn_date
+        FROM mf_transactions WHERE id = ?
+    ");
+    $txnDetail->execute([$txn_id]);
+    $txnRow = $txnDetail->fetch();
+
+    if ($txnRow && in_array($txnRow['transaction_type'], ['BUY', 'SWITCH_IN', 'DIV_REINVEST'])) {
+        $pid      = $txnRow['portfolio_id'];
+        $fid      = $txnRow['fund_id'];
+        $folio    = $txnRow['folio_number'];
+        $buyDate  = $txnRow['txn_date'];
+
+        // Find the earliest SELL that would be affected:
+        // Any SELL on a date AFTER this BUY where removing this BUY
+        // causes units_bought_before_sell_date < units_sold_by_sell_date
+        $sellsQ = $db->prepare("
+            SELECT id, txn_date, units FROM mf_transactions
+            WHERE portfolio_id  = ?
+              AND fund_id       = ?
+              AND folio_number <=> ?
+              AND transaction_type IN ('SELL','SWITCH_OUT')
+              AND txn_date > ?
+            ORDER BY txn_date ASC
+        ");
+        $sellsQ->execute([$pid, $fid, $folio, $buyDate]);
+        $sells = $sellsQ->fetchAll();
+
+        foreach ($sells as $sell) {
+            // BUY units strictly before this sell date, excluding the txn being deleted
+            $bQ = $db->prepare("
+                SELECT COALESCE(SUM(units), 0) FROM mf_transactions
+                WHERE portfolio_id  = ?
+                  AND fund_id       = ?
+                  AND folio_number <=> ?
+                  AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
+                  AND txn_date < ?
+                  AND id != ?
+            ");
+            $bQ->execute([$pid, $fid, $folio, $sell['txn_date'], $txn_id]);
+            $boughtBefore = (float)$bQ->fetchColumn();
+
+            $sQ = $db->prepare("
+                SELECT COALESCE(SUM(units), 0) FROM mf_transactions
+                WHERE portfolio_id  = ?
+                  AND fund_id       = ?
+                  AND folio_number <=> ?
+                  AND transaction_type IN ('SELL','SWITCH_OUT')
+                  AND txn_date <= ?
+            ");
+            $sQ->execute([$pid, $fid, $folio, $sell['txn_date']]);
+            $soldBy = (float)$sQ->fetchColumn();
+
+            if ($soldBy > $boughtBefore) {
+                $db->rollBack();
+                $fName = $db->prepare("SELECT scheme_name FROM funds WHERE id=?");
+                $fName->execute([$fid]);
+                $name = $fName->fetchColumn() ?: 'this fund';
+                echo json_encode([
+                    'success' => false,
+                    'message' => "Cannot delete: A SELL of {$sell['units']} units on {$sell['txn_date']} depends on this purchase. Delete the SELL transaction first, then delete this BUY."
+                ]);
+                exit;
+            }
+        }
+    }
+    // ────────────────────────────────────────────────────────────
     $del->execute([$txn_id]);
 
     audit_log_pdo($db, $currentUser['id'], 'mf_txn_delete', "mf_transactions:$txn_id", '');
@@ -76,4 +143,3 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
-

@@ -20,22 +20,11 @@ ob_start();
     </div>
     <div class="page-actions" style="display:flex;gap:10px;align-items:center;">
 
-        <!-- Custom FY Dropdown -->
-        <div class="fy-dropdown" id="fyDropdownWrap" style="position:relative;">
-            <button class="fy-dropdown-trigger" id="fyDropdownBtn" type="button" style="
-                display:flex;align-items:center;gap:8px;
-                padding:8px 14px;
-                font-size:14px;font-weight:500;font-family:inherit;
-                color:var(--text-primary);
-                background:var(--bg-surface);
-                border:1.5px solid var(--border-strong);
-                border-radius:8px;cursor:pointer;
-                min-width:180px;justify-content:space-between;
-                transition:border-color .2s,box-shadow .2s;
-                box-shadow:var(--shadow-sm);
-            ">
-                <span id="fyDropdownLabel">All Financial Years</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="fyChevron" style="transition:transform .2s;flex-shrink:0;">
+        <!-- Custom FY Dropdown — uses shared .cfd-* classes -->
+        <div class="cfd-wrapper" id="fyDropdownWrap">
+            <button class="cfd-trigger" id="fyDropdownBtn" type="button" style="min-width:180px;justify-content:space-between;">
+                <span class="cfd-label" id="fyDropdownLabel">All Financial Years</span>
+                <svg class="cfd-chevron" id="fyChevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="6 9 12 15 18 9"/>
                 </svg>
             </button>
@@ -46,18 +35,8 @@ ob_start();
             </select>
 
             <!-- Dropdown menu -->
-            <div id="fyDropdownMenu" style="
-                display:none;
-                position:absolute;right:0;top:calc(100% + 6px);
-                background:var(--bg-surface);
-                border:1px solid var(--border);
-                border-radius:12px;
-                box-shadow:0 10px 30px rgba(0,0,0,.12);
-                min-width:200px;z-index:500;
-                overflow:hidden;
-                animation:slideUp .15s ease;
-            ">
-                <div id="fyDropdownList" style="padding:6px;"></div>
+            <div class="cfd-menu" id="fyDropdownMenu" style="right:0;left:auto;min-width:200px;">
+                <div id="fyDropdownList"></div>
             </div>
         </div>
 
@@ -71,47 +50,28 @@ ob_start();
         </button>
     </div>
 
-<style>
-.fy-dropdown-item {
-    display:flex;align-items:center;gap:10px;
-    padding:9px 12px;border-radius:8px;
-    font-size:14px;color:var(--text-primary);
-    cursor:pointer;transition:background .15s;
-    border:none;background:none;width:100%;text-align:left;
-    font-family:inherit;
-}
-.fy-dropdown-item:hover { background:var(--bg-surface-2); }
-.fy-dropdown-item.active {
-    background:var(--accent-light);color:var(--accent);font-weight:600;
-}
-[data-theme="dark"] .fy-dropdown-item.active { background:var(--accent-light); }
-#fyDropdownBtn:hover { border-color:var(--accent); }
-#fyDropdownBtn:focus { outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-</style>
-
 <script>
 (function() {
     const btn     = document.getElementById('fyDropdownBtn');
     const menu    = document.getElementById('fyDropdownMenu');
     const list    = document.getElementById('fyDropdownList');
     const label   = document.getElementById('fyDropdownLabel');
-    const chevron = document.getElementById('fyChevron');
+    const wrapper = document.getElementById('fyDropdownWrap');
     const select  = document.getElementById('fyFilter');
 
     function buildItems() {
         list.innerHTML = '';
         Array.from(select.options).forEach(opt => {
             const item = document.createElement('button');
-            item.className = 'fy-dropdown-item' + (opt.value === select.value ? ' active' : '');
+            item.type = 'button';
+            item.className = 'cfd-item' + (opt.value === select.value ? ' active' : '');
             item.textContent = opt.text;
             item.addEventListener('click', () => {
                 select.value = opt.value;
                 label.textContent = opt.text;
                 closeMenu();
-                // Trigger change event so reports.js picks it up
                 select.dispatchEvent(new Event('change'));
-                // Update active state
-                list.querySelectorAll('.fy-dropdown-item').forEach(i => i.classList.remove('active'));
+                list.querySelectorAll('.cfd-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
             });
             list.appendChild(item);
@@ -120,26 +80,22 @@ ob_start();
 
     function openMenu() {
         buildItems();
-        menu.style.display = 'block';
-        chevron.style.transform = 'rotate(180deg)';
-        btn.style.borderColor = 'var(--accent)';
+        menu.classList.add('open');
+        wrapper.classList.add('open');
     }
-
     function closeMenu() {
-        menu.style.display = 'none';
-        chevron.style.transform = 'rotate(0deg)';
-        btn.style.borderColor = '';
+        menu.classList.remove('open');
+        wrapper.classList.remove('open');
     }
 
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        menu.style.display === 'none' ? openMenu() : closeMenu();
+        menu.classList.contains('open') ? closeMenu() : openMenu();
+    });
+    document.addEventListener('click', (e) => {
+        if (!wrapper.contains(e.target)) closeMenu();
     });
 
-    document.addEventListener('click', closeMenu);
-    menu.addEventListener('click', e => e.stopPropagation());
-
-    // Watch for options being added by reports.js
     const observer = new MutationObserver(buildItems);
     observer.observe(select, { childList: true });
 })();

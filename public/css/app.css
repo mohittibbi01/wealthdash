@@ -396,13 +396,80 @@ input, select, textarea { font-family: inherit; }
 [data-theme="light"] .icon-moon { display: none; }
 [data-theme="dark"]  .icon-sun  { display: none; }
 
-/* Portfolio selector */
-.portfolio-selector .form-select {
-  padding: 6px 30px 6px 10px;
-  font-size: 13px;
-  min-height: 36px;
-  max-width: 200px;
+/* Portfolio selector — custom dropdown */
+.portfolio-selector-custom { position: relative; }
+
+.portfolio-trigger {
+  display: flex; align-items: center; gap: 7px;
+  background: none; border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 6px 10px;
+  cursor: pointer; color: var(--text-primary);
+  font-size: 13px; font-weight: 500;
+  transition: background var(--transition);
+  min-height: 36px; white-space: nowrap;
 }
+.portfolio-trigger:hover { background: var(--bg-surface-2); }
+
+.portfolio-trigger-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.portfolio-trigger-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.portfolio-trigger-chevron { color: var(--text-muted); flex-shrink: 0; transition: transform .2s; }
+.portfolio-selector-custom.open .portfolio-trigger-chevron { transform: rotate(180deg); }
+.portfolio-shared-badge {
+  font-size: 10px; font-weight: 600; color: var(--accent);
+  background: var(--accent-light); border-radius: 4px; padding: 1px 5px;
+}
+
+.portfolio-dropdown {
+  display: none; position: absolute; right: 0; top: calc(100% + 8px);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  min-width: 230px; z-index: 200; overflow: hidden;
+}
+.portfolio-dropdown.open { display: block; }
+
+.portfolio-dropdown-header {
+  padding: 11px 14px 9px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-dropdown-list { list-style: none; padding: 6px; margin: 0; }
+
+.portfolio-dropdown-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 10px; border-radius: var(--radius-md);
+  background: none; border: none; cursor: pointer;
+  color: var(--text-primary); font-size: 14px; text-align: left;
+  transition: background var(--transition);
+}
+.portfolio-dropdown-item:hover { background: var(--bg-surface-2); }
+.portfolio-dropdown-item.active { background: var(--accent-light); }
+
+.portfolio-item-icon {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+.portfolio-item-info { flex: 1; min-width: 0; }
+.portfolio-item-name { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-item-tag {
+  font-size: 10px; color: var(--accent); font-weight: 600;
+  background: var(--accent-light); border-radius: 3px; padding: 1px 4px;
+}
+.portfolio-item-check { color: var(--accent); margin-left: auto; flex-shrink: 0; }
+
+.portfolio-dropdown-footer { padding: 6px; border-top: 1px solid var(--border); }
+.portfolio-new-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 10px; border-radius: var(--radius-md);
+  background: none; border: none; cursor: pointer;
+  color: var(--accent); font-size: 14px; font-weight: 500;
+  transition: background var(--transition);
+}
+.portfolio-new-btn:hover { background: var(--accent-light); }
 
 /* User menu */
 .user-menu { position: relative; }
@@ -708,7 +775,7 @@ input, select, textarea { font-family: inherit; }
 
   .auth-card { padding: 28px 20px; }
 
-  .portfolio-selector .form-select { max-width: 140px; font-size: 12px; }
+  .portfolio-trigger { font-size: 12px; } .portfolio-trigger-name { max-width: 110px; }
 }
 
 /* ============================================================
@@ -1069,6 +1136,7 @@ input, select, textarea { font-family: inherit; }
 }
 
 .filter-select {
+  /* keep for fallback / non-JS environments */
   padding: 7px 30px 7px 12px;
   font-size: 13px;
   font-weight: 500;
@@ -1095,6 +1163,60 @@ input, select, textarea { font-family: inherit; }
 
 [data-theme="dark"] .filter-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%2394A3B8' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+
+/* ---- Custom Filter Dropdown (replaces native <select> visually) ---- */
+.cfd-wrapper { position: relative; display: inline-block; }
+
+.cfd-trigger {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 11px; font-size: 13px; font-weight: 500;
+  color: var(--text-primary); background: var(--bg-surface-2);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  cursor: pointer; white-space: nowrap;
+  transition: border-color var(--transition), background var(--transition);
+  min-height: 34px;
+}
+.cfd-trigger:hover,
+.cfd-wrapper.open .cfd-trigger {
+  border-color: var(--border-strong);
+  background: var(--bg-surface);
+}
+.cfd-wrapper.open .cfd-trigger { border-color: var(--accent); }
+
+.cfd-chevron {
+  color: var(--text-muted); flex-shrink: 0;
+  transition: transform .18s;
+}
+.cfd-wrapper.open .cfd-chevron { transform: rotate(180deg); }
+
+.cfd-label { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+
+.cfd-menu {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  min-width: 160px; z-index: 300; overflow: hidden;
+  padding: 5px;
+}
+.cfd-menu.open { display: block; animation: cfdSlideIn .13s ease; }
+
+@keyframes cfdSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cfd-item {
+  display: block; width: 100%; text-align: left;
+  padding: 8px 11px; font-size: 13px; font-weight: 400;
+  color: var(--text-primary); background: none; border: none;
+  border-radius: var(--radius-md); cursor: pointer;
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.cfd-item:hover { background: var(--bg-surface-2); }
+.cfd-item.active {
+  background: var(--accent-light); color: var(--accent); font-weight: 600;
 }
 
 /* View toggle buttons */
@@ -1466,7 +1588,7 @@ body.sidebar-collapsed .main-wrapper {
   .form-row     { grid-template-columns: 1fr; }
 
   .auth-card { padding: 28px 20px; }
-  .portfolio-selector .form-select { max-width: 140px; font-size: 12px; }
+  .portfolio-trigger { font-size: 12px; } .portfolio-trigger-name { max-width: 110px; }
 }
 
 /* ---- 480px small phones ---- */

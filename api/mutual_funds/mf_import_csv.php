@@ -91,6 +91,15 @@ try {
                 continue;
             }
 
+            // Block future dates
+            $tz = new DateTimeZone('Asia/Kolkata');
+            $todayIST = (new DateTime('now', $tz))->format('Y-m-d');
+            if ($txn_date > $todayIST) {
+                $skipped++;
+                $errors_list[] = "Row ".($idx+2).": Future date ({$txn_date}) not allowed. Today is {$todayIST}.";
+                continue;
+            }
+
             $units = (float)($row['units'] ?? 0);
             $nav   = (float)($row['nav'] ?? 0);
             if ($units <= 0 || $nav <= 0) {
@@ -112,6 +121,50 @@ try {
             ");
             $dupStmt->execute([$portfolio_id, $fund['id'], $txn_date, $units, $nav, $txn_type]);
             if ($dupStmt->fetch()) { $skipped++; continue; }
+
+            // Check units availability for SELL/SWITCH_OUT (date-aware)
+            if (in_array($txn_type, ['SELL', 'SWITCH_OUT'])) {
+                $folio = $row['folio'] ?? null;
+
+                // Rule: no same-day sell
+                $sdQ = $db->prepare("
+                    SELECT COUNT(*) FROM mf_transactions
+                    WHERE portfolio_id=? AND fund_id=? AND folio_number<=>?
+                      AND txn_date=? AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
+                ");
+                $sdQ->execute([$portfolio_id, $fund['id'], $folio, $txn_date]);
+                if ((int)$sdQ->fetchColumn() > 0) {
+                    $skipped++;
+                    $errors_list[] = "Row ".($idx+2).": Cannot sell on same day as purchase ({$txn_date}) for \"{$fund['scheme_name']}\".";
+                    continue;
+                }
+
+                // Units bought strictly before sell date
+                $bQ = $db->prepare("
+                    SELECT COALESCE(SUM(units),0) FROM mf_transactions
+                    WHERE portfolio_id=? AND fund_id=? AND folio_number<=>?
+                      AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
+                      AND txn_date < ?
+                ");
+                $bQ->execute([$portfolio_id, $fund['id'], $folio, $txn_date]);
+                $bought = (float)$bQ->fetchColumn();
+
+                $sQ = $db->prepare("
+                    SELECT COALESCE(SUM(units),0) FROM mf_transactions
+                    WHERE portfolio_id=? AND fund_id=? AND folio_number<=>?
+                      AND transaction_type IN ('SELL','SWITCH_OUT')
+                      AND txn_date <= ?
+                ");
+                $sQ->execute([$portfolio_id, $fund['id'], $folio, $txn_date]);
+                $sold = (float)$sQ->fetchColumn();
+
+                $available = round($bought - $sold, 6);
+                if ($units > $available) {
+                    $skipped++;
+                    $errors_list[] = "Row ".($idx+2).": Cannot sell {$units} units of \"{$fund['scheme_name']}\" on {$txn_date} — only " . number_format($available, 4) . " units were available on this date.";
+                    continue;
+                }
+            }
 
             $ins = $db->prepare("
                 INSERT INTO mf_transactions

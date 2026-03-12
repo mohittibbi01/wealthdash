@@ -87,6 +87,36 @@ if (!empty($txn_date)) {
     }
 }
 
+// ── Date/Market validations (only for BUY/SELL/SWITCH) ────────
+$tradingTypes = ['BUY', 'SELL', 'SWITCH_IN', 'SWITCH_OUT'];
+if (!empty($txn_date) && in_array($txn_type, $tradingTypes)) {
+
+    // IST timezone
+    $tz      = new DateTimeZone('Asia/Kolkata');
+    $nowIST  = new DateTime('now', $tz);
+    $todayStr = $nowIST->format('Y-m-d');
+
+    // RULE: No future dates
+    if ($txn_date > $todayStr) {
+        $errors[] = "Transaction date ({$txn_date}) cannot be in the future. Today is {$todayStr}.";
+    }
+
+    // RULE: Same-day → check market hours (NSE/BSE: 09:15–15:30 IST, Mon–Fri)
+    if ($txn_date === $todayStr && empty($errors)) {
+        $dayOfWeek = (int)$nowIST->format('N'); // 1=Mon … 7=Sun
+        $timeNow   = (int)$nowIST->format('Hi'); // e.g. 0914, 1530
+
+        if ($dayOfWeek >= 6) {
+            $errors[] = "Cannot record a transaction today — Indian stock market is closed on weekends.";
+        } elseif ($timeNow < 915) {
+            $errors[] = "Market has not opened yet today. NSE/BSE opens at 09:15 AM IST. Current time: " . $nowIST->format('h:i A') . " IST.";
+        } elseif ($timeNow > 1530) {
+            $errors[] = "Market is closed for today. NSE/BSE closes at 03:30 PM IST. Use tomorrow's date or a past date.";
+        }
+    }
+}
+// ─────────────────────────────────────────────────────────────
+
 if (!empty($errors)) {
     json_die(false, implode('. ', $errors), 422);
 }
@@ -127,6 +157,73 @@ try {
     }
 
     $db->beginTransaction();
+
+    // ── SELL/SWITCH_OUT: date-aware units validation ─────────────
+    if (in_array($txn_type, ['SELL', 'SWITCH_OUT'])) {
+
+        // Helper: get fund name once
+        $fNameStmt = $db->prepare("SELECT scheme_name FROM funds WHERE id = ?");
+        $fNameStmt->execute([$fund_id]);
+        $fundName = $fNameStmt->fetchColumn() ?: 'this fund';
+
+        // RULE 1: T+1 — cannot sell on the same day as a BUY
+        // Check if any BUY exists for this fund+portfolio+folio on the SAME date
+        $sameDayBuyQ = $db->prepare("
+            SELECT COUNT(*) FROM mf_transactions
+            WHERE portfolio_id   = ?
+              AND fund_id        = ?
+              AND folio_number  <=> ?
+              AND txn_date       = ?
+              AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
+              " . ($edit_id ? "AND id != $edit_id" : "") . "
+        ");
+        $sameDayBuyQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
+        if ((int)$sameDayBuyQ->fetchColumn() > 0) {
+            $db->rollBack();
+            json_die(false, "Cannot sell on the same day as a purchase ({$txn_date}). Units are credited next day — earliest sell date is " . date('d-m-Y', strtotime($txn_date . ' +1 day')) . ".", 422);
+        }
+
+        // RULE 2: Back-date sell — only count BUY units with txn_date < sell date
+        // (units bought on sell-date itself are not yet available)
+        $buyQ = $db->prepare("
+            SELECT COALESCE(SUM(units), 0)
+            FROM mf_transactions
+            WHERE portfolio_id  = ?
+              AND fund_id       = ?
+              AND folio_number <=> ?
+              AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
+              AND txn_date < ?
+        ");
+        $buyQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
+        $boughtBeforeDate = (float)$buyQ->fetchColumn();
+
+        // All SELLs on or before this date (excluding current edit)
+        $sellQ = $db->prepare("
+            SELECT COALESCE(SUM(units), 0)
+            FROM mf_transactions
+            WHERE portfolio_id  = ?
+              AND fund_id       = ?
+              AND folio_number <=> ?
+              AND transaction_type IN ('SELL','SWITCH_OUT')
+              AND txn_date <= ?
+              " . ($edit_id ? "AND id != $edit_id" : "") . "
+        ");
+        $sellQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
+        $soldByDate = (float)$sellQ->fetchColumn();
+
+        $availableOnDate = round($boughtBeforeDate - $soldByDate, 6);
+
+        if ($availableOnDate <= 0) {
+            $db->rollBack();
+            json_die(false, "Cannot sell on {$txn_date}: 0 units were available in \"{$fundName}\" on this date. Make sure purchase transactions exist before this date.", 422);
+        }
+
+        if ($units > $availableOnDate) {
+            $db->rollBack();
+            json_die(false, "Cannot sell {$units} units on {$txn_date}. Only " . number_format($availableOnDate, 4) . " units were available in \"{$fundName}\" on this date.", 422);
+        }
+    }
+    // ────────────────────────────────────────────────────────────
 
     if ($edit_id) {
         // UPDATE existing transaction
