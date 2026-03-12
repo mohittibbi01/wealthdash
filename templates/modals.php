@@ -72,8 +72,30 @@ if (!defined('WEALTHDASH')) die();
 </div>
 
 <!-- ============================================================
-     LOADING OVERLAY
+     CUSTOM CONFIRM DIALOG
      ============================================================ -->
+<div id="modalConfirm" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--bg-surface);border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:420px;overflow:hidden;border:1px solid var(--border);">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);">
+      <h3 id="confirmTitle" style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary);">Confirm Delete</h3>
+      <button onclick="closeConfirmModal()" style="background:none;border:none;font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;padding:0 4px;">&times;</button>
+    </div>
+    <!-- Body -->
+    <div style="padding:20px 20px 8px;">
+      <p id="confirmMessage" style="margin:0;font-size:14px;color:var(--text-secondary);line-height:1.6;"></p>
+    </div>
+    <!-- Footer -->
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:16px 20px 20px;">
+      <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmOkBtn">
+        <span id="confirmOkText">Delete</span>
+        <span id="confirmOkSpinner" style="display:none;width:13px;height:13px;margin-left:6px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none;"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="loadingOverlay" style="display:none" class="loading-overlay">
   <div class="loading-spinner"></div>
 </div>
@@ -82,4 +104,3 @@ if (!defined('WEALTHDASH')) die();
      TOAST NOTIFICATIONS
      ============================================================ -->
 <div id="toastContainer" class="toast-container"></div>
-

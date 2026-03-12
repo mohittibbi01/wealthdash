@@ -505,6 +505,6 @@ ob_start();
 
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=2"></script>';
+$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=3"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>

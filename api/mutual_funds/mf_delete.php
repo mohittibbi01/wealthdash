@@ -4,33 +4,38 @@
  * POST /api/mutual_funds/mf_delete.php
  * Body: { txn_id, csrf_token }
  */
+ob_start();
+
 define('WEALTHDASH', true);
 require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
 require_once APP_ROOT . '/includes/auth_check.php';
 require_once APP_ROOT . '/includes/helpers.php';
 require_once APP_ROOT . '/includes/holding_calculator.php';
 
-header('Content-Type: application/json');
+ob_clean();
+header('Content-Type: application/json; charset=utf-8');
+
+function delete_json_die(bool $success, string $msg, int $code = 200): never {
+    http_response_code($code);
+    echo json_encode(['success' => $success, 'message' => $msg]);
+    exit;
+}
+
 $currentUser = require_auth();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'POST only']);
-    exit;
+    delete_json_die(false, 'POST only', 405);
 }
 
 $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 
 if (!verify_csrf($input['csrf_token'] ?? '')) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
-    exit;
+    delete_json_die(false, 'Invalid CSRF token', 403);
 }
 
 $txn_id = (int)($input['txn_id'] ?? 0);
 if ($txn_id <= 0) {
-    echo json_encode(['success' => false, 'message' => 'Invalid transaction ID']);
-    exit;
+    delete_json_die(false, 'Invalid transaction ID', 400);
 }
 
 try {
@@ -47,14 +52,11 @@ try {
     $txn = $stmt->fetch();
 
     if (!$txn) {
-        echo json_encode(['success' => false, 'message' => 'Transaction not found']);
-        exit;
+        delete_json_die(false, 'Transaction not found', 404);
     }
 
     if ($txn['user_id'] != $currentUser['id'] && $currentUser['role'] !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Access denied']);
-        exit;
+        delete_json_die(false, 'Access denied', 403);
     }
 
     $db->beginTransaction();
@@ -118,15 +120,13 @@ try {
                 $fName = $db->prepare("SELECT scheme_name FROM funds WHERE id=?");
                 $fName->execute([$fid]);
                 $name = $fName->fetchColumn() ?: 'this fund';
-                echo json_encode([
-                    'success' => false,
-                    'message' => "Cannot delete: A SELL of {$sell['units']} units on {$sell['txn_date']} depends on this purchase. Delete the SELL transaction first, then delete this BUY."
-                ]);
-                exit;
+                delete_json_die(false, "Cannot delete: A SELL of {$sell['units']} units on {$sell['txn_date']} depends on this purchase. Delete the SELL transaction first, then delete this BUY.", 422);
             }
         }
     }
     // ────────────────────────────────────────────────────────────
+
+    $del = $db->prepare("DELETE FROM mf_transactions WHERE id = ?");
     $del->execute([$txn_id]);
 
     audit_log_pdo($db, $currentUser['id'], 'mf_txn_delete', "mf_transactions:$txn_id", '');
@@ -136,10 +136,14 @@ try {
 
     $db->commit();
 
-    echo json_encode(['success' => true, 'message' => 'Transaction deleted']);
+    echo json_encode(['success' => true, 'message' => 'Transaction deleted successfully']);
 
-} catch (Exception $e) {
+} catch (PDOException $e) {
     if (isset($db) && $db->inTransaction()) $db->rollBack();
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+    error_log('[WealthDash] mf_delete PDO error: ' . $e->getMessage());
+    delete_json_die(false, 'Database error. Please try again.', 500);
+} catch (Throwable $e) {
+    if (isset($db) && $db->inTransaction()) $db->rollBack();
+    error_log('[WealthDash] mf_delete error: ' . $e->getMessage());
+    delete_json_die(false, 'Server error: ' . $e->getMessage(), 500);
 }

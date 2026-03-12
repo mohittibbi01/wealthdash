@@ -412,16 +412,21 @@ async function editTransaction(txnId) {
 }
 
 async function deleteTransaction(txnId, fundName) {
-  if (!confirm(`Delete transaction for "${fundName}"? This will recalculate holdings.`)) return;
+  showConfirm({
+    title:     'Delete Transaction',
+    message:   `Are you sure you want to delete the transaction for <strong>${escHtml(fundName)}</strong>?<br><span style="color:var(--text-muted);font-size:13px;">Holdings will be recalculated automatically. This action cannot be undone.</span>`,
+    okText:    'Delete',
+    onConfirm: async () => {
+      const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
+      await API.post('/api/mutual_funds/mf_delete.php', { txn_id: txnId, csrf_token: csrf });
+      showToast('Transaction deleted successfully', 'success');
+      reloadCurrentPage();
+    }
+  });
+}
 
-  try {
-    const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
-    await API.post('/api/mutual_funds/mf_delete.php', { txn_id: txnId, csrf_token: csrf });
-    showToast('Transaction deleted');
-    reloadCurrentPage();
-  } catch (err) {
-    showToast('Delete failed: ' + err.message, 'error');
-  }
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function saveTransaction() {

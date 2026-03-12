@@ -163,7 +163,7 @@ $flashMsgs     = flash_get();
     });
   }
 </script>
-<script src="<?= APP_URL ?>/public/js/app.js"></script>
+<script src="<?= APP_URL ?>/public/js/app.js?v=2"></script>
 <?php if (!empty($pageScript)): ?>
   <script src="<?= APP_URL ?>/public/js/<?= e($pageScript) ?>"></script>
 <?php endif; ?>

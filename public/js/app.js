@@ -387,6 +387,7 @@ const API = {
     return json;
   }
 };
+window.API = API;
 
 // Modal helpers
 function showModal(id) {
@@ -527,3 +528,57 @@ function initCustomFilterDropdowns() {
 document.addEventListener('DOMContentLoaded', initCustomFilterDropdowns);
 // Also expose globally so tab switches can re-init
 window.initCustomFilterDropdowns = initCustomFilterDropdowns;
+
+// ============================================================
+// CUSTOM CONFIRM DIALOG
+// Usage: showConfirm({ title, message, okText, onConfirm })
+// ============================================================
+// CUSTOM CONFIRM DIALOG
+// ============================================================
+function showConfirm({ title = 'Confirm', message = 'Are you sure?', okText = 'Delete', onConfirm }) {
+  document.getElementById('confirmTitle').textContent  = title;
+  document.getElementById('confirmMessage').innerHTML  = message;
+  document.getElementById('confirmOkText').textContent = okText;
+
+  const modal = document.getElementById('modalConfirm');
+
+  // Move to body's last child so it always renders above all drawers/panels
+  document.body.appendChild(modal);
+  modal.style.cssText = modal.style.cssText; // preserve existing inline styles
+  modal.style.display = 'flex';
+  modal.style.zIndex  = '99999';
+
+  // Clone OK button to remove previous event listeners
+  const oldOk = document.getElementById('confirmOkBtn');
+  const newOk = oldOk.cloneNode(true);
+  oldOk.parentNode.replaceChild(newOk, oldOk);
+
+  const spinner = newOk.querySelector('#confirmOkSpinner');
+  const okLabel = newOk.querySelector('#confirmOkText');
+
+  newOk.addEventListener('click', async () => {
+    newOk.disabled        = true;
+    spinner.style.display = 'inline-block';
+    okLabel.style.opacity = '0.6';
+    try {
+      await onConfirm();
+    } catch (err) {
+      showToast(err.message || 'Action failed', 'error');
+    } finally {
+      newOk.disabled        = false;
+      spinner.style.display = 'none';
+      okLabel.style.opacity = '1';
+      closeConfirmModal();
+    }
+  });
+}
+
+function closeConfirmModal() {
+  document.getElementById('modalConfirm').style.display = 'none';
+}
+
+// Close on backdrop click
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('modalConfirm');
+  if (modal && e.target === modal) closeConfirmModal();
+});
