@@ -107,6 +107,11 @@ $selectedPortfolioId = $_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id
   </div>
   <?php endif; ?>
 
+  <!-- Number Format Toggle -->
+  <button class="topbar-btn" id="numFormatToggle" onclick="toggleNumFormat()" title="Toggle number format (Short/Full)">
+    <span id="numFormatLabel" style="font-size:11px;font-weight:600;letter-spacing:0.3px;">1.3L</span>
+  </button>
+
   <!-- Theme Toggle -->
   <button class="topbar-btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle Dark/Light mode">
     <svg class="icon-sun" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

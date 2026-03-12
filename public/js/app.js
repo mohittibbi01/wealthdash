@@ -281,21 +281,64 @@ function setBtnLoading(btn, loading) {
   if (spinnerEl) spinnerEl.style.display = loading ? 'inline-block' : 'none';
 }
 
-function formatINR(amount, decimals = 2) {
-  if (isNaN(amount)) return '₹0';
-  const abs = Math.abs(amount);
-  const sign = amount < 0 ? '-' : '';
-  const formatted = abs.toFixed(decimals);
-  const [whole, dec] = formatted.split('.');
-  let result;
-  if (whole.length <= 3) {
-    result = whole;
+// ============================================================
+// NUMBER FORMAT PREFERENCE  (short: 1.3L / full: ₹1,31,000)
+// ============================================================
+window.WD_NUM_SHORT = localStorage.getItem('wd_num_format') !== 'full';
+
+function toggleNumFormat() {
+  window.WD_NUM_SHORT = !window.WD_NUM_SHORT;
+  localStorage.setItem('wd_num_format', window.WD_NUM_SHORT ? 'short' : 'full');
+  _updateNumFormatBtn();
+  // Re-render without API reload
+  if (typeof renderHoldings     === 'function') renderHoldings();
+  if (typeof renderTxnTable     === 'function' && window._lastTxns) renderTxnTable(window._lastTxns);
+  if (typeof renderRealized     === 'function') renderRealized();
+  if (typeof renderDividends    === 'function') renderDividends();
+  if (typeof updateSummaryCards === 'function' && window._lastSummary) updateSummaryCards(window._lastSummary);
+}
+
+function _updateNumFormatBtn() {
+  const el = document.getElementById('numFormatLabel');
+  if (el) el.textContent = window.WD_NUM_SHORT ? '1.3L' : '1,31K';
+}
+
+document.addEventListener('DOMContentLoaded', _updateNumFormatBtn);
+
+// ── Indian number comma formatter ───────────────────────────
+// Rules: last 3 digits, then every 2 digits going left
+// e.g. 123456789 → 12,34,56,789
+function indianComma(n) {
+  const s = Math.floor(Math.abs(n)).toString();
+  if (s.length <= 3) return s;
+  const last3 = s.slice(-3);
+  const rest   = s.slice(0, -3);
+  return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
+}
+
+// ── Core formatter used everywhere ──────────────────────────
+function fmtINR(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  n = Number(n);
+  const abs  = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const dec  = (abs % 1).toFixed(2).slice(2);
+  let s;
+  const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
+  if (short) {
+    if (abs >= 1e7)      s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
+    else if (abs >= 1e5) s = '₹' + (abs / 1e5).toFixed(2) + ' L';
+    else                 s = '₹' + indianComma(abs) + '.' + dec;
   } else {
-    const last3 = whole.slice(-3);
-    const rest  = whole.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',');
-    result = rest + ',' + last3;
+    s = '₹' + indianComma(abs) + '.' + dec;
   }
-  return sign + '₹' + result + (decimals > 0 ? '.' + dec : '');
+  return sign + s;
+}
+window.fmtINR    = fmtINR;
+window.indianComma = indianComma;
+
+function formatINR(amount, decimals = 2) {
+  return fmtINR(amount);
 }
 
 function formatPct(value, decimals = 2) {
@@ -392,7 +435,12 @@ window.API = API;
 // Modal helpers
 function showModal(id) {
   const el = document.getElementById(id);
-  if (el) { el.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+  if (el) {
+    document.body.appendChild(el); // always render above all stacking contexts
+    el.style.zIndex  = '99999';
+    el.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
 }
 function hideModal(id) {
   const el = document.getElementById(id);

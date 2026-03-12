@@ -1,2 +1,5 @@
 all indexes must be updated
 crypto ko add kr skte hai	
+hr table pr paginaiton
+sare button shi kaam kre
+button ka jo name hai vhi  symbol ho,jese ki export button pr import symbol aa rha hai

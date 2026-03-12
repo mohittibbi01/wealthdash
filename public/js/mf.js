@@ -22,7 +22,9 @@ const MF = {
   page: 1,
   perPage: 50,
   totalTxns: 0,
-  txnFilters: {}
+  txnFilters: {},
+  holdingsPage: 1,
+  holdingsPerPage: 25,
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -131,6 +133,8 @@ function applyHoldingsFilter() {
   MF.gainTypeFilter  = document.getElementById('filterGainType')?.value || '';
   MF.search = document.getElementById('searchFund')?.value?.toLowerCase() || '';
 
+  MF.holdingsPage = 1; // reset to first page on filter change
+
   MF.filtered = MF.data.filter(h => {
     if (MF.categoryFilter && h.category !== MF.categoryFilter) return false;
     if (MF.gainTypeFilter && h.gain_type !== MF.gainTypeFilter) return false;
@@ -171,7 +175,15 @@ function renderHoldings() {
 
   const isFolio = MF.view === 'folio';
 
-  body.innerHTML = MF.filtered.map(h => {
+  // --- Client-side pagination ---
+  const total   = MF.filtered.length;
+  const perPage = MF.holdingsPerPage;
+  const pages   = Math.ceil(total / perPage);
+  if (MF.holdingsPage > pages) MF.holdingsPage = 1;
+  const pageStart = (MF.holdingsPage - 1) * perPage;
+  const paged     = MF.filtered.slice(pageStart, pageStart + perPage);
+
+  body.innerHTML = paged.map(h => {
     const gain      = h.gain_loss || 0;
     const gainPct   = h.gain_pct || 0;
     const gainClass = gain >= 0 ? 'positive' : 'negative';
@@ -196,15 +208,14 @@ function renderHoldings() {
       <td class="text-center ${gainClass}">${gainSign}${fmtInr(Math.abs(gain))}</td>
       <td class="text-center ${gainClass}">${gainSign}${gainPct}%</td>
       <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagr}</td>
-      <td class="text-center">${Number(h.total_units).toFixed(4)}</td>
+      <td class="text-center">
+        <div style="font-weight:600;">💪 ${Number(h.total_units).toFixed(4)}</div>
+        ${h.ltcg_units > 0 ? `<div style="font-size:12px;margin-top:3px;color:#16a34a;font-weight:600;"><span style="font-size:14px;font-weight:900;">✓</span> L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
+        ${h.stcg_units > 0 ? `<div style="font-size:12px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
+      </td>
       <td class="text-center">${nav}${navDate}</td>
-      <td class="text-center">${typeTag}</td>
-      <td class="text-center">${ltcgDate}</td>
       <td>
-        <div style="display:flex;gap:4px;">
-          <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="Transactions">📋</button>
-          <button class="btn btn-ghost btn-xs" onclick="openAddTxnForFund(${fundId},'${escAttr(h.scheme_name)}')" title="Add">+</button>
-        </div>
+        <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
       </td>
     </tr>`;
   }).join('');
@@ -220,21 +231,77 @@ function renderHoldings() {
     document.getElementById('footGainPct').textContent  = (g>=0?'+':'') + totPct + '%';
     document.getElementById('footGainPct').className    = 'text-right ' + (g>=0?'positive':'negative');
   }
+
+  // --- Render pagination bar ---
+  const wrap     = document.getElementById('holdingsPaginationWrap');
+  const infoEl   = document.getElementById('holdingsPaginationInfo');
+  const pgEl     = document.getElementById('holdingsPagination');
+
+  if (wrap && infoEl && pgEl) {
+    if (pages <= 1) {
+      wrap.style.display = 'none';
+    } else {
+      wrap.style.display = 'flex';
+      const from = pageStart + 1;
+      const to   = Math.min(pageStart + perPage, total);
+      infoEl.textContent = `${from}–${to} of ${total}`;
+
+      let html = '';
+      if (MF.holdingsPage > 1)
+        html += `<button class="btn btn-ghost btn-sm" onclick="goHoldingsPage(${MF.holdingsPage-1})">‹ Prev</button>`;
+      const start = Math.max(1, MF.holdingsPage - 2);
+      const end   = Math.min(pages, MF.holdingsPage + 2);
+      for (let p = start; p <= end; p++)
+        html += `<button class="btn btn-ghost btn-sm ${p===MF.holdingsPage?'active':''}" onclick="goHoldingsPage(${p})">${p}</button>`;
+      if (MF.holdingsPage < pages)
+        html += `<button class="btn btn-ghost btn-sm" onclick="goHoldingsPage(${MF.holdingsPage+1})">Next ›</button>`;
+      pgEl.innerHTML = html;
+    }
+  }
+}
+
+function goHoldingsPage(p) {
+  MF.holdingsPage = p;
+  renderHoldings();
+  document.getElementById('holdingsBody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function updateSummaryCards(summary) {
+  window._lastSummary = summary; // cache for format toggle re-render
   const inv  = summary.total_invested  || 0;
   const val  = summary.value_now       || 0;
   const gain = summary.gain_loss       || 0;
   const pct  = inv > 0 ? ((gain/inv)*100).toFixed(2) : '0.00';
+  const isPos = gain >= 0;
 
   setEl('mfTotalInvested', fmtInr(inv));
   setEl('mfValueNow',      fmtInr(val));
+
   const gainEl = document.getElementById('mfGainLoss');
   if (gainEl) {
-    gainEl.textContent = (gain>=0?'+':'') + fmtInr(Math.abs(gain)) + ' (' + (gain>=0?'+':'') + pct + '%)';
-    gainEl.className   = 'stat-value ' + (gain>=0?'positive':'negative');
+    gainEl.textContent = (isPos ? '+' : '') + fmtInr(Math.abs(gain));
+    gainEl.className   = 'stat-value ' + (isPos ? 'positive' : 'negative');
   }
+  const pctEl = document.getElementById('mfGainPct');
+  if (pctEl) {
+    pctEl.textContent = '(' + (isPos ? '+' : '') + pct + '%)';
+    pctEl.style.color = isPos ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
+  }
+
+  // Update gain/loss icon
+  const iconEl = document.getElementById('mfGainIcon');
+  if (iconEl) {
+    iconEl.innerHTML = isPos
+      ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+           <polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/>
+           <polyline points="19,4 23,4 23,8"/>
+         </svg>`
+      : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+           <polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/>
+           <polyline points="19,20 23,20 23,16"/>
+         </svg>`;
+  }
+
   setEl('mfFundCount', summary.fund_count || '');
 }
 
@@ -286,6 +353,7 @@ async function loadTransactions(page = 1) {
 }
 
 function renderTxnTable(txns) {
+  window._lastTxns = txns; // cache for format toggle
   const body  = document.getElementById('txnBody');
   const count = document.getElementById('txnTotalCount');
   if (count) count.textContent = `${MF.totalTxns} transactions`;
@@ -573,10 +641,10 @@ async function openTxnDrawer(fundId, fundName) {
   title.textContent = fundName;
   content.innerHTML = '<div class="spinner" style="margin:40px auto;"></div>';
   overlay.style.display = 'block';
-  drawer.style.display  = 'block';
+  drawer.style.display  = 'flex';
 
   try {
-    const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&fund_id=${fundId}&per_page=100`);
+    const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&fund_id=${fundId}&per_page=1000`);
     const txns = res.data || [];
 
     if (!txns.length) {
@@ -584,38 +652,111 @@ async function openTxnDrawer(fundId, fundName) {
       return;
     }
 
-    const typeColors = { BUY:'badge-success', SELL:'badge-danger', DIV_REINVEST:'badge-info',
-                         SWITCH_IN:'badge-primary', SWITCH_OUT:'badge-warning' };
+    // Store for pagination re-render
+    window._drawerTxns    = txns;
+    window._drawerFundId  = fundId;
+    window._drawerFundName = fundName;
+    window._drawerPage    = 1;
+    window._drawerPerPage = 10;
 
-    content.innerHTML = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-        <button class="btn btn-primary btn-sm" onclick="openAddTxnForFund(${fundId},'${escAttr(fundName)}')">+ Add</button>
-      </div>
-      <table class="table table-hover" style="font-size:13px;">
-        <thead><tr>
-          <th>Date</th><th>Type</th><th>Units</th><th>NAV</th><th class="text-right">Amount</th><th>Folio</th><th></th>
-        </tr></thead>
-        <tbody>
-          ${txns.map(t => `
-            <tr>
-              <td>${formatDateDisplay(t.txn_date)}</td>
-              <td><span class="badge ${typeColors[t.transaction_type]||''}">${t.transaction_type}</span></td>
-              <td>${Number(t.units).toFixed(4)}</td>
-              <td>₹${Number(t.nav).toFixed(4)}</td>
-              <td class="text-right">${fmtInr(t.value_at_cost)}</td>
-              <td>${t.folio_number||'—'}</td>
-              <td>
-                <button class="btn btn-ghost btn-xs" onclick="editTransaction(${t.id})">✏️</button>
-                <button class="btn btn-ghost btn-xs" onclick="deleteTransaction(${t.id},'${escAttr(t.scheme_name)}')">🗑</button>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
+    renderDrawerPage(content, fundId, fundName);
   } catch (err) {
     content.innerHTML = `<p style="color:var(--danger);">${err.message}</p>`;
   }
+}
+
+function renderDrawerPage(content, fundId, fundName) {
+  const txns    = window._drawerTxns;
+  const page    = window._drawerPage;
+  const perPage = window._drawerPerPage;
+  const total   = txns.length;
+  const pages   = Math.ceil(total / perPage);
+  const from    = (page - 1) * perPage;
+  const pageTxns = txns.slice(from, from + perPage);
+
+  const typeColors = { BUY:'badge-success', SELL:'badge-danger', DIV_REINVEST:'badge-info',
+                       SWITCH_IN:'badge-primary', SWITCH_OUT:'badge-warning' };
+  const buyTypes = ['BUY','SWITCH_IN','DIV_REINVEST'];
+  const fundHolding = MF.data.find(h => h.fund_id === fundId);
+  const ltcgDays = fundHolding?.min_ltcg_days || 365;
+
+  const drawerRows = pageTxns.map(t => {
+    let ltcgCell = '<td style="color:var(--text-muted);text-align:center;">—</td>';
+    if (buyTypes.includes(t.transaction_type)) {
+      const ltcgTs   = new Date(t.txn_date).getTime() + ltcgDays * 86400000;
+      const ltcgDate = new Date(ltcgTs);
+      const isElig   = ltcgTs <= Date.now();
+      const dd   = String(ltcgDate.getDate()).padStart(2,'0');
+      const mm   = String(ltcgDate.getMonth()+1).padStart(2,'0');
+      const yyyy = ltcgDate.getFullYear();
+      const lbl  = `${dd}-${mm}-${yyyy}`;
+      ltcgCell = isElig
+        ? `<td><span class="badge badge-success">✓ ${lbl}</span></td>`
+        : `<td style="color:var(--warning);font-size:12px;">⏳ ${lbl}</td>`;
+    }
+    return `<tr>
+      <td>${formatDateDisplay(t.txn_date)}</td>
+      <td><span class="badge ${typeColors[t.transaction_type]||''}">${t.transaction_type}</span></td>
+      <td>${Number(t.units).toFixed(4)}</td>
+      <td>₹${Number(t.nav).toFixed(4)}</td>
+      <td class="text-right">${fmtInr(t.value_at_cost)}</td>
+      <td>${t.folio_number||'—'}</td>
+      ${ltcgCell}
+      <td>
+        <button class="btn btn-ghost btn-xs" onclick="editTransaction(${t.id})">✏️</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteTransaction(${t.id},'${escAttr(t.scheme_name)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Pagination buttons
+  let paginationHtml = '';
+  if (pages > 1) {
+    const btnStyle = (active) => `style="min-width:32px;height:32px;border:1px solid var(--border);border-radius:6px;background:${active ? 'var(--accent)' : 'var(--bg-surface)'};color:${active ? '#fff' : 'var(--text-primary)'};font-size:13px;font-weight:${active ? '600' : '400'};cursor:${active ? 'default' : 'pointer'};padding:0 8px;"`;
+
+    let btns = '';
+    // Prev
+    btns += `<button ${btnStyle(false)} ${page===1?'disabled style="opacity:.4;cursor:default;"':''} onclick="goDrawerPage(${page-1})">‹</button>`;
+    // Page numbers
+    for (let p = 1; p <= pages; p++) {
+      if (p === 1 || p === pages || (p >= page-2 && p <= page+2)) {
+        btns += `<button ${btnStyle(p===page)} onclick="goDrawerPage(${p})">${p}</button>`;
+      } else if (p === page-3 || p === page+3) {
+        btns += `<span style="padding:0 4px;color:var(--text-muted);">…</span>`;
+      }
+    }
+    // Next
+    btns += `<button ${btnStyle(false)} ${page===pages?'disabled style="opacity:.4;cursor:default;"':''} onclick="goDrawerPage(${page+1})">›</button>`;
+
+    paginationHtml = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+        <span style="font-size:12px;color:var(--text-muted);">
+          Showing ${from+1}–${Math.min(from+perPage,total)} of ${total} transactions
+        </span>
+        <div style="display:flex;gap:4px;align-items:center;">${btns}</div>
+      </div>`;
+  }
+
+  content.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+      <button class="btn btn-primary btn-sm" onclick="openAddTxnForFund(${fundId},'${escAttr(fundName)}')">+ Add</button>
+    </div>
+    <table class="table table-hover" style="font-size:13px;">
+      <thead><tr>
+        <th>Date</th><th>Type</th><th>Units</th><th>NAV</th><th class="text-right">Amount</th><th>Folio</th><th>LTCG Date</th><th></th>
+      </tr></thead>
+      <tbody>${drawerRows}</tbody>
+    </table>
+    ${paginationHtml}
+  `;
+}
+
+function goDrawerPage(page) {
+  const pages = Math.ceil(window._drawerTxns.length / window._drawerPerPage);
+  if (page < 1 || page > pages) return;
+  window._drawerPage = page;
+  const content = document.getElementById('drawerContent');
+  renderDrawerPage(content, window._drawerFundId, window._drawerFundName);
 }
 
 function closeTxnDrawer() {
@@ -780,12 +921,24 @@ function setEl(id, val) {
 function fmtInr(n) {
   if (n === null || n === undefined || isNaN(n)) return '—';
   n = Number(n);
-  const abs = Math.abs(n);
+  const abs  = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const dec  = (abs % 1).toFixed(2).slice(2);
+  const ic   = window.indianComma || function(x) {
+    const s = Math.floor(Math.abs(x)).toString();
+    if (s.length <= 3) return s;
+    return s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + s.slice(-3);
+  };
+  const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
   let s;
-  if (abs >= 1e7)       s = '₹' + (abs/1e7).toFixed(2) + 'Cr';
-  else if (abs >= 1e5)  s = '₹' + (abs/1e5).toFixed(2) + 'L';
-  else                  s = '₹' + abs.toLocaleString('en-IN', {minimumFractionDigits:2,maximumFractionDigits:2});
-  return n < 0 ? '-' + s : s;
+  if (short) {
+    if (abs >= 1e7)      s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
+    else if (abs >= 1e5) s = '₹' + (abs / 1e5).toFixed(2) + ' L';
+    else                 s = '₹' + ic(abs) + '.' + dec;
+  } else {
+    s = '₹' + ic(abs) + '.' + dec;
+  }
+  return sign + s;
 }
 
 function escHtml(s) {

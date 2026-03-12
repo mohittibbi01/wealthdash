@@ -62,24 +62,76 @@ ob_start();
 </div>
 
 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-bottom:24px;">
+
+  <!-- Total Invested -->
   <div class="stat-card">
-    <div class="stat-label">Total Invested</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-size:22px;line-height:1;">💰</span>
+      <div class="stat-label" style="margin:0;">Total Invested</div>
+    </div>
     <div class="stat-value" id="mfTotalInvested"><?= format_inr($totalInvested) ?></div>
   </div>
+
+  <!-- Current Value -->
   <div class="stat-card">
-    <div class="stat-label">Current Value</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="line-height:1;display:flex;align-items:center;">
+        <!-- fa-hand-holding-usd style icon -->
+        <svg width="30" height="26" viewBox="0 0 576 512" xmlns="http://www.w3.org/2000/svg">
+          <!-- hand -->
+          <path fill="#f59e0b" d="M271.06 144.3l-32.89-9.9c-5.77-1.74-9.7-7.2-9.7-13.35 0-7.68 5.92-13.91 13.19-13.91h20.6c5.45 0 10.65 1.73 14.97 4.93 2.64 1.97 6.21 1.67 8.53-.56l12.16-11.86c2.9-2.83 2.62-7.57-.57-10.06-8.28-6.39-18.29-10.2-28.29-11.2V64c0-4.42-3.58-8-8-8h-16c-4.42 0-8 3.58-8 8v19.43c-22.19 2.29-39.93 21.19-39.93 44.28 0 19.47 12.32 36.88 30.61 42.64l32.89 9.9c5.77 1.74 9.7 7.2 9.7 13.35 0 7.68-5.92 13.91-13.19 13.91h-20.6c-5.45 0-10.65-1.73-14.97-4.93-2.64-1.97-6.21-1.67-8.53.56l-12.16 11.86c-2.9 2.83-2.62 7.57.57 10.06 8.28 6.39 18.29 10.2 28.29 11.2V256c0 4.42 3.58 8 8 8h16c4.42 0 8-3.58 8-8v-19.43c22.19-2.29 39.93-21.19 39.93-44.28 0-19.47-12.32-36.88-30.61-42.64z"/>
+          <!-- holding hand base -->
+          <path fill="#fbbf24" d="M544 288c-17.67 0-34.47 5.1-48.64 14.47l-54.9 36.59c-4.88-34.29-34.47-60.78-70.46-60.78H192c-9.87 0-19.44 2.78-27.72 7.86L120.35 312H80c-26.47 0-48 21.53-48 48v112c0 8.84 7.16 16 16 16h48c8.84 0 16-7.16 16-16v-8h279.05c26.55 0 52.36-9.93 72.28-27.94l96.79-89.69c6.57-6.09 10.46-14.62 10.4-23.5-.15-18.1-15.23-32.87-33.52-32.87z"/>
+        </svg>
+      </span>
+      <div class="stat-label" style="margin:0;">Current Value</div>
+    </div>
     <div class="stat-value" id="mfValueNow"><?= format_inr($valueNow) ?></div>
   </div>
+
+  <!-- Gain / Loss -->
   <div class="stat-card">
-    <div class="stat-label">Gain / Loss</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span id="mfGainIcon">
+        <?php if ($gainLoss >= 0): ?>
+          <svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/>
+            <polyline points="19,4 23,4 23,8"/>
+          </svg>
+        <?php else: ?>
+          <svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/>
+            <polyline points="19,20 23,20 23,16"/>
+          </svg>
+        <?php endif; ?>
+      </span>
+      <div class="stat-label" style="margin:0;">Gain / Loss</div>
+    </div>
     <div class="stat-value <?= $gainLoss >= 0 ? 'positive' : 'negative' ?>" id="mfGainLoss">
-      <?= ($gainLoss >= 0 ? '+' : '') . format_inr($gainLoss) ?> (<?= $gainPct ?>%)
+      <?= ($gainLoss >= 0 ? '+' : '') . format_inr($gainLoss) ?>
+    </div>
+    <div id="mfGainPct" style="font-size:13px;font-weight:500;margin-top:3px;color:<?= $gainLoss >= 0 ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)' ?>;">
+      (<?= $gainPct ?>%)
     </div>
   </div>
+
+  <!-- Total Funds -->
   <div class="stat-card">
-    <div class="stat-label">Funds Held</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="line-height:1;display:flex;align-items:center;">
+        <!-- fa-briefcase colorful -->
+        <svg width="26" height="24" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <rect x="32" y="160" width="448" height="288" rx="32" ry="32" fill="#6366f1"/>
+          <rect x="32" y="160" width="448" height="80" rx="0" fill="#4f46e5"/>
+          <path d="M176 160v-32a32 32 0 0 1 32-32h96a32 32 0 0 1 32 32v32" fill="none" stroke="#4f46e5" stroke-width="28" stroke-linecap="round"/>
+          <rect x="220" y="240" width="72" height="44" rx="8" fill="#fff" opacity=".9"/>
+        </svg>
+      </span>
+      <div class="stat-label" style="margin:0;">Total Funds</div>
+    </div>
     <div class="stat-value" id="mfFundCount"><?= $fundCount ?></div>
   </div>
+
 </div>
 
 <!-- ═══ PAGE TABS ═══ -->
@@ -146,13 +198,11 @@ ob_start();
           <th class="text-center sortable" data-col="cagr">XIRR</th>
           <th class="text-center sortable" data-col="total_units">Units</th>
           <th class="text-center sortable" data-col="latest_nav">NAV</th>
-          <th class="text-center sortable" data-col="gain_type">Type</th>
-          <th class="text-center sortable" data-col="ltcg_date">LTCG Date</th>
           <th class="text-center" style="width:80px;">Actions</th>
         </tr>
       </thead>
       <tbody id="holdingsBody">
-        <tr><td colspan="11" class="text-center" style="padding:40px;">
+        <tr><td colspan="9" class="text-center" style="padding:40px;">
           <div class="spinner"></div>
           <p style="color:var(--text-muted);margin-top:12px;">Loading holdings...</p>
         </td></tr>
@@ -164,10 +214,15 @@ ob_start();
           <td class="text-center" id="footValue"></td>
           <td class="text-center" id="footGain"></td>
           <td class="text-center" id="footGainPct"></td>
-          <td colspan="6"></td>
+          <td colspan="5"></td>
         </tr>
       </tfoot>
     </table>
+  </div>
+  <!-- Pagination -->
+  <div class="card-footer" id="holdingsPaginationWrap" style="display:none;justify-content:space-between;align-items:center;">
+    <div id="holdingsPaginationInfo" style="font-size:13px;color:var(--text-muted);"></div>
+    <div id="holdingsPagination" style="display:flex;gap:4px;"></div>
   </div>
 </div>
 </div><!-- end tabHoldings -->
@@ -250,7 +305,7 @@ ob_start();
         </tr>
       </thead>
       <tbody id="realizedBody">
-        <tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">
+        <tr><td colspan="9" class="text-center" style="padding:40px;color:var(--text-muted);">
           Select a portfolio to load realized gains.
         </td></tr>
       </tbody>
@@ -260,7 +315,7 @@ ob_start();
           <td class="text-center" id="rFootProceeds"></td>
           <td class="text-center" id="rFootCost"></td>
           <td class="text-center" id="rFootGain"></td>
-          <td colspan="4"></td>
+          <td colspan="5"></td>
         </tr>
       </tfoot>
     </table>
@@ -494,17 +549,17 @@ ob_start();
 </div>
 
 <!-- Transaction History Drawer -->
-<div id="txnDrawerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:998;" onclick="closeTxnDrawer()"></div>
-<div id="txnDrawer" style="display:none;position:fixed;top:0;right:0;width:min(680px,100vw);height:100vh;background:var(--bg-card);border-left:1px solid var(--border-color);z-index:999;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.15);">
-  <div style="padding:20px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg-card);z-index:1;">
-    <h3 id="drawerTitle" style="margin:0;font-size:16px;">Transactions</h3>
+<div id="txnDrawerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:998;" onclick="closeTxnDrawer()"></div>
+<div id="txnDrawer" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(960px,95vw);max-height:85vh;background:var(--bg-card);border-radius:var(--radius-lg);z-index:999;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.3);flex-direction:column;">
+  <div style="padding:16px 20px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <h3 id="drawerTitle" style="margin:0;font-size:16px;font-weight:600;">Transactions</h3>
     <button class="btn btn-ghost btn-sm" onclick="closeTxnDrawer()">✕ Close</button>
   </div>
-  <div id="drawerContent" style="padding:20px;"></div>
+  <div id="drawerContent" style="padding:20px;overflow-y:auto;flex:1;"></div>
 </div>
 
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=3"></script>';
+$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=4"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>

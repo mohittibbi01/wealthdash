@@ -158,7 +158,7 @@ try {
             // XIRR for this specific folio
             $wherePort = $portfolio_id > 0 ? 't.portfolio_id = ?' : 'p.user_id = ?';
             $txnStmt = $db->prepare("
-                SELECT t.transaction_type, t.txn_date, t.value_at_cost
+                SELECT t.transaction_type, t.txn_date, t.value_at_cost, t.units
                 FROM mf_transactions t
                 JOIN portfolios p ON p.id = t.portfolio_id
                 WHERE $wherePort AND t.fund_id = ? AND t.folio_number = ?
@@ -273,7 +273,7 @@ try {
             // --- XIRR: fetch all transactions for this fund ---
             $wherePort = $portfolio_id > 0 ? 't.portfolio_id = ?' : 'p.user_id = ?';
             $txnStmt = $db->prepare("
-                SELECT t.transaction_type, t.txn_date, t.value_at_cost
+                SELECT t.transaction_type, t.txn_date, t.value_at_cost, t.units
                 FROM mf_transactions t
                 JOIN portfolios p ON p.id = t.portfolio_id
                 WHERE $wherePort AND t.fund_id = ?
@@ -295,8 +295,11 @@ try {
                 }
             }
 
-            // --- LTCG date: calculate fresh from first_purchase_date ---
+            // --- LTCG / STCG units via FIFO ---
             $minLtcgDays = (int)($r['min_ltcg_days'] ?? 365);
+            [$ltcgUnits, $stcgUnits] = calc_ltcg_stcg_units($txns, $minLtcgDays);
+
+            // --- LTCG date: calculate fresh from first_purchase_date ---
             $ltcgDate    = null;
             if ($r['first_purchase_date']) {
                 $ltcgDate = date('Y-m-d', strtotime($r['first_purchase_date']) + ($minLtcgDays * 86400));
@@ -327,6 +330,8 @@ try {
                 'folio_count'      => (int)$r['folio_count'],
                 'gain_type'        => $r['first_purchase_date'] ? get_gain_type($r['first_purchase_date'], $minLtcgDays) : 'STCG',
                 'days_held'        => $r['first_purchase_date'] ? days_diff($r['first_purchase_date']) : 0,
+                'ltcg_units'       => round($ltcgUnits, 4),
+                'stcg_units'       => round($stcgUnits, 4),
                 'invested_fmt'     => format_inr($totalInvested),
                 'value_fmt'        => format_inr($valueNow),
                 'gain_fmt'         => format_inr($gainLoss),
@@ -402,4 +407,65 @@ function format_holding_row(array $r): array {
         'value_fmt'        => format_inr($valueNow),
         'gain_fmt'         => format_inr($gainLoss),
     ];
+}
+
+/**
+ * FIFO-based LTCG/STCG units calculation.
+ *
+ * Logic:
+ *  1. Sort all BUY txns oldest→newest (queue).
+ *  2. Deduct SELL units from the oldest BUYs first (FIFO).
+ *  3. Remaining BUY lots: if held >= min_ltcg_days → LTCG, else STCG.
+ *
+ * @param  array $txns       Rows: [transaction_type, txn_date, units]
+ * @param  int   $ltcgDays   Min holding days for LTCG (365 equity / 1095 debt)
+ * @return array             [ltcg_units, stcg_units]
+ */
+function calc_ltcg_stcg_units(array $txns, int $ltcgDays = 365): array
+{
+    $buyTypes  = ['BUY', 'SWITCH_IN', 'DIV_REINVEST'];
+    $sellTypes = ['SELL', 'SWITCH_OUT'];
+
+    // Build BUY queue: [date => timestamp, units => float]
+    $buyQueue = [];
+    foreach ($txns as $t) {
+        if (in_array($t['transaction_type'], $buyTypes)) {
+            $buyQueue[] = ['ts' => strtotime($t['txn_date']), 'units' => (float)$t['units']];
+        }
+    }
+    // Sort oldest first for FIFO
+    usort($buyQueue, fn($a, $b) => $a['ts'] <=> $b['ts']);
+
+    // Total SELL units
+    $totalSold = 0.0;
+    foreach ($txns as $t) {
+        if (in_array($t['transaction_type'], $sellTypes)) {
+            $totalSold += (float)$t['units'];
+        }
+    }
+
+    // Deduct sells from oldest BUYs (FIFO)
+    $remaining = $totalSold;
+    foreach ($buyQueue as &$lot) {
+        if ($remaining <= 0) break;
+        $deduct      = min($lot['units'], $remaining);
+        $lot['units'] -= $deduct;
+        $remaining   -= $deduct;
+    }
+    unset($lot);
+
+    // Classify remaining lots
+    $cutoff    = strtotime("today") - ($ltcgDays * 86400);
+    $ltcgUnits = 0.0;
+    $stcgUnits = 0.0;
+    foreach ($buyQueue as $lot) {
+        if ($lot['units'] <= 0) continue;
+        if ($lot['ts'] <= $cutoff) {
+            $ltcgUnits += $lot['units'];
+        } else {
+            $stcgUnits += $lot['units'];
+        }
+    }
+
+    return [round($ltcgUnits, 4), round($stcgUnits, 4)];
 }
