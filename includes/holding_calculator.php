@@ -519,7 +519,7 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, ?stri
                 first_purchase_date=?, ltcg_date=?, lock_in_date=?, withdrawable_date=?,
                 investment_fy=?, withdrawable_fy=?, gain_type=?,
                 highest_nav=?, highest_nav_date=?,
-                is_active=?, updated_at=NOW()
+                is_active=?
             WHERE id=?
         ");
         $upd->execute([

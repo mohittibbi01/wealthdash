@@ -7,9 +7,21 @@
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
 require_once APP_ROOT . '/includes/auth_check.php';
+// helpers.php already loaded by config.php
 
 header('Content-Type: application/json; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
+
+// Parse JSON body (API.post sends application/json, not form data)
+$_rawBody = file_get_contents('php://input');
+if (!empty($_rawBody)) {
+    $_jsonData = json_decode($_rawBody, true);
+    if (is_array($_jsonData)) {
+        foreach ($_jsonData as $k => $v) {
+            $_POST[$k] = $v;
+        }
+    }
+}
 
 // Must be logged in for all API calls
 if (!is_logged_in()) {
@@ -19,8 +31,8 @@ if (!is_logged_in()) {
 // CSRF check
 csrf_verify();
 
-$action = clean($_POST['action'] ?? $_GET['action'] ?? '');
-$userId = (int) $_SESSION['user_id'];
+$action  = clean($_POST['action'] ?? $_GET['action'] ?? '');
+$userId  = (int) $_SESSION['user_id'];
 $isAdmin = is_admin();
 
 try {
@@ -260,6 +272,17 @@ try {
         case 'goal_projection':
             require APP_ROOT . '/api/reports/goal_planning.php'; exit;
 
+        // ── Admin — DB Manager ────────────────────────────────
+        case 'admin_db_list':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_truncate_one':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_truncate_all':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+
         // ── Phase 5: Admin — Users ───────────────────────────
         case 'admin_users':
         case 'admin_add_user':
@@ -287,4 +310,3 @@ try {
     error_log('API error [' . $action . ']: ' . $e->getMessage());
     json_response(false, IS_LOCAL ? $e->getMessage() : 'An error occurred. Please try again.', [], 500);
 }
-

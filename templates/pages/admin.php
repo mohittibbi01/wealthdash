@@ -24,11 +24,12 @@ ob_start();
 
 <!-- Tabs -->
 <div class="admin-tabs mb-4">
-  <button class="admin-tab active" data-tab="overview" onclick="switchTab('overview',this)">Overview</button>
-  <button class="admin-tab" data-tab="users"    onclick="switchTab('users',this)">Users</button>
-  <button class="admin-tab" data-tab="settings" onclick="switchTab('settings',this)">Settings</button>
-  <button class="admin-tab" data-tab="nav"      onclick="switchTab('nav',this)">NAV &amp; Data</button>
-  <button class="admin-tab" data-tab="audit"    onclick="switchTab('audit',this)">Audit Log</button>
+  <button class="admin-tab active" data-tab="overview" onclick="adminSwitchTab('overview',this)">Overview</button>
+  <button class="admin-tab" data-tab="users"    onclick="adminSwitchTab('users',this)">Users</button>
+  <button class="admin-tab" data-tab="settings" onclick="adminSwitchTab('settings',this)">Settings</button>
+  <button class="admin-tab" data-tab="nav"      onclick="adminSwitchTab('nav',this)">NAV &amp; Data</button>
+  <button class="admin-tab" data-tab="audit"    onclick="adminSwitchTab('audit',this)">Audit Log</button>
+  <button class="admin-tab" data-tab="dbmgr" onclick="adminSwitchTab('dbmgr',this)">🗄️ DB Manager</button>
 </div>
 
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
@@ -256,7 +257,48 @@ ob_start();
   </div>
 </div>
 
-<!-- Add User Modal -->
+<!-- ═══════ TAB: DB MANAGER ═══════ -->
+<div id="tab-dbmgr" class="admin-tab-content" style="display:none">
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <h3 style="margin:0;font-size:15px;font-weight:600;">Database Tables</h3>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">All records will be deleted permanently. This cannot be undone.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:var(--text-muted);" id="dbTotalText">—</span>
+        <button class="btn btn-outline btn-sm" onclick="loadDbTables()" style="font-size:12px;padding:6px 12px;">↻ Refresh</button>
+        <button class="btn" onclick="deleteAllTables()"
+          style="background:#dc2626;color:#fff;font-weight:600;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          Delete ALL Records
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Table Name</th>
+            <th class="text-center" style="width:140px;">Records</th>
+            <th class="text-center" style="width:160px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="dbTableBody">
+          <tr><td colspan="4" class="text-center" style="padding:40px;">
+            <div class="spinner"></div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+
+  </div>
+</div>
 <div class="modal-overlay" id="addUserModal" style="display:none">
   <div class="modal" style="max-width:460px">
     <div class="modal-header">
@@ -325,11 +367,24 @@ ob_start();
 </div>
 
 <style>
-.admin-tabs { display:flex; gap:.25rem; border-bottom:2px solid var(--border); }
-.admin-tab  { background:none; border:none; padding:.6rem 1.1rem; cursor:pointer; color:var(--text-secondary); font-size:.9rem; border-bottom:2px solid transparent; margin-bottom:-2px; border-radius:var(--radius) var(--radius) 0 0; transition:color .2s; }
-.admin-tab:hover { color:var(--text-primary); background:var(--hover-bg); }
-.admin-tab.active { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
-.code-block { background:var(--input-bg); border:1px solid var(--border); border-radius:var(--radius); padding:1rem; font-family:monospace; font-size:.8rem; line-height:1.7; overflow-x:auto; }
+/* Fix: map missing variables to existing ones */
+:root {
+  --primary:   var(--accent);
+  --danger:    var(--loss);
+  --hover-bg:  var(--bg-surface-2);
+  --radius:    var(--radius-md);
+  --input-bg:  var(--bg-surface-2);
+}
+[data-theme="dark"] {
+  --hover-bg:  var(--bg-surface-2);
+  --input-bg:  var(--bg-surface-2);
+}
+
+.admin-tabs { display:flex; gap:.25rem; border-bottom:2px solid var(--border); flex-wrap:wrap; }
+.admin-tab  { background:none; border:none; padding:.6rem 1.1rem; cursor:pointer; color:var(--text-secondary); font-size:.9rem; border-bottom:2px solid transparent; margin-bottom:-2px; border-radius:var(--radius-md) var(--radius-md) 0 0; transition:color .2s; }
+.admin-tab:hover { color:var(--text-primary); background:var(--bg-surface-2); }
+.admin-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+.code-block { background:var(--bg-surface-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem; font-family:monospace; font-size:.8rem; line-height:1.7; overflow-x:auto; }
 </style>
 
 <script>
@@ -341,15 +396,17 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStats();
 });
 
-function switchTab(name, btn) {
+function adminSwitchTab(name, btn) {
   document.querySelectorAll('.admin-tab-content').forEach(el => el.style.display='none');
   document.querySelectorAll('.admin-tab').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-'+name).style.display='block';
+  var tabEl = document.getElementById('tab-'+name);
+  if (tabEl) tabEl.style.display='block';
   btn.classList.add('active');
 
   if (name==='users' && allUsers.length===0) loadUsers();
   if (name==='settings') { loadSettings(); loadPortfolioList(); }
   if (name==='audit') loadAuditLog();
+  if (name==='dbmgr') loadDbTables();
 }
 
 async function loadStats() {
@@ -616,6 +673,129 @@ function auditPage(dir) {
   loadAuditLog();
 }
 
+// ── DB Manager ────────────────────────────────────────────
+async function loadDbTables() {
+  const body = document.getElementById('dbTableBody');
+  const info = document.getElementById('dbTotalText');
+  if (!body) return;
+  body.innerHTML = `<tr><td colspan="4" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+
+  try {
+    const d = await API.post('/api/router.php', { action: 'admin_db_list' });
+    const tables = (d.data || d.tables || []);
+    const totalRows = tables.reduce((s, t) => s + (t.rows || 0), 0);
+    if (info) info.textContent = `${tables.length} tables · ${totalRows.toLocaleString()} total records`;
+
+    if (tables.length === 0) {
+      body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">No tables found.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = tables.map((t, i) => {
+      const isProtected = t.protected;
+      const rowCount = Number(t.rows).toLocaleString('en-IN');
+      return `
+      <tr id="dbrow-${t.name}">
+        <td style="color:var(--text-muted);font-size:12px;">${i+1}</td>
+        <td>
+          <span style="font-weight:500;font-family:monospace;">${t.name}</span>
+          ${isProtected ? `<span style="font-size:10px;margin-left:6px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-weight:600;">PROTECTED</span>` : ''}
+        </td>
+        <td class="text-center">
+          <span id="dbcount-${t.name}" style="font-weight:600;font-size:14px;color:${t.rows > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${rowCount}</span>
+        </td>
+        <td class="text-center">
+          ${isProtected
+            ? `<span style="font-size:12px;color:var(--text-muted);">🔒 Protected</span>`
+            : `<button onclick="deleteTableRecords('${t.name}')"
+                style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:12px;font-weight:500;padding:4px 12px;border-radius:6px;cursor:pointer;">
+                🗑 Clear
+              </button>`
+          }
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    console.error('loadDbTables error:', e);
+    body.innerHTML = `<tr><td colspan="4" style="color:#dc2626;text-align:center;padding:20px;font-size:13px;">
+      ⚠️ Error: ${e.message}<br>
+      <small style="color:var(--text-muted);">Check browser console (F12) for details</small>
+    </td></tr>`;
+    if (info) info.textContent = 'Failed to load';
+  }
+}
+
+async function deleteTableRecords(tableName) {
+  showConfirm({
+    title: `Clear "${tableName}"?`,
+    message: `All records from <strong>${tableName}</strong> will be permanently deleted. This cannot be undone.`,
+    okText: 'Yes, Clear',
+    okClass: 'btn-danger',
+    onConfirm: async () => {
+      await API.post('/api/router.php', { action: 'admin_db_truncate_one', table: tableName });
+      document.getElementById(`dbcount-${tableName}`).textContent = '0';
+      showToast(`"${tableName}" cleared.`, 'success');
+      loadDbTables();
+    }
+  });
+}
+
+async function deleteAllTables() {
+  // Two-step: first confirm with typed input
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;`;
+  overlay.innerHTML = `
+    <div style="background:var(--bg-surface);border-radius:14px;padding:32px;max-width:440px;width:90%;box-shadow:0 25px 60px rgba(0,0,0,.3);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <span style="font-size:28px;">⚠️</span>
+        <h3 style="margin:0;font-size:18px;font-weight:700;color:#dc2626;">Delete ALL Records?</h3>
+      </div>
+      <p style="margin:0 0 8px;color:var(--text-secondary);font-size:14px;">This will permanently delete <strong>all user data</strong> from every table (protected tables like users/funds will be kept safe).</p>
+      <p style="margin:0 0 16px;color:var(--text-secondary);font-size:14px;">Type <strong style="color:#dc2626;">DELETE ALL</strong> below to confirm:</p>
+      <input id="deleteAllInput" type="text" placeholder="Type DELETE ALL"
+        style="width:100%;box-sizing:border-box;padding:10px 14px;border:2px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:16px;background:var(--bg-input,#fff);color:var(--text-primary);">
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="deleteAllCancelBtn" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;font-size:13px;color:var(--text-primary);">Cancel</button>
+        <button id="deleteAllConfirmBtn" disabled
+          style="padding:9px 20px;border:none;border-radius:8px;background:#dc2626;color:#fff;font-weight:600;font-size:13px;cursor:pointer;opacity:.4;transition:opacity .2s;">
+          🗑 Delete Everything
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const input   = overlay.querySelector('#deleteAllInput');
+  const confirmBtn = overlay.querySelector('#deleteAllConfirmBtn');
+  const cancelBtn  = overlay.querySelector('#deleteAllCancelBtn');
+
+  input.addEventListener('input', () => {
+    const match = input.value.trim() === 'DELETE ALL';
+    confirmBtn.disabled = !match;
+    confirmBtn.style.opacity = match ? '1' : '.4';
+    confirmBtn.style.cursor  = match ? 'pointer' : 'default';
+  });
+
+  cancelBtn.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.textContent = 'Deleting…';
+    confirmBtn.disabled = true;
+    try {
+      const d = await API.post('/api/router.php', { action: 'admin_db_truncate_all' });
+      overlay.remove();
+      showToast(`✅ Done! ${d.data?.count || ''} tables cleared.`, 'success');
+      loadDbTables();
+    } catch(e) {
+      showToast(`Error: ${e.message}`, 'error');
+      overlay.remove();
+    }
+  });
+
+  input.focus();
+}
+
 document.getElementById('auditFilter')?.addEventListener('input', () => { auditOffset=0; loadAuditLog(); });
 
 function formatDate(d) {
@@ -628,4 +808,3 @@ function formatDate(d) {
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';
 ?>
-

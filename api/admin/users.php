@@ -3,7 +3,6 @@
  * WealthDash — Admin: User Management API
  * Actions: admin_users | admin_add_user | admin_toggle_user | admin_delete_user | admin_change_role
  */
-declare(strict_types=1);
 
 if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 if (!is_admin()) json_response(false, 'Admin access required.', [], 403);
@@ -166,23 +165,24 @@ switch ($action) {
 
     // ── System stats ──────────────────────────────────────────
     case 'admin_stats':
+        function safe_count($sql) { try { return (int) DB::fetchVal($sql); } catch (Exception $e) { return 0; } }
+        function safe_val($sql)   { try { return DB::fetchVal($sql); }       catch (Exception $e) { return null; } }
         $stats = [
-            'users'         => (int) DB::fetchVal("SELECT COUNT(*) FROM users WHERE status='active'"),
-            'total_users'   => (int) DB::fetchVal("SELECT COUNT(*) FROM users"),
-            'portfolios'    => (int) DB::fetchVal("SELECT COUNT(*) FROM portfolios"),
-            'funds'         => (int) DB::fetchVal("SELECT COUNT(*) FROM funds"),
-            'fund_houses'   => (int) DB::fetchVal("SELECT COUNT(*) FROM fund_houses"),
-            'mf_holdings'   => (int) DB::fetchVal("SELECT COUNT(*) FROM mf_holdings WHERE is_active=1"),
-            'mf_txns'       => (int) DB::fetchVal("SELECT COUNT(*) FROM mf_transactions"),
-            'stock_holdings'=> (int) DB::fetchVal("SELECT COUNT(*) FROM stock_holdings WHERE is_active=1"),
-            'fd_accounts'   => (int) DB::fetchVal("SELECT COUNT(*) FROM fd_accounts WHERE status='active'"),
-            'savings_accs'  => (int) DB::fetchVal("SELECT COUNT(*) FROM savings_accounts WHERE is_active=1"),
-            'nav_last_updated' => DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key='nav_last_updated'"),
-            'audit_log_count'  => (int) DB::fetchVal("SELECT COUNT(*) FROM audit_log"),
+            'users'            => safe_count("SELECT COUNT(*) FROM users WHERE status='active'"),
+            'total_users'      => safe_count("SELECT COUNT(*) FROM users"),
+            'portfolios'       => safe_count("SELECT COUNT(*) FROM portfolios"),
+            'funds'            => safe_count("SELECT COUNT(*) FROM funds"),
+            'fund_houses'      => safe_count("SELECT COUNT(*) FROM fund_houses"),
+            'mf_holdings'      => safe_count("SELECT COUNT(*) FROM mf_holdings WHERE is_active=1"),
+            'mf_txns'          => safe_count("SELECT COUNT(*) FROM mf_transactions"),
+            'stock_holdings'   => safe_count("SELECT COUNT(*) FROM stock_holdings WHERE is_active=1"),
+            'fd_accounts'      => safe_count("SELECT COUNT(*) FROM fd_accounts WHERE status='active'"),
+            'savings_accs'     => safe_count("SELECT COUNT(*) FROM savings_accounts WHERE is_active=1"),
+            'nav_last_updated' => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nav_last_updated'"),
+            'audit_log_count'  => safe_count("SELECT COUNT(*) FROM audit_log"),
         ];
         json_response(true, '', ['stats' => $stats]);
 
     default:
         json_response(false, 'Unknown admin action.', [], 400);
 }
-

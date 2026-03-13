@@ -3,7 +3,6 @@
  * WealthDash — Admin: App Settings API
  * Actions: admin_settings_get | admin_settings_save | admin_nav_update | admin_import_amfi
  */
-declare(strict_types=1);
 
 if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 if (!is_admin()) json_response(false, 'Admin access required.', [], 403);
@@ -132,4 +131,3 @@ switch ($action) {
     default:
         json_response(false, 'Unknown settings action.', [], 400);
 }
-

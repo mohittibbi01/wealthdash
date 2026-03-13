@@ -795,11 +795,44 @@ async function startCsvImport() {
 
     resultEl.style.display = 'block';
     if (data.success) {
-      resultEl.style.background = 'rgba(34,197,94,.1)';
-      resultEl.style.color = 'var(--success)';
-      resultEl.innerHTML = `<strong>✓ ${data.message}</strong><br>
-        Imported: ${data.imported} | Skipped: ${data.skipped} | Format: ${data.format}
-        ${data.errors?.length ? '<br><small>' + data.errors.join('<br>') + '</small>' : ''}`;
+      const hasSkipped = data.skipped > 0;
+      resultEl.style.background = hasSkipped ? 'rgba(234,179,8,.08)' : 'rgba(34,197,94,.1)';
+      resultEl.style.color = 'var(--text-primary)';
+
+      // Simple anchor download — no base64, no JS tricks
+      const dlUrl = data.download_token
+        ? `${window.APP_URL}/api/mutual_funds/download_import_result.php?token=${data.download_token}`
+        : null;
+      const dlBtn = dlUrl
+        ? `<a href="${dlUrl}" download
+            style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 14px;
+                   background:#2563eb;color:#fff;border-radius:7px;font-size:12px;font-weight:600;
+                   text-decoration:none;">
+            ⬇ Download Result CSV
+            <span style="font-size:10px;opacity:.85;">(Status of each row)</span>
+           </a>`
+        : '';
+
+      const errHtml = data.errors?.length
+        ? `<div style="margin-top:8px;max-height:160px;overflow-y:auto;font-size:11px;
+                       background:rgba(0,0,0,.04);border-radius:6px;padding:8px 10px;line-height:1.7;">
+             ${data.errors.map(e => `<div>• ${e}</div>`).join('')}
+           </div>`
+        : '';
+
+      resultEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <span style="font-size:16px;">${hasSkipped ? '⚠️' : '✅'}</span>
+          <strong style="font-size:13px;">${data.message}</strong>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">
+          <span>✅ Imported: <strong style="color:#16a34a;">${data.imported}</strong></span>
+          <span>⏭ Skipped: <strong style="color:${hasSkipped?'#dc2626':'#6b7280'};">${data.skipped}</strong></span>
+          <span>📄 Format: <strong>${data.format}</strong></span>
+        </div>
+        ${errHtml}
+        ${dlBtn}`;
+
       reloadCurrentPage();
     } else {
       resultEl.style.background = 'rgba(239,68,68,.1)';
@@ -815,6 +848,21 @@ async function startCsvImport() {
   }
 }
 
+
+function downloadImportResultCsv(base64data, filename) {
+  try {
+    const csv = atob(base64data);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename || 'import_result.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    showToast('Download failed: ' + e.message, 'error');
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    EXCEL DOWNLOAD

@@ -560,6 +560,6 @@ ob_start();
 
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=4"></script>';
+$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>
