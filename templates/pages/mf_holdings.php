@@ -449,9 +449,23 @@ ob_start();
         </div>
       </div>
 
+      <!-- Available units banner — shown only for SELL/SWITCH_OUT -->
+      <div id="availableUnitsBanner" style="display:none;margin-bottom:8px;padding:10px 14px;
+           border-radius:8px;background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);
+           font-size:12.5px;line-height:1.5;">
+        <span style="color:var(--text-muted);">Available units to sell:</span>
+        <strong id="availableUnitsVal" style="color:#b45309;margin-left:6px;font-size:14px;">—</strong>
+        <span id="availableUnitsDate" style="color:var(--text-muted);margin-left:8px;font-size:11px;"></span>
+        <br>
+        <span style="color:var(--text-muted);">Avg cost NAV:</span>
+        <strong id="availableAvgNav" style="margin-left:4px;">—</strong>
+        <span style="margin-left:12px;color:var(--text-muted);">Total invested:</span>
+        <strong id="availableTotalInvested" style="margin-left:4px;">—</strong>
+      </div>
+
       <div class="form-row">
         <div class="form-group" style="flex:1;">
-          <label class="form-label">Units *</label>
+          <label class="form-label" id="txnUnitsLabel">Units *</label>
           <input type="number" id="txnUnits" class="form-control" placeholder="0.000" step="0.001" min="0.001">
         </div>
         <div class="form-group" style="flex:1;">
@@ -528,7 +542,19 @@ ob_start();
       </div>
       <div class="form-group">
         <label class="form-label">CSV File</label>
-        <input type="file" id="importFile" class="form-control" accept=".csv,.txt">
+        <label for="importFile" id="importFileLabel"
+          style="display:flex;align-items:center;gap:10px;padding:9px 14px;
+                 border:1.5px dashed var(--border);border-radius:8px;cursor:pointer;
+                 background:var(--card-bg);transition:border-color .2s,background .2s;
+                 font-size:13px;color:var(--text-muted);">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span id="importFileText">Choose CSV file…</span>
+        </label>
+        <input type="file" id="importFile" accept=".csv,.txt" style="display:none;">
       </div>
       <div class="import-template-hint">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>

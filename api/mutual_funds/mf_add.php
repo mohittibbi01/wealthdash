@@ -166,61 +166,41 @@ try {
         $fNameStmt->execute([$fund_id]);
         $fundName = $fNameStmt->fetchColumn() ?: 'this fund';
 
-        // RULE 1: T+1 — cannot sell on the same day as a BUY
-        // Check if any BUY exists for this fund+portfolio+folio on the SAME date
-        $sameDayBuyQ = $db->prepare("
-            SELECT COUNT(*) FROM mf_transactions
-            WHERE portfolio_id   = ?
-              AND fund_id        = ?
-              AND folio_number  <=> ?
-              AND txn_date       = ?
-              AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
-              " . ($edit_id ? "AND id != $edit_id" : "") . "
-        ");
-        $sameDayBuyQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
-        if ((int)$sameDayBuyQ->fetchColumn() > 0) {
-            $db->rollBack();
-            json_die(false, "Cannot sell on the same day as a purchase ({$txn_date}). Units are credited next day — earliest sell date is " . date('d-m-Y', strtotime($txn_date . ' +1 day')) . ".", 422);
-        }
-
-        // RULE 2: Back-date sell — only count BUY units with txn_date < sell date
-        // (units bought on sell-date itself are not yet available)
+        // BUY units ON OR BEFORE sell date — no folio filter (user may leave folio blank)
         $buyQ = $db->prepare("
             SELECT COALESCE(SUM(units), 0)
             FROM mf_transactions
-            WHERE portfolio_id  = ?
-              AND fund_id       = ?
-              AND folio_number <=> ?
+            WHERE portfolio_id = ?
+              AND fund_id      = ?
               AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
-              AND txn_date < ?
+              AND txn_date <= ?
         ");
-        $buyQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
-        $boughtBeforeDate = (float)$buyQ->fetchColumn();
+        $buyQ->execute([$portfolio_id, $fund_id, $txn_date]);
+        $boughtByDate = (float)$buyQ->fetchColumn();
 
-        // All SELLs on or before this date (excluding current edit)
+        // SELLs BEFORE this date (same-day sell allowed — tax harvesting)
         $sellQ = $db->prepare("
             SELECT COALESCE(SUM(units), 0)
             FROM mf_transactions
-            WHERE portfolio_id  = ?
-              AND fund_id       = ?
-              AND folio_number <=> ?
+            WHERE portfolio_id = ?
+              AND fund_id      = ?
               AND transaction_type IN ('SELL','SWITCH_OUT')
-              AND txn_date <= ?
+              AND txn_date < ?
               " . ($edit_id ? "AND id != $edit_id" : "") . "
         ");
-        $sellQ->execute([$portfolio_id, $fund_id, $folio, $txn_date]);
-        $soldByDate = (float)$sellQ->fetchColumn();
+        $sellQ->execute([$portfolio_id, $fund_id, $txn_date]);
+        $soldBeforeDate = (float)$sellQ->fetchColumn();
 
-        $availableOnDate = round($boughtBeforeDate - $soldByDate, 6);
+        $availableOnDate = round($boughtByDate - $soldBeforeDate, 6);
 
         if ($availableOnDate <= 0) {
             $db->rollBack();
-            json_die(false, "Cannot sell on {$txn_date}: 0 units were available in \"{$fundName}\" on this date. Make sure purchase transactions exist before this date.", 422);
+            json_die(false, "Cannot sell on {$txn_date}: no units available in \"{$fundName}\". Ensure BUY transactions exist on or before this date.", 422);
         }
 
-        if ($units > $availableOnDate) {
+        if ($units > $availableOnDate + 0.001) {
             $db->rollBack();
-            json_die(false, "Cannot sell {$units} units on {$txn_date}. Only " . number_format($availableOnDate, 4) . " units were available in \"{$fundName}\" on this date.", 422);
+            json_die(false, "Cannot sell {$units} units on {$txn_date}. Only " . number_format($availableOnDate, 4) . " units available in \"{$fundName}\".", 422);
         }
     }
     // ────────────────────────────────────────────────────────────

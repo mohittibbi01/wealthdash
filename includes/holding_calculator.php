@@ -384,18 +384,31 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, ?stri
     // Normalize: treat empty string same as null
     if ($folio === '') $folio = null;
 
-    // Fetch all transactions in order — handle NULL folio with IS NULL check
-    $stmt = $db->prepare("
-        SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-               t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
-               f.lock_in_days, f.category, f.sub_category
-        FROM mf_transactions t
-        JOIN funds f ON f.id = t.fund_id
-        WHERE t.portfolio_id = ? AND t.fund_id = ?
-          AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL))
-        ORDER BY t.txn_date ASC, t.id ASC
-    ");
-    $stmt->execute([$portfolio_id, $fund_id, $folio, $folio]);
+    // Fetch all transactions — if folio given filter by it, else fetch ALL folios
+    if ($folio !== null) {
+        $stmt = $db->prepare("
+            SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
+                   t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
+                   f.lock_in_days, f.category, f.sub_category
+            FROM mf_transactions t
+            JOIN funds f ON f.id = t.fund_id
+            WHERE t.portfolio_id = ? AND t.fund_id = ? AND t.folio_number = ?
+            ORDER BY t.txn_date ASC, t.id ASC
+        ");
+        $stmt->execute([$portfolio_id, $fund_id, $folio]);
+    } else {
+        // No folio specified — recalculate across ALL folios for this fund
+        $stmt = $db->prepare("
+            SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
+                   t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
+                   f.lock_in_days, f.category, f.sub_category
+            FROM mf_transactions t
+            JOIN funds f ON f.id = t.fund_id
+            WHERE t.portfolio_id = ? AND t.fund_id = ?
+            ORDER BY t.txn_date ASC, t.id ASC
+        ");
+        $stmt->execute([$portfolio_id, $fund_id]);
+    }
     $txns = $stmt->fetchAll();
 
     // ── FIFO cost basis ────────────────────────────────
@@ -502,13 +515,22 @@ function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, ?stri
     $highestNav     = $hn ? (float)$hn['max_nav'] : $latestNav;
     $highestNavDate = $hn ? $hn['nav_date'] : $latestNavDate;
 
-    // ✅ FIX: Upsert also uses NULL-safe comparison for folio
-    $existStmt = $db->prepare("
-        SELECT id FROM mf_holdings
-        WHERE portfolio_id = ? AND fund_id = ?
-          AND (folio_number = ? OR (folio_number IS NULL AND ? IS NULL))
-    ");
-    $existStmt->execute([$portfolio_id, $fund_id, $folio, $folio]);
+    // Find existing holding row — when folio is null, match any folio for this fund+portfolio
+    if ($folio !== null) {
+        $existStmt = $db->prepare("
+            SELECT id FROM mf_holdings
+            WHERE portfolio_id = ? AND fund_id = ? AND folio_number <=> ?
+            LIMIT 1
+        ");
+        $existStmt->execute([$portfolio_id, $fund_id, $folio]);
+    } else {
+        $existStmt = $db->prepare("
+            SELECT id FROM mf_holdings
+            WHERE portfolio_id = ? AND fund_id = ?
+            LIMIT 1
+        ");
+        $existStmt->execute([$portfolio_id, $fund_id]);
+    }
     $existing = $existStmt->fetch();
 
     if ($existing) {

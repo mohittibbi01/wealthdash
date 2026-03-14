@@ -81,6 +81,25 @@ function initHoldingsPage() {
 
   // Download Excel
   document.getElementById('btnDownloadExcel')?.addEventListener('click', downloadHoldingsExcel);
+
+  // Custom file input display
+  document.getElementById('importFile')?.addEventListener('change', function() {
+    const label = document.getElementById('importFileLabel');
+    const text  = document.getElementById('importFileText');
+    if (this.files.length) {
+      text.textContent  = this.files[0].name;
+      text.style.color  = 'var(--text-primary)';
+      text.style.fontWeight = '500';
+      label.style.borderColor  = 'var(--accent)';
+      label.style.background   = 'rgba(37,99,235,.04)';
+    } else {
+      text.textContent  = 'Choose CSV file…';
+      text.style.color  = 'var(--text-muted)';
+      text.style.fontWeight = '';
+      label.style.borderColor  = 'var(--border)';
+      label.style.background   = 'var(--card-bg)';
+    }
+  });
   document.getElementById('btnCloseImportModal')?.addEventListener('click', () => hideModal('modalImportCsv'));
   document.getElementById('btnCancelImport')?.addEventListener('click', () => hideModal('modalImportCsv'));
   document.getElementById('btnStartImport')?.addEventListener('click', startCsvImport);
@@ -95,6 +114,10 @@ function initHoldingsPage() {
   ['txnUnits','txnNav','txnStampDuty'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', updateValuePreview);
   });
+
+  // Available units — show when SELL/SWITCH_OUT selected
+  document.getElementById('txnType')?.addEventListener('change', updateAvailableUnits);
+  document.getElementById('txnDate')?.addEventListener('change', updateAvailableUnits);
 
   // Close modal on overlay click
   document.getElementById('modalAddTxn')?.addEventListener('click', e => {
@@ -436,10 +459,17 @@ function openAddTxnModal() {
   document.getElementById('txnNav').value      = '';
   document.getElementById('txnStampDuty').value= '0';
   document.getElementById('txnNotes').value    = '';
-  document.getElementById('txnDate').value     = new Date().toISOString().split('T')[0];
+  // Use local date (IST), not UTC
+  const _now = new Date();
+  const _localDate = _now.getFullYear() + '-' +
+    String(_now.getMonth()+1).padStart(2,'0') + '-' +
+    String(_now.getDate()).padStart(2,'0');
+  document.getElementById('txnDate').value = _localDate;
   document.getElementById('txnError').style.display = 'none';
   document.getElementById('txnValuePreview').style.display = 'none';
   MF.selectedFundId = null; MF.selectedFundNav = null;
+  const b = document.getElementById('availableUnitsBanner');
+  if (b) b.style.display = 'none';
   showModal('modalAddTxn');
 }
 
@@ -560,6 +590,67 @@ function onFundSearchInput(e) {
   MF.fundSearchTimer = setTimeout(() => searchFunds(q), 300);
 }
 
+async function updateAvailableUnits() {
+  const type    = document.getElementById('txnType')?.value || '';
+  const banner  = document.getElementById('availableUnitsBanner');
+  const sellTypes = ['SELL', 'SWITCH_OUT'];
+
+  if (!sellTypes.includes(type) || !MF.selectedFundId) {
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+
+  const portfolioId = document.getElementById('txnPortfolio')?.value;
+  // Read date directly from input value (already in YYYY-MM-DD format)
+  const txnDateEl = document.getElementById('txnDate');
+  const txnDate   = txnDateEl?.value || (() => {
+    const n = new Date();
+    return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
+  })();
+  const folio       = document.getElementById('txnFolio')?.value.trim() || '';
+
+  console.log('[AvailUnits] fund_id:', MF.selectedFundId, 'portfolio:', portfolioId, 'date:', txnDate);
+
+  if (!portfolioId) return;
+
+  try {
+    let url = `/api/mutual_funds/mf_available_units.php?portfolio_id=${portfolioId}&fund_id=${MF.selectedFundId}&date=${txnDate}`;
+    if (folio) url += `&folio=${encodeURIComponent(folio)}`;
+    const res  = await fetch(window.APP_URL + url);
+    const data = await res.json();
+
+    if (!banner) return;
+    banner.style.display = 'block';
+
+    const unitsEl    = document.getElementById('availableUnitsVal');
+    const dateEl     = document.getElementById('availableUnitsDate');
+    const avgEl      = document.getElementById('availableAvgNav');
+    const investedEl = document.getElementById('availableTotalInvested');
+
+    const units = parseFloat(data.available_units || 0);
+    if (unitsEl) {
+      unitsEl.textContent = units.toFixed(4);
+      unitsEl.style.color = units > 0 ? '#b45309' : '#dc2626';
+    }
+    if (dateEl)     dateEl.textContent     = txnDate ? `(as of ${txnDate})` : '';
+    if (avgEl)      avgEl.textContent      = data.avg_cost_nav  ? '₹' + parseFloat(data.avg_cost_nav).toFixed(4) : '—';
+    if (investedEl) investedEl.textContent = data.total_invested ? '₹' + parseFloat(data.total_invested).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
+
+    // Auto-fill max units hint
+    const unitsInput = document.getElementById('txnUnits');
+    if (unitsInput && units > 0 && (!unitsInput.value || parseFloat(unitsInput.value) === 0)) {
+      unitsInput.max = units;
+    }
+
+    // Color banner red if no units
+    banner.style.background = units > 0 ? 'rgba(234,179,8,.1)' : 'rgba(239,68,68,.08)';
+    banner.style.borderColor = units > 0 ? 'rgba(234,179,8,.3)' : 'rgba(239,68,68,.25)';
+
+  } catch(e) {
+    console.warn('Available units fetch failed:', e);
+  }
+}
+
 async function searchFunds(q) {
   const dropdown = document.getElementById('fundSearchDropdown');
   dropdown.innerHTML = `<div style="padding:12px;color:var(--text-muted);text-align:center;"><div class="spinner-sm"></div></div>`;
@@ -599,6 +690,7 @@ function selectFund(id, name, nav) {
   MF.selectedFundNav = nav;
   fetchAndShowFundInfo(id);
   updateValuePreview();
+  updateAvailableUnits(); // refresh available units when fund changes
 }
 
 async function fetchAndShowFundInfo(fundId) {
@@ -809,7 +901,7 @@ async function startCsvImport() {
                    background:#2563eb;color:#fff;border-radius:7px;font-size:12px;font-weight:600;
                    text-decoration:none;">
             ⬇ Download Result CSV
-            <span style="font-size:10px;opacity:.85;">(Status of each row)</span>
+            <span style="font-size:10px;opacity:.85;">(har row ka status)</span>
            </a>`
         : '';
 
