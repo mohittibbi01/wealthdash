@@ -241,6 +241,7 @@ try {
                 h.fund_id,
                 f.scheme_name, f.scheme_code, f.category, f.sub_category,
                 f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
+                f.highest_nav, f.highest_nav_date,
                 f.min_ltcg_days, f.lock_in_days,
                 fh.name AS fund_house_name, fh.short_name AS fund_house_short,
                 SUM(h.total_units) AS total_units,
@@ -335,6 +336,11 @@ try {
                 'invested_fmt'     => format_inr($totalInvested),
                 'value_fmt'        => format_inr($valueNow),
                 'gain_fmt'         => format_inr($gainLoss),
+                'highest_nav'      => $r['highest_nav'] ? (float)$r['highest_nav'] : null,
+                'highest_nav_date' => $r['highest_nav_date'],
+                'drawdown_pct'     => ($r['highest_nav'] && (float)$r['highest_nav'] > 0 && $r['latest_nav'])
+                                        ? round(((float)$r['highest_nav'] - (float)$r['latest_nav']) / (float)$r['highest_nav'] * 100, 2)
+                                        : null,
             ];
         }, $rows);
 

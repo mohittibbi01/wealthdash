@@ -9,6 +9,11 @@ if (!is_admin()) json_response(false, 'Admin access required.', [], 403);
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+if (!function_exists('safe_count')) {
+    function safe_count($sql) { try { return (int) DB::fetchVal($sql); } catch (Exception $e) { return 0; } }
+    function safe_val($sql)   { try { return DB::fetchVal($sql); }       catch (Exception $e) { return null; } }
+}
+
 switch ($action) {
 
     // ── List all users ────────────────────────────────────────
@@ -84,9 +89,10 @@ switch ($action) {
         $newStatus = $user['status'] === 'active' ? 'inactive' : 'active';
         DB::run('UPDATE users SET status = ? WHERE id = ?', [$newStatus, $targetId]);
 
+        $actionLabel = $newStatus === 'active' ? 'enabled' : 'disabled';
         audit_log('admin_toggle_user', 'user', $targetId,
             ['status' => $user['status']], ['status' => $newStatus]);
-        json_response(true, "User {$newStatus === 'active' ? 'enabled' : 'disabled'} successfully.",
+        json_response(true, "User {$actionLabel} successfully.",
             ['new_status' => $newStatus]);
 
     // ── Change user role ──────────────────────────────────────
@@ -140,7 +146,8 @@ switch ($action) {
             json_response(false, 'Cannot delete the last admin user.');
         }
 
-        DB::run("UPDATE users SET status='deleted', email=CONCAT(email,'_del_",time(),"') WHERE id=?", [$targetId]);
+        $suffix = '_del_' . time();
+        DB::run("UPDATE users SET status='deleted', email=CONCAT(email, ?) WHERE id=?", [$suffix, $targetId]);
         audit_log('admin_delete_user', 'user', $targetId);
         json_response(true, 'User deleted.');
 
@@ -165,10 +172,10 @@ switch ($action) {
 
     // ── System stats ──────────────────────────────────────────
     case 'admin_stats':
-        function safe_count($sql) { try { return (int) DB::fetchVal($sql); } catch (Exception $e) { return 0; } }
-        function safe_val($sql)   { try { return DB::fetchVal($sql); }       catch (Exception $e) { return null; } }
         $stats = [
             'users'            => safe_count("SELECT COUNT(*) FROM users WHERE status='active'"),
+            'admin_count'      => safe_count("SELECT COUNT(*) FROM users WHERE status='active' AND role='admin'"),
+            'member_count'     => safe_count("SELECT COUNT(*) FROM users WHERE status='active' AND role='member'"),
             'total_users'      => safe_count("SELECT COUNT(*) FROM users"),
             'portfolios'       => safe_count("SELECT COUNT(*) FROM portfolios"),
             'funds'            => safe_count("SELECT COUNT(*) FROM funds"),

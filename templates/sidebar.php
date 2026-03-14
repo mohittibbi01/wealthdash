@@ -132,7 +132,4 @@ if (is_admin()) {
       NAV: <?= $navDate ? date(DATE_DISPLAY, strtotime($navDate)) : 'Not updated' ?>
     </span>
   </div>
-  <?php if (is_admin()): ?>
-  <a href="<?= APP_URL ?>/api/nav/update_amfi.php?manual=1" class="btn-link nav-update-link">Update Now</a>
-  <?php endif; ?>
 </div>

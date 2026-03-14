@@ -1,216 +1,345 @@
+<?php
 /**
- * WealthDash — Fixed Deposits JS (fd.js)
- * Handles: FD list, Add/Edit/Delete, Maturity calc, TDS preview
+ * WealthDash — Central API Router
+ * All AJAX/POST requests go through here
+ * Handles: portfolio CRUD, theme update, portfolio switch
  */
+ob_start(); // Buffer all output — prevents PHP warnings from corrupting JSON
+define('WEALTHDASH', true);
+require_once dirname(__DIR__) . '/config/config.php';
+require_once APP_ROOT . '/includes/auth_check.php';
+// helpers.php already loaded by config.php
 
-const FD = {
-  statusFilter: 'active',
-  portfolioFilter: '',
-  allData: [],
-  pendingDeleteId: null,
+header('Content-Type: application/json; charset=UTF-8');
+header('X-Content-Type-Options: nosniff');
 
-  init() {
-    // Status tabs
-    document.querySelectorAll('.view-btn[data-status]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.view-btn[data-status]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        FD.statusFilter = btn.dataset.status;
-        FD.renderTable();
-      });
-    });
-
-    // Add modal
-    document.getElementById('btnAddFd').addEventListener('click', () => FD.openAddModal());
-    document.getElementById('closeFdModal').addEventListener('click', () => FD.closeAddModal());
-    document.getElementById('cancelFd').addEventListener('click', () => FD.closeAddModal());
-    document.getElementById('saveFd').addEventListener('click', () => FD.saveFd());
-
-    // Delete modal
-    document.getElementById('closeDelFd').addEventListener('click', () => FD.closeDelModal());
-    document.getElementById('cancelDelFd').addEventListener('click', () => FD.closeDelModal());
-    document.getElementById('confirmDelFd').addEventListener('click', () => FD.deleteFd());
-
-    this.loadFds();
-  },
-
-  async loadFds() {
-    const body = document.getElementById('fdBody');
-    body.innerHTML = '<tr><td colspan="12" class="text-center" style="padding:40px"><span class="spinner"></span></td></tr>';
-
-    const params = new URLSearchParams({ action: 'fd_list' });
-    if (FD.portfolioFilter) params.set('portfolio_id', FD.portfolioFilter);
-
-    try {
-      const res  = await fetch(APP_URL + '/api/router.php?' + params);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      FD.allData = data.data || [];
-      FD.renderTable();
-    } catch(e) {
-      body.innerHTML = `<tr><td colspan="12" class="text-center text-danger" style="padding:40px">Error: ${e.message}</td></tr>`;
+// Parse JSON body (API.post sends application/json, not form data)
+$_rawBody = file_get_contents('php://input');
+if (!empty($_rawBody)) {
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (str_contains($contentType, 'application/json')) {
+        $_jsonData = json_decode($_rawBody, true);
+        if (is_array($_jsonData)) {
+            foreach ($_jsonData as $k => $v) { $_POST[$k] = $v; }
+        }
+    } elseif (str_contains($contentType, 'application/x-www-form-urlencoded')) {
+        // fallback: parse urlencoded body into $_POST
+        parse_str($_rawBody, $_formData);
+        foreach ($_formData as $k => $v) { $_POST[$k] = $v; }
+    } else {
+        // try JSON first, then urlencoded
+        $_jsonData = json_decode($_rawBody, true);
+        if (is_array($_jsonData)) {
+            foreach ($_jsonData as $k => $v) { $_POST[$k] = $v; }
+        } else {
+            parse_str($_rawBody, $_formData);
+            foreach ($_formData as $k => $v) { $_POST[$k] = $v; }
+        }
     }
-  },
+}
 
-  filterTable() { FD.renderTable(); },
+// Must be logged in for all API calls
+if (!is_logged_in()) {
+    json_response(false, 'Unauthorized. Please log in.', [], 401);
+}
 
-  renderTable() {
-    const body       = document.getElementById('fdBody');
-    const searchVal  = (document.getElementById('searchBank')?.value || '').toLowerCase();
-    const today      = new Date().toISOString().split('T')[0];
+$action  = clean($_POST['action'] ?? $_GET['action'] ?? '');
+$userId  = (int) $_SESSION['user_id'];
+$isAdmin = is_admin();
 
-    let rows = FD.allData;
-    if (FD.statusFilter) rows = rows.filter(r => r.status === FD.statusFilter);
-    if (searchVal) rows = rows.filter(r => r.bank_name.toLowerCase().includes(searchVal));
+// Read-only actions don't need CSRF (no state change)
+$csrfExempt = [
+    'admin_stats', 'admin_users', 'admin_portfolios',
+    'admin_settings_get', 'admin_audit_log', 'admin_db_list',
+    'get_portfolio_summary', 'get_dashboard_data',
+    'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
+    'stocks_list', 'stocks_get',
+    'nps_list',
+    'savings_list',
+    'goal_list', 'goal_projection',
+    'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
+];
+if (!in_array($action, $csrfExempt)) {
+    csrf_verify();
+}
 
-    if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="12" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">🏦</div><p>No Fixed Deposits found.<br>Add your first FD to track it here.</p></td></tr>';
-      return;
+try {
+    switch ($action) {
+
+        // ---- PORTFOLIO: Create ----
+        case 'create_portfolio':
+            $name  = clean($_POST['name'] ?? '');
+            $desc  = clean($_POST['description'] ?? '');
+            $color = clean($_POST['color'] ?? '#2563EB');
+
+            if (strlen($name) < 2)  json_response(false, 'Name must be at least 2 characters.');
+            if (strlen($name) > 100) json_response(false, 'Name too long.');
+
+            $validColors = ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#BE185D','#1D4ED8'];
+            if (!in_array($color, $validColors)) $color = '#2563EB';
+
+            $id = DB::insert(
+                'INSERT INTO portfolios (user_id, name, description, color) VALUES (?, ?, ?, ?)',
+                [$userId, $name, $desc ?: null, $color]
+            );
+            audit_log('create_portfolio', 'portfolio', (int)$id);
+            json_response(true, 'Portfolio created.', ['id' => $id, 'name' => $name]);
+
+        // ---- PORTFOLIO: Switch selected ----
+        case 'switch_portfolio':
+            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
+            if (!can_access_portfolio($portfolioId, $userId, $isAdmin)) {
+                json_response(false, 'Access denied.');
+            }
+            $_SESSION['selected_portfolio_id'] = $portfolioId;
+            json_response(true, 'Portfolio switched.', ['portfolio_id' => $portfolioId]);
+
+        // ---- THEME: Update ----
+        case 'update_theme':
+            $theme = clean($_POST['theme'] ?? 'light');
+            if (!in_array($theme, ['light', 'dark'])) $theme = 'light';
+            DB::run('UPDATE users SET theme = ? WHERE id = ?', [$theme, $userId]);
+            $_SESSION['user_theme'] = $theme;
+            json_response(true, 'Theme updated.');
+
+        // ---- DASHBOARD: Net worth summary ----
+        case 'net_worth_summary':
+            $portfolioId = (int) ($_POST['portfolio_id'] ?? $_SESSION['selected_portfolio_id'] ?? 0);
+            if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
+                json_response(false, 'Invalid portfolio.');
+            }
+
+            // MF total
+            $mfTotal = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(value_now), 0) FROM mf_holdings WHERE portfolio_id = ? AND is_active = 1',
+                [$portfolioId]
+            );
+            $mfInvested = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(total_invested), 0) FROM mf_holdings WHERE portfolio_id = ? AND is_active = 1',
+                [$portfolioId]
+            );
+
+            // Stock total
+            $stTotal = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(current_value), 0) FROM stock_holdings WHERE portfolio_id = ? AND is_active = 1',
+                [$portfolioId]
+            );
+            $stInvested = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(total_invested), 0) FROM stock_holdings WHERE portfolio_id = ? AND is_active = 1',
+                [$portfolioId]
+            );
+
+            // NPS total
+            $npsTotal = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(latest_value), 0) FROM nps_holdings WHERE portfolio_id = ?',
+                [$portfolioId]
+            );
+            $npsInvested = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(total_invested), 0) FROM nps_holdings WHERE portfolio_id = ?',
+                [$portfolioId]
+            );
+
+            // FD total (principal + accrued)
+            $fdTotal = (float) DB::fetchVal(
+                "SELECT COALESCE(SUM(
+                    principal * POW(1 + interest_rate/100/4, 4 * DATEDIFF(LEAST(maturity_date, CURDATE()), open_date)/365)
+                 ), 0)
+                 FROM fd_accounts WHERE portfolio_id = ? AND status = 'active'",
+                [$portfolioId]
+            );
+            $fdInvested = (float) DB::fetchVal(
+                "SELECT COALESCE(SUM(principal), 0) FROM fd_accounts WHERE portfolio_id = ? AND status = 'active'",
+                [$portfolioId]
+            );
+
+            // Savings total
+            $savTotal = (float) DB::fetchVal(
+                'SELECT COALESCE(SUM(balance), 0) FROM savings_accounts WHERE portfolio_id = ? AND is_active = 1',
+                [$portfolioId]
+            );
+
+            $totalValue    = $mfTotal + $stTotal + $npsTotal + $fdTotal + $savTotal;
+            $totalInvested = $mfInvested + $stInvested + $npsInvested + $fdInvested + $savTotal;
+            $totalGain     = $totalValue - $totalInvested;
+            $totalGainPct  = $totalInvested > 0 ? round($totalGain / $totalInvested * 100, 2) : 0;
+
+            json_response(true, '', [
+                'net_worth'       => round($totalValue, 2),
+                'total_invested'  => round($totalInvested, 2),
+                'total_gain'      => round($totalGain, 2),
+                'total_gain_pct'  => $totalGainPct,
+                'breakdown'       => [
+                    'mf'      => ['value' => round($mfTotal, 2),  'invested' => round($mfInvested, 2)],
+                    'stocks'  => ['value' => round($stTotal, 2),  'invested' => round($stInvested, 2)],
+                    'nps'     => ['value' => round($npsTotal, 2), 'invested' => round($npsInvested, 2)],
+                    'fd'      => ['value' => round($fdTotal, 2),  'invested' => round($fdInvested, 2)],
+                    'savings' => ['value' => round($savTotal, 2), 'invested' => round($savTotal, 2)],
+                ],
+            ]);
+
+        // ---- PORTFOLIO: Delete ----
+        case 'delete_portfolio':
+            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
+            $portfolio = DB::fetchOne('SELECT * FROM portfolios WHERE id = ? AND user_id = ?', [$portfolioId, $userId]);
+            if (!$portfolio && !$isAdmin) json_response(false, 'Portfolio not found or access denied.');
+
+            DB::run('DELETE FROM portfolios WHERE id = ?', [$portfolioId]);
+            audit_log('delete_portfolio', 'portfolio', $portfolioId);
+            json_response(true, 'Portfolio deleted.');
+
+        // ---- PORTFOLIO: Rename ----
+        case 'rename_portfolio':
+            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
+            $name = clean($_POST['name'] ?? '');
+            if (strlen($name) < 2) json_response(false, 'Name too short.');
+            if (!can_edit_portfolio($portfolioId, $userId, $isAdmin)) json_response(false, 'Access denied.');
+            DB::run('UPDATE portfolios SET name = ? WHERE id = ?', [$name, $portfolioId]);
+            json_response(true, 'Portfolio renamed.', ['name' => $name]);
+
+        // ── MF routes (delegate to specific files) ──────────
+        case 'mf_search':
+            require APP_ROOT . '/api/mutual_funds/mf_search.php'; exit;
+        case 'mf_add':
+        case 'mf_edit':
+            require APP_ROOT . '/api/mutual_funds/mf_add.php'; exit;
+        case 'mf_delete':
+            require APP_ROOT . '/api/mutual_funds/mf_delete.php'; exit;
+        case 'mf_list':
+            require APP_ROOT . '/api/mutual_funds/mf_list.php'; exit;
+        case 'mf_nav_history':
+            require APP_ROOT . '/api/mutual_funds/mf_nav_history.php'; exit;
+        case 'mf_import_csv':
+            require APP_ROOT . '/api/mutual_funds/mf_import_csv.php'; exit;
+
+        // ── Phase 3: Reports ─────────────────────────────────
+        case 'report_fy_gains':
+            require APP_ROOT . '/api/reports/fy_gains.php'; exit;
+        case 'report_tax_planning':
+            require APP_ROOT . '/api/reports/tax_planning.php'; exit;
+        case 'report_net_worth':
+            require APP_ROOT . '/api/reports/net_worth.php'; exit;
+        case 'report_rebalancing':
+            require APP_ROOT . '/api/reports/rebalancing.php'; exit;
+        case 'export_csv':
+        case 'export_holdings_csv':
+        case 'export_tax_report_csv':
+            require APP_ROOT . '/api/reports/export_csv.php'; exit;
+
+        // ── Phase 4: NPS ─────────────────────────────────────
+        case 'nps_list':
+            require APP_ROOT . '/api/nps/nps_list.php'; exit;
+        case 'nps_add':
+            require APP_ROOT . '/api/nps/nps_add.php'; exit;
+        case 'nps_delete':
+            require APP_ROOT . '/api/nps/nps_delete.php'; exit;
+        case 'nps_nav_update':
+            require APP_ROOT . '/api/nps/nps_nav_update.php'; exit;
+
+        // ── Phase 4: Stocks ──────────────────────────────────
+        case 'stocks_list':
+            require APP_ROOT . '/api/stocks/stocks_list.php'; exit;
+        case 'stocks_add':
+            require APP_ROOT . '/api/stocks/stocks_add.php'; exit;
+        case 'stocks_delete':
+            require APP_ROOT . '/api/stocks/stocks_delete.php'; exit;
+        case 'stocks_search':
+            require APP_ROOT . '/api/stocks/stocks_search.php'; exit;
+        case 'stocks_refresh_prices':
+            require APP_ROOT . '/api/stocks/stocks_refresh_prices.php'; exit;
+        case 'stocks_price':
+            require APP_ROOT . '/api/stocks/stocks_price.php'; exit;
+
+        // ── Phase 4: FD ───────────────────────────────────────
+        case 'fd_list':
+            require APP_ROOT . '/api/fd/fd_list.php'; exit;
+        case 'fd_add':
+            require APP_ROOT . '/api/fd/fd_add.php'; exit;
+        case 'fd_delete':
+            require APP_ROOT . '/api/fd/fd_delete.php'; exit;
+        case 'fd_mature':
+        case 'fd_maturity':
+            require APP_ROOT . '/api/fd/fd_mature.php'; exit;
+
+        // ── Phase 4: Savings ─────────────────────────────────
+        case 'savings_list':
+            require APP_ROOT . '/api/savings/savings_list.php'; exit;
+        case 'savings_add':
+        case 'savings_add_interest':
+        case 'savings_update_balance':
+            require APP_ROOT . '/api/savings/savings_add.php'; exit;
+        case 'savings_delete':
+        case 'savings_delete_interest':
+            require APP_ROOT . '/api/savings/savings_delete.php'; exit;
+
+        // ── Admin NAV Update ─────────────────────────────────
+        case 'admin_nav_update':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/nav/update_amfi.php'; exit;
+        case 'admin_import_amfi':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            $_GET['mode'] = 'full_import';
+            require APP_ROOT . '/api/nav/update_amfi.php'; exit;
+
+        // ── Phase 5: SIP Tracker ─────────────────────────────
+        case 'sip_list':
+        case 'sip_analysis':
+        case 'sip_upcoming':
+        case 'sip_monthly_chart':
+        case 'sip_add':
+        case 'sip_edit':
+        case 'sip_delete':
+            require APP_ROOT . '/api/reports/sip_tracker.php'; exit;
+
+        // ── Phase 5: Goal Planning ───────────────────────────
+        case 'goal_list':
+        case 'goal_add':
+        case 'goal_edit':
+        case 'goal_delete':
+        case 'goal_mark_achieved':
+        case 'goal_contribute':
+        case 'goal_projection':
+            require APP_ROOT . '/api/reports/goal_planning.php'; exit;
+
+        // ── Admin — Recalculate Holdings ─────────────────────
+        case 'admin_recalc_holdings':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/recalc_holdings.php'; exit;
+
+        // ── Admin — DB Manager ────────────────────────────────
+        case 'admin_db_list':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_truncate_one':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_truncate_all':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+
+        // ── Phase 5: Admin — Users ───────────────────────────
+        case 'admin_users':
+        case 'admin_add_user':
+        case 'admin_toggle_user':
+        case 'admin_change_role':
+        case 'admin_reset_password':
+        case 'admin_delete_user':
+        case 'admin_portfolios':
+        case 'admin_stats':
+            require APP_ROOT . '/api/admin/users.php'; exit;
+
+        // ── Phase 5: Admin — Settings ────────────────────────
+        case 'admin_settings_get':
+        case 'admin_settings_save':
+        case 'admin_audit_log':
+        case 'admin_add_portfolio_member':
+        case 'admin_remove_portfolio_member':
+            require APP_ROOT . '/api/admin/settings.php'; exit;
+
+        default:
+            json_response(false, "Unknown action: {$action}", [], 400);
     }
 
-    body.innerHTML = rows.map(fd => {
-      const interest     = parseFloat(fd.maturity_amount) - parseFloat(fd.principal);
-      const daysLeft     = Math.ceil((new Date(fd.maturity_date) - new Date(today)) / 86400000);
-      const isMatured    = daysLeft < 0;
-      const statusBadge  = isMatured ? '<span class="badge badge-outline">Matured</span>' : daysLeft <= 30 ? `<span class="badge badge-danger">${daysLeft}d left</span>` : daysLeft <= 90 ? `<span class="badge badge-warning">${daysLeft}d left</span>` : `<span class="badge badge-success">Active</span>`;
-      const accrued      = FD.calcAccruedThisFy(parseFloat(fd.principal), parseFloat(fd.interest_rate), fd.start_date, fd.maturity_date);
-      return `<tr>
-        <td>
-          <div class="fund-name">${escHtml(fd.bank_name)}</div>
-          ${fd.is_senior_citizen == 1 ? '<div class="fund-sub" style="color:var(--info)">👴 Senior Citizen</div>' : ''}
-          ${fd.tds_applicable == 0 ? '<div class="fund-sub">Form 15G/H</div>' : ''}
-        </td>
-        <td>${fd.account_number ? '****' + fd.account_number.slice(-4) : '—'}</td>
-        <td>${escHtml(fd.portfolio_name || '—')}</td>
-        <td class="text-right">${fmtInr(fd.principal)}</td>
-        <td class="text-right">${parseFloat(fd.interest_rate).toFixed(2)}%</td>
-        <td>${fmtDate(fd.start_date)}</td>
-        <td>${fmtDate(fd.maturity_date)}</td>
-        <td class="text-right text-success">${fmtInr(fd.maturity_amount)}</td>
-        <td class="text-right text-success">${fmtInr(interest)}</td>
-        <td>${statusBadge}</td>
-        <td class="text-right">${fmtInr(accrued)}<br><small style="color:var(--text-muted)">FY Accrual</small></td>
-        <td class="text-center">
-          ${!isMatured ? `<button class="btn btn-sm btn-outline" onclick="FD.markMatured(${fd.id})" title="Mark as matured">✓ Mature</button> ` : ''}
-          <button class="btn btn-sm btn-danger-ghost" onclick="FD.confirmDelete(${fd.id})" title="Delete">🗑️</button>
-        </td>
-      </tr>`;
-    }).join('');
-  },
-
-  // Calculate accrued interest for current FY (Apr to today or maturity)
-  calcAccruedThisFy(principal, rate, startDate, maturityDate) {
-    const today     = new Date();
-    const todayStr  = today.toISOString().split('T')[0];
-    const fyStart   = today.getMonth() >= 3 ? `${today.getFullYear()}-04-01` : `${today.getFullYear()-1}-04-01`;
-    const from      = startDate > fyStart ? startDate : fyStart;
-    const to        = maturityDate < todayStr ? maturityDate : todayStr;
-    if (from >= to) return 0;
-    const days      = Math.max(0, Math.ceil((new Date(to) - new Date(from)) / 86400000));
-    return Math.round(principal * (rate / 100) * (days / 365) * 100) / 100;
-  },
-
-  calcMaturity() {
-    const principal = parseFloat(document.getElementById('fdPrincipal').value) || 0;
-    const rate      = parseFloat(document.getElementById('fdRate').value)      || 0;
-    const n         = parseInt(document.getElementById('fdCompounding').value) || 4;
-    const start     = document.getElementById('fdStartDate').value;
-    const maturity  = document.getElementById('fdMaturityDate').value;
-
-    if (!principal || !rate || !start || !maturity) { document.getElementById('fdPreview').style.display='none'; return; }
-
-    const days  = Math.max(0, Math.ceil((new Date(maturity) - new Date(start)) / 86400000));
-    const years = days / 365;
-    const mat   = principal * Math.pow(1 + (rate / 100 / n), n * years);
-    const intr  = mat - principal;
-    const yld   = (intr / principal) * 100;
-
-    document.getElementById('prevTenure').textContent   = `${Math.floor(years)}Y ${Math.round((years % 1)*12)}M (${days}d)`;
-    document.getElementById('prevMaturity').textContent  = fmtInr(mat);
-    document.getElementById('prevInterest').textContent  = fmtInr(intr);
-    document.getElementById('prevYield').textContent     = yld.toFixed(2) + '%';
-    document.getElementById('fdPreview').style.display  = 'block';
-  },
-
-  openAddModal(fd = null) {
-    document.getElementById('fdError').style.display = 'none';
-    ['fdBankName','fdAccountNumber','fdPrincipal','fdRate','fdNotes'].forEach(id => document.getElementById(id).value = fd?.[id.replace('fd','').toLowerCase()] || '');
-    document.getElementById('fdStartDate').value    = fd?.start_date    || new Date().toISOString().split('T')[0];
-    document.getElementById('fdMaturityDate').value = fd?.maturity_date || '';
-    document.getElementById('fdSenior').value       = fd?.is_senior_citizen || '0';
-    document.getElementById('fdTds').value          = fd?.tds_applicable !== undefined ? String(fd.tds_applicable) : '1';
-    document.getElementById('fdCompounding').value  = '4';
-    document.getElementById('fdPreview').style.display = 'none';
-    document.getElementById('fdModalTitle').textContent = fd ? 'Edit Fixed Deposit' : 'Add Fixed Deposit';
-    document.getElementById('modalAddFd').style.display = 'flex';
-  },
-  closeAddModal() { document.getElementById('modalAddFd').style.display='none'; },
-
-  async saveFd() {
-    const errEl = document.getElementById('fdError');
-    errEl.style.display = 'none';
-    const btn = document.getElementById('saveFd');
-    btn.disabled=true; btn.textContent='Saving...';
-
-    const body = new URLSearchParams({
-      action:              'fd_add',
-      portfolio_id:        document.getElementById('fdPortfolio').value,
-      bank_name:           document.getElementById('fdBankName').value,
-      account_number:      document.getElementById('fdAccountNumber').value,
-      principal:           document.getElementById('fdPrincipal').value,
-      interest_rate:       document.getElementById('fdRate').value,
-      interest_frequency:  'cumulative',
-      compounding_freq:    document.getElementById('fdCompounding').value,
-      start_date:          document.getElementById('fdStartDate').value,
-      maturity_date:       document.getElementById('fdMaturityDate').value,
-      is_senior_citizen:   document.getElementById('fdSenior').value,
-      tds_applicable:      document.getElementById('fdTds').value,
-      notes:               document.getElementById('fdNotes').value,
-    });
-
-    try {
-      const res  = await fetch(APP_URL+'/api/router.php',{ method:'POST', body });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      this.closeAddModal();
-      showToast(`FD added! Maturity: ${fmtInr(data.data?.maturity_amount||0)}`, 'success');
-      this.loadFds();
-    } catch(e) {
-      errEl.textContent=e.message; errEl.style.display='block';
-    } finally { btn.disabled=false; btn.textContent='Save FD'; }
-  },
-
-  async markMatured(id) {
-    if (!confirm('Mark this FD as matured?')) return;
-    try {
-      const res  = await fetch(APP_URL+'/api/router.php',{ method:'POST', body: new URLSearchParams({ action:'fd_mature', id }) });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      showToast('FD marked as matured.','success');
-      this.loadFds();
-    } catch(e) { showToast('Error: '+e.message,'error'); }
-  },
-
-  confirmDelete(id) { FD.pendingDeleteId=id; document.getElementById('modalDelFd').style.display='flex'; },
-  closeDelModal()   { document.getElementById('modalDelFd').style.display='none'; FD.pendingDeleteId=null; },
-  async deleteFd() {
-    if (!FD.pendingDeleteId) return;
-    const btn=document.getElementById('confirmDelFd');
-    btn.disabled=true; btn.textContent='Deleting...';
-    try {
-      const res  = await fetch(APP_URL+'/api/router.php',{ method:'POST', body: new URLSearchParams({ action:'fd_delete', id: FD.pendingDeleteId })});
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message);
-      this.closeDelModal(); showToast('FD deleted.','success');
-      this.loadFds();
-    } catch(e) { showToast('Error: '+e.message,'error'); }
-    finally { btn.disabled=false; btn.textContent='Delete'; }
-  },
-};
-
-function fmtNum(v,d=2){ return parseFloat(v||0).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d}); }
-function fmtInr(v){ const n=parseFloat(v||0); return(n<0?'-':'')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}-${m}-${y}`; }
-function escHtml(t){ const d=document.createElement('div'); d.appendChild(document.createTextNode(t||'')); return d.innerHTML; }
-
-document.addEventListener('DOMContentLoaded', () => FD.init());
+} catch (Exception $e) {
+    error_log('API error [' . $action . ']: ' . $e->getMessage());
+    json_response(false, IS_LOCAL ? $e->getMessage() : 'An error occurred. Please try again.', [], 500);
+}

@@ -115,3 +115,4 @@ define('STOCK_TXN_TYPES', [
     'DIV'   => 'Dividend',
 ]);
 
+define('ASSET_VERSION', '1.0');

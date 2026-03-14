@@ -20,7 +20,8 @@ $today   = date('Y-m-d');
 
 // Check if already updated today
 $lastUpdated = DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key = 'nav_last_updated'");
-$manual      = isset($_GET['manual']) || ($isCron && isset($argv[1]) && $argv[1] === '--force');
+$manual = isset($_GET['manual']) && $_GET['manual'] === '1'
+       || ($isCron && isset($argv[1]) && $argv[1] === '--force');
 
 if ($lastUpdated === $today && !$manual) {
     $msg = "NAV already updated today ({$today}). Use ?manual=1 to force update.";
@@ -182,4 +183,3 @@ try {
     if ($isCron) { echo "ERROR: $msg" . PHP_EOL; exit(1); }
     json_response(false, $msg);
 }
-

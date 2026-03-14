@@ -84,15 +84,7 @@ function is_admin(): bool {
  * Admin sees all; member sees own + shared
  */
 function get_user_portfolios(int $userId, bool $isAdmin = false): array {
-    if ($isAdmin) {
-        return DB::fetchAll(
-            'SELECT p.*, u.name as owner_name
-             FROM portfolios p
-             JOIN users u ON u.id = p.user_id
-             ORDER BY p.user_id, p.is_default DESC, p.name',
-        );
-    }
-
+    // Always return only portfolios owned by or shared with this user
     return DB::fetchAll(
         'SELECT DISTINCT p.*, u.name as owner_name,
                 pm.can_edit,
@@ -110,8 +102,7 @@ function get_user_portfolios(int $userId, bool $isAdmin = false): array {
  * Verify user can access a specific portfolio
  */
 function can_access_portfolio(int $portfolioId, int $userId, bool $isAdmin = false): bool {
-    if ($isAdmin) return true;
-
+    // Even admins should only access portfolios they own or are members of
     $row = DB::fetchOne(
         'SELECT p.id FROM portfolios p
          LEFT JOIN portfolio_members pm ON pm.portfolio_id = p.id AND pm.user_id = ?
@@ -165,4 +156,3 @@ function log_login_attempt(string $ip, string $email, bool $success): void {
         [$ip, $email, $success ? 1 : 0]
     );
 }
-

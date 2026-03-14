@@ -4,6 +4,7 @@
  * All AJAX/POST requests go through here
  * Handles: portfolio CRUD, theme update, portfolio switch
  */
+ob_start(); // Buffer all output — prevents PHP warnings from corrupting JSON
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
 require_once APP_ROOT . '/includes/auth_check.php';
@@ -15,10 +16,24 @@ header('X-Content-Type-Options: nosniff');
 // Parse JSON body (API.post sends application/json, not form data)
 $_rawBody = file_get_contents('php://input');
 if (!empty($_rawBody)) {
-    $_jsonData = json_decode($_rawBody, true);
-    if (is_array($_jsonData)) {
-        foreach ($_jsonData as $k => $v) {
-            $_POST[$k] = $v;
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (str_contains($contentType, 'application/json')) {
+        $_jsonData = json_decode($_rawBody, true);
+        if (is_array($_jsonData)) {
+            foreach ($_jsonData as $k => $v) { $_POST[$k] = $v; }
+        }
+    } elseif (str_contains($contentType, 'application/x-www-form-urlencoded')) {
+        // fallback: parse urlencoded body into $_POST
+        parse_str($_rawBody, $_formData);
+        foreach ($_formData as $k => $v) { $_POST[$k] = $v; }
+    } else {
+        // try JSON first, then urlencoded
+        $_jsonData = json_decode($_rawBody, true);
+        if (is_array($_jsonData)) {
+            foreach ($_jsonData as $k => $v) { $_POST[$k] = $v; }
+        } else {
+            parse_str($_rawBody, $_formData);
+            foreach ($_formData as $k => $v) { $_POST[$k] = $v; }
         }
     }
 }
@@ -28,12 +43,25 @@ if (!is_logged_in()) {
     json_response(false, 'Unauthorized. Please log in.', [], 401);
 }
 
-// CSRF check
-csrf_verify();
-
 $action  = clean($_POST['action'] ?? $_GET['action'] ?? '');
 $userId  = (int) $_SESSION['user_id'];
 $isAdmin = is_admin();
+
+// Read-only actions don't need CSRF (no state change)
+$csrfExempt = [
+    'admin_stats', 'admin_users', 'admin_portfolios',
+    'admin_settings_get', 'admin_audit_log', 'admin_db_list',
+    'get_portfolio_summary', 'get_dashboard_data',
+    'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
+    'stocks_list', 'stocks_get',
+    'nps_list',
+    'savings_list',
+    'goal_list', 'goal_projection',
+    'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
+];
+if (!in_array($action, $csrfExempt)) {
+    csrf_verify();
+}
 
 try {
     switch ($action) {
@@ -271,6 +299,11 @@ try {
         case 'goal_contribute':
         case 'goal_projection':
             require APP_ROOT . '/api/reports/goal_planning.php'; exit;
+
+        // ── Admin — Recalculate Holdings ─────────────────────
+        case 'admin_recalc_holdings':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/recalc_holdings.php'; exit;
 
         // ── Admin — DB Manager ────────────────────────────────
         case 'admin_db_list':

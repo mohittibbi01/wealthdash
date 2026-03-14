@@ -9,11 +9,9 @@ defined('WEALTHDASH') or die('Direct access not permitted.');
 $portfolioId = (int)($_GET['portfolio_id'] ?? 0);
 $status      = clean($_GET['status'] ?? '');
 
-$portWhere = $isAdmin && !$portfolioId
-    ? ''
-    : ($portfolioId
-        ? "AND p.id = {$portfolioId} AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))"
-        : "AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))");
+$portWhere = $portfolioId
+    ? "AND p.id = {$portfolioId} AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))"
+    : "AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))";
 
 $statusCond = $status ? "AND fa.status = " . DB::pdo()->quote($status) : '';
 
@@ -28,4 +26,3 @@ $rows = DB::fetchAll(
 );
 
 json_response(true, '', $rows);
-

@@ -221,6 +221,20 @@ function renderHoldings() {
     const cagr      = h.cagr ? `${h.cagr > 0 ? '+' : ''}${h.cagr}%` : '—';
     const fundId    = h.fund_id || h.id;
 
+    // Peak NAV + Drawdown
+    const peakNav = h.highest_nav
+      ? `<div style="font-weight:600;">₹${Number(h.highest_nav).toFixed(4)}</div>${h.highest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.highest_nav_date)}</small>` : ''}`
+      : '—';
+    let drawdownHtml = '—';
+    if (h.drawdown_pct !== null && h.drawdown_pct !== undefined) {
+      if (h.drawdown_pct <= 0) {
+        drawdownHtml = `<span style="color:var(--gain,#16a34a);font-weight:600;">🏆 ATH</span>`;
+      } else {
+        const ddColor = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
+        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">-${h.drawdown_pct}%</span>`;
+      }
+    }
+
     return `<tr data-fund-id="${fundId}" data-folio="${h.folio_number||''}">
       <td class="fund-name-cell">
         <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
@@ -237,6 +251,8 @@ function renderHoldings() {
         ${h.stcg_units > 0 ? `<div style="font-size:12px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
       </td>
       <td class="text-center">${nav}${navDate}</td>
+      <td class="text-center">${peakNav}</td>
+      <td class="text-center">${drawdownHtml}</td>
       <td>
         <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
       </td>
@@ -964,7 +980,7 @@ function downloadHoldingsExcel() {
     showToast('No holdings to download', 'error'); return;
   }
 
-  const headers = ['Fund Name','Fund House','Category','Folio','Invested (₹)','Current Value (₹)','Gain/Loss (₹)','Returns (%)','XIRR (%)','Units','NAV (₹)','Type','LTCG Date','First Purchase'];
+  const headers = ['Fund Name','Fund House','Category','Folio','Invested (₹)','Current Value (₹)','Gain/Loss (₹)','Returns (%)','XIRR (%)','Units','NAV (₹)','Peak NAV (₹)','Drawdown (%)','Type','LTCG Date','First Purchase'];
 
   const rows = MF.filtered.map(h => [
     h.scheme_name || '',
@@ -978,6 +994,8 @@ function downloadHoldingsExcel() {
     Number(h.cagr || 0).toFixed(2),
     Number(h.total_units || 0).toFixed(4),
     Number(h.latest_nav || 0).toFixed(4),
+    h.highest_nav ? Number(h.highest_nav).toFixed(4) : '',
+    h.drawdown_pct !== null && h.drawdown_pct !== undefined ? Number(h.drawdown_pct).toFixed(2) : '',
     h.gain_type || '',
     h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '',
     h.first_purchase_date ? formatDateDisplay(h.first_purchase_date) : ''
@@ -988,7 +1006,7 @@ function downloadHoldingsExcel() {
   const totVal  = MF.filtered.reduce((s,h) => s + (Number(h.value_now)||0), 0);
   const totGain = totVal - totInv;
   const totPct  = totInv > 0 ? ((totGain/totInv)*100).toFixed(2) : '0.00';
-  rows.push(['TOTAL','','','', totInv.toFixed(2), totVal.toFixed(2), totGain.toFixed(2), totPct, '', '', '', '', '', '']);
+  rows.push(['TOTAL','','','', totInv.toFixed(2), totVal.toFixed(2), totGain.toFixed(2), totPct, '', '', '', '', '', '', '', '']);
 
   // Build CSV content (Excel opens CSV with UTF-8 BOM)
   const BOM = '\uFEFF';

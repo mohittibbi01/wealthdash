@@ -35,7 +35,11 @@ ob_start();
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
 <div id="tab-overview" class="admin-tab-content">
   <div class="cards-grid cards-grid-4 mb-4" id="statsCards">
-    <div class="stat-card"><div class="stat-label">Active Users</div><div class="stat-value" id="statUsers">—</div></div>
+    <div class="stat-card">
+      <div class="stat-label">Active Users</div>
+      <div class="stat-value" id="statUsers">—</div>
+      <div id="statUsersBreakdown" style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.6;">—</div>
+    </div>
     <div class="stat-card"><div class="stat-label">Portfolios</div><div class="stat-value" id="statPortfolios">—</div></div>
     <div class="stat-card"><div class="stat-label">MF Holdings</div><div class="stat-value" id="statMfHoldings">—</div></div>
     <div class="stat-card"><div class="stat-label">Funds in DB</div><div class="stat-value" id="statFunds">—</div></div>
@@ -172,11 +176,24 @@ ob_start();
 
 <!-- ═══════ TAB: NAV & DATA ═══════ -->
 <div id="tab-nav" class="admin-tab-content" style="display:none">
-  <div class="cards-grid cards-grid-2">
+
+  <!-- Row 1: AMFI + Stocks (side by side) -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+    <!-- AMFI NAV Update -->
     <div class="card">
-      <div class="card-header"><h3 class="card-title">AMFI NAV Update</h3></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">📡</span>
+          <h3 class="card-title" style="margin:0;">AMFI NAV Update</h3>
+        </div>
+        <div class="nav-info-btn" data-info="amfi">ℹ</div>
+      </div>
+      <div class="nav-info-box" id="info-amfi">
+        <strong>Update Today's NAV</strong> — AMFI India se aaj ke sabhi mutual funds ke latest NAV fetch karta hai aur <code>funds.latest_nav</code> update karta hai. Holdings ka "Current Value" yahi se aata hai.<br><br>
+        <strong>Import Full Fund List</strong> — AMFI se poori fund list download karta hai (14,000+ funds). Nayi fund add hone pe ya fresh install pe run karo. 2-5 min lagta hai.
+      </div>
       <div class="card-body">
-        <p class="text-secondary mb-3">Update mutual fund NAV from AMFI India (daily ~10 PM).</p>
         <div style="display:flex;gap:.75rem;flex-wrap:wrap">
           <button class="btn btn-primary" id="btnUpdateNav" onclick="runNavUpdate('nav_only')">
             <span id="navBtnLabel">Update Today's NAV</span>
@@ -190,10 +207,20 @@ ob_start();
       </div>
     </div>
 
+    <!-- Stock Prices Update -->
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Stock Prices Update</h3></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">📊</span>
+          <h3 class="card-title" style="margin:0;">Stock Prices Update</h3>
+        </div>
+        <div class="nav-info-btn" data-info="stocks">ℹ</div>
+      </div>
+      <div class="nav-info-box" id="info-stocks">
+        Yahoo Finance se tumhare portfolio ke sabhi stocks ke latest prices fetch karta hai aur <code>stock_master.latest_price</code> update karta hai. Stock holdings ka "Current Value" yahi se calculate hota hai.<br><br>
+        <strong>Note:</strong> Market hours ke baad run karo (3:30 PM ke baad) taaki closing price mile.
+      </div>
       <div class="card-body">
-        <p class="text-secondary mb-3">Refresh stock prices via Yahoo Finance.</p>
         <button class="btn btn-primary" id="btnUpdateStocks" onclick="updateStockPrices()">
           Refresh Stock Prices
         </button>
@@ -201,32 +228,113 @@ ob_start();
       </div>
     </div>
 
+  </div>
+
+  <!-- Row 2: Holdings Recalc + Cron (side by side) -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+    <!-- Holdings Recalculation -->
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Cron Schedule</h3></div>
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🔄</span>
+          <h3 class="card-title" style="margin:0;">Holdings Recalculation</h3>
+        </div>
+        <div class="nav-info-btn" data-info="recalc">ℹ</div>
+      </div>
+      <div class="nav-info-box" id="info-recalc">
+        <code>mf_transactions</code> table se scratch se sabhi holdings recalculate karta hai — total units, invested amount, avg cost NAV, gain/loss sab.<br><br>
+        <strong>Kab use karo:</strong> Agar holdings page pe values galat lag rahi hain, ya CSV import ke baad data inconsistent dikh raha ho.
+      </div>
       <div class="card-body">
-        <p class="text-secondary text-sm mb-2">Set up these cron jobs on your server:</p>
+        <button class="btn btn-outline" id="btnRecalc" onclick="recalcHoldings()">
+          <span id="recalcBtnLabel">&#128260; Recalculate All Holdings</span>
+        </button>
+        <p class="text-xs text-secondary mt-2">This may take 1-2 minutes for large portfolios.</p>
+        <div id="recalcStatus" style="margin-top:10px;font-size:13px;display:none;"></div>
+      </div>
+    </div>
+
+    <!-- Cron Schedule -->
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">⏰</span>
+          <h3 class="card-title" style="margin:0;">Cron Schedule</h3>
+        </div>
+        <div class="nav-info-btn" data-info="cron">ℹ</div>
+      </div>
+      <div class="nav-info-box" id="info-cron">
+        Ye sirf reference hai — XAMPP localhost pe cron kaam nahi karta. <strong>Upar ke buttons manually use karo</strong> jab bhi NAV ya stock prices update karni ho.<br><br>
+        Agar kabhi server pe host karo tab yeh cron jobs add karna.
+      </div>
+      <div class="card-body">
+        <p class="text-secondary text-sm mb-2">Reference only (server hosting ke liye):</p>
         <div class="code-block">
           <code>
 # Daily NAV (10:15 PM)<br>
 15 22 * * * php /path/to/wealthdash/cron/update_nav_daily.php<br><br>
-# Daily Stocks (6:30 PM, market close)<br>
+# Daily Stocks (6:30 PM)<br>
 30 18 * * 1-5 php /path/to/wealthdash/cron/update_stocks_daily.php<br><br>
-# FD Maturity Alerts (9 AM daily)<br>
+# FD Maturity Alerts (9 AM)<br>
 0 9 * * * php /path/to/wealthdash/cron/fd_maturity_alert.php
           </code>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Holdings Recalculation</h3></div>
-      <div class="card-body">
-        <p class="text-secondary mb-3">Recalculate all holdings from transactions. Use if data seems inconsistent.</p>
-        <button class="btn btn-outline" onclick="recalcHoldings()">Recalculate All Holdings</button>
-        <p class="text-xs text-secondary mt-2">This may take 1-2 minutes for large portfolios.</p>
+  </div>
+
+  <!-- Row 3: Peak NAV (full width) -->
+  <div class="card">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">&#128200;</span>
+        <div>
+          <h3 class="card-title" style="margin:0;">Peak NAV Update</h3>
+          <p class="text-secondary text-sm" style="margin:2px 0 0;">All-Time High NAV — Holdings page pe Drawdown column ke liye</p>
+        </div>
+        <div class="nav-info-btn" data-info="peaknav">ℹ</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <label class="text-sm text-secondary" for="peakNavParallel">Parallel:</label>
+          <select id="peakNavParallel" class="form-select" style="width:80px;padding:5px 8px;font-size:13px;">
+            <option value="4">4</option>
+            <option value="8" selected>8</option>
+            <option value="16">16</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btnPeakNav" onclick="runPeakNav()">
+          <span id="peakNavBtnLabel">&#9654; Run Peak NAV Update</span>
+          <span id="peakNavBtnSpinner" style="display:none;">&#9203; Running...</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="loadPeakNavStatus()">&#8635; Status</button>
       </div>
     </div>
+    <div class="nav-info-box" id="info-peaknav">
+      MFAPI.in se har fund ka <strong>poora NAV history</strong> fetch karta hai aur sabse zyada NAV dhundh ke <code>funds.highest_nav</code> aur <code>funds.highest_nav_date</code> save karta hai.<br><br>
+      <strong>Drawdown</strong> = (Peak NAV - Current NAV) / Peak NAV × 100 — holdings page pe dikhta hai ki fund apne ATH se kitna neeche hai.<br><br>
+      <strong>Parallel:</strong> Ek saath kitne funds fetch kare. 8 = safe, 16 = fast but errors ho sakte hain.
+      Pehli baar run karne mein 14,000+ funds hain isliye zyada time lagega. Uske baad roz sirf incremental update hoti hai.
+    </div>
+    <div id="peakNavStatusBar" style="display:none;padding:10px 20px;background:var(--bg-surface-2);border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+      <span>Total: <strong id="pnTotal">&#8212;</strong></span>
+      <span>Completed: <strong id="pnDone" style="color:var(--success);">&#8212;</strong></span>
+      <span>Pending: <strong id="pnPending" style="color:var(--warning);">&#8212;</strong></span>
+      <span>Needs Update: <strong id="pnStale" style="color:#d97706;">&#8212;</strong></span>
+      <span>Errors: <strong id="pnErrors" style="color:var(--danger);">&#8212;</strong></span>
+      <span>Progress: <strong id="pnPct">&#8212;</strong></span>
+    </div>
+    <div id="peakNavLogWrap" style="display:none;padding:16px 20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span class="text-sm text-secondary">Live Output</span>
+        <button class="btn btn-ghost btn-xs" onclick="document.getElementById('peakNavLog').textContent=''">Clear</button>
+      </div>
+      <pre id="peakNavLog" style="background:var(--bg-surface-2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-primary);margin:0;"></pre>
+    </div>
   </div>
+
 </div>
 
 <!-- ═══════ TAB: AUDIT LOG ═══════ -->
@@ -385,6 +493,10 @@ ob_start();
 .admin-tab:hover { color:var(--text-primary); background:var(--bg-surface-2); }
 .admin-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
 .code-block { background:var(--bg-surface-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem; font-family:monospace; font-size:.8rem; line-height:1.7; overflow-x:auto; }
+.nav-info-btn { width:22px;height:22px;border-radius:50%;background:var(--bg-surface-2);border:1.5px solid var(--border);color:var(--text-secondary);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;transition:background .15s,color .15s; }
+.nav-info-btn:hover { background:var(--accent);color:#fff;border-color:var(--accent); }
+.nav-info-box { display:none;padding:12px 20px;background:rgba(37,99,235,.06);border-bottom:1px solid rgba(37,99,235,.15);font-size:13px;line-height:1.6;color:var(--text-secondary); }
+.nav-info-box code { background:var(--bg-surface-2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--accent); }
 </style>
 
 <script>
@@ -412,22 +524,33 @@ function adminSwitchTab(name, btn) {
 async function loadStats() {
   try {
     const d = await API.post('/api/router.php', { action:'admin_stats' });
-    const s = d.stats;
-    document.getElementById('statUsers').textContent     = s.users;
-    document.getElementById('statPortfolios').textContent= s.portfolios;
-    document.getElementById('statMfHoldings').textContent= s.mf_holdings;
-    document.getElementById('statFunds').textContent     = s.funds;
-    document.getElementById('statStocks').textContent    = s.stock_holdings;
-    document.getElementById('statFDs').textContent       = s.fd_accounts;
-    document.getElementById('statSavings').textContent   = s.savings_accs;
+    const s = d.data?.stats || d.stats || {};
+    document.getElementById('statUsers').textContent     = s.users          ?? '—';
+    const bd = document.getElementById('statUsersBreakdown');
+    if (bd && s.admin_count != null) {
+      bd.innerHTML = `Admin <strong>${s.admin_count}</strong> + Members <strong>${s.member_count}</strong> = <strong>${s.users}</strong>`;
+    }
+    document.getElementById('statPortfolios').textContent= s.portfolios     ?? '—';
+    document.getElementById('statMfHoldings').textContent= s.mf_holdings    ?? '—';
+    document.getElementById('statFunds').textContent     = s.funds          ?? '—';
+    document.getElementById('statStocks').textContent    = s.stock_holdings ?? '—';
+    document.getElementById('statFDs').textContent       = s.fd_accounts    ?? '—';
+    document.getElementById('statSavings').textContent   = s.savings_accs   ?? '—';
     document.getElementById('statNav').textContent       = s.nav_last_updated ? formatDate(s.nav_last_updated) : 'Not updated';
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    console.error('loadStats error:', e);
+    // Show error visibly on page
+    document.getElementById('statsCards').insertAdjacentHTML('beforeend',
+      `<div style="grid-column:1/-1;color:red;font-size:12px;padding:8px;background:#fee2e2;border-radius:6px;">
+        ⚠ Stats load error: ${e.message} — Check browser Console (F12) for details
+      </div>`);
+  }
 }
 
 async function loadUsers() {
   try {
     const d = await API.post('/api/router.php', { action:'admin_users' });
-    allUsers = d.users || [];
+    allUsers = d.data?.users || d.users || [];
     renderUsers(allUsers);
   } catch(e) { console.error(e); }
 }
@@ -478,7 +601,7 @@ function filterUsers() {
 async function loadSettings() {
   try {
     const d = await API.post('/api/router.php', { action:'admin_settings_get' });
-    const s = d.settings;
+    const s = d.data?.settings || d.settings || {};
     document.querySelectorAll('.setting-input').forEach(el => {
       const key = el.dataset.key;
       if (s[key] !== undefined) el.value = s[key];
@@ -503,7 +626,7 @@ async function loadPortfolioList() {
     const d = await API.post('/api/router.php', { action:'admin_portfolios' });
     const sel = document.getElementById('sharePortfolioId');
     sel.innerHTML = '<option value="">Select portfolio…</option>' +
-      (d.portfolios||[]).map(p =>
+      (d.data?.portfolios || d.portfolios || []).map(p =>
         `<option value="${p.id}">${esc(p.name)} (${esc(p.owner_name)})</option>`
       ).join('');
   } catch(e) {}
@@ -590,31 +713,55 @@ async function saveResetPw() {
 
 // ── NAV ───────────────────────────────────────────────────
 async function runNavUpdate(mode) {
-  const btn    = document.getElementById('btnUpdateNav');
+  const isImport = mode === 'full_import';
+  const btn    = isImport ? document.getElementById('btnImportAmfi') : document.getElementById('btnUpdateNav');
   const label  = document.getElementById('navBtnLabel');
   const spin   = document.getElementById('navBtnSpinner');
   const result = document.getElementById('navUpdateResult');
-  btn.disabled=true; label.style.display='none'; spin.style.display='';
+
+  if (!isImport) { btn.disabled=true; label.style.display='none'; spin.style.display=''; }
+  else { btn.disabled=true; btn.textContent='⏳ Importing...'; }
   result.style.display='none';
+
+  // ?manual=1 forces update even if already done today
+  // full_import uses a longer XHR timeout (5 min) since AMFI data is large
+  const url = `${window.APP_URL}/api/nav/update_amfi.php?manual=1&mode=${mode}`;
+
   try {
-    const res = await fetch(`${window.APP_URL}/api/nav/update_amfi.php?mode=${mode}`, {
-      headers:{'X-Requested-With':'XMLHttpRequest'}
-    });
-    const d = await res.json();
+    let d;
+    if (isImport) {
+      // Use XMLHttpRequest for full import — supports longer timeout than fetch
+      d = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 300000; // 5 minutes
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload  = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('Invalid response')); } };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Request timed out after 5 minutes'));
+        xhr.send();
+      });
+    } else {
+      const res = await fetch(url, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+      d = await res.json();
+    }
     result.style.display='block';
     result.style.background = d.success ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)';
     result.style.color = d.success ? 'var(--success)' : 'var(--danger)';
-    result.innerHTML = `<strong>${d.message||(d.success?'Done':'Failed')}</strong>` +
-      (d.stats ? `<br>Updated: ${d.stats.updated}, New: ${d.stats.new_funds}, Time: ${d.elapsed_sec}s` : '');
+    result.innerHTML = `<strong>${d.message||(d.success?'Done':'Failed')}</strong>`;
     loadStats();
   } catch(err) {
     result.style.display='block';
-    result.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
-  } finally { btn.disabled=false; label.style.display=''; spin.style.display='none'; }
+    result.style.background='rgba(239,68,68,.1)';
+    result.innerHTML = `<span style="color:var(--danger)">⚠️ Error: ${err.message}</span>`;
+  } finally {
+    if (!isImport) { btn.disabled=false; label.style.display=''; spin.style.display='none'; }
+    else { btn.disabled=false; btn.textContent='Import Full Fund List'; }
+  }
 }
 
 function confirmImportAmfi() {
-  if (!confirm('Import full AMFI fund list? This may take 2-5 minutes.')) return;
+  if (!confirm('Import full AMFI fund list?\n\nThis fetches ~20,000 funds from AMFI and may take 2-5 minutes.\nDo not close this tab.')) return;
   runNavUpdate('full_import');
 }
 
@@ -637,8 +784,65 @@ async function updateStockPrices() {
 }
 
 async function recalcHoldings() {
-  if (!confirm('Recalculate all holdings? May take a moment.')) return;
-  showToast('Holdings recalculation triggered (future endpoint).','info');
+  if (!confirm('Recalculate all holdings from transactions?\nThis may take 1-2 minutes.')) return;
+
+  const btn    = document.getElementById('btnRecalc');
+  const label  = document.getElementById('recalcBtnLabel');
+  const status = document.getElementById('recalcStatus');
+
+  // Working state
+  btn.disabled = true;
+  btn.style.background    = '#d97706';
+  btn.style.color         = '#fff';
+  btn.style.borderColor   = '#d97706';
+  label.innerHTML = '&#9696; Working...';
+  status.style.display = 'none';
+
+  try {
+    const res = await API.post('/api/router.php', { action: 'admin_recalc_holdings', csrf_token: window.CSRF_TOKEN });
+
+    // Done state — revert button
+    btn.disabled = false;
+    btn.style.background  = '';
+    btn.style.color       = '';
+    btn.style.borderColor = '';
+    label.innerHTML = '&#128260; Recalculate All Holdings';
+
+    // Show result message below button
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const isErr   = (res.data?.errors || 0) > 0;
+
+    status.style.display = 'block';
+    status.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:8px;
+           background:${isErr ? 'rgba(239,68,68,.08)' : 'rgba(34,197,94,.08)'};
+           border:1px solid ${isErr ? 'rgba(239,68,68,.25)' : 'rgba(34,197,94,.25)'};">
+        <span style="font-size:16px;line-height:1.3;">${isErr ? '⚠️' : '✅'}</span>
+        <div>
+          <div style="font-weight:600;color:${isErr ? 'var(--danger)' : 'var(--success)'};">
+            ${res.message || 'Done'}
+          </div>
+          <div style="color:var(--text-muted);font-size:12px;margin-top:2px;">
+            Last recalculated: ${dateStr} at ${timeStr}
+          </div>
+        </div>
+      </div>`;
+
+    if (!isErr) showToast('Holdings recalculated successfully!', 'success');
+    else showToast(res.message, 'error');
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.style.background  = '';
+    btn.style.color       = '';
+    btn.style.borderColor = '';
+    label.innerHTML = '&#128260; Recalculate All Holdings';
+    status.style.display = 'block';
+    status.innerHTML = `<div style="color:var(--danger);font-size:13px;">&#9888; Error: ${e.message}</div>`;
+    showToast('Recalculation failed: ' + e.message, 'error');
+  }
 }
 
 // ── Audit Log ─────────────────────────────────────────────
@@ -646,17 +850,19 @@ async function loadAuditLog() {
   const filter = document.getElementById('auditFilter')?.value || '';
   try {
     const d = await API.get(`/api/router.php?action=admin_audit_log&limit=${AUDIT_LIMIT}&offset=${auditOffset}&filter=${encodeURIComponent(filter)}`);
-    document.getElementById('auditTotalText').textContent = `Showing ${auditOffset+1}–${Math.min(auditOffset+AUDIT_LIMIT, d.total)} of ${d.total} entries`;
+    const logs  = d.data?.logs  || d.logs  || [];
+    const total = d.data?.total || d.total || 0;
+    document.getElementById('auditTotalText').textContent = `Showing ${auditOffset+1}–${Math.min(auditOffset+AUDIT_LIMIT, total)} of ${total} entries`;
     document.getElementById('auditPageNum').textContent = Math.floor(auditOffset/AUDIT_LIMIT)+1;
     document.getElementById('auditPrev').disabled = auditOffset===0;
-    document.getElementById('auditNext').disabled = auditOffset+AUDIT_LIMIT >= d.total;
+    document.getElementById('auditNext').disabled = auditOffset+AUDIT_LIMIT >= total;
 
     const tbody = document.getElementById('auditBody');
-    if (!d.logs?.length) {
+    if (!logs.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">No audit records.</td></tr>';
       return;
     }
-    tbody.innerHTML = d.logs.map(l => `
+    tbody.innerHTML = logs.map(l => `
       <tr>
         <td class="text-secondary text-xs">${l.id}</td>
         <td>${esc(l.user_name||'System')}<br><small class="text-secondary">${esc(l.user_email||'')}</small></td>
@@ -682,7 +888,7 @@ async function loadDbTables() {
 
   try {
     const d = await API.post('/api/router.php', { action: 'admin_db_list' });
-    const tables = (d.data || d.tables || []);
+    const tables = d.data?.tables || d.data || [];
     const totalRows = tables.reduce((s, t) => s + (t.rows || 0), 0);
     if (info) info.textContent = `${tables.length} tables · ${totalRows.toLocaleString()} total records`;
 
@@ -798,10 +1004,110 @@ async function deleteAllTables() {
 
 document.getElementById('auditFilter')?.addEventListener('input', () => { auditOffset=0; loadAuditLog(); });
 
+// ── Peak NAV — Run Processor ───────────────────────────────
+async function runPeakNav() {
+  const btn     = document.getElementById('btnPeakNav');
+  const label   = document.getElementById('peakNavBtnLabel');
+  const spinner = document.getElementById('peakNavBtnSpinner');
+  const logWrap = document.getElementById('peakNavLogWrap');
+  const log     = document.getElementById('peakNavLog');
+  const parallel = document.getElementById('peakNavParallel')?.value || 8;
+
+  btn.disabled          = true;
+  label.style.display   = 'none';
+  spinner.style.display = '';
+  logWrap.style.display = 'block';
+  log.textContent       = '[' + new Date().toLocaleTimeString('en-IN') + '] Starting Peak NAV processor...\n';
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', window.APP_URL + '/peak_nav/processor.php?parallel=' + parallel + '&t=' + Date.now(), true);
+  xhr.timeout = 180000;
+
+  xhr.onprogress = () => {
+    log.textContent = xhr.responseText;
+    log.scrollTop   = log.scrollHeight;
+  };
+
+  xhr.onload = () => {
+    log.textContent = xhr.responseText;
+    log.scrollTop   = log.scrollHeight;
+    btn.disabled          = false;
+    label.style.display   = '';
+    spinner.style.display = 'none';
+    const allDone = xhr.responseText.includes('ALL_COMPLETE');
+    showToast(allDone ? '✅ Peak NAV update complete!' : '⏸ Time limit reached — run again to continue.', allDone ? 'success' : 'warning');
+    loadPeakNavStatus();
+  };
+
+  xhr.onerror = xhr.ontimeout = () => {
+    log.textContent += '\n[Error: request failed or timed out — check server logs]';
+    log.scrollTop         = log.scrollHeight;
+    btn.disabled          = false;
+    label.style.display   = '';
+    spinner.style.display = 'none';
+    showToast('Peak NAV processor error — check log below.', 'error');
+  };
+
+  xhr.send();
+}
+
+// ── Peak NAV — Load Status Bar ────────────────────────────
+async function loadPeakNavStatus() {
+  const bar = document.getElementById('peakNavStatusBar');
+  if (!bar) return;
+  bar.style.display = 'flex';
+  bar.innerHTML = '<span style="color:var(--text-muted)">⏳ Loading status...</span>';
+
+  try {
+    const d = await fetch(window.APP_URL + '/peak_nav/api.php?action=summary&_=' + Date.now(), { cache: 'no-store' })
+                    .then(r => r.json());
+    const c   = d.counts || {};
+    const pct = d.pct || 0;
+    const barColor = pct >= 100 ? 'var(--success)' : pct > 50 ? 'var(--accent)' : 'var(--warning, #d97706)';
+
+    bar.innerHTML = `
+      <span>📊 <strong>Total:</strong> ${(+c.total||0).toLocaleString('en-IN')}</span>
+      <span>✅ <strong>Done:</strong> ${(+c.completed||0).toLocaleString('en-IN')}</span>
+      <span>⏳ <strong>Pending:</strong> ${(+(c.pending||0) + +(c.working||0)).toLocaleString('en-IN')}</span>
+      <span style="color:var(--danger)">⚠️ <strong>Errors:</strong> ${(+c.errors||0).toLocaleString('en-IN')}</span>
+      <span>
+        <strong>${pct}%</strong>
+        <span style="display:inline-block;width:80px;height:8px;background:var(--border);border-radius:99px;vertical-align:middle;margin-left:5px;overflow:hidden;">
+          <span style="display:block;height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s;"></span>
+        </span>
+      </span>
+      <span style="margin-left:auto;color:var(--text-muted);font-size:12px;">
+        🕐 ${d.timestamp || '—'} &nbsp;
+        <a href="${window.APP_URL}/peak_nav/status.php" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600;">Open Full Tracker ↗</a>
+      </span>`;
+  } catch(e) {
+    bar.innerHTML = `<span style="color:var(--danger)">⚠️ Could not load Peak NAV status: ${e.message}</span>`;
+  }
+}
+
 function formatDate(d) {
   if (!d) return '—';
   return d.substring(0,10).split('-').reverse().join('-');
 }
+
+// Info button toggle
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.nav-info-btn');
+  if (!btn) return;
+  const id  = 'info-' + btn.dataset.info;
+  const box = document.getElementById(id);
+  if (!box) return;
+  const isOpen = box.style.display === 'block';
+  // Close all others
+  document.querySelectorAll('.nav-info-box').forEach(b => b.style.display = 'none');
+  document.querySelectorAll('.nav-info-btn').forEach(b => b.style.background = '');
+  if (!isOpen) {
+    box.style.display = 'block';
+    btn.style.background = 'var(--accent)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = 'var(--accent)';
+  }
+});
 </script>
 
 <?php

@@ -46,18 +46,34 @@ foreach ($mfCombos as $combo) {
                  ? $combo['folio_number'] : null;
 
     // Get ALL transactions for this fund+folio in chronological order
-    $allTxns = DB::fetchAll(
-        "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
-         FROM mf_transactions t
-         JOIN funds f ON f.id = t.fund_id
-         JOIN fund_houses fh ON fh.id = f.fund_house_id
-         WHERE t.portfolio_id = ?
-           AND t.fund_id = ?
-           AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL) OR (? IS NULL AND (t.folio_number IS NULL OR t.folio_number = '')) OR (? IS NOT NULL AND t.folio_number IS NULL))
-         ORDER BY t.txn_date ASC, t.id ASC",
-        [$portfolioId, $fundId, $folio, $folio, $folio, $folio]
-    );
+    // Fix: use proper folio matching — exact match if folio set, else NULL/empty
+    if ($folio !== null) {
+        $allTxns = DB::fetchAll(
+            "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
+                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
+             FROM mf_transactions t
+             JOIN funds f ON f.id = t.fund_id
+             JOIN fund_houses fh ON fh.id = f.fund_house_id
+             WHERE t.portfolio_id = ?
+               AND t.fund_id = ?
+               AND t.folio_number = ?
+             ORDER BY t.txn_date ASC, t.id ASC",
+            [$portfolioId, $fundId, $folio]
+        );
+    } else {
+        $allTxns = DB::fetchAll(
+            "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
+                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
+             FROM mf_transactions t
+             JOIN funds f ON f.id = t.fund_id
+             JOIN fund_houses fh ON fh.id = f.fund_house_id
+             WHERE t.portfolio_id = ?
+               AND t.fund_id = ?
+               AND (t.folio_number IS NULL OR t.folio_number = '')
+             ORDER BY t.txn_date ASC, t.id ASC",
+            [$portfolioId, $fundId]
+        );
+    }
 
     // Build FIFO queue from BUY transactions, process SELLs in order
     $queue = []; // ['units' => float, 'nav' => float, 'date' => string]
@@ -143,73 +159,87 @@ foreach ($mfCombos as $combo) {
     }
 }
 
-/* ─── 2. STOCK SELL transactions → realised gains ───────────────────────── */
-$stockSells = DB::fetchAll(
-    "SELECT t.id, t.stock_id, t.txn_date, t.quantity AS sell_qty,
-            t.price AS sell_price, t.value_at_cost AS proceeds,
+/* ─── 2. STOCK SELL transactions → realised gains (PROPER FIFO) ─────────── */
+$stockTxns = DB::fetchAll(
+    "SELECT t.id, t.stock_id, t.txn_date, t.txn_type,
+            t.quantity, t.price, t.value_at_cost,
             t.brokerage, t.stt, t.exchange_charges,
             sm.symbol, sm.company_name, sm.exchange
      FROM stock_transactions t
      JOIN stock_master sm ON sm.id = t.stock_id
      WHERE t.portfolio_id = ?
-       AND t.txn_type = 'SELL'
-     ORDER BY t.txn_date ASC",
+     ORDER BY t.stock_id ASC, t.txn_date ASC, t.id ASC",
     [$portfolioId]
 );
 
+// Group by stock and run FIFO per stock
+$stockTxnsByStock = [];
+foreach ($stockTxns as $t) {
+    $stockTxnsByStock[$t['stock_id']][] = $t;
+}
+
 $stockGains = [];
-foreach ($stockSells as $sell) {
-    $sellDate  = $sell['txn_date'];
-    $sellFy    = get_fy($sellDate);
-    if ($filterFy && $sellFy !== $filterFy) continue;
+foreach ($stockTxnsByStock as $stockId => $txns) {
+    $queue = []; // FIFO: ['qty'=>float, 'price'=>float, 'date'=>string]
 
-    $remainQty = (float) $sell['sell_qty'];
-    $proceeds  = (float) $sell['proceeds'];
-    $charges   = (float)$sell['brokerage'] + (float)$sell['stt'] + (float)$sell['exchange_charges'];
-    $totalCost = 0.0;
+    foreach ($txns as $t) {
+        $type = $t['txn_type'];
+        $qty  = (float)$t['quantity'];
 
-    // FIFO cost matching
-    $buys = DB::fetchAll(
-        "SELECT txn_date, quantity, price, value_at_cost
-         FROM stock_transactions
-         WHERE portfolio_id = ? AND stock_id = ?
-           AND txn_type IN ('BUY','BONUS','SPLIT')
-           AND txn_date <= ?
-         ORDER BY txn_date ASC",
-        [$portfolioId, $sell['stock_id'], $sellDate]
-    );
+        if (in_array($type, ['BUY', 'BONUS', 'SPLIT'])) {
+            $queue[] = ['qty' => $qty, 'price' => (float)$t['price'], 'date' => $t['txn_date']];
 
-    foreach ($buys as $buy) {
-        if ($remainQty <= 0) break;
-        $available = (float) $buy['quantity'];
-        $used      = min($available, $remainQty);
-        $totalCost += $used * (float)$buy['price'];
-        $remainQty -= $used;
+        } elseif ($type === 'SELL') {
+            $sellDate = $t['txn_date'];
+            $sellFy   = get_fy($sellDate);
+            $proceeds = (float)$t['value_at_cost'];
+            $charges  = (float)$t['brokerage'] + (float)$t['stt'] + (float)$t['exchange_charges'];
+
+            $remaining  = $qty;
+            $totalCost  = 0.0;
+            $firstBuyDate = !empty($queue) ? $queue[0]['date'] : $sellDate;
+
+            // FIFO consume
+            while ($remaining > 0.0001 && !empty($queue)) {
+                $lot = &$queue[0];
+                if ($lot['qty'] <= $remaining) {
+                    $totalCost += $lot['qty'] * $lot['price'];
+                    $remaining -= $lot['qty'];
+                    array_shift($queue);
+                } else {
+                    $totalCost   += $remaining * $lot['price'];
+                    $lot['qty']  -= $remaining;
+                    $remaining    = 0;
+                }
+                unset($lot);
+            }
+
+            if ($filterFy && $sellFy !== $filterFy) continue;
+
+            $gain    = $proceeds - $totalCost - $charges;
+            $days    = (int)(new DateTime($sellDate))->diff(new DateTime($firstBuyDate))->days;
+            $taxInfo = TaxEngine::stock_gain_tax($gain, $firstBuyDate, $sellDate);
+
+            $stockGains[] = [
+                'asset_class' => 'Stock',
+                'name'        => $t['company_name'],
+                'symbol'      => $t['symbol'],
+                'exchange'    => $t['exchange'],
+                'sell_date'   => format_date($sellDate),
+                'quantity'    => $qty,
+                'sell_price'  => (float)$t['price'],
+                'proceeds'    => $proceeds,
+                'cost'        => round($totalCost, 2),
+                'charges'     => round($charges, 2),
+                'gain'        => round($gain, 2),
+                'days_held'   => $days,
+                'gain_type'   => $taxInfo['gain_type'],
+                'tax_rate'    => $taxInfo['tax_rate'],
+                'tax_amount'  => $taxInfo['tax_amount'],
+                'fy'          => $sellFy,
+            ];
+        }
     }
-
-    $gain      = $proceeds - $totalCost - $charges;
-    $firstBuy  = $buys[0]['txn_date'] ?? $sellDate;
-    $days      = (int)(new DateTime($sellDate))->diff(new DateTime($firstBuy))->days;
-    $taxInfo   = TaxEngine::stock_gain_tax($gain, $firstBuy, $sellDate);
-
-    $stockGains[] = [
-        'asset_class' => 'Stock',
-        'name'        => $sell['company_name'],
-        'symbol'      => $sell['symbol'],
-        'exchange'    => $sell['exchange'],
-        'sell_date'   => format_date($sellDate),
-        'quantity'    => (float) $sell['sell_qty'],
-        'sell_price'  => (float) $sell['sell_price'],
-        'proceeds'    => $proceeds,
-        'cost'        => round($totalCost, 2),
-        'charges'     => round($charges, 2),
-        'gain'        => round($gain, 2),
-        'days_held'   => $days,
-        'gain_type'   => $taxInfo['gain_type'],
-        'tax_rate'    => $taxInfo['tax_rate'],
-        'tax_amount'  => $taxInfo['tax_amount'],
-        'fy'          => $sellFy,
-    ];
 }
 
 /* ─── 3. MF Dividends ────────────────────────────────────────────────────── */

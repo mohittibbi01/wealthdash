@@ -328,7 +328,10 @@ function csrf_field(): string {
  * Verify CSRF token — call on form submission
  */
 function csrf_verify(): void {
-    $submitted = $_POST['_csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    $submitted = $_POST['_csrf_token']
+              ?? $_POST['csrf_token']
+              ?? $_SERVER['HTTP_X_CSRF_TOKEN']
+              ?? '';
     if (!hash_equals(csrf_token(), $submitted)) {
         http_response_code(403);
         die(json_encode(['success' => false, 'message' => 'Invalid CSRF token. Please refresh and try again.']));
@@ -371,6 +374,8 @@ function valid_mobile(string $mobile): bool {
  * Send JSON response and exit
  */
 function json_response(bool $success, string $message = '', array $data = [], int $code = 200): never {
+    // Discard any stray PHP warnings/notices that would corrupt JSON
+    if (ob_get_level()) ob_clean();
     if (!headers_sent()) {
         http_response_code($code);
         header('Content-Type: application/json; charset=UTF-8');
@@ -434,6 +439,7 @@ function flash_get(): array {
 // ─── Aliases for Phase 2 API files ──────────────────────────────────────────
 
 function format_inr(float $n): string { return inr($n); }
+function fmt_date(?string $d): string { return date_display($d); }
 function format_date_display(?string $d): string { return date_display($d); }
 function format_date(?string $d): string { return date_display($d); }
 function get_investment_fy(string $date): string { return date_to_fy($date); }

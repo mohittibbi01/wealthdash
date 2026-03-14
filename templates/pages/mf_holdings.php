@@ -198,6 +198,8 @@ ob_start();
           <th class="text-center sortable" data-col="cagr">XIRR</th>
           <th class="text-center sortable" data-col="total_units">Units</th>
           <th class="text-center sortable" data-col="latest_nav">NAV</th>
+          <th class="text-center sortable" data-col="highest_nav" title="All-Time High NAV from funds table">Peak NAV 📈</th>
+          <th class="text-center sortable" data-col="drawdown_pct" title="% below All-Time High NAV">Drawdown</th>
           <th class="text-center" style="width:80px;">Actions</th>
         </tr>
       </thead>
@@ -214,7 +216,7 @@ ob_start();
           <td class="text-center" id="footValue"></td>
           <td class="text-center" id="footGain"></td>
           <td class="text-center" id="footGainPct"></td>
-          <td colspan="5"></td>
+          <td colspan="7"></td>
         </tr>
       </tfoot>
     </table>
