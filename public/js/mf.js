@@ -130,7 +130,7 @@ function initHoldingsPage() {
 
 async function loadHoldings() {
   const body = document.getElementById('holdingsBody');
-  body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  body.innerHTML = `<tr><td colspan="13" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
 
   const portfolioId = document.getElementById('filterPortfolio')?.value || '';
   const params = new URLSearchParams({ view: MF.view });
@@ -141,12 +141,93 @@ async function loadHoldings() {
     MF.data = res.data || [];
     MF.filtered = [...MF.data];
 
-    // Update summary from API if available
     if (res.summary) updateSummaryCards(res.summary);
 
     applyHoldingsFilter();
+
+    // ── Live 1D Change: AMFI se fetch karo aur merge karo ──
+    fetch1dChange();
+
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="11" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="13" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
+  }
+}
+
+// Fetch live 1D change from AMFI via server-side proxy
+async function fetch1dChange() {
+  try {
+    const res = await fetch(`${window.APP_URL || ''}/api/nav/nav_1d_change.php`);
+    if (!res.ok) return;
+    const json = await res.json();
+    if (!json.success || !json.data) return;
+
+    const changeMap = json.data; // { fund_id: { day_change_amt, day_change_pct, ... } }
+    let updated = false;
+
+    MF.data = MF.data.map(h => {
+      const fid = String(h.fund_id || h.id);
+      if (changeMap[fid]) {
+        updated = true;
+        return {
+          ...h,
+          day_change_amt: changeMap[fid].day_change_amt,
+          day_change_pct: changeMap[fid].day_change_pct,
+          latest_nav:     changeMap[fid].latest_nav     ?? h.latest_nav,
+          latest_nav_date:changeMap[fid].latest_date    ?? h.latest_nav_date,
+        };
+      }
+      return h;
+    });
+
+    if (updated) {
+      // ── Update 1D summary tile ──────────────────────────────
+      const totalDayChange = MF.data.reduce((s, h) => s + (h.day_change_amt || 0), 0);
+      const totalValue     = MF.data.reduce((s, h) => s + (h.value_now || 0), 0);
+      const prevValue      = totalValue - totalDayChange;
+      const dayPct         = prevValue > 0 ? ((totalDayChange / prevValue) * 100).toFixed(3) : null;
+
+      const amtEl  = document.getElementById('mf1dAmt');
+      const pctEl  = document.getElementById('mf1dPct');
+      const iconEl = document.getElementById('mf1dIcon');
+
+      if (amtEl && totalDayChange !== 0) {
+        const isPos  = totalDayChange >= 0;
+        const sign   = isPos ? '+' : '';
+        const color  = isPos ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
+        const arrow  = isPos ? '▲' : '▼';
+
+        amtEl.textContent = `${arrow} ${sign}${fmtInr(Math.abs(totalDayChange))}`;
+        amtEl.style.color = color;
+
+        if (pctEl) {
+          pctEl.textContent = `${sign}${dayPct}% vs prev working day`;
+          pctEl.style.color = color;
+        }
+
+        if (iconEl) {
+          iconEl.innerHTML = isPos
+            ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/>
+                <polyline points="19,4 23,4 23,8"/>
+               </svg>`
+            : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/>
+                <polyline points="19,20 23,20 23,16"/>
+               </svg>`;
+        }
+      }
+
+      MF.filtered = MF.data.filter(h => {
+        if (MF.categoryFilter && h.category !== MF.categoryFilter) return false;
+        if (MF.gainTypeFilter && h.gain_type !== MF.gainTypeFilter) return false;
+        if (MF.search && !h.scheme_name?.toLowerCase().includes(MF.search) &&
+            !h.fund_house?.toLowerCase().includes(MF.search)) return false;
+        return true;
+      });
+      renderHoldings();
+    }
+  } catch (_) {
+    // Silent fail — 1D change optional hai
   }
 }
 
@@ -182,7 +263,7 @@ function renderHoldings() {
   });
 
   if (!MF.filtered.length) {
-    body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
+    body.innerHTML = `<tr><td colspan="13" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
     if (tfoot) tfoot.style.display = 'none';
     if (countEl) countEl.textContent = '0 funds';
     return;
@@ -210,6 +291,7 @@ function renderHoldings() {
     const gain      = h.gain_loss || 0;
     const gainPct   = h.gain_pct || 0;
     const gainClass = gain >= 0 ? 'positive' : 'negative';
+    const gainArrow = gain >= 0 ? '▲' : '▼';
     const gainSign  = gain >= 0 ? '+' : '';
     const ltcgDate  = h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '—';
     const typeTag   = h.gain_type === 'LTCG'
@@ -218,21 +300,63 @@ function renderHoldings() {
     const nav       = h.latest_nav ? `₹${Number(h.latest_nav).toFixed(4)}` : '—';
     const navDate   = h.latest_nav_date ? `<br><small style="color:var(--text-muted);">${formatDateDisplay(h.latest_nav_date)}</small>` : '';
     const folioInfo = isFolio && h.folio_number ? `<br><small style="color:var(--text-muted);">${h.folio_number}</small>` : '';
-    const cagr      = h.cagr ? `${h.cagr > 0 ? '+' : ''}${h.cagr}%` : '—';
     const fundId    = h.fund_id || h.id;
 
-    // Peak NAV + Drawdown
+    // ── Gain/Loss cell ───────────────────────────────────────
+    const gainAbs  = Math.abs(gain);
+    const gainHtml = `<div style="font-weight:700;">${gainArrow} ${gain >= 0 ? '+' : '-'}${fmtInr(gainAbs)}</div>`;
+
+    // ── Returns cell ─────────────────────────────────────────
+    const retArrow = gainPct >= 0 ? '▲' : '▼';
+    const retSign  = gainPct >= 0 ? '+' : '';
+    const retHtml  = `${retArrow} ${retSign}${gainPct}%`;
+
+    // ── XIRR cell ────────────────────────────────────────────
+    let cagrHtml = '—';
+    if (h.cagr !== null && h.cagr !== undefined && h.cagr !== 0) {
+      const cagrArrow = h.cagr >= 0 ? '▲' : '▼';
+      const cagrSign  = h.cagr >= 0 ? '+' : '';
+      cagrHtml = `${cagrArrow} ${cagrSign}${h.cagr}%`;
+    }
+
+    // ── Peak NAV ─────────────────────────────────────────────
     const peakNav = h.highest_nav
       ? `<div style="font-weight:600;">₹${Number(h.highest_nav).toFixed(4)}</div>${h.highest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.highest_nav_date)}</small>` : ''}`
       : '—';
+
+    // ── Drawdown cell ────────────────────────────────────────
     let drawdownHtml = '—';
     if (h.drawdown_pct !== null && h.drawdown_pct !== undefined) {
       if (h.drawdown_pct <= 0) {
         drawdownHtml = `<span style="color:var(--gain,#16a34a);font-weight:600;">🏆 ATH</span>`;
       } else {
         const ddColor = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
-        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">-${h.drawdown_pct}%</span>`;
+        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">▼ -${h.drawdown_pct}%</span>`;
       }
+    }
+
+    // ── Avg Cost NAV — sirf NAV, koi % nahi ─────────────────
+    const avgCostHtml = h.avg_cost_nav
+      ? `<div style="font-weight:600;">₹${Number(h.avg_cost_nav).toFixed(4)}</div>`
+      : '—';
+
+    // ── 1-Day Change ──────────────────────────────────────────
+    let dayChangeHtml = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+    if (h.day_change_amt !== null && h.day_change_amt !== undefined &&
+        h.day_change_pct !== null && h.day_change_pct !== undefined) {
+      const dAmt   = h.day_change_amt;
+      const dPct   = h.day_change_pct;
+      const dCls   = dAmt >= 0 ? 'positive' : 'negative';
+      const dSign  = dAmt >= 0 ? '+' : '';
+      const dColor = dAmt >= 0 ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
+      const dArrow = dAmt >= 0 ? '▲' : '▼';
+      dayChangeHtml = `
+        <div class="${dCls}" style="font-weight:700;font-size:13px;line-height:1.3;">
+          ${dArrow} ${dSign}${fmtInr(Math.abs(dAmt))}
+        </div>
+        <div style="font-size:11.5px;font-weight:600;color:${dColor};margin-top:2px;">
+          ${dSign}${Math.abs(dPct).toFixed(3)}%
+        </div>`;
     }
 
     return `<tr data-fund-id="${fundId}" data-folio="${h.folio_number||''}">
@@ -242,15 +366,17 @@ function renderHoldings() {
       </td>
       <td class="text-center">${fmtInr(h.total_invested)}</td>
       <td class="text-center">${fmtInr(h.value_now)}</td>
-      <td class="text-center ${gainClass}">${gainSign}${fmtInr(Math.abs(gain))}</td>
-      <td class="text-center ${gainClass}">${gainSign}${gainPct}%</td>
-      <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagr}</td>
+      <td class="text-center ${gainClass}">${gainHtml}</td>
+      <td class="text-center ${gainClass}">${retHtml}</td>
+      <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagrHtml}</td>
       <td class="text-center">
         <div style="font-weight:600;">💪 ${Number(h.total_units).toFixed(4)}</div>
         ${h.ltcg_units > 0 ? `<div style="font-size:12px;margin-top:3px;color:#16a34a;font-weight:600;"><span style="font-size:14px;font-weight:900;">✓</span> L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
         ${h.stcg_units > 0 ? `<div style="font-size:12px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
       </td>
       <td class="text-center">${nav}${navDate}</td>
+      <td class="text-center">${avgCostHtml}</td>
+      <td class="text-center">${dayChangeHtml}</td>
       <td class="text-center">${peakNav}</td>
       <td class="text-center">${drawdownHtml}</td>
       <td>

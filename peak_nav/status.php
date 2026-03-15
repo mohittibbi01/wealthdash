@@ -222,6 +222,7 @@ tr:hover td{background:var(--surf2)}
 
 <div class="actions">
   <button class="btn b-run" id="btn-run" onclick="runProcessor()">▶ Run Processor</button>
+  <button class="btn b-reset" id="btn-stop" onclick="stopProcessor()" style="display:none;background:#dc2626">⏹ Stop</button>
   <div class="par-ctrl" title="Parallel API requests. Higher=faster but may cause errors.">
     <label>⚡ PARALLEL</label>
     <button class="pc-btn" onclick="chgPar(-1)">−</button>
@@ -327,14 +328,18 @@ function runProcessor() {
     ['al-stop','al-done','al-err'].forEach(id => g(id).classList.remove('show'));
     setStatus('run', '🟢 Running...');
     g('btn-run').textContent = '⏸ Running...';
+    g('btn-run').disabled = true;
+    const stopBtn = g('btn-stop');
+    if (stopBtn) { stopBtn.style.display = 'inline-flex'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+
+    // Clear any old stop flag
+    fetch('api.php?action=clear_stop', {method:'POST'}).catch(()=>{});
 
     const parallel = getPar();
     const url = 'processor.php?t=' + Date.now() + '&parallel=' + parallel;
 
     isRunning = true;
 
-    // Run in background using XMLHttpRequest — no popup, no new tab
-    // XHR stays alive even if fetch would timeout in browser
     const xhr = new XMLHttpRequest();
     xhr.open('GET', url, true);
     xhr.timeout = 120000;
@@ -343,8 +348,26 @@ function runProcessor() {
     xhr.ontimeout = () => { onProcFinished(''); };
     xhr.send();
 
-    // Poll every 3s to update UI while processor runs
     pollTimer = setInterval(checkProgress, 3000);
+}
+
+async function stopProcessor() {
+    if (!confirm('⏹ Stop the processor?\n\nCurrent batch will finish then it will halt.\nProgress is saved — run again to continue.')) return;
+    const stopBtn = g('btn-stop');
+    if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = '⏳ Stopping...'; }
+    userStopped = true;
+    try {
+        const res = await fetch('api.php?action=stop', {method:'POST'}).then(r=>r.json());
+        setStatus('stop', '⏸ Stop requested — finishing current batch...');
+        // Show toast
+        const t = document.createElement('div');
+        t.textContent = '⏹ ' + (res.message || 'Stop requested');
+        t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e293b;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25)';
+        document.body.appendChild(t);
+        setTimeout(()=>t.remove(), 3500);
+    } catch(e) {
+        if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
+    }
 }
 
 async function onProcFinished(responseText) {
@@ -352,6 +375,9 @@ async function onProcFinished(responseText) {
     isRunning = false;
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     g('btn-run').textContent = '▶ Run Processor';
+    g('btn-run').disabled = false;
+    const stopBtn = g('btn-stop');
+    if (stopBtn) { stopBtn.style.display = 'none'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
 
     try {
         const d = await fetch('api.php?action=summary&_='+Date.now(),{cache:'no-store'}).then(r=>r.json());
@@ -444,6 +470,8 @@ async function fetchSummary() {
         animNum('c-errors', fmt(c.errors));
 
         g('c-sub').textContent = fmt(c.up_to_date||0) + ' up to date today';
+
+        // Progress bar = up_to_date / total (pending + working + needs_update = not done)
         g('pct-lbl').textContent = d.pct + '%';
         g('bar').style.width = d.pct + '%';
         g('oldest-date').textContent = c.oldest_update || '—';
@@ -457,6 +485,13 @@ async function fetchSummary() {
         g('tc-w').textContent = fmt(c.working);
         g('tc-c').textContent = fmt(c.completed);
         g('tc-e').textContent = fmt(c.errors);
+
+        // Show/hide stop button based on whether working
+        const stopBtn = g('btn-stop');
+        if (stopBtn) {
+            const running = (+c.pending > 0 || +c.working > 0) && isRunning;
+            stopBtn.style.display = running ? 'inline-flex' : 'none';
+        }
     } catch(e) {}
 }
 

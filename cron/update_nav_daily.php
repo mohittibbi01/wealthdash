@@ -42,7 +42,13 @@ try {
     $db->beginTransaction();
 
     $findFund   = $db->prepare("SELECT id FROM funds WHERE scheme_code=? LIMIT 1");
-    $updateNav  = $db->prepare("UPDATE funds SET latest_nav=?,latest_nav_date=?,highest_nav=GREATEST(COALESCE(highest_nav,0),?),updated_at=NOW() WHERE scheme_code=?");
+    $updateNav  = $db->prepare("UPDATE funds SET
+                    prev_nav      = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav, prev_nav),
+                    prev_nav_date = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav_date, prev_nav_date),
+                    latest_nav=?, latest_nav_date=?,
+                    highest_nav=GREATEST(COALESCE(highest_nav,0),?),
+                    updated_at=NOW()
+                  WHERE scheme_code=?");
     $insHistory = $db->prepare("INSERT IGNORE INTO nav_history (fund_id,nav_date,nav) VALUES(?,?,?)");
     $batch = 0;
 
@@ -73,7 +79,7 @@ try {
         if (!$fund) { $skipped++; continue; }
 
         $nav = (float)$navVal;
-        $updateNav->execute([$nav, $pd, $nav, $code]);
+        $updateNav->execute([$pd, $pd, $nav, $pd, $nav, $code]);
         $insHistory->execute([$fund['id'], $pd, $nav]);
         $updated++;
         if (++$batch % 500 === 0) { $db->commit(); $db->beginTransaction(); }
@@ -111,4 +117,3 @@ $log[] = "[$date] Done.";
 $out = implode("\n", $log);
 echo $out . "\n";
 @file_put_contents(APP_ROOT . '/logs/nav_update_' . date('Y-m') . '.log', $out . "\n", FILE_APPEND | LOCK_EX);
-

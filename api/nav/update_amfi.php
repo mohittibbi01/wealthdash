@@ -98,14 +98,17 @@ try {
         $fund = DB::fetchOne('SELECT id FROM funds WHERE scheme_code = ?', [$schemeCode]);
 
         if ($fund) {
-            // Update NAV
+            // Update NAV — save current latest_nav as prev_nav before overwriting
             DB::run(
-                'UPDATE funds SET latest_nav = ?, latest_nav_date = ?,
+                'UPDATE funds SET
+                    prev_nav      = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav, prev_nav),
+                    prev_nav_date = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav_date, prev_nav_date),
+                    latest_nav = ?, latest_nav_date = ?,
                     highest_nav = GREATEST(COALESCE(highest_nav, 0), ?),
                     highest_nav_date = IF(? > COALESCE(highest_nav, 0), ?, highest_nav_date),
                     updated_at = NOW()
                  WHERE scheme_code = ?',
-                [$nav, $navDate, $nav, $nav, $navDate, $schemeCode]
+                [$navDate, $navDate, $nav, $navDate, $nav, $nav, $navDate, $schemeCode]
             );
             $fundId = (int) $fund['id'];
             $updated++;

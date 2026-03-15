@@ -154,7 +154,7 @@ switch ($action) {
 
         $fundId    = (int) ($_POST['fund_id']    ?? 0);
         $amount    = (float) ($_POST['sip_amount'] ?? 0);
-        $frequency = in_array($_POST['frequency'] ?? '', ['monthly','quarterly','weekly','yearly'])
+        $frequency = in_array($_POST['frequency'] ?? '', ['daily','weekly','fortnightly','monthly','quarterly','yearly'])
                      ? $_POST['frequency'] : 'monthly';
         $sipDay    = max(1, min(28, (int) ($_POST['sip_day'] ?? 1)));
         $startDate = date_to_db(clean($_POST['start_date'] ?? ''));
@@ -168,7 +168,7 @@ switch ($action) {
         }
 
         // Verify fund exists
-        $fund = DB::fetchOne('SELECT id, scheme_name FROM funds WHERE id = ?', [$fundId]);
+        $fund = DB::fetchOne('SELECT id, scheme_name, scheme_code FROM funds WHERE id = ?', [$fundId]);
         if (!$fund) json_response(false, 'Fund not found.');
 
         DB::run(
@@ -181,7 +181,71 @@ switch ($action) {
         );
         $id = (int) DB::lastInsertId();
         audit_log('sip_add', 'sip_schedules', $id);
-        json_response(true, 'SIP added successfully.', ['id' => $id]);
+
+        // ── On-demand NAV history check & trigger download ──────
+        // Check if nav_history has data from start_date onwards for this fund
+        $navCount = (int) DB::fetchVal(
+            "SELECT COUNT(*) FROM nav_history WHERE fund_id = ? AND nav_date >= ?",
+            [$fundId, $startDate]
+        );
+
+        $navStatus = 'available'; // assume available
+        $navMessage = '';
+
+        if ($navCount === 0) {
+            $schemeCode = $fund['scheme_code'];
+            $existing = DB::fetchOne(
+                "SELECT status, from_date FROM nav_download_progress WHERE scheme_code = ?",
+                [$schemeCode]
+            );
+
+            if ($existing && $existing['status'] === 'completed' && $existing['from_date'] <= $startDate) {
+                $navStatus  = 'no_data';
+                $navMessage = 'No NAV data found for this fund from the selected date.';
+            } else {
+                // Queue for download
+                DB::run(
+                    "INSERT INTO nav_download_progress (scheme_code, fund_id, status, from_date)
+                     VALUES (?, ?, 'pending', ?)
+                     ON DUPLICATE KEY UPDATE
+                       status    = 'pending',
+                       from_date = IF(from_date > ?, ?, from_date),
+                       error_message = NULL",
+                    [$schemeCode, $fundId, $startDate, $startDate, $startDate]
+                );
+
+                // Try non-blocking background trigger via curl (safer than file_get_contents)
+                $downloadUrl = APP_URL . '/api/sip/sip_nav_fetch.php'
+                             . '?fund_id=' . $fundId
+                             . '&from_date=' . urlencode($startDate)
+                             . '&scheme_code=' . urlencode($schemeCode)
+                             . '&token=' . md5($fundId . $startDate . env('APP_KEY','wealthdash'));
+
+                if (function_exists('curl_init')) {
+                    $ch = curl_init($downloadUrl);
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT        => 1,    // fire & forget
+                        CURLOPT_CONNECTTIMEOUT => 1,
+                        CURLOPT_NOBODY         => false,
+                        CURLOPT_SSL_VERIFYPEER => false,
+                        CURLOPT_USERAGENT      => 'WealthDash-SIP/1.0',
+                    ]);
+                    @curl_exec($ch);
+                    @curl_close($ch);
+                }
+
+                $navStatus  = 'downloading';
+                $navMessage = 'NAV history is being downloaded in background. XIRR will be available shortly.';
+            }
+        }
+
+        json_response(true, 'SIP added successfully.', [
+            'id'          => $id,
+            'nav_status'  => $navStatus,
+            'nav_message' => $navMessage,
+            'nav_count'   => $navCount,
+        ]);
 
     // ── Edit SIP ──────────────────────────────────────────────
     case 'sip_edit':
@@ -229,6 +293,132 @@ switch ($action) {
         audit_log('sip_delete', 'sip_schedules', $sipId);
         json_response(true, 'SIP removed.');
 
+    // ── SIP XIRR Calculation ──────────────────────────────────
+    // Calculates XIRR for a specific SIP using nav_history
+    case 'sip_xirr':
+        $sipId = (int) ($_POST['sip_id'] ?? $_GET['sip_id'] ?? 0);
+        $sip   = DB::fetchOne(
+            "SELECT s.*, f.scheme_code, f.latest_nav, f.latest_nav_date
+             FROM sip_schedules s
+             JOIN funds f ON f.id = s.fund_id
+             WHERE s.id = ? AND s.portfolio_id = ?",
+            [$sipId, $portfolioId]
+        );
+        if (!$sip) json_response(false, 'SIP not found.');
+
+        $startDate = $sip['start_date'];
+        $endDate   = $sip['end_date'] ?: date('Y-m-d');
+        $amount    = (float) $sip['sip_amount'];
+        $sipDay    = (int) $sip['sip_day'];
+        $fundId    = (int) $sip['fund_id'];
+        $freq      = $sip['frequency'];
+
+        // Generate all installment dates
+        $installDates = _generate_installment_dates($startDate, $endDate, $sipDay, $freq);
+
+        if (empty($installDates)) {
+            json_response(true, '', ['xirr' => null, 'message' => 'No installments yet.']);
+        }
+
+        // For each installment date, get NAV from nav_history
+        $cashFlows  = [];
+        $totalInvested = 0;
+        $totalUnits = 0;
+        $missingNavs = 0;
+
+        foreach ($installDates as $date) {
+            // Get closest NAV on or after the installment date
+            $navRow = DB::fetchOne(
+                "SELECT nav, nav_date FROM nav_history
+                 WHERE fund_id = ? AND nav_date >= ?
+                 ORDER BY nav_date ASC LIMIT 1",
+                [$fundId, $date]
+            );
+
+            if (!$navRow || (float)$navRow['nav'] <= 0) {
+                $missingNavs++;
+                // Use amount as cash flow even without NAV (for partial XIRR)
+                $cashFlows[] = ['date' => $date, 'amount' => -$amount];
+                continue;
+            }
+
+            $nav   = (float) $navRow['nav'];
+            $units = $amount / $nav;
+            $totalUnits    += $units;
+            $totalInvested += $amount;
+            $cashFlows[]    = ['date' => $date, 'amount' => -$amount];
+        }
+
+        // Current value = total units × latest NAV
+        $currentNav = (float) $sip['latest_nav'];
+        $currentValue = $totalUnits * $currentNav;
+
+        // Add terminal cash flow (current value as inflow)
+        $today = date('Y-m-d');
+        $cashFlows[] = ['date' => $today, 'amount' => $currentValue];
+
+        // Calculate XIRR
+        $xirr = null;
+        if ($currentValue > 0 && count($cashFlows) >= 2) {
+            // Use existing xirr function from helpers
+            $xirrInput = array_map(fn($cf) => [
+                'date'   => $cf['date'],
+                'amount' => $cf['amount'],
+            ], $cashFlows);
+            $xirr = xirr_from_cashflows($xirrInput);
+        }
+
+        $gain    = $currentValue - $totalInvested;
+        $gainPct = $totalInvested > 0 ? round(($gain / $totalInvested) * 100, 2) : 0;
+
+        json_response(true, '', [
+            'sip_id'          => $sipId,
+            'installments'    => count($installDates),
+            'missing_navs'    => $missingNavs,
+            'total_invested'  => round($totalInvested, 2),
+            'total_units'     => round($totalUnits, 4),
+            'current_nav'     => $currentNav,
+            'current_value'   => round($currentValue, 2),
+            'gain'            => round($gain, 2),
+            'gain_pct'        => $gainPct,
+            'xirr'            => $xirr,
+            'nav_date'        => $sip['latest_nav_date'],
+        ]);
+
+    // ── NAV Download Status for a fund ────────────────────────
+    case 'sip_nav_status':
+        $fundId    = (int) ($_POST['fund_id'] ?? $_GET['fund_id'] ?? 0);
+        $startDate = clean($_POST['start_date'] ?? $_GET['start_date'] ?? '');
+
+        if (!$fundId) json_response(false, 'fund_id required.');
+
+        $fund = DB::fetchOne('SELECT scheme_code FROM funds WHERE id = ?', [$fundId]);
+        if (!$fund) json_response(false, 'Fund not found.');
+
+        // Count available NAVs from start_date
+        $navCount = (int) DB::fetchVal(
+            "SELECT COUNT(*) FROM nav_history WHERE fund_id = ? AND nav_date >= ?",
+            [$fundId, $startDate ?: '2000-01-01']
+        );
+
+        // Check download progress
+        $progress = DB::fetchOne(
+            "SELECT status, from_date, last_downloaded_date, records_saved
+             FROM nav_download_progress WHERE scheme_code = ?",
+            [$fund['scheme_code']]
+        );
+
+        $isReady = $navCount > 0;
+        $status  = $progress['status'] ?? 'not_queued';
+
+        json_response(true, '', [
+            'fund_id'     => $fundId,
+            'nav_count'   => $navCount,
+            'is_ready'    => $isReady,
+            'dl_status'   => $status,
+            'dl_progress' => $progress,
+        ]);
+
     default:
         json_response(false, 'Unknown SIP action.', [], 400);
 }
@@ -236,17 +426,32 @@ switch ($action) {
 // ── Helpers ──────────────────────────────────────────────────
 function _next_sip_date(array $sip): ?string {
     if (!$sip['is_active']) return null;
-    $today   = new DateTime();
-    $year    = (int) $today->format('Y');
-    $month   = (int) $today->format('n');
-    $day     = (int) $sip['sip_day'];
-    $freq    = $sip['frequency'];
+    $today     = new DateTime();
+    $year      = (int) $today->format('Y');
+    $month     = (int) $today->format('n');
+    $day       = (int) $sip['sip_day'];
+    $freq      = $sip['frequency'];
+
+    // For daily/weekly/fortnightly — next occurrence from today
+    if ($freq === 'daily') {
+        $next = (clone $today)->modify('+1 day');
+        if ($sip['end_date'] && $next->format('Y-m-d') > $sip['end_date']) return null;
+        return $next->format('Y-m-d');
+    }
+    if ($freq === 'weekly') {
+        $next = (clone $today)->modify('+7 days');
+        if ($sip['end_date'] && $next->format('Y-m-d') > $sip['end_date']) return null;
+        return $next->format('Y-m-d');
+    }
+    if ($freq === 'fortnightly') {
+        $next = (clone $today)->modify('+15 days');
+        if ($sip['end_date'] && $next->format('Y-m-d') > $sip['end_date']) return null;
+        return $next->format('Y-m-d');
+    }
 
     $candidate = new DateTime(sprintf('%04d-%02d-%02d', $year, $month, min($day, 28)));
     if ($candidate <= $today) {
         $candidate->modify(match($freq) {
-            'weekly'    => '+7 days',
-            'monthly'   => '+1 month',
             'quarterly' => '+3 months',
             'yearly'    => '+1 year',
             default     => '+1 month',
@@ -275,3 +480,86 @@ function _months_running(string $startDate): int {
     return (int) $start->diff($now)->m + ($start->diff($now)->y * 12);
 }
 
+/**
+ * Generate all installment dates between start and end
+ */
+function _generate_installment_dates(string $startDate, string $endDate, int $sipDay, string $freq): array {
+    $dates   = [];
+    $today   = date('Y-m-d');
+    $current = new DateTime($startDate);
+    $end     = new DateTime(min($endDate, $today)); // don't go beyond today
+
+    // Snap to SIP day
+    // For daily/weekly/fortnightly — start from exact start_date
+    if (in_array($freq, ['daily', 'weekly', 'fortnightly'])) {
+        $current = new DateTime($startDate);
+    } else {
+        // For monthly+ — snap to SIP day
+        $current->setDate((int)$current->format('Y'), (int)$current->format('n'), min($sipDay, 28));
+        // If snapped date is before start, add one period
+        if ($current->format('Y-m-d') < $startDate) {
+            $current->modify(match($freq) {
+                'quarterly' => '+3 months',
+                'yearly'    => '+1 year',
+                default     => '+1 month',
+            });
+        }
+    }
+
+    // Safety cap — daily could be huge
+    $maxIterations = match($freq) {
+        'daily'       => 3650,   // max 10 years daily
+        'weekly'      => 1500,
+        'fortnightly' => 800,
+        default       => 600,
+    };
+
+    $i = 0;
+    while ($current <= $end && $i++ < $maxIterations) {
+        $dates[] = $current->format('Y-m-d');
+        $current->modify(match($freq) {
+            'daily'       => '+1 day',
+            'weekly'      => '+7 days',
+            'fortnightly' => '+15 days',
+            'quarterly'   => '+3 months',
+            'yearly'      => '+1 year',
+            default       => '+1 month',
+        });
+        // Keep day consistent only for monthly+
+        if (!in_array($freq, ['daily', 'weekly', 'fortnightly'])) {
+            try {
+                $current->setDate(
+                    (int)$current->format('Y'),
+                    (int)$current->format('n'),
+                    min($sipDay, (int)$current->format('t'))
+                );
+            } catch (\Exception $e) {}
+        }
+    }
+    return $dates;
+}
+
+/**
+ * XIRR from [{date, amount}] cashflows
+ * Wraps existing xirr() in helpers.php
+ */
+function xirr_from_cashflows(array $cashFlows): ?float {
+    if (count($cashFlows) < 2) return null;
+
+    // Convert to format xirr() expects
+    $formatted = [];
+    foreach ($cashFlows as $cf) {
+        $formatted[] = [
+            'date'   => $cf['date'],
+            'amount' => (float) $cf['amount'],
+        ];
+    }
+
+    // Use existing xirr function
+    if (function_exists('xirr')) {
+        return xirr($formatted);
+    }
+
+    // Fallback: use xirr_from_txns signature if available
+    return null;
+}

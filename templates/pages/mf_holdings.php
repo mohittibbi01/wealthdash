@@ -36,6 +36,111 @@ $fundCount     = (int)($summary['fund_count'] ?? 0);
 
 ob_start();
 ?>
+<!-- ⓘ Column Info Tooltip Styles -->
+<style>
+.col-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 3px;
+  border-radius: 50%;
+  transition: color .15s;
+  user-select: none;
+}
+.col-info:hover { color: var(--accent, #2563eb); }
+
+/* Tooltip bubble */
+#col-tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  padding: 10px 13px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity .18s ease, transform .18s ease;
+  white-space: normal;
+  text-align: left;
+  font-family: inherit;
+}
+#col-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* small arrow */
+#col-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  border: 6px solid transparent;
+  border-top: none;
+  border-bottom-color: #334155;
+}
+</style>
+
+<!-- Tooltip element (shared) -->
+<div id="col-tooltip"></div>
+
+<script>
+(function() {
+  const tip = document.getElementById('col-tooltip');
+  let hideTimer;
+
+  document.addEventListener('mouseover', function(e) {
+    const el = e.target.closest('.col-info');
+    if (!el) return;
+    clearTimeout(hideTimer);
+    tip.textContent = el.dataset.tip || '';
+    tip.classList.add('visible');
+    positionTip(e, el);
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!tip.classList.contains('visible')) return;
+    const el = e.target.closest('.col-info');
+    if (el) positionTip(e, el);
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    const el = e.target.closest('.col-info');
+    if (!el) return;
+    hideTimer = setTimeout(() => tip.classList.remove('visible'), 120);
+  });
+
+  function positionTip(e, el) {
+    const rect = el.getBoundingClientRect();
+    const tipW  = 280;
+    let left    = rect.left + rect.width / 2 - 14;
+    let top     = rect.bottom + 8;
+
+    // Keep within viewport
+    if (left + tipW > window.innerWidth - 10) left = window.innerWidth - tipW - 10;
+    if (left < 6) left = 6;
+    if (top + 120 > window.innerHeight) top = rect.top - 10 - tip.offsetHeight;
+
+    tip.style.left = left + 'px';
+    tip.style.top  = top  + 'px';
+  }
+})();
+</script>
 <div class="page-header">
   <div>
     <h1 class="page-title">Mutual Funds</h1>
@@ -132,6 +237,21 @@ ob_start();
     <div class="stat-value" id="mfFundCount"><?= $fundCount ?></div>
   </div>
 
+  <!-- 1D Change -->
+  <div class="stat-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span id="mf1dIcon" style="line-height:1;display:flex;align-items:center;">
+        <svg width="26" height="24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12,6 12,12 16,14"/>
+        </svg>
+      </span>
+      <div class="stat-label" style="margin:0;">Today's Change</div>
+    </div>
+    <div class="stat-value" id="mf1dAmt" style="color:var(--text-muted);">—</div>
+    <div id="mf1dPct" style="font-size:13px;font-weight:500;margin-top:3px;color:var(--text-muted);">vs prev working day</div>
+  </div>
+
 </div>
 
 <!-- ═══ PAGE TABS ═══ -->
@@ -190,21 +310,23 @@ ob_start();
     <table class="table table-hover table-grid" id="holdingsTable">
       <thead>
         <tr>
-          <th class="sortable" data-col="scheme_name">Fund</th>
-          <th class="text-center sortable" data-col="total_invested">Invested</th>
-          <th class="text-center sortable" data-col="value_now">Current Value</th>
-          <th class="text-center sortable" data-col="gain_loss">Gain/Loss</th>
-          <th class="text-center sortable" data-col="gain_pct">Returns</th>
-          <th class="text-center sortable" data-col="cagr">XIRR</th>
-          <th class="text-center sortable" data-col="total_units">Units</th>
-          <th class="text-center sortable" data-col="latest_nav">NAV</th>
-          <th class="text-center sortable" data-col="highest_nav" title="All-Time High NAV from funds table">Peak NAV 📈</th>
-          <th class="text-center sortable" data-col="drawdown_pct" title="% below All-Time High NAV">Drawdown</th>
+          <th class="sortable" data-col="scheme_name">Fund <span class="col-info" data-tip="Fund name, fund house, category, and folio number(s). Click to sort alphabetically.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="total_invested">Invested <span class="col-info" data-tip="Total amount you have invested in this fund (sum of all purchase amounts minus redemptions).">ⓘ</span></th>
+          <th class="text-center sortable" data-col="value_now">Current Value <span class="col-info" data-tip="Present market value of your holdings = Total Units × Latest NAV. Updates daily after AMFI publishes NAV.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="gain_loss">Gain/Loss <span class="col-info" data-tip="Absolute profit or loss in ₹ = Current Value − Total Invested. Green means profit, Red means loss.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="gain_pct">Returns <span class="col-info" data-tip="Percentage return on your investment = (Gain ÷ Invested) × 100. This is total return since your first purchase, not annualised.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="cagr">XIRR <span class="col-info" data-tip="Extended Internal Rate of Return — annualised return that accounts for the timing and size of each investment. More accurate than simple returns for SIPs. A positive XIRR means your money is growing annually at that rate.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="total_units">Units <span class="col-info" data-tip="Total units held. L = LTCG-eligible units (held &gt; 1 year for equity). S = STCG units (held &lt; 1 year). Useful for tax planning.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="latest_nav">NAV <span class="col-info" data-tip="Net Asset Value — the per-unit price of this fund as published by AMFI on the last working day. Date shown below the NAV.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="avg_cost_nav">Avg Cost <span class="col-info" data-tip="Your weighted average purchase price per unit = Total Invested ÷ Total Units. If current NAV is above this, you are in profit on a per-unit basis.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="day_change_amt">1D Change <span class="col-info" data-tip="Change in your portfolio value between the last two working days = (Today NAV − Previous NAV) × Units held. Weekends and market holidays are automatically skipped.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="highest_nav">Peak NAV 📈 <span class="col-info" data-tip="All-time highest NAV this fund has ever reached. Useful to gauge how far the fund is from its historical peak.">ⓘ</span></th>
+          <th class="text-center sortable" data-col="drawdown_pct">Drawdown <span class="col-info" data-tip="How much the current NAV has fallen from the all-time peak NAV in %. Lower is better. 🏆 ATH means the fund is at its all-time high right now.">ⓘ</span></th>
           <th class="text-center" style="width:80px;">Actions</th>
         </tr>
       </thead>
       <tbody id="holdingsBody">
-        <tr><td colspan="9" class="text-center" style="padding:40px;">
+        <tr><td colspan="13" class="text-center" style="padding:40px;">
           <div class="spinner"></div>
           <p style="color:var(--text-muted);margin-top:12px;">Loading holdings...</p>
         </td></tr>
@@ -216,7 +338,7 @@ ob_start();
           <td class="text-center" id="footValue"></td>
           <td class="text-center" id="footGain"></td>
           <td class="text-center" id="footGainPct"></td>
-          <td colspan="7"></td>
+          <td colspan="9"></td>
         </tr>
       </tfoot>
     </table>

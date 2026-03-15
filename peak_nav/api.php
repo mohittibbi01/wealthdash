@@ -39,16 +39,49 @@ if ($action === 'summary') {
         FROM mf_peak_progress
     ")->fetch(PDO::FETCH_ASSOC);
 
-    $total     = (int)$counts['total'];
-    $completed = (int)$counts['completed'];
-    $pct       = $total > 0 ? round($completed / $total * 100, 1) : 0;
+    $total       = (int)$counts['total'];
+    $upToDate    = (int)$counts['up_to_date'];
+    $needsUpdate = (int)$counts['needs_update'];
+    $pending     = (int)$counts['pending'];
+    $working     = (int)$counts['working'];
+    $errors      = (int)$counts['errors'];
+
+    // Progress = up_to_date / total (only truly done today counts as 100%)
+    // When idle: up_to_date = completed = total → 100%
+    // When running: progress shows actual today's work
+    $notDone = $pending + $working + $needsUpdate + $errors;
+    $pct = $total > 0 ? round(($upToDate / $total) * 100, 1) : 0;
+
+    // Stop flag
+    $stopFlag = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_stop'")->fetchColumn();
 
     echo json_encode([
         'counts'    => $counts,
         'pct'       => $pct,
+        'not_done'  => $notDone,
+        'stop_flag' => $stopFlag ?: '',
         'timestamp' => date('H:i:s'),
         'today'     => date('Y-m-d'),
     ]);
+    exit;
+}
+
+// ── STOP ───────────────────────────────────────────────
+if ($action === 'stop' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('peak_nav_stop','1') ON DUPLICATE KEY UPDATE setting_val='1'");
+        $pdo->exec("UPDATE mf_peak_progress SET status='pending' WHERE status='in_progress'");
+        echo json_encode(['ok' => true, 'message' => 'Stop requested. Processor will halt after current batch.']);
+    } catch(Exception $e) {
+        echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ── CLEAR STOP FLAG ────────────────────────────────────
+if ($action === 'clear_stop' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('peak_nav_stop','0') ON DUPLICATE KEY UPDATE setting_val='0'");
+    echo json_encode(['ok' => true]);
     exit;
 }
 

@@ -163,9 +163,24 @@
 	}
 
 	// ── MAIN LOOP ───────────────────────────────────────────
-	$chunks = array_chunk($schemes, $PARALLEL_SIZE);
+	$chunks    = array_chunk($schemes, $PARALLEL_SIZE);
+	$checkStop = $pdo->prepare("SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_stop'");
 
 	foreach ($chunks as $chunkIdx => $chunk) {
+
+		// ── Check stop flag ──────────────────────────────
+		$checkStop->execute();
+		$stopVal = $checkStop->fetchColumn();
+		if ($stopVal === '1') {
+			$codes = array_column($chunk, 'scheme_code');
+			$ph    = implode(',', array_fill(0, count($codes), '?'));
+			$pdo->prepare("UPDATE mf_peak_progress SET status='pending', updated_at=NOW() WHERE scheme_code IN ({$ph}) AND status='in_progress'")->execute($codes);
+			$pdo->exec("UPDATE app_settings SET setting_val='0' WHERE setting_key='peak_nav_stop'");
+			lm("⛔ Stop requested. Halted at chunk #{$chunkIdx}. Run again to continue.");
+			$pdo->prepare("UPDATE app_settings SET setting_val='idle' WHERE setting_key='peak_nav_status'")->execute();
+			echo "STOPPED\n";
+			exit;
+		}
 
 		if (overtime()) {
 			// Revert in_progress back to pending

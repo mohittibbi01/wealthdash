@@ -3,3 +3,10 @@ crypto ko add kr skte hai
 hr table pr paginaiton
 sare button shi kaam kre
 button ka jo name hai vhi  symbol ho,jese ki export button pr import symbol aa rha hai
+info button lgao
+debug file bnva lo is se sare files check ho jaye or ek inki report ko check krne k liye debug file bnva lo jo final ye bta de konsi debug file me error aa rha hai 
+
+http://localhost/wealthdash/templates/pages/admin.php
+ye automatic update hona chahiye, jb bhi new date check kre
+admin panel me ise update k liye na kehna pde
+http://localhost/wealthdash/peak_nav/status.php is page me progress baar sirf pending+working wale ko calculate kr rha hai progress baar me needs update wale ko bhi lo taki shi progress % show ho
