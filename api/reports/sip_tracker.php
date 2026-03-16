@@ -179,7 +179,7 @@ switch ($action) {
             [$portfolioId, 'mf', $fundId, $folio ?: null, $amount, $frequency,
              $sipDay, $startDate, $endDate, $platform ?: null, $notes ?: null]
         );
-        $id = (int) DB::lastInsertId();
+        $id = (int) DB::conn()->lastInsertId();
         audit_log('sip_add', 'sip_schedules', $id);
 
         // ── On-demand NAV history check & trigger download ──────
@@ -199,44 +199,26 @@ switch ($action) {
                 [$schemeCode]
             );
 
-            if ($existing && $existing['status'] === 'completed' && $existing['from_date'] <= $startDate) {
+            if ($existing && $existing['status'] === 'completed'
+                && $existing['from_date'] !== null
+                && $existing['from_date'] <= $startDate) {
                 $navStatus  = 'no_data';
                 $navMessage = 'No NAV data found for this fund from the selected date.';
             } else {
-                // Queue for download
+                // Queue fund for download — nav_history_downloader will pick it up
+                // OR JS will trigger sip_nav_fetch.php directly
                 DB::run(
                     "INSERT INTO nav_download_progress (scheme_code, fund_id, status, from_date)
                      VALUES (?, ?, 'pending', ?)
                      ON DUPLICATE KEY UPDATE
-                       status    = 'pending',
-                       from_date = IF(from_date > ?, ?, from_date),
+                       status        = 'pending',
+                       from_date     = LEAST(from_date, ?),
                        error_message = NULL",
-                    [$schemeCode, $fundId, $startDate, $startDate, $startDate]
+                    [$schemeCode, $fundId, $startDate, $startDate]
                 );
 
-                // Try non-blocking background trigger via curl (safer than file_get_contents)
-                $downloadUrl = APP_URL . '/api/sip/sip_nav_fetch.php'
-                             . '?fund_id=' . $fundId
-                             . '&from_date=' . urlencode($startDate)
-                             . '&scheme_code=' . urlencode($schemeCode)
-                             . '&token=' . md5($fundId . $startDate . env('APP_KEY','wealthdash'));
-
-                if (function_exists('curl_init')) {
-                    $ch = curl_init($downloadUrl);
-                    curl_setopt_array($ch, [
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_TIMEOUT        => 1,    // fire & forget
-                        CURLOPT_CONNECTTIMEOUT => 1,
-                        CURLOPT_NOBODY         => false,
-                        CURLOPT_SSL_VERIFYPEER => false,
-                        CURLOPT_USERAGENT      => 'WealthDash-SIP/1.0',
-                    ]);
-                    @curl_exec($ch);
-                    @curl_close($ch);
-                }
-
                 $navStatus  = 'downloading';
-                $navMessage = 'NAV history is being downloaded in background. XIRR will be available shortly.';
+                $navMessage = 'NAV history queued for download. XIRR will be available once ready.';
             }
         }
 
@@ -384,6 +366,13 @@ switch ($action) {
             'xirr'            => $xirr,
             'nav_date'        => $sip['latest_nav_date'],
         ]);
+
+    // ── NAV Token (for JS to trigger download directly) ───────
+    case 'sip_nav_token':
+        $fId  = (int) ($_POST['fund_id'] ?? 0);
+        $date = clean($_POST['start_date'] ?? '');
+        $token = md5($fId . $date . env('APP_KEY','wealthdash'));
+        json_response(true, '', ['token' => $token]);
 
     // ── NAV Download Status for a fund ────────────────────────
     case 'sip_nav_status':

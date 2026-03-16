@@ -108,7 +108,7 @@ ob_start();
 <!-- FD Table -->
 <div class="card">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-    <div class="view-toggle">
+    <div class="mf-view-toggle">
       <button class="view-btn active" data-status="active">Active</button>
       <button class="view-btn" data-status="matured">Matured</button>
       <button class="view-btn" data-status="">All</button>
@@ -270,4 +270,3 @@ ob_start();
 <?php
 $pageContent = ob_get_clean();
 include APP_ROOT . '/templates/layout.php';
-

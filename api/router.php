@@ -58,7 +58,7 @@ $csrfExempt = [
     'savings_list',
     'goal_list', 'goal_projection',
     'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
-    'sip_xirr', 'sip_nav_status',
+    'sip_xirr', 'sip_nav_status', 'sip_nav_token',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -291,6 +291,7 @@ try {
         case 'sip_delete':
         case 'sip_xirr':
         case 'sip_nav_status':
+        case 'sip_nav_token':
             require APP_ROOT . '/api/reports/sip_tracker.php'; exit;
 
         // ── Phase 5: Goal Planning ───────────────────────────

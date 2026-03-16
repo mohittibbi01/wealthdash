@@ -10,3 +10,39 @@ http://localhost/wealthdash/templates/pages/admin.php
 ye automatic update hona chahiye, jb bhi new date check kre
 admin panel me ise update k liye na kehna pde
 http://localhost/wealthdash/peak_nav/status.php is page me progress baar sirf pending+working wale ko calculate kr rha hai progress baar me needs update wale ko bhi lo taki shi progress % show ho
+
+
+============================
+MF and SIP Tracker page work
+============================
+
+
+
+
+
+SIP/SWP ka column hta do, 
+
+
+
+upr right corner me Add SIP ka button hai usko rename ko "Add SIP/SWP" or uska color thoda change kro
+
+
+
+action column me  "+SIP" likha aa rha hai ye ek button hain, main sirf ye chahta hoon ki yha SIP or SWP aye, jese mere pass 21 funds hai, main sirf 2 ki SIP start ki hai to sirf 2 funds k aage SIP show hona chahiye or jiski main SWP start kr lunga unke SWP likha ho, or ye sirf indicators honge koi button ya action perform nhi hoga,
+
+
+
+isme Stop SIP or SWP ka option aana chahiye
+
+
+
+jb kisi fund ki SIP start krte hai to backend me check kre ki uski past NAV kha se hai, maan lo user ne wealthdash pr aaj acc bnaya hai or vo pichi date se SIP / SWP start kr rha hai to backend pr apne aap database me download ho jaye, kyn k sare funds ki old nav save krege to database bht bda ho jayega.
+
+
+
+yha pr implement hone ke baad iski report SIP tracker me show ho,
+
+
+
+SIP tracker ka menu or page pr MF SIP/SWP kro 
+

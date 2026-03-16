@@ -51,7 +51,7 @@ $navItems = [
             'report_tax'       => ['label' => 'Tax Planning',  'href' => APP_URL . '/templates/pages/report_tax.php'],
             'report_networth'  => ['label' => 'Net Worth',     'href' => APP_URL . '/templates/pages/report_networth.php'],
             'report_rebalance' => ['label' => 'Rebalancing',   'href' => APP_URL . '/templates/pages/report_rebalancing.php'],
-            'report_sip'       => ['label' => 'SIP Tracker',   'href' => APP_URL . '/templates/pages/report_sip.php'],
+            'report_sip'       => ['label' => 'MF SIP/SWP',    'href' => APP_URL . '/templates/pages/report_sip.php'],
         ],
     ],
 ];

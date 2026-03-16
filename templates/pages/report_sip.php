@@ -8,7 +8,7 @@ require_once APP_ROOT . '/includes/auth_check.php';
 require_once APP_ROOT . '/includes/helpers.php';
 
 $currentUser = require_auth();
-$pageTitle   = 'SIP Tracker';
+$pageTitle   = 'MF SIP/SWP';
 $activePage  = 'report_sip';
 
 // ── Fetch user portfolios & set selected portfolio ──
@@ -32,8 +32,8 @@ ob_start();
 ?>
 <div class="page-header">
   <div>
-    <h1 class="page-title">SIP Tracker</h1>
-    <p class="page-subtitle">Track your Systematic Investment Plans · Upcoming · Performance</p>
+    <h1 class="page-title">MF SIP / SWP</h1>
+    <p class="page-subtitle">Track your Systematic Investment & Withdrawal Plans · Upcoming · Performance</p>
   </div>
   <div class="page-actions" style="display:flex;gap:8px;align-items:center;">
     <?php if (count($portfolios) > 1): ?>
@@ -46,10 +46,10 @@ ob_start();
       <?php endforeach; ?>
     </select>
     <?php endif; ?>
-    <button class="btn btn-primary" id="btnAddSip">
+    <a href="/wealthdash/templates/pages/mf_holdings.php" class="btn btn-primary">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Add SIP
-    </button>
+      Add SIP — Go to Holdings
+    </a>
   </div>
 </div>
 
@@ -428,9 +428,10 @@ async function saveSip() {
 
     // ── Handle NAV download status ──────────────────────────
     if (!id) { // only on add
-      const navStatus  = res.nav_status  || 'available';
-      const navMessage = res.nav_message || '';
-      const sipId      = res.id;
+      const d          = res.data || res;   // handle both {data:{}} and flat response
+      const navStatus  = d.nav_status  || 'available';
+      const navMessage = d.nav_message || '';
+      const sipId      = d.id || res.id;
 
       if (navStatus === 'downloading') {
         // Show persistent notice — poll for completion
@@ -487,30 +488,45 @@ function hideNavDownloadBanner() {
 
 // Poll until NAV is ready then calculate XIRR
 async function pollNavReady(sipId, fundId, startDate, attempts = 0) {
-  if (attempts > 30) { // max 5 minutes
+  if (attempts > 30) {
     hideNavDownloadBanner();
-    showToast('NAV download taking long. Refresh page later for XIRR.', 'warning');
+    showToast('NAV download taking long. Open NAV Downloader page and run it.', 'warning');
     return;
   }
 
-  await new Promise(r => setTimeout(r, 10000)); // wait 10 seconds
+  // First attempt — trigger actual download via JS fetch to sip_nav_fetch.php
+  if (attempts === 0) {
+    try {
+      const tRes = await API.post('/api/router.php', {
+        action: 'sip_nav_token', portfolio_id: getSipPortfolioId(),
+        fund_id: fundId, start_date: startDate,
+      });
+      if (tRes.token) {
+        const url = window.WD.appUrl + '/api/sip/sip_nav_fetch.php'
+          + '?fund_id=' + fundId
+          + '&from_date=' + encodeURIComponent(startDate)
+          + '&token=' + tRes.token;
+        fetch(url).catch(() => {}); // fire & forget from browser
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  await new Promise(r => setTimeout(r, 10000));
 
   try {
     const res = await API.post('/api/router.php', {
-      action: 'sip_nav_status',
-      portfolio_id: getSipPortfolioId(),
-      fund_id: fundId,
-      start_date: startDate,
+      action: 'sip_nav_status', portfolio_id: getSipPortfolioId(),
+      fund_id: fundId, start_date: startDate,
     });
 
     if (res.is_ready) {
       hideNavDownloadBanner();
       showToast('✅ NAV data ready! Calculating XIRR...', 'success');
       loadSipXirr(sipId);
-      loadSipList(); // refresh to show XIRR
+      loadSipList();
     } else if (res.dl_status === 'error') {
       hideNavDownloadBanner();
-      showToast('⚠ NAV download failed. XIRR unavailable.', 'error');
+      showToast('⚠ NAV download failed. Go to NAV Downloader page and run it manually.', 'error');
     } else {
       pollNavReady(sipId, fundId, startDate, attempts + 1);
     }

@@ -2,3 +2,4 @@
 [11-Mar-2026 17:26:53 Asia/Kolkata] [WealthDash] mf_add error: recalculate_mf_holdings(): Argument #4 ($folio) must be of type string, null given, called in C:\xampp\htdocs\wealthdash\api\mutual_funds\mf_add.php on line 174
 [11-Mar-2026 17:27:13 Asia/Kolkata] [WealthDash] mf_add error: recalculate_mf_holdings(): Argument #4 ($folio) must be of type string, null given, called in C:\xampp\htdocs\wealthdash\api\mutual_funds\mf_add.php on line 174
 [11-Mar-2026 17:28:23 Asia/Kolkata] [WealthDash] mf_add error: recalculate_mf_holdings(): Argument #4 ($folio) must be of type string, null given, called in C:\xampp\htdocs\wealthdash\api\mutual_funds\mf_add.php on line 174
+[15-Mar-2026 19:36:02 Asia/Kolkata] API error [goal_list]: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'wealthdash.investment_goals' doesn't exist

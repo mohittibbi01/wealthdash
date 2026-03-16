@@ -135,10 +135,17 @@ try {
                    h.highest_nav, h.highest_nav_date, h.is_active,
                    f.scheme_name, f.scheme_code, f.category, f.sub_category,
                    f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
-                   f.prev_nav, f.prev_nav_date,
                    f.min_ltcg_days, f.lock_in_days,
                    fh.name AS fund_house_name, fh.short_name AS fund_house_short,
-                   port.name AS portfolio_name
+                   port.name AS portfolio_name,
+                   (SELECT COUNT(*) FROM sip_schedules s
+                    WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                      AND s.is_active = 1 AND s.asset_type = 'mf'
+                      AND s.schedule_type = 'SIP') AS active_sip_count,
+                   (SELECT COUNT(*) FROM sip_schedules s
+                    WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                      AND s.is_active = 1 AND s.asset_type = 'mf'
+                      AND s.schedule_type = 'SWP') AS active_swp_count
             FROM mf_holdings h
             JOIN funds f ON f.id = h.fund_id
             JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -186,39 +193,6 @@ try {
                 $ltcgDate = date('Y-m-d', strtotime($r['first_purchase_date']) + ($minLtcgDays * 86400));
             }
 
-            // ── 1-DAY CHANGE ──────────────────────────────────────────────────────
-            $latestNav = $r['latest_nav'] ? (float)$r['latest_nav'] : null;
-            $totalUnits = (float)$r['total_units'];
-            $dayChangeAmt = null;
-            $dayChangePct = null;
-            if ($latestNav !== null) {
-                $navHistStmt = $db->prepare("
-                    SELECT nav, nav_date FROM nav_history
-                    WHERE fund_id = ?
-                    ORDER BY nav_date DESC
-                    LIMIT 2
-                ");
-                $navHistStmt->execute([(int)$r['fund_id']]);
-                $navRows = $navHistStmt->fetchAll();
-
-                $lastNav = null;
-                $prevNav = null;
-
-                if (count($navRows) === 2) {
-                    $lastNav = (float)$navRows[0]['nav'];
-                    $prevNav = (float)$navRows[1]['nav'];
-                } elseif (count($navRows) === 1 && $r['prev_nav']) {
-                    $lastNav = (float)$navRows[0]['nav'];
-                    $prevNav = (float)$r['prev_nav'];
-                }
-
-                if ($lastNav !== null && $prevNav !== null && $prevNav > 0 && $lastNav !== $prevNav) {
-                    $navDiff      = $lastNav - $prevNav;
-                    $dayChangePct = round(($navDiff / $prevNav) * 100, 3);
-                    $dayChangeAmt = round($navDiff * $totalUnits, 2);
-                }
-            }
-
             return [
                 'id'               => (int)$r['id'],
                 'portfolio_id'     => (int)$r['portfolio_id'],
@@ -233,7 +207,7 @@ try {
                 'fund_type'        => $r['fund_type'],
                 'option_type'      => $r['option_type'],
                 'folio_number'     => $r['folio_number'],
-                'total_units'      => round($totalUnits, 4),
+                'total_units'      => round((float)$r['total_units'], 4),
                 'avg_cost_nav'     => round((float)$r['avg_cost_nav'], 4),
                 'total_invested'   => round($invested, 2),
                 'value_now'        => round($valueNow, 2),
@@ -241,7 +215,7 @@ try {
                 'gain_pct'         => $gainPct,
                 'cagr'             => $xirr,
                 'gain_type'        => $r['gain_type'],
-                'latest_nav'       => $latestNav,
+                'latest_nav'       => $r['latest_nav'] ? (float)$r['latest_nav'] : null,
                 'latest_nav_date'  => $r['latest_nav_date'],
                 'first_purchase_date' => $r['first_purchase_date'],
                 'ltcg_date'        => $ltcgDate,
@@ -256,28 +230,15 @@ try {
                 'invested_fmt'     => format_inr($invested),
                 'value_fmt'        => format_inr($valueNow),
                 'gain_fmt'         => format_inr($gainLoss),
-                // ── 1-Day Change ──
-                'day_change_amt'   => $dayChangeAmt,
-                'day_change_pct'   => $dayChangePct,
+                'active_sip_count'     => (int)($r['active_sip_count'] ?? 0),
+                'active_swp_count'     => (int)($r['active_swp_count'] ?? 0),
             ];
         }, $rows);
-
-        // Summary totals
-        $summary = [
-            'total_invested' => array_sum(array_column($data, 'total_invested')),
-            'value_now'      => array_sum(array_column($data, 'value_now')),
-            'gain_loss'      => array_sum(array_column($data, 'gain_loss')),
-            'fund_count'     => count($data),
-        ];
-        $summary['gain_pct'] = $summary['total_invested'] > 0
-            ? round(($summary['gain_loss'] / $summary['total_invested']) * 100, 2)
-            : 0;
 
         echo json_encode([
             'success' => true,
             'view'    => 'folio',
             'total'   => count($data),
-            'summary' => $summary,
             'data'    => $data
         ]);
 
@@ -290,7 +251,6 @@ try {
                 h.fund_id,
                 f.scheme_name, f.scheme_code, f.category, f.sub_category,
                 f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
-                f.prev_nav, f.prev_nav_date,
                 f.highest_nav, f.highest_nav_date,
                 f.min_ltcg_days, f.lock_in_days,
                 fh.name AS fund_house_name, fh.short_name AS fund_house_short,
@@ -356,45 +316,6 @@ try {
                 $ltcgDate = date('Y-m-d', strtotime($r['first_purchase_date']) + ($minLtcgDays * 86400));
             }
 
-            // ── 1-DAY CHANGE ──────────────────────────────────────────────────────
-            // Priority 1: nav_history se last 2 working days (AMFI weekend pe publish nahi karta)
-            // Priority 2: funds.prev_nav fallback (jab tak nav_history mein sirf 1 entry ho)
-            $latestNav    = $r['latest_nav'] ? (float)$r['latest_nav'] : null;
-            $dayChangeAmt = null;
-            $dayChangePct = null;
-            if ($latestNav !== null) {
-                $navHistStmt = $db->prepare("
-                    SELECT nav, nav_date FROM nav_history
-                    WHERE fund_id = ?
-                    ORDER BY nav_date DESC
-                    LIMIT 2
-                ");
-                $navHistStmt->execute([(int)$r['fund_id']]);
-                $navRows = $navHistStmt->fetchAll();
-
-                $lastNav = null;
-                $prevNav = null;
-
-                if (count($navRows) === 2) {
-                    // nav_history mein 2 alag working days hain — perfect
-                    $lastNav = (float)$navRows[0]['nav'];
-                    $prevNav = (float)$navRows[1]['nav'];
-                } elseif (count($navRows) === 1 && $r['prev_nav']) {
-                    // nav_history mein sirf 1 entry — prev_nav se compare karo
-                    $lastNav = (float)$navRows[0]['nav'];
-                    $prevNav = (float)$r['prev_nav'];
-                }
-
-                if ($lastNav !== null && $prevNav !== null && $prevNav > 0 && $lastNav !== $prevNav) {
-                    $navDiff      = $lastNav - $prevNav;
-                    $dayChangePct = round(($navDiff / $prevNav) * 100, 3);
-                    $dayChangeAmt = round($navDiff * $totalUnits, 2);
-                }
-            }
-
-            // ── AVG COST NAV (weighted across all folios) ──
-            $avgCostNav = $totalUnits > 0 ? round($totalInvested / $totalUnits, 4) : null;
-
             return [
                 'fund_id'          => (int)$r['fund_id'],
                 'scheme_code'      => $r['scheme_code'],
@@ -406,13 +327,12 @@ try {
                 'fund_type'        => $r['fund_type'],
                 'option_type'      => $r['option_type'],
                 'total_units'      => round($totalUnits, 4),
-                'avg_cost_nav'     => $avgCostNav,
                 'total_invested'   => round($totalInvested, 2),
                 'value_now'        => round($valueNow, 2),
                 'gain_loss'        => round($gainLoss, 2),
                 'gain_pct'         => $gainPct,
                 'cagr'             => $xirr,
-                'latest_nav'       => $latestNav,
+                'latest_nav'       => $r['latest_nav'] ? (float)$r['latest_nav'] : null,
                 'latest_nav_date'  => $r['latest_nav_date'],
                 'first_purchase_date' => $r['first_purchase_date'],
                 'ltcg_date'        => $ltcgDate,
@@ -431,8 +351,6 @@ try {
                 'drawdown_pct'     => ($r['highest_nav'] && (float)$r['highest_nav'] > 0 && $r['latest_nav'])
                                         ? round(((float)$r['highest_nav'] - (float)$r['latest_nav']) / (float)$r['highest_nav'] * 100, 2)
                                         : null,
-                'day_change_amt'   => $dayChangeAmt,
-                'day_change_pct'   => $dayChangePct,
             ];
         }, $rows);
 

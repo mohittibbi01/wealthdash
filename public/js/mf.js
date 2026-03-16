@@ -130,7 +130,7 @@ function initHoldingsPage() {
 
 async function loadHoldings() {
   const body = document.getElementById('holdingsBody');
-  body.innerHTML = `<tr><td colspan="13" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
 
   const portfolioId = document.getElementById('filterPortfolio')?.value || '';
   const params = new URLSearchParams({ view: MF.view });
@@ -141,93 +141,12 @@ async function loadHoldings() {
     MF.data = res.data || [];
     MF.filtered = [...MF.data];
 
+    // Update summary from API if available
     if (res.summary) updateSummaryCards(res.summary);
 
     applyHoldingsFilter();
-
-    // ── Live 1D Change: AMFI se fetch karo aur merge karo ──
-    fetch1dChange();
-
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="13" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
-  }
-}
-
-// Fetch live 1D change from AMFI via server-side proxy
-async function fetch1dChange() {
-  try {
-    const res = await fetch(`${window.APP_URL || ''}/api/nav/nav_1d_change.php`);
-    if (!res.ok) return;
-    const json = await res.json();
-    if (!json.success || !json.data) return;
-
-    const changeMap = json.data; // { fund_id: { day_change_amt, day_change_pct, ... } }
-    let updated = false;
-
-    MF.data = MF.data.map(h => {
-      const fid = String(h.fund_id || h.id);
-      if (changeMap[fid]) {
-        updated = true;
-        return {
-          ...h,
-          day_change_amt: changeMap[fid].day_change_amt,
-          day_change_pct: changeMap[fid].day_change_pct,
-          latest_nav:     changeMap[fid].latest_nav     ?? h.latest_nav,
-          latest_nav_date:changeMap[fid].latest_date    ?? h.latest_nav_date,
-        };
-      }
-      return h;
-    });
-
-    if (updated) {
-      // ── Update 1D summary tile ──────────────────────────────
-      const totalDayChange = MF.data.reduce((s, h) => s + (h.day_change_amt || 0), 0);
-      const totalValue     = MF.data.reduce((s, h) => s + (h.value_now || 0), 0);
-      const prevValue      = totalValue - totalDayChange;
-      const dayPct         = prevValue > 0 ? ((totalDayChange / prevValue) * 100).toFixed(3) : null;
-
-      const amtEl  = document.getElementById('mf1dAmt');
-      const pctEl  = document.getElementById('mf1dPct');
-      const iconEl = document.getElementById('mf1dIcon');
-
-      if (amtEl && totalDayChange !== 0) {
-        const isPos  = totalDayChange >= 0;
-        const sign   = isPos ? '+' : '';
-        const color  = isPos ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
-        const arrow  = isPos ? '▲' : '▼';
-
-        amtEl.textContent = `${arrow} ${sign}${fmtInr(Math.abs(totalDayChange))}`;
-        amtEl.style.color = color;
-
-        if (pctEl) {
-          pctEl.textContent = `${sign}${dayPct}% vs prev working day`;
-          pctEl.style.color = color;
-        }
-
-        if (iconEl) {
-          iconEl.innerHTML = isPos
-            ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/>
-                <polyline points="19,4 23,4 23,8"/>
-               </svg>`
-            : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/>
-                <polyline points="19,20 23,20 23,16"/>
-               </svg>`;
-        }
-      }
-
-      MF.filtered = MF.data.filter(h => {
-        if (MF.categoryFilter && h.category !== MF.categoryFilter) return false;
-        if (MF.gainTypeFilter && h.gain_type !== MF.gainTypeFilter) return false;
-        if (MF.search && !h.scheme_name?.toLowerCase().includes(MF.search) &&
-            !h.fund_house?.toLowerCase().includes(MF.search)) return false;
-        return true;
-      });
-      renderHoldings();
-    }
-  } catch (_) {
-    // Silent fail — 1D change optional hai
+    body.innerHTML = `<tr><td colspan="10" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
   }
 }
 
@@ -263,7 +182,7 @@ function renderHoldings() {
   });
 
   if (!MF.filtered.length) {
-    body.innerHTML = `<tr><td colspan="13" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
     if (tfoot) tfoot.style.display = 'none';
     if (countEl) countEl.textContent = '0 funds';
     return;
@@ -291,7 +210,6 @@ function renderHoldings() {
     const gain      = h.gain_loss || 0;
     const gainPct   = h.gain_pct || 0;
     const gainClass = gain >= 0 ? 'positive' : 'negative';
-    const gainArrow = gain >= 0 ? '▲' : '▼';
     const gainSign  = gain >= 0 ? '+' : '';
     const ltcgDate  = h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '—';
     const typeTag   = h.gain_type === 'LTCG'
@@ -300,63 +218,21 @@ function renderHoldings() {
     const nav       = h.latest_nav ? `₹${Number(h.latest_nav).toFixed(4)}` : '—';
     const navDate   = h.latest_nav_date ? `<br><small style="color:var(--text-muted);">${formatDateDisplay(h.latest_nav_date)}</small>` : '';
     const folioInfo = isFolio && h.folio_number ? `<br><small style="color:var(--text-muted);">${h.folio_number}</small>` : '';
+    const cagr      = h.cagr ? `${h.cagr > 0 ? '+' : ''}${h.cagr}%` : '—';
     const fundId    = h.fund_id || h.id;
 
-    // ── Gain/Loss cell ───────────────────────────────────────
-    const gainAbs  = Math.abs(gain);
-    const gainHtml = `<div style="font-weight:700;">${gainArrow} ${gain >= 0 ? '+' : '-'}${fmtInr(gainAbs)}</div>`;
-
-    // ── Returns cell ─────────────────────────────────────────
-    const retArrow = gainPct >= 0 ? '▲' : '▼';
-    const retSign  = gainPct >= 0 ? '+' : '';
-    const retHtml  = `${retArrow} ${retSign}${gainPct}%`;
-
-    // ── XIRR cell ────────────────────────────────────────────
-    let cagrHtml = '—';
-    if (h.cagr !== null && h.cagr !== undefined && h.cagr !== 0) {
-      const cagrArrow = h.cagr >= 0 ? '▲' : '▼';
-      const cagrSign  = h.cagr >= 0 ? '+' : '';
-      cagrHtml = `${cagrArrow} ${cagrSign}${h.cagr}%`;
-    }
-
-    // ── Peak NAV ─────────────────────────────────────────────
+    // Peak NAV + Drawdown
     const peakNav = h.highest_nav
       ? `<div style="font-weight:600;">₹${Number(h.highest_nav).toFixed(4)}</div>${h.highest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.highest_nav_date)}</small>` : ''}`
       : '—';
-
-    // ── Drawdown cell ────────────────────────────────────────
     let drawdownHtml = '—';
     if (h.drawdown_pct !== null && h.drawdown_pct !== undefined) {
       if (h.drawdown_pct <= 0) {
         drawdownHtml = `<span style="color:var(--gain,#16a34a);font-weight:600;">🏆 ATH</span>`;
       } else {
         const ddColor = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
-        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">▼ -${h.drawdown_pct}%</span>`;
+        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">-${h.drawdown_pct}%</span>`;
       }
-    }
-
-    // ── Avg Cost NAV — sirf NAV, koi % nahi ─────────────────
-    const avgCostHtml = h.avg_cost_nav
-      ? `<div style="font-weight:600;">₹${Number(h.avg_cost_nav).toFixed(4)}</div>`
-      : '—';
-
-    // ── 1-Day Change ──────────────────────────────────────────
-    let dayChangeHtml = '<span style="color:var(--text-muted);font-size:12px;">—</span>';
-    if (h.day_change_amt !== null && h.day_change_amt !== undefined &&
-        h.day_change_pct !== null && h.day_change_pct !== undefined) {
-      const dAmt   = h.day_change_amt;
-      const dPct   = h.day_change_pct;
-      const dCls   = dAmt >= 0 ? 'positive' : 'negative';
-      const dSign  = dAmt >= 0 ? '+' : '';
-      const dColor = dAmt >= 0 ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
-      const dArrow = dAmt >= 0 ? '▲' : '▼';
-      dayChangeHtml = `
-        <div class="${dCls}" style="font-weight:700;font-size:13px;line-height:1.3;">
-          ${dArrow} ${dSign}${fmtInr(Math.abs(dAmt))}
-        </div>
-        <div style="font-size:11.5px;font-weight:600;color:${dColor};margin-top:2px;">
-          ${dSign}${Math.abs(dPct).toFixed(3)}%
-        </div>`;
     }
 
     return `<tr data-fund-id="${fundId}" data-folio="${h.folio_number||''}">
@@ -366,21 +242,21 @@ function renderHoldings() {
       </td>
       <td class="text-center">${fmtInr(h.total_invested)}</td>
       <td class="text-center">${fmtInr(h.value_now)}</td>
-      <td class="text-center ${gainClass}">${gainHtml}</td>
-      <td class="text-center ${gainClass}">${retHtml}</td>
-      <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagrHtml}</td>
+      <td class="text-center ${gainClass}">${gainSign}${fmtInr(Math.abs(gain))}</td>
+      <td class="text-center ${gainClass}">${gainSign}${gainPct}%</td>
+      <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagr}</td>
       <td class="text-center">
         <div style="font-weight:600;">💪 ${Number(h.total_units).toFixed(4)}</div>
         ${h.ltcg_units > 0 ? `<div style="font-size:12px;margin-top:3px;color:#16a34a;font-weight:600;"><span style="font-size:14px;font-weight:900;">✓</span> L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
         ${h.stcg_units > 0 ? `<div style="font-size:12px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
       </td>
       <td class="text-center">${nav}${navDate}</td>
-      <td class="text-center">${avgCostHtml}</td>
-      <td class="text-center">${dayChangeHtml}</td>
       <td class="text-center">${peakNav}</td>
       <td class="text-center">${drawdownHtml}</td>
-      <td>
+      <td style="white-space:nowrap;">
         <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
+        ${h.active_sip_count > 0 ? '<span style="display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;margin-left:3px;">SIP</span>' : ''}
+        ${(h.active_swp_count||0) > 0 ? '<span style="display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;margin-left:3px;">SWP</span>' : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1507,4 +1383,325 @@ function renderDividends() {
   setEl('dSumTotal',  fmtInr(total));
   setEl('dSumThisFy', thisFyTotal > 0 ? fmtInr(thisFyTotal) : '—');
   setEl('dSumCount',  String(rows.length));
+}
+// ── Quick SIP from Holdings ─────────────────────────────────────────
+let _sipHoldingsFunds = null;
+let _sipSearchTimer   = null;
+
+async function _loadSipHoldingsFunds() {
+  if (_sipHoldingsFunds) return _sipHoldingsFunds;
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res = await fetch(appUrl + '/api/mutual_funds/mf_list.php?view=holdings');
+    const d   = await res.json();
+    _sipHoldingsFunds = (d.data || []).map(h => ({
+      id: h.fund_id, name: h.scheme_name,
+      house: h.fund_house_short || h.fund_house || '',
+      category: h.category || '', nav: h.latest_nav || 0,
+      inPortfolio: true,
+    }));
+  } catch(e) { _sipHoldingsFunds = []; }
+  return _sipHoldingsFunds;
+}
+
+function openQuickSip(fundId, fundName, nav, fundHouse, category) {
+  const existing = document.getElementById('quickSipModal');
+  if (existing) existing.remove();
+
+  const today      = new Date();
+  const defaultDay = today.getDate() <= 28 ? today.getDate() : 1;
+  const isFundKnown = fundId > 0;
+
+  const modal = document.createElement('div');
+  modal.id = 'quickSipModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+  <div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:95vw;
+              box-shadow:0 20px 60px rgba(0,0,0,.2);max-height:92vh;overflow-y:auto;">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-size:1rem;font-weight:700;color:#1e293b;">＋ Add SIP / SWP</h3>
+      <button id="qsCloseBtn" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#94a3b8;line-height:1;">×</button>
+    </div>
+
+    <div style="margin-bottom:14px;position:relative;">
+      <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Fund *</label>
+      <input id="qsFundSearch" type="text" autocomplete="off"
+             placeholder="Holdings se select karo ya search karo…"
+             value="${escHtml(fundName)}"
+             style="width:100%;padding:9px 12px;border:1px solid ${isFundKnown?'#86efac':'#e2e8f0'};
+                    border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;
+                    background:${isFundKnown?'#f0fdf4':'#fff'};">
+      <input type="hidden" id="qsFundId" value="${fundId||''}">
+      <div id="qsFundInfo" style="font-size:11px;color:#64748b;margin-top:3px;min-height:15px;">
+        ${isFundKnown ? escHtml(fundHouse)+' · '+escHtml(category)+(nav?' · NAV: ₹'+Number(nav).toFixed(4):'') : ''}
+      </div>
+      <div id="qsFundDropdown" style="display:none;position:absolute;left:0;right:0;top:100%;
+           background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+           box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow-y:auto;
+           z-index:9999;margin-top:2px;"></div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:6px;">Type</label>
+      <div style="display:flex;gap:8px;">
+        <div id="qsBtnSIP" onclick="_qsSetType('SIP')"
+             style="flex:1;padding:8px;text-align:center;border:2px solid #16a34a;border-radius:8px;
+                    background:#f0fdf4;color:#16a34a;font-weight:700;font-size:13px;cursor:pointer;">
+          🔄 SIP
+        </div>
+        <div id="qsBtnSWP" onclick="_qsSetType('SWP')"
+             style="flex:1;padding:8px;text-align:center;border:2px solid #e2e8f0;border-radius:8px;
+                    background:#fff;color:#94a3b8;font-weight:700;font-size:13px;cursor:pointer;">
+          💸 SWP
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Amount (₹) *</label>
+        <input id="qsAmount" type="number" min="100" step="100" value="5000"
+               style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Frequency</label>
+        <select id="qsFrequency" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;background:#fff;outline:none;">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly (7 days)</option>
+          <option value="fortnightly">Fortnightly (15 days)</option>
+          <option value="monthly" selected>Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">SIP Day (1–28)</label>
+        <input id="qsSipDay" type="number" min="1" max="28" value="${defaultDay}"
+               style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Platform</label>
+        <input id="qsPlatform" type="text" placeholder="Groww, Zerodha…"
+               style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Start Date *</label>
+        <input id="qsStartDate" type="text" placeholder="DD-MM-YYYY"
+               value="${String(defaultDay).padStart(2,'0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}"
+               style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">
+          End Date <small style="color:#94a3b8;">(blank=ongoing)</small>
+        </label>
+        <input id="qsEndDate" type="text" placeholder="DD-MM-YYYY"
+               style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;outline:none;box-sizing:border-box;">
+      </div>
+    </div>
+
+    <div id="qsError"   style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+    <div id="qsSuccess" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="qsCancelBtn" style="padding:8px 18px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;cursor:pointer;font-size:14px;">Cancel</button>
+      <button id="qsSaveBtn"   style="padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;">Save SIP</button>
+    </div>
+  </div>`;
+
+  document.body.appendChild(modal);
+
+  _initQsFundSearch(isFundKnown);
+  document.getElementById('qsCloseBtn').onclick  = () => modal.remove();
+  document.getElementById('qsCancelBtn').onclick = () => modal.remove();
+  document.getElementById('qsSaveBtn').onclick   = _saveQuickSip;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  if (!isFundKnown) {
+    setTimeout(() => {
+      document.getElementById('qsFundSearch')?.focus();
+      _showQsHoldings('');
+    }, 150);
+  }
+}
+
+let _qsCurrentType = 'SIP';
+function _qsSetType(type) {
+  _qsCurrentType = type;
+  const isSip = type === 'SIP';
+  const sipBtn = document.getElementById('qsBtnSIP');
+  const swpBtn = document.getElementById('qsBtnSWP');
+  if (sipBtn) { sipBtn.style.borderColor = isSip ? '#16a34a' : '#e2e8f0'; sipBtn.style.background = isSip ? '#f0fdf4' : '#fff'; sipBtn.style.color = isSip ? '#16a34a' : '#94a3b8'; }
+  if (swpBtn) { swpBtn.style.borderColor = !isSip ? '#dc2626' : '#e2e8f0'; swpBtn.style.background = !isSip ? '#fef2f2' : '#fff'; swpBtn.style.color = !isSip ? '#dc2626' : '#94a3b8'; }
+  const btn = document.getElementById('qsSaveBtn');
+  if (btn) { btn.textContent = `Save ${type}`; btn.style.background = isSip ? '#16a34a' : '#dc2626'; }
+}
+
+function _initQsFundSearch(isFundKnown) {
+  const input    = document.getElementById('qsFundSearch');
+  const dropdown = document.getElementById('qsFundDropdown');
+  if (!input) return;
+
+  input.addEventListener('focus', () => {
+    if (!document.getElementById('qsFundId')?.value) _showQsHoldings(input.value.trim());
+  });
+  input.addEventListener('input', () => {
+    clearTimeout(_sipSearchTimer);
+    const fidEl = document.getElementById('qsFundId');
+    if (fidEl) fidEl.value = '';
+    const infoEl = document.getElementById('qsFundInfo');
+    if (infoEl) infoEl.textContent = '';
+    input.style.borderColor = '#e2e8f0';
+    input.style.background  = '#fff';
+    const q = input.value.trim();
+    _showQsHoldings(q);
+    if (q.length >= 2) _sipSearchTimer = setTimeout(() => _searchQsFunds(q), 400);
+  });
+  input.addEventListener('blur', () => {
+    setTimeout(() => { if (dropdown) dropdown.style.display = 'none'; }, 200);
+  });
+}
+
+async function _showQsHoldings(query) {
+  const dropdown = document.getElementById('qsFundDropdown');
+  if (!dropdown) return;
+  const funds = await _loadSipHoldingsFunds();
+  const q = (query||'').toLowerCase();
+  const filtered = q ? funds.filter(f => f.name.toLowerCase().includes(q) || f.house.toLowerCase().includes(q)) : funds;
+
+  let html = '';
+  if (filtered.length) {
+    html += `<div style="padding:6px 12px 3px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">📊 Your Holdings (${filtered.length})</div>`;
+    html += filtered.map(f => _qsFundItem(f)).join('');
+  }
+  html += `<div style="padding:7px 12px;font-size:11px;color:#94a3b8;border-top:1px solid #f1f5f9;text-align:center;">Type to search all 14,000+ funds</div>`;
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+async function _searchQsFunds(q) {
+  const dropdown = document.getElementById('qsFundDropdown');
+  if (!dropdown) return;
+  const appUrl   = window.WD?.appUrl || window.APP_URL || '';
+  try {
+    const res      = await fetch(`${appUrl}/api/mutual_funds/mf_search.php?q=${encodeURIComponent(q)}&limit=8`);
+    const d        = await res.json();
+    const allFunds = d.data || [];
+    const holdings = await _loadSipHoldingsFunds();
+    const hIds     = new Set(holdings.map(h => h.id));
+    const hFiltered= holdings.filter(f => f.name.toLowerCase().includes(q.toLowerCase()));
+    const others   = allFunds.filter(f => !hIds.has(f.id)).map(f => ({
+      id: f.id, name: f.scheme_name,
+      house: f.fund_house_short || f.fund_house || '',
+      category: f.category || '', nav: f.latest_nav || 0, inPortfolio: false,
+    }));
+
+    let html = '';
+    if (hFiltered.length) {
+      html += `<div style="padding:6px 12px 3px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">📊 Your Holdings</div>`;
+      html += hFiltered.map(f => _qsFundItem(f)).join('');
+    }
+    if (others.length) {
+      html += `<div style="padding:6px 12px 3px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;background:#f8fafc;border-bottom:1px solid #e2e8f0;${hFiltered.length?'border-top:2px solid #e2e8f0;':''}">🔍 All Funds</div>`;
+      html += others.map(f => _qsFundItem(f)).join('');
+    }
+    if (!html) html = `<div style="padding:12px;text-align:center;color:#94a3b8;font-size:13px;">No funds found for "${escHtml(q)}"</div>`;
+    dropdown.innerHTML = html;
+    dropdown.style.display = 'block';
+  } catch(e) {}
+}
+
+function _qsFundItem(f) {
+  const badge = f.inPortfolio
+    ? `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;margin-left:4px;">In Portfolio</span>`
+    : '';
+  return `<div onmousedown="_selectQsFund(${f.id},'${escAttr(f.name)}',${f.nav||0},'${escAttr(f.house)}','${escAttr(f.category)}')"
+               onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''"
+               style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;">
+    <div style="font-size:13px;font-weight:500;color:#1e293b;">${escHtml(f.name)}${badge}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:1px;">${escHtml(f.house)} · ${escHtml(f.category)}${f.nav?' · ₹'+Number(f.nav).toFixed(4):''}</div>
+  </div>`;
+}
+
+function _selectQsFund(id, name, nav, house, category) {
+  const input    = document.getElementById('qsFundSearch');
+  const dropdown = document.getElementById('qsFundDropdown');
+  if (input) {
+    input.value = name;
+    input.style.borderColor = '#86efac';
+    input.style.background  = '#f0fdf4';
+  }
+  const fidEl = document.getElementById('qsFundId');
+  if (fidEl) fidEl.value = id;
+  const infoEl = document.getElementById('qsFundInfo');
+  if (infoEl) infoEl.textContent = house + ' · ' + category + (nav ? ' · NAV: ₹' + Number(nav).toFixed(4) : '');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+async function _saveQuickSip() {
+  const errEl    = document.getElementById('qsError');
+  const sucEl    = document.getElementById('qsSuccess');
+  const btn      = document.getElementById('qsSaveBtn');
+  const appUrl   = window.WD?.appUrl || window.APP_URL || '';
+  const csrf     = document.querySelector('meta[name="csrf-token"]')?.content || window.CSRF_TOKEN || '';
+  const portfolio= window.WD?.selectedPortfolio || 0;
+
+  errEl.style.display = 'none';
+  sucEl.style.display = 'none';
+
+  const fundId    = document.getElementById('qsFundId')?.value;
+  const fundName  = document.getElementById('qsFundSearch')?.value;
+  const amount    = document.getElementById('qsAmount')?.value;
+  const startDate = document.getElementById('qsStartDate')?.value;
+  const frequency = document.getElementById('qsFrequency')?.value;
+  const sipDay    = document.getElementById('qsSipDay')?.value;
+  const endDate   = document.getElementById('qsEndDate')?.value;
+  const platform  = document.getElementById('qsPlatform')?.value;
+
+  if (!fundId) { errEl.textContent = 'Fund select karo.'; errEl.style.display = 'block'; return; }
+  if (!amount || !startDate) { errEl.textContent = 'Amount aur Start Date required hain.'; errEl.style.display = 'block'; return; }
+  if (!portfolio) { errEl.textContent = 'Portfolio select nahi hai. Dashboard pe jao pehle.'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const res  = await fetch(appUrl + '/api/router.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({
+        action: 'sip_add', portfolio_id: portfolio,
+        fund_id: fundId, sip_amount: amount, frequency,
+        sip_day: sipDay, start_date: startDate, end_date: endDate,
+        platform, folio_number: '', notes: _qsCurrentType === 'SWP' ? 'SWP' : '',
+        csrf_token: csrf,
+      }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      sucEl.textContent = `✓ ${_qsCurrentType} saved for ${fundName}!`;
+      sucEl.style.display = 'block';
+      btn.textContent = `✓ ${_qsCurrentType} Saved!`;
+      btn.style.background = '#15803d';
+      _sipHoldingsFunds = null;
+      setTimeout(() => {
+        document.getElementById('quickSipModal')?.remove();
+        if (typeof loadHoldings === 'function') loadHoldings();
+        else if (typeof MF !== 'undefined' && MF.data) fetchHoldings?.();
+      }, 1500);
+    } else {
+      throw new Error(json.message || 'Save failed');
+    }
+  } catch(e) {
+    errEl.textContent = '✗ ' + (e.message || 'Error saving');
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = `Save ${_qsCurrentType}`;
+  }
 }
