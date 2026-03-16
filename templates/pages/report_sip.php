@@ -134,13 +134,13 @@ function getSipPortfolioId() {
     <table class="data-table" id="sipTable">
       <thead>
         <tr>
-          <th>Fund</th><th>Category</th><th>Amount</th><th>Frequency</th>
+          <th>Fund</th><th>Type</th><th>Category</th><th>Amount</th><th>Frequency</th>
           <th>SIP Day</th><th>Start Date</th><th>Next Date</th>
           <th>Total Invested</th><th>XIRR</th><th>Status</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="sipBody">
-        <tr><td colspan="10" class="text-center text-secondary">Loading...</td></tr>
+        <tr><td colspan="11" class="text-center text-secondary">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -273,7 +273,8 @@ async function loadUpcoming() {
         <td>${s.next_date ? formatDate(s.next_date) : '—'}</td>
         <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-info'}">${s.days_remaining}d</span></td>
         <td>${esc(s.platform||'—')}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch(e) { console.error(e); }
 }
 
@@ -284,12 +285,18 @@ async function loadSipList() {
     const sips = (d.sips || []).filter(s => showInactive || s.is_active == 1);
     const tbody = document.getElementById('sipBody');
     if (!sips.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-center text-secondary">No SIPs found. Add your first SIP!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary">No SIPs found. Add your first SIP!</td></tr>';
       return;
     }
-    tbody.innerHTML = sips.map(s => `
+    tbody.innerHTML = sips.map(s => {
+      const isSwp = (s.notes||'').toUpperCase() === 'SWP';
+      const typeBadge = isSwp
+        ? `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">💸 SWP</span>`
+        : `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;">🔄 SIP</span>`;
+      return `
       <tr class="${s.is_active != 1 ? 'row-inactive' : ''}" data-sip-id="${s.id}">
         <td>${esc(s.fund_name||'—')}<br><small class="text-secondary">${esc(s.fund_house||'')}</small></td>
+        <td>${typeBadge}</td>
         <td><span class="badge badge-secondary text-xs">${esc(s.fund_category||'—')}</span></td>
         <td class="text-right"><strong>${formatINR(s.sip_amount)}</strong></td>
         <td>${s.frequency}</td>
@@ -304,11 +311,16 @@ async function loadSipList() {
           </span>
         </td>
         <td><span class="badge ${s.is_active==1 ? 'badge-success' : 'badge-secondary'}">${s.is_active==1?'Active':'Paused'}</span></td>
-        <td>
+        <td style="white-space:nowrap;">
           <button class="btn btn-ghost btn-xs" onclick="editSip(${s.id})">Edit</button>
+          ${s.is_active == 1
+            ? `<button class="btn btn-ghost btn-xs" style="color:#d97706;border-color:#d97706;" onclick="stopSip(${s.id},'${esc(s.fund_name)}','${isSwp?'SWP':'SIP'}')">⏹ Stop</button>`
+            : `<span style="font-size:11px;color:var(--text-muted);">Stopped</span>`
+          }
           <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(${s.id},'${esc(s.fund_name)}')">Delete</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch(e) { console.error(e); }
 }
 
@@ -566,6 +578,26 @@ async function deleteSip(id, name) {
     showToast('SIP deleted.');
     loadSipList(); loadSipAnalysis();
   } catch(e) { showToast(e.message,'error'); }
+}
+
+// Stop (deactivate) a SIP/SWP
+async function stopSip(id, name, type) {
+  if (!confirm(`${type} "${name}" ko aaj ki date se stop karna chahte ho?\n\nYeh ${type} inactive ho jaayega lekin record rehega.`)) return;
+
+  try {
+    await API.post('/api/router.php', {
+      action: 'sip_stop',
+      sip_id: id,
+      end_date: new Date().toLocaleDateString('en-GB').split('/').reverse().join('-'), // YYYY-MM-DD
+      portfolio_id: getSipPortfolioId(),
+      csrf_token: window.CSRF_TOKEN,
+    });
+    showToast(`✅ ${type} stopped successfully!`, 'success');
+    loadSipList();
+    loadSipAnalysis();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'error');
+  }
 }
 
 function closeSipModal() {

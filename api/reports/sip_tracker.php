@@ -171,13 +171,16 @@ switch ($action) {
         $fund = DB::fetchOne('SELECT id, scheme_name, scheme_code FROM funds WHERE id = ?', [$fundId]);
         if (!$fund) json_response(false, 'Fund not found.');
 
+        // Determine type: SWP if notes='SWP', otherwise SIP
+        $scheduleType = (strtoupper($notes) === 'SWP') ? 'SWP' : 'SIP';
+
         DB::run(
             'INSERT INTO sip_schedules
              (portfolio_id, asset_type, fund_id, folio_number, sip_amount, frequency,
-              sip_day, start_date, end_date, platform, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              sip_day, start_date, end_date, platform, notes, schedule_type)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$portfolioId, 'mf', $fundId, $folio ?: null, $amount, $frequency,
-             $sipDay, $startDate, $endDate, $platform ?: null, $notes ?: null]
+             $sipDay, $startDate, $endDate, $platform ?: null, $notes ?: null, $scheduleType]
         );
         $id = (int) DB::conn()->lastInsertId();
         audit_log('sip_add', 'sip_schedules', $id);
@@ -205,8 +208,7 @@ switch ($action) {
                 $navStatus  = 'no_data';
                 $navMessage = 'No NAV data found for this fund from the selected date.';
             } else {
-                // Queue fund for download — nav_history_downloader will pick it up
-                // OR JS will trigger sip_nav_fetch.php directly
+                // Mark as pending first
                 DB::run(
                     "INSERT INTO nav_download_progress (scheme_code, fund_id, status, from_date)
                      VALUES (?, ?, 'pending', ?)
@@ -217,8 +219,33 @@ switch ($action) {
                     [$schemeCode, $fundId, $startDate, $startDate]
                 );
 
+                // ── Trigger NAV download server-side (non-blocking) ──
+                // Build token and fire request from server — no browser needed
+                $navToken = md5($fundId . $startDate . env('APP_KEY', 'wealthdash'));
+                $navUrl   = APP_URL . '/api/sip/sip_nav_fetch.php'
+                    . '?fund_id='    . $fundId
+                    . '&from_date='  . urlencode($startDate)
+                    . '&scheme_code=' . urlencode($schemeCode)
+                    . '&token='      . $navToken;
+
+                // Non-blocking: open socket and send request without waiting for response
+                $urlParts = parse_url($navUrl);
+                $host     = $urlParts['host'] ?? 'localhost';
+                $path     = ($urlParts['path'] ?? '/') . (isset($urlParts['query']) ? '?' . $urlParts['query'] : '');
+                $port     = $urlParts['port'] ?? (($urlParts['scheme'] ?? 'http') === 'https' ? 443 : 80);
+                $fp = @fsockopen(($port === 443 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 3);
+                if ($fp) {
+                    $req = "GET $path HTTP/1.1
+Host: $host
+Connection: close
+
+";
+                    @fwrite($fp, $req);
+                    @fclose($fp);
+                }
+
                 $navStatus  = 'downloading';
-                $navMessage = 'NAV history queued for download. XIRR will be available once ready.';
+                $navMessage = 'NAV history download started automatically in background.';
             }
         }
 
@@ -274,6 +301,30 @@ switch ($action) {
         DB::run('DELETE FROM sip_schedules WHERE id = ?', [$sipId]);
         audit_log('sip_delete', 'sip_schedules', $sipId);
         json_response(true, 'SIP removed.');
+
+    // ── Stop SIP/SWP ──────────────────────────────────────────
+    case 'sip_stop':
+        if (!can_edit_portfolio($portfolioId, $userId, $isAdmin)) {
+            json_response(false, 'Edit access required.');
+        }
+        csrf_verify();
+
+        $sipId  = (int) ($_POST['sip_id'] ?? 0);
+        $endDt  = !empty($_POST['end_date']) ? date_to_db(clean($_POST['end_date'])) : date('Y-m-d');
+
+        $sip = DB::fetchOne(
+            'SELECT id, schedule_type FROM sip_schedules WHERE id = ? AND portfolio_id = ?',
+            [$sipId, $portfolioId]
+        );
+        if (!$sip) json_response(false, 'SIP not found.');
+
+        DB::run(
+            'UPDATE sip_schedules SET is_active = 0, end_date = ? WHERE id = ?',
+            [$endDt, $sipId]
+        );
+        audit_log('sip_stop', 'sip_schedules', $sipId);
+        $type = $sip['schedule_type'] ?? 'SIP';
+        json_response(true, "$type stopped successfully.", ['end_date' => $endDt]);
 
     // ── SIP XIRR Calculation ──────────────────────────────────
     // Calculates XIRR for a specific SIP using nav_history

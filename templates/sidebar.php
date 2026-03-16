@@ -132,4 +132,4 @@ if (is_admin()) {
       NAV: <?= $navDate ? date(DATE_DISPLAY, strtotime($navDate)) : 'Not updated' ?>
     </span>
   </div>
-</div>
+</div>	

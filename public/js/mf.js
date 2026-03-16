@@ -130,7 +130,7 @@ function initHoldingsPage() {
 
 async function loadHoldings() {
   const body = document.getElementById('holdingsBody');
-  body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
 
   const portfolioId = document.getElementById('filterPortfolio')?.value || '';
   const params = new URLSearchParams({ view: MF.view });
@@ -146,7 +146,7 @@ async function loadHoldings() {
 
     applyHoldingsFilter();
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="10" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
   }
 }
 
@@ -182,7 +182,7 @@ function renderHoldings() {
   });
 
   if (!MF.filtered.length) {
-    body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
     if (tfoot) tfoot.style.display = 'none';
     if (countEl) countEl.textContent = '0 funds';
     return;
@@ -239,6 +239,7 @@ function renderHoldings() {
       <td class="fund-name-cell">
         <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
         <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')} · ${escHtml(h.category||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
+        ${(h.active_sip_count > 0 || (h.active_swp_count||0) > 0) ? `<div style='margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;'>${h.active_sip_count > 0 ? `<span style='padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}${(h.active_swp_count||0) > 0 ? `<span style='padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;'>💸 SWP</span>` : ''}</div>` : ''}
       </td>
       <td class="text-center">${fmtInr(h.total_invested)}</td>
       <td class="text-center">${fmtInr(h.value_now)}</td>
@@ -255,8 +256,6 @@ function renderHoldings() {
       <td class="text-center">${drawdownHtml}</td>
       <td style="white-space:nowrap;">
         <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
-        ${h.active_sip_count > 0 ? '<span style="display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;margin-left:3px;">SIP</span>' : ''}
-        ${(h.active_swp_count||0) > 0 ? '<span style="display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;margin-left:3px;">SWP</span>' : ''}
       </td>
     </tr>`;
   }).join('');
@@ -364,7 +363,7 @@ function initTxnPage() {
 
 async function loadTransactions(page = 1) {
   const body = document.getElementById('txnBody');
-  body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
 
   const params = new URLSearchParams({
     view: 'transactions',
@@ -389,7 +388,7 @@ async function loadTransactions(page = 1) {
     renderTxnTable(res.data || []);
     renderPagination(res.total, res.page, res.per_page, res.pages);
   } catch (err) {
-    body.innerHTML = `<tr><td colspan="10" class="text-center text-danger">${err.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="text-center text-danger">${err.message}</td></tr>`;
   }
 }
 
@@ -1685,16 +1684,18 @@ async function _saveQuickSip() {
     });
     const json = await res.json();
     if (json.success) {
-      sucEl.textContent = `✓ ${_qsCurrentType} saved for ${fundName}!`;
+      const sipPageUrl = (window.WD?.appUrl || '') + '/templates/pages/report_sip.php';
+      sucEl.innerHTML = `✓ ${_qsCurrentType} saved for <strong>${escHtml(fundName)}</strong>!
+        &nbsp;<a href="${sipPageUrl}" style="color:#15803d;font-weight:700;text-decoration:underline;">
+        View SIPs →</a>`;
       sucEl.style.display = 'block';
       btn.textContent = `✓ ${_qsCurrentType} Saved!`;
       btn.style.background = '#15803d';
       _sipHoldingsFunds = null;
       setTimeout(() => {
         document.getElementById('quickSipModal')?.remove();
-        if (typeof loadHoldings === 'function') loadHoldings();
-        else if (typeof MF !== 'undefined' && MF.data) fetchHoldings?.();
-      }, 1500);
+        window.location.href = sipPageUrl;
+      }, 1800);
     } else {
       throw new Error(json.message || 'Save failed');
     }

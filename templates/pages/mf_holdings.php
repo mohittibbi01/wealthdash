@@ -16,6 +16,16 @@ $pStmt = $db->prepare("SELECT p.id, p.name, p.color FROM portfolios p WHERE p.us
 $pStmt->execute([$currentUser['id']]);
 $portfolios = $pStmt->fetchAll();
 
+// ── Ensure session portfolio is set (same as dashboard) ──────
+$portfolioId = (int) ($_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id'] ?? 0));
+if (!isset($_SESSION['selected_portfolio_id']) && $portfolioId) {
+    $_SESSION['selected_portfolio_id'] = $portfolioId;
+}
+if (!$portfolioId && !empty($portfolios)) {
+    $portfolioId = (int) $portfolios[0]['id'];
+    $_SESSION['selected_portfolio_id'] = $portfolioId;
+}
+
 $summaryStmt = $db->prepare("
     SELECT COUNT(DISTINCT h.fund_id) AS fund_count,
            SUM(h.total_invested) AS total_invested,
@@ -312,7 +322,7 @@ ob_start();
         </tr>
       </thead>
       <tbody id="realizedBody">
-        <tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">
+        <tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted);">
           Select a portfolio to load realized gains.
         </td></tr>
       </tbody>

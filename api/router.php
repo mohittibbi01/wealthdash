@@ -289,6 +289,7 @@ try {
         case 'sip_add':
         case 'sip_edit':
         case 'sip_delete':
+        case 'sip_stop':
         case 'sip_xirr':
         case 'sip_nav_status':
         case 'sip_nav_token':
