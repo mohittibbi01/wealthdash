@@ -273,8 +273,7 @@ async function loadUpcoming() {
         <td>${s.next_date ? formatDate(s.next_date) : '—'}</td>
         <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-info'}">${s.days_remaining}d</span></td>
         <td>${esc(s.platform||'—')}</td>
-      </tr>`;
-    }).join('');
+      </tr>`).join('');
   } catch(e) { console.error(e); }
 }
 
@@ -288,38 +287,32 @@ async function loadSipList() {
       tbody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary">No SIPs found. Add your first SIP!</td></tr>';
       return;
     }
-    tbody.innerHTML = sips.map(s => {
-      const isSwp = (s.notes||'').toUpperCase() === 'SWP';
-      const typeBadge = isSwp
-        ? `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;">💸 SWP</span>`
-        : `<span style="display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;">🔄 SIP</span>`;
-      return `
-      <tr class="${s.is_active != 1 ? 'row-inactive' : ''}" data-sip-id="${s.id}">
-        <td>${esc(s.fund_name||'—')}<br><small class="text-secondary">${esc(s.fund_house||'')}</small></td>
-        <td>${typeBadge}</td>
-        <td><span class="badge badge-secondary text-xs">${esc(s.fund_category||'—')}</span></td>
-        <td class="text-right"><strong>${formatINR(s.sip_amount)}</strong></td>
-        <td>${s.frequency}</td>
-        <td>${s.sip_day}</td>
-        <td>${formatDate(s.start_date)}</td>
-        <td>${s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>'}</td>
-        <td class="text-right">${formatINR(s.total_invested)}</td>
-        <td class="text-right sip-xirr">
-          <span style="color:var(--text-muted);font-size:12px;cursor:pointer"
-                onclick="loadSipXirr(${s.id})" title="Click to calculate XIRR">
-            📊 Calc
-          </span>
-        </td>
-        <td><span class="badge ${s.is_active==1 ? 'badge-success' : 'badge-secondary'}">${s.is_active==1?'Active':'Paused'}</span></td>
-        <td style="white-space:nowrap;">
-          <button class="btn btn-ghost btn-xs" onclick="editSip(${s.id})">Edit</button>
-          ${s.is_active == 1
-            ? `<button class="btn btn-ghost btn-xs" style="color:#d97706;border-color:#d97706;" onclick="stopSip(${s.id},'${esc(s.fund_name)}','${isSwp?'SWP':'SIP'}')">⏹ Stop</button>`
-            : `<span style="font-size:11px;color:var(--text-muted);">Stopped</span>`
-          }
-          <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(${s.id},'${esc(s.fund_name)}')">Delete</button>
-        </td>
-      </tr>`;
+    tbody.innerHTML = sips.map(function(s) {
+      var isSwp = (s.notes||'').toUpperCase() === 'SWP';
+      var stype = isSwp ? 'SWP' : 'SIP';
+      var tbg = isSwp
+        ? 'background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;'
+        : 'background:#dcfce7;color:#15803d;border:1px solid #86efac;';
+      var typeBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;' + tbg + '">' + stype + '</span>';
+      var stopBtn = s.is_active == 1
+        ? '<button class="btn btn-ghost btn-xs" style="color:#d97706" onclick="stopSip(' + s.id + ',this.dataset.name,this.dataset.type)" data-name="' + esc(s.fund_name||'') + '" data-type="' + stype + '">Stop</button>'
+        : '<span style="font-size:11px;color:#94a3b8;">Stopped</span>';
+      return '<tr class="' + (s.is_active != 1 ? 'row-inactive' : '') + '" data-sip-id="' + s.id + '">'
+        + '<td>' + esc(s.fund_name||'—') + '<br><small class="text-secondary">' + esc(s.fund_house||'') + '</small></td>'
+        + '<td>' + typeBadge + '</td>'
+        + '<td><span class="badge badge-secondary text-xs">' + esc(s.fund_category||'—') + '</span></td>'
+        + '<td class="text-right"><strong>' + formatINR(s.sip_amount) + '</strong></td>'
+        + '<td>' + (s.frequency||'') + '</td>'
+        + '<td>' + (s.sip_day||'') + '</td>'
+        + '<td>' + formatDate(s.start_date) + '</td>'
+        + '<td>' + (s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>') + '</td>'
+        + '<td class="text-right">' + formatINR(s.total_invested) + '</td>'
+        + '<td class="text-right sip-xirr"><span style="color:var(--text-muted);font-size:12px;cursor:pointer" onclick="loadSipXirr(' + s.id + ')" title="Click to calculate XIRR">&#128202; Calc</span></td>'
+        + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Paused') + '</span></td>'
+        + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
+        + stopBtn
+        + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ','' + esc(s.fund_name||'') + '')">Delete</button></td>'
+        + '</tr>';
     }).join('');
   } catch(e) { console.error(e); }
 }
@@ -580,24 +573,20 @@ async function deleteSip(id, name) {
   } catch(e) { showToast(e.message,'error'); }
 }
 
-// Stop (deactivate) a SIP/SWP
-async function stopSip(id, name, type) {
-  if (!confirm(`${type} "${name}" ko aaj ki date se stop karna chahte ho?\n\nYeh ${type} inactive ho jaayega lekin record rehega.`)) return;
 
-  try {
-    await API.post('/api/router.php', {
-      action: 'sip_stop',
-      sip_id: id,
-      end_date: new Date().toLocaleDateString('en-GB').split('/').reverse().join('-'), // YYYY-MM-DD
-      portfolio_id: getSipPortfolioId(),
-      csrf_token: window.CSRF_TOKEN,
-    });
-    showToast(`✅ ${type} stopped successfully!`, 'success');
-    loadSipList();
-    loadSipAnalysis();
-  } catch(e) {
-    showToast('Error: ' + e.message, 'error');
-  }
+function stopSip(id, name, type) {
+  // name/type may come from dataset attributes
+  if (typeof name === 'object' && name && name.dataset) { type = name.dataset.type; name = name.dataset.name; }
+  if (!confirm((type||'SIP') + ' stop karna chahte ho?')) return;
+  API.post('/api/router.php', {
+    action: 'sip_stop', sip_id: id,
+    end_date: new Date().toISOString().split('T')[0],
+    portfolio_id: getSipPortfolioId(),
+    csrf_token: window.CSRF_TOKEN
+  }).then(function(res) {
+    if (res.success) { showToast(type + ' stopped!', 'success'); loadSipList(); loadSipAnalysis(); }
+    else showToast(res.message || 'Error', 'error');
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
 function closeSipModal() {
