@@ -336,6 +336,7 @@ async function loadSipList() {
         + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Paused') + '</span></td>'
         + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
         + stopBtn
+        + ' <button class="btn btn-ghost btn-xs" style="color:#0284c7;border-color:#bae6fd;" onclick="syncSipTxns(' + s.id + ',this)" title="Past transactions generate/sync karo">⚙ Sync Txns</button>'
         + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ',"' + esc(s.fund_name||'') + '")">Delete</button></td>'
         + '</tr>';
     }).join('');
@@ -593,6 +594,39 @@ async function loadSipXirr(sipId) {
     }
   } catch(e) {
     console.warn('XIRR load failed:', e);
+  }
+}
+
+async function syncSipTxns(sipId, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing...';
+  btn.style.color = '#9ca3af';
+
+  const appUrl = window.WD?.appUrl || window.APP_URL || '';
+  const csrf   = document.querySelector('meta[name="csrf-token"]')?.content || window.CSRF_TOKEN || '';
+
+  try {
+    const res  = await fetch(appUrl + '/api/router.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ action: 'sip_sync_txns', sip_id: sipId, csrf_token: csrf }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      btn.textContent = '✓ ' + (json.txns_generated||0) + ' txns';
+      btn.style.color = '#16a34a';
+      btn.style.borderColor = '#86efac';
+      setTimeout(() => loadSips(), 1500); // refresh table
+    } else {
+      btn.textContent = '✗ ' + (json.message||'Error');
+      btn.style.color = '#dc2626';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = '✗ Error';
+    btn.style.color = '#dc2626';
+    btn.disabled = false;
   }
 }
 

@@ -68,8 +68,7 @@ ob_start();
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Transaction
     </button>
-    <button class="btn" id="btnAddSipHoldings" onclick="openQuickSip(0,'',0,'','')"
-            style="background:#0284c7;color:#fff;border:none;font-weight:600;">
+    <button class="btn btn-primary" id="btnAddSipHoldings" onclick="openQuickSip(0,'',0,'','')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add SIP/SWP
     </button>
@@ -147,6 +146,22 @@ ob_start();
     <div class="stat-value" id="mfFundCount"><?= $fundCount ?></div>
   </div>
 
+  <!-- 1 Day Change -->
+  <div class="stat-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span id="stat1dIcon">
+        <!-- default neutral icon; JS will replace with up/down arrow -->
+        <svg width="26" height="24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"/><polyline points="8,9 12,5 16,9"/>
+          <line x1="8" y1="15" x2="16" y2="15"/>
+        </svg>
+      </span>
+      <div class="stat-label" style="margin:0;">1D Change</div>
+    </div>
+    <div class="stat-value" id="stat1dAmt" style="font-size:1.3rem;color:var(--text-muted);">—</div>
+    <div id="stat1dPct" style="font-size:13px;font-weight:500;margin-top:3px;color:var(--text-muted);"></div>
+  </div>
+
 </div>
 
 <!-- ═══ PAGE TABS ═══ -->
@@ -202,7 +217,21 @@ ob_start();
     </div>
   </div>
   <div class="table-wrapper">
-    <table class="table table-hover table-grid" id="holdingsTable">
+    <table class="table table-hover table-grid" id="holdingsTable" style="table-layout:fixed;width:100%;">
+      <colgroup>
+        <col style="width:20%;"><!-- Fund -->
+        <col style="width:9%;"><!-- Invested -->
+        <col style="width:9%;"><!-- Current Value -->
+        <col style="width:9%;"><!-- Gain/Loss -->
+        <col style="width:7%;"><!-- Returns -->
+        <col style="width:7%;"><!-- XIRR -->
+        <col style="width:9%;"><!-- Units -->
+        <col style="width:8%;"><!-- NAV -->
+        <col style="width:8%;"><!-- Peak NAV -->
+        <col style="width:7%;"><!-- Drawdown -->
+        <col style="width:8%;"><!-- 1D Change -->
+        <col style="width:9%;"><!-- Actions -->
+      </colgroup>
       <thead>
         <tr>
           <th class="sortable" data-col="scheme_name">Fund</th>
@@ -213,9 +242,10 @@ ob_start();
           <th class="text-center sortable" data-col="cagr">XIRR</th>
           <th class="text-center sortable" data-col="total_units">Units</th>
           <th class="text-center sortable" data-col="latest_nav">NAV</th>
-          <th class="text-center sortable" data-col="highest_nav" title="All-Time High NAV from funds table">Peak NAV 📈</th>
-          <th class="text-center sortable" data-col="drawdown_pct" title="% below All-Time High NAV">Drawdown</th>
-          <th class="text-center" style="width:80px;">Actions</th>
+          <th class="text-center sortable" data-col="highest_nav" title="All-Time High NAV">Peak NAV 📈</th>
+          <th class="text-center sortable" data-col="drawdown_pct" title="% below ATH">Drawdown</th>
+          <th class="text-center sortable" data-col="day_change" title="Change since last trading day">1D Change</th>
+          <th class="text-center">Actions</th>
         </tr>
       </thead>
       <tbody id="holdingsBody">
@@ -231,7 +261,9 @@ ob_start();
           <td class="text-center" id="footValue"></td>
           <td class="text-center" id="footGain"></td>
           <td class="text-center" id="footGainPct"></td>
-          <td colspan="6"></td>
+          <td colspan="5"></td>
+          <td class="text-center" id="foot1dChange"></td>
+          <td></td>
         </tr>
       </tfoot>
     </table>

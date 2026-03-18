@@ -210,75 +210,122 @@ switch ($action) {
         $id = (int) DB::conn()->lastInsertId();
         audit_log('sip_add', 'sip_schedules', $id);
 
-        // ── On-demand NAV history check & trigger download ──────
-        // Check if nav_history has data from start_date onwards for this fund
+        // ── Step 1: Ensure NAV history exists (download if needed) ────
+        set_time_limit(120); // allow up to 2 min for download + processing
+        $schemeCode = $fund['scheme_code'];
+
         $navCount = (int) DB::fetchVal(
             "SELECT COUNT(*) FROM nav_history WHERE fund_id = ? AND nav_date >= ?",
             [$fundId, $startDate]
         );
 
-        $navStatus = 'available'; // assume available
-        $navMessage = '';
-
         if ($navCount === 0) {
-            $schemeCode = $fund['scheme_code'];
-            $existing = DB::fetchOne(
-                "SELECT status, from_date FROM nav_download_progress WHERE scheme_code = ?",
-                [$schemeCode]
+            // Download full NAV history from mfapi.in synchronously
+            $ctx = stream_context_create([
+                'http' => ['timeout' => 30, 'user_agent' => 'WealthDash/1.0'],
+                'ssl'  => ['verify_peer' => false],
+            ]);
+            $raw  = @file_get_contents("https://api.mfapi.in/mf/{$schemeCode}", false, $ctx);
+            $json = $raw ? @json_decode($raw, true) : null;
+
+            if (!empty($json['data'])) {
+                $insNav = DB::conn()->prepare(
+                    "INSERT IGNORE INTO nav_history (fund_id, nav_date, nav) VALUES (?, ?, ?)"
+                );
+                $latestNDate = null; $latestNNav = null;
+                foreach ($json['data'] as $entry) {
+                    $parts = explode('-', $entry['date'] ?? '');
+                    if (count($parts) !== 3) continue;
+                    $isoDate = "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+                    $nav = (float)($entry['nav'] ?? 0);
+                    if ($nav <= 0) continue;
+                    $insNav->execute([$fundId, $isoDate, $nav]);
+                    if (!$latestNDate || $isoDate > $latestNDate) { $latestNDate = $isoDate; $latestNNav = $nav; }
+                }
+                // Update funds table with latest NAV
+                if ($latestNDate) {
+                    DB::run("UPDATE funds SET latest_nav=?, latest_nav_date=?, updated_at=NOW() WHERE id=? AND (latest_nav_date IS NULL OR latest_nav_date < ?)",
+                        [$latestNNav, $latestNDate, $fundId, $latestNDate]);
+                }
+                $navCount = (int) DB::fetchVal(
+                    "SELECT COUNT(*) FROM nav_history WHERE fund_id = ? AND nav_date >= ?",
+                    [$fundId, $startDate]
+                );
+            }
+        }
+
+        // ── Step 2: Generate past SIP/SWP transactions inline ────────
+        $txnsGenerated = 0;
+        $txnErrors     = 0;
+        $isSWP         = ($scheduleType === 'SWP');
+        $txnType       = $isSWP ? 'SWP' : 'BUY';
+        $sipEndForTxn  = $endDate ?: date('Y-m-d');
+        $sipEndCap     = min($sipEndForTxn, date('Y-m-d'));
+
+        $installDates = _sip_generate_dates_inline($startDate, $sipEndCap, $sipDay, $frequency);
+
+        if (!empty($installDates) && $navCount > 0) {
+            $db = DB::conn();
+            $navStmt = $db->prepare(
+                "SELECT nav, nav_date FROM nav_history
+                 WHERE fund_id = ? AND nav_date >= ?
+                 ORDER BY nav_date ASC LIMIT 1"
+            );
+            $dupStmt = $db->prepare(
+                "SELECT id FROM mf_transactions
+                 WHERE portfolio_id=? AND fund_id=? AND transaction_type=? AND txn_date=? LIMIT 1"
+            );
+            $insStmt = $db->prepare(
+                "INSERT INTO mf_transactions
+                 (portfolio_id, fund_id, folio_number, transaction_type, platform,
+                  txn_date, units, nav, value_at_cost, stamp_duty, notes, import_source, investment_fy)
+                 VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)"
             );
 
-            if ($existing && $existing['status'] === 'completed'
-                && $existing['from_date'] !== null
-                && $existing['from_date'] <= $startDate) {
-                $navStatus  = 'no_data';
-                $navMessage = 'No NAV data found for this fund from the selected date.';
-            } else {
-                // Mark as pending first
-                DB::run(
-                    "INSERT INTO nav_download_progress (scheme_code, fund_id, status, from_date)
-                     VALUES (?, ?, 'pending', ?)
-                     ON DUPLICATE KEY UPDATE
-                       status        = 'pending',
-                       from_date     = LEAST(from_date, ?),
-                       error_message = NULL",
-                    [$schemeCode, $fundId, $startDate, $startDate]
-                );
+            foreach ($installDates as $date) {
+                // Skip if already exists
+                $dupStmt->execute([$portfolioId, $fundId, $txnType, $date]);
+                if ($dupStmt->fetch()) continue;
 
-                // ── Trigger NAV download server-side (non-blocking) ──
-                // Build token and fire request from server — no browser needed
-                $navToken = md5($fundId . $startDate . env('APP_KEY', 'wealthdash'));
-                $navUrl   = APP_URL . '/api/sip/sip_nav_fetch.php'
-                    . '?fund_id='    . $fundId
-                    . '&from_date='  . urlencode($startDate)
-                    . '&scheme_code=' . urlencode($schemeCode)
-                    . '&token='      . $navToken;
+                $navStmt->execute([$fundId, $date]);
+                $navRow = $navStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$navRow || (float)$navRow['nav'] <= 0) { $txnErrors++; continue; }
 
-                // Non-blocking: open socket and send request without waiting for response
-                $urlParts = parse_url($navUrl);
-                $host     = $urlParts['host'] ?? 'localhost';
-                $path     = ($urlParts['path'] ?? '/') . (isset($urlParts['query']) ? '?' . $urlParts['query'] : '');
-                $port     = $urlParts['port'] ?? (($urlParts['scheme'] ?? 'http') === 'https' ? 443 : 80);
-                $fp = @fsockopen(($port === 443 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 3);
-                if ($fp) {
-                    $req = "GET $path HTTP/1.1
-Host: $host
-Connection: close
+                $navVal     = (float)$navRow['nav'];
+                $actualDate = $navRow['nav_date'];
+                $units      = round($amount / $navVal, 4);
+                $yr         = (int)date('Y', strtotime($actualDate));
+                $mo         = (int)date('n', strtotime($actualDate));
+                $fy         = $mo >= 4 ? "{$yr}-" . substr((string)($yr+1),2) : ($yr-1) . '-' . substr((string)$yr,2);
 
-";
-                    @fwrite($fp, $req);
-                    @fclose($fp);
-                }
+                try {
+                    $insStmt->execute([
+                        $portfolioId, $fundId, $folio ?: null, $txnType, $platform ?: null,
+                        $actualDate, $units, $navVal, $amount,
+                        'Auto-generated SIP #' . $id, 'manual', $fy
+                    ]);
+                    $txnsGenerated++;
+                } catch (Exception $e) { $txnErrors++; }
+            }
 
-                $navStatus  = 'downloading';
-                $navMessage = 'NAV history download started automatically in background.';
+            // Recalculate holdings
+            if ($txnsGenerated > 0) {
+                try {
+                    require_once APP_ROOT . '/includes/holding_calculator.php';
+                    HoldingCalculator::recalculate_mf_holding($portfolioId, $fundId, $folio ?: null);
+                } catch (Exception $ignored) {}
             }
         }
 
         json_response(true, 'SIP added successfully.', [
-            'id'          => $id,
-            'nav_status'  => $navStatus,
-            'nav_message' => $navMessage,
-            'nav_count'   => $navCount,
+            'id'             => $id,
+            'nav_status'     => $navCount > 0 ? 'available' : 'no_data',
+            'nav_count'      => $navCount,
+            'txns_generated' => $txnsGenerated,
+            'txn_errors'     => $txnErrors,
+            'nav_message'    => $txnsGenerated > 0
+                ? "SIP saved. {$txnsGenerated} past transactions generated automatically."
+                : ($navCount === 0 ? 'NAV data not available. Transactions could not be generated.' : 'SIP saved.'),
         ]);
 
     // ── Edit SIP ──────────────────────────────────────────────
@@ -444,6 +491,98 @@ Connection: close
         ]);
 
     // ── NAV Token (for JS to trigger download directly) ───────
+    // ── Sync / Regenerate past transactions for existing SIP ────
+    case 'sip_sync_txns':
+        if (!can_edit_portfolio($portfolioId, $userId, $isAdmin)) {
+            json_response(false, 'Edit access required.');
+        }
+        csrf_verify();
+
+        $sipId = (int) ($_POST['sip_id'] ?? 0);
+        if (!$sipId) json_response(false, 'sip_id required.');
+
+        $sipRow = DB::fetchOne(
+            'SELECT s.*, f.scheme_code, f.scheme_name FROM sip_schedules s
+             JOIN funds f ON f.id = s.fund_id
+             WHERE s.id = ? AND s.portfolio_id = ?',
+            [$sipId, $portfolioId]
+        );
+        if (!$sipRow) json_response(false, 'SIP not found.');
+
+        $fundId    = (int)$sipRow['fund_id'];
+        $schCode   = $sipRow['scheme_code'];
+        $startDate = $sipRow['start_date'];
+        $sipEnd    = $sipRow['end_date'] ?: date('Y-m-d');
+        $sipEndCap = min($sipEnd, date('Y-m-d'));
+        $amount    = (float)$sipRow['sip_amount'];
+        $frequency = $sipRow['frequency'];
+        $sipDay    = (int)$sipRow['sip_day'];
+        $folio     = $sipRow['folio_number'] ?? null;
+        $platform  = $sipRow['platform'] ?? null;
+        $isSWP2    = ($sipRow['schedule_type'] === 'SWP');
+        $txnType2  = $isSWP2 ? 'SWP' : 'BUY';
+
+        set_time_limit(120);
+
+        // Download NAV history if missing
+        $navCount2 = (int) DB::fetchVal(
+            'SELECT COUNT(*) FROM nav_history WHERE fund_id = ? AND nav_date >= ?',
+            [$fundId, $startDate]
+        );
+        if ($navCount2 === 0) {
+            $ctx2 = stream_context_create(['http' => ['timeout' => 30, 'user_agent' => 'WealthDash/1.0'], 'ssl' => ['verify_peer' => false]]);
+            $raw2  = @file_get_contents("https://api.mfapi.in/mf/{$schCode}", false, $ctx2);
+            $json2 = $raw2 ? @json_decode($raw2, true) : null;
+            if (!empty($json2['data'])) {
+                $ins2 = DB::conn()->prepare('INSERT IGNORE INTO nav_history (fund_id, nav_date, nav) VALUES (?,?,?)');
+                $lDate = null; $lNav = null;
+                foreach ($json2['data'] as $e2) {
+                    $p2 = explode('-', $e2['date'] ?? '');
+                    if (count($p2) !== 3) continue;
+                    $d2 = "{$p2[2]}-{$p2[1]}-{$p2[0]}";
+                    $n2 = (float)($e2['nav'] ?? 0);
+                    if ($n2 <= 0) continue;
+                    $ins2->execute([$fundId, $d2, $n2]);
+                    if (!$lDate || $d2 > $lDate) { $lDate = $d2; $lNav = $n2; }
+                }
+                if ($lDate) DB::run('UPDATE funds SET latest_nav=?,latest_nav_date=?,updated_at=NOW() WHERE id=? AND (latest_nav_date IS NULL OR latest_nav_date < ?)', [$lNav,$lDate,$fundId,$lDate]);
+            }
+        }
+
+        // Generate transactions
+        $dates2 = _sip_generate_dates_inline($startDate, $sipEndCap, $sipDay, $frequency);
+        $gen2 = 0; $err2 = 0;
+        if (!empty($dates2)) {
+            $db2    = DB::conn();
+            $navSt  = $db2->prepare('SELECT nav, nav_date FROM nav_history WHERE fund_id=? AND nav_date>=? ORDER BY nav_date ASC LIMIT 1');
+            $dupSt  = $db2->prepare('SELECT id FROM mf_transactions WHERE portfolio_id=? AND fund_id=? AND transaction_type=? AND txn_date=? LIMIT 1');
+            $insSt  = $db2->prepare('INSERT INTO mf_transactions (portfolio_id,fund_id,folio_number,transaction_type,platform,txn_date,units,nav,value_at_cost,stamp_duty,notes,import_source,investment_fy) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)');
+            foreach ($dates2 as $d3) {
+                $dupSt->execute([$portfolioId, $fundId, $txnType2, $d3]);
+                if ($dupSt->fetch()) continue;
+                $navSt->execute([$fundId, $d3]);
+                $nr = $navSt->fetch(PDO::FETCH_ASSOC);
+                if (!$nr || (float)$nr['nav'] <= 0) { $err2++; continue; }
+                $nv3 = (float)$nr['nav']; $ad3 = $nr['nav_date'];
+                $un3 = round($amount / $nv3, 4);
+                $yr3 = (int)date('Y',strtotime($ad3)); $mo3 = (int)date('n',strtotime($ad3));
+                $fy3 = $mo3>=4 ? "{$yr3}-".substr((string)($yr3+1),2) : ($yr3-1).'-'.substr((string)$yr3,2);
+                try { $insSt->execute([$portfolioId,$fundId,$folio,$txnType2,$platform,$ad3,$un3,$nv3,$amount,'Auto SIP #'.$sipId,'manual',$fy3]); $gen2++; }
+                catch(Exception $e3) { $err2++; }
+            }
+            if ($gen2 > 0) {
+                try {
+                    require_once APP_ROOT . '/includes/holding_calculator.php';
+                    HoldingCalculator::recalculate_mf_holding($portfolioId, $fundId, $folio);
+                } catch(Exception $ignored2) {}
+            }
+        }
+        json_response(true, 'Sync complete.', [
+            'txns_generated' => $gen2,
+            'txn_errors'     => $err2,
+            'message'        => "{$gen2} transactions generated, {$err2} skipped (no NAV).",
+        ]);
+
     case 'sip_nav_token':
         $fId  = (int) ($_POST['fund_id'] ?? 0);
         $date = clean($_POST['start_date'] ?? '');
@@ -489,6 +628,39 @@ Connection: close
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+function _sip_generate_dates_inline(string $start, string $end, int $sipDay, string $freq): array {
+    $dates   = [];
+    $current = new DateTime($start);
+    $endDt   = new DateTime($end);
+    if (!in_array($freq, ['daily', 'weekly', 'fortnightly'])) {
+        $current->setDate((int)$current->format('Y'), (int)$current->format('n'), min($sipDay, 28));
+        if ($current->format('Y-m-d') < $start) {
+            $current->modify(match($freq) {
+                'quarterly' => '+3 months', 'yearly' => '+1 year', default => '+1 month',
+            });
+        }
+    }
+    $max = match($freq) { 'daily' => 3650, 'weekly' => 1500, 'fortnightly' => 800, default => 600 };
+    $i = 0;
+    while ($current <= $endDt && $i++ < $max) {
+        $dates[] = $current->format('Y-m-d');
+        $current->modify(match($freq) {
+            'daily'       => '+1 day',
+            'weekly'      => '+7 days',
+            'fortnightly' => '+15 days',
+            'quarterly'   => '+3 months',
+            'yearly'      => '+1 year',
+            default       => '+1 month',
+        });
+        if (!in_array($freq, ['daily','weekly','fortnightly'])) {
+            $current->setDate((int)$current->format('Y'), (int)$current->format('n'),
+                min($sipDay, (int)$current->format('t')));
+        }
+    }
+    return $dates;
+}
+
 function _next_sip_date(array $sip): ?string {
     if (!$sip['is_active']) return null;
     $today     = new DateTime();

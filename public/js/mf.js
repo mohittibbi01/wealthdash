@@ -25,6 +25,7 @@ const MF = {
   txnFilters: {},
   holdingsPage: 1,
   holdingsPerPage: 25,
+  oneDayData: {},        // fund_id => {day_change_amt, day_change_pct}
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -145,6 +146,7 @@ async function loadHoldings() {
     if (res.summary) updateSummaryCards(res.summary);
 
     applyHoldingsFilter();
+    load1DayChange(); // fetch 1D NAV change after holdings render
   } catch (err) {
     body.innerHTML = `<tr><td colspan="11" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
   }
@@ -207,31 +209,48 @@ function renderHoldings() {
   const paged     = MF.filtered.slice(pageStart, pageStart + perPage);
 
   body.innerHTML = paged.map(h => {
-    const gain      = h.gain_loss || 0;
-    const gainPct   = h.gain_pct || 0;
-    const gainClass = gain >= 0 ? 'positive' : 'negative';
-    const gainSign  = gain >= 0 ? '+' : '';
-    const ltcgDate  = h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '—';
-    const typeTag   = h.gain_type === 'LTCG'
-      ? `<span class="badge badge-success">LTCG</span>`
-      : `<span class="badge badge-warning">STCG</span>`;
-    const nav       = h.latest_nav ? `₹${Number(h.latest_nav).toFixed(4)}` : '—';
-    const navDate   = h.latest_nav_date ? `<br><small style="color:var(--text-muted);">${formatDateDisplay(h.latest_nav_date)}</small>` : '';
+    const fundId = h.fund_id || h.id;
     const folioInfo = isFolio && h.folio_number ? `<br><small style="color:var(--text-muted);">${h.folio_number}</small>` : '';
-    const cagr      = h.cagr ? `${h.cagr > 0 ? '+' : ''}${h.cagr}%` : '—';
-    const fundId    = h.fund_id || h.id;
 
-    // Peak NAV + Drawdown
+    // ── Helper: colored cell with arrow + sign ──────────────────────
+    function cell(val, isAmt = false, decimals = 2) {
+      if (val === null || val === undefined || val === '' || (typeof val === 'string' && val === '—')) return '—';
+      const n    = parseFloat(val);
+      if (isNaN(n)) return '—';
+      const pos  = n >= 0;
+      const clr  = pos ? '#16a34a' : '#dc2626';
+      const arr  = pos ? '▲' : '▼';
+      const sign = pos ? '+' : '';
+      const fmt  = isAmt ? (sign + fmtInr(Math.abs(n))) : (sign + Math.abs(n).toFixed(decimals) + '%');
+      return `<span style="color:${clr};font-weight:600;">${arr} ${fmt}</span>`;
+    }
+
+    // Gain/Loss
+    const gain    = h.gain_loss || 0;
+    const gainPct = h.gain_pct  || 0;
+
+    // XIRR/CAGR
+    const cagrHtml = h.cagr !== null && h.cagr !== undefined
+      ? cell(h.cagr, false, 2)
+      : '<span style="color:var(--text-muted);">—</span>';
+
+    // NAV
+    const nav     = h.latest_nav ? `<div style="font-weight:600;">₹${Number(h.latest_nav).toFixed(4)}</div>` : '—';
+    const navDate = h.latest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.latest_nav_date)}</small>` : '';
+
+    // Peak NAV
     const peakNav = h.highest_nav
       ? `<div style="font-weight:600;">₹${Number(h.highest_nav).toFixed(4)}</div>${h.highest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.highest_nav_date)}</small>` : ''}`
       : '—';
+
+    // Drawdown
     let drawdownHtml = '—';
     if (h.drawdown_pct !== null && h.drawdown_pct !== undefined) {
       if (h.drawdown_pct <= 0) {
-        drawdownHtml = `<span style="color:var(--gain,#16a34a);font-weight:600;">🏆 ATH</span>`;
+        drawdownHtml = `<span style="color:#16a34a;font-weight:600;">🏆 ATH</span>`;
       } else {
-        const ddColor = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
-        drawdownHtml = `<span style="color:${ddColor};font-weight:600;">-${h.drawdown_pct}%</span>`;
+        const ddClr = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
+        drawdownHtml = `<span style="color:${ddClr};font-weight:600;">▼ -${h.drawdown_pct}%</span>`;
       }
     }
 
@@ -239,23 +258,27 @@ function renderHoldings() {
       <td class="fund-name-cell">
         <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
         <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')} · ${escHtml(h.category||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
-        ${(h.active_sip_count > 0 || (h.active_swp_count||0) > 0) ? `<div style='margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;'>${h.active_sip_count > 0 ? `<span style='padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}${(h.active_swp_count||0) > 0 ? `<span style='padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;'>💸 SWP</span>` : ''}</div>` : ''}
       </td>
-      <td class="text-center">${fmtInr(h.total_invested)}</td>
-      <td class="text-center">${fmtInr(h.value_now)}</td>
-      <td class="text-center ${gainClass}">${gainSign}${fmtInr(Math.abs(gain))}</td>
-      <td class="text-center ${gainClass}">${gainSign}${gainPct}%</td>
-      <td class="text-center ${h.cagr >= 0 ? 'positive' : 'negative'}">${cagr}</td>
+      <td class="text-center" style="font-weight:600;">₹${Number(h.total_invested).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="text-center" style="font-weight:600;">₹${Number(h.value_now||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="text-center">${cell(gain, true)}</td>
+      <td class="text-center">${cell(gainPct, false)}</td>
+      <td class="text-center">${cagrHtml}</td>
       <td class="text-center">
-        <div style="font-weight:600;">💪 ${Number(h.total_units).toFixed(4)}</div>
-        ${h.ltcg_units > 0 ? `<div style="font-size:12px;margin-top:3px;color:#16a34a;font-weight:600;"><span style="font-size:14px;font-weight:900;">✓</span> L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
-        ${h.stcg_units > 0 ? `<div style="font-size:12px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
+        <div style="font-weight:600;">${Number(h.total_units).toFixed(4)}</div>
+        ${h.ltcg_units > 0 ? `<div style="font-size:11px;margin-top:2px;color:#16a34a;font-weight:600;">▲ L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
+        ${h.stcg_units > 0 ? `<div style="font-size:11px;margin-top:2px;color:#ef4444;font-weight:500;">⏳ S: ${Number(h.stcg_units).toFixed(4)}</div>` : ''}
       </td>
       <td class="text-center">${nav}${navDate}</td>
       <td class="text-center">${peakNav}</td>
       <td class="text-center">${drawdownHtml}</td>
-      <td style="white-space:nowrap;">
-        <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
+      <td class="text-center" data-1d-fund="${fundId}"><span style="color:var(--text-muted);font-size:12px;">⏳</span></td>
+      <td style="white-space:nowrap;text-align:center;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+          ${h.active_sip_count > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:default;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}
+          ${(h.active_swp_count||0) > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:default;' title='SWP Active'>💸 SWP</span>` : ''}
+          <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -266,10 +289,16 @@ function renderHoldings() {
     document.getElementById('footInvested').textContent = fmtInr(totInv);
     document.getElementById('footValue').textContent    = fmtInr(totVal);
     const g = totGain;
-    document.getElementById('footGain').textContent     = (g>=0?'+':'') + fmtInr(Math.abs(g));
-    document.getElementById('footGain').className       = 'text-right ' + (g>=0?'positive':'negative');
-    document.getElementById('footGainPct').textContent  = (g>=0?'+':'') + totPct + '%';
-    document.getElementById('footGainPct').className    = 'text-right ' + (g>=0?'positive':'negative');
+    const gPos = g >= 0;
+    const gArr = gPos ? '▲' : '▼';
+    const gClr = gPos ? '#16a34a' : '#dc2626';
+    const footGainEl    = document.getElementById('footGain');
+    const footGainPctEl = document.getElementById('footGainPct');
+    footGainEl.innerHTML    = `<span style="color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${fmtInr(Math.abs(g))}</span>`;
+    footGainPctEl.innerHTML = `<span style="color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${totPct}%</span>`;
+    // 1D footer will be filled by load1DayChange()
+    const f1d = document.getElementById('foot1dChange');
+    if (f1d) f1d.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">⏳</span>';
   }
 
   // --- Render pagination bar ---
@@ -296,6 +325,82 @@ function renderHoldings() {
       if (MF.holdingsPage < pages)
         html += `<button class="btn btn-ghost btn-sm" onclick="goHoldingsPage(${MF.holdingsPage+1})">Next ›</button>`;
       pgEl.innerHTML = html;
+    }
+  }
+}
+
+async function load1DayChange() {
+  try {
+    const portfolioId = document.getElementById('filterPortfolio')?.value || '';
+    let url = '/api/nav/nav_1d_change.php';
+    if (portfolioId) url += '?portfolio_id=' + portfolioId;
+    const res = await API.get(url);
+    if (!res.success) return;
+    MF.oneDayData = res.data || {};
+    inject1DayChange();
+  } catch(e) {
+    // silent fail — 1D data is non-critical
+    console.warn('1D change fetch failed:', e);
+  }
+}
+
+function inject1DayChange() {
+  const data = MF.oneDayData;
+  let totalAmt = 0, hasSomeData = false;
+
+  // Update each row cell
+  document.querySelectorAll('[data-1d-fund]').forEach(cell => {
+    const fid = cell.getAttribute('data-1d-fund');
+    const d   = data[fid];
+    if (!d || (d.day_change_amt === null && d.day_change_pct === null)) {
+      cell.innerHTML = '<span style="color:var(--text-muted);">—</span>';
+      return;
+    }
+    hasSomeData = true;
+    const amt = d.day_change_amt || 0;
+    const pct = d.day_change_pct || 0;
+    totalAmt += amt;
+    const isPos = amt >= 0;
+    const color = isPos ? '#16a34a' : '#dc2626';
+    const sign  = isPos ? '+' : '';
+    const arr   = isPos ? '▲' : '▼';
+    cell.innerHTML = `
+      <div style="color:${color};font-weight:600;font-size:13px;">${arr} ${sign}${fmtInr(Math.abs(amt))}</div>
+      <div style="color:${color};font-size:11px;">${arr} ${sign}${Math.abs(pct).toFixed(3)}%</div>
+    `;
+  });
+
+  // Update footer 1D total
+  const f1d = document.getElementById('foot1dChange');
+  if (f1d && hasSomeData) {
+    const isPos  = totalAmt >= 0;
+    const color  = isPos ? '#16a34a' : '#dc2626';
+    const sign   = isPos ? '+' : '';
+    const arr    = isPos ? '▲' : '▼';
+    const totVal = MF.filtered.reduce((s,h) => s + (h.value_now||0), 0);
+    const totPct = totVal > 0 ? ((totalAmt / totVal) * 100).toFixed(3) : '0.000';
+    f1d.innerHTML = `<div style="color:${color};font-weight:600;">${arr} ${sign}${fmtInr(Math.abs(totalAmt))}</div><div style="color:${color};font-size:11px;">${arr} ${sign}${totPct}%</div>`;
+  }
+
+  // Update stat card
+  const cardAmt  = document.getElementById('stat1dAmt');
+  const cardPct  = document.getElementById('stat1dPct');
+  const cardIcon = document.getElementById('stat1dIcon');
+  if (cardAmt && hasSomeData) {
+    const isPos2 = totalAmt >= 0;
+    const color2 = isPos2 ? '#16a34a' : '#dc2626';
+    const sign2  = isPos2 ? '+' : '';
+    const arr2   = isPos2 ? '▲' : '▼';
+    const totVal2 = MF.filtered.reduce((s,h) => s + (h.value_now||0), 0);
+    const totPct2 = totVal2 > 0 ? ((totalAmt / totVal2) * 100).toFixed(3) : '0.000';
+    cardAmt.textContent = arr2 + ' ' + sign2 + fmtInr(Math.abs(totalAmt));
+    cardAmt.style.color = color2;
+    if (cardPct) { cardPct.textContent = '(' + sign2 + totPct2 + '%)'; cardPct.style.color = color2; }
+    // Update icon — up arrow if positive, down arrow if negative
+    if (cardIcon) {
+      cardIcon.innerHTML = isPos2
+        ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/><polyline points="19,4 23,4 23,8"/></svg>`
+        : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/><polyline points="19,20 23,20 23,16"/></svg>`;
     }
   }
 }
@@ -1684,18 +1789,38 @@ async function _saveQuickSip() {
     });
     const json = await res.json();
     if (json.success) {
+      const sipId     = json.data?.id || 0;
       const sipPageUrl = (window.WD?.appUrl || '') + '/templates/pages/report_sip.php';
-      sucEl.innerHTML = `✓ ${_qsCurrentType} saved for <strong>${escHtml(fundName)}</strong>!
-        &nbsp;<a href="${sipPageUrl}" style="color:#15803d;font-weight:700;text-decoration:underline;">
-        View SIPs →</a>`;
+      sucEl.innerHTML = `✓ ${_qsCurrentType} saved! Past transactions generate ho rahi hain...`;
       sucEl.style.display = 'block';
+      btn.textContent = '⏳ Syncing transactions...';
+      btn.style.background = '#0284c7';
+      _sipHoldingsFunds = null;
+
+      // Auto-trigger sync after save
+      if (sipId) {
+        try {
+          const portfolio = window.WD?.selectedPortfolio || 0;
+          const syncRes = await fetch(appUrl + '/api/router.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ action: 'sip_sync_txns', sip_id: sipId, portfolio_id: portfolio, csrf_token: csrf }),
+          });
+          const syncJson = await syncRes.json();
+          const txnCount = syncJson.data?.txns_generated || 0;
+          sucEl.innerHTML = `✓ ${_qsCurrentType} saved for <strong>${escHtml(fundName)}</strong>! ${txnCount} past transactions generated.
+            &nbsp;<a href="${sipPageUrl}" style="color:#15803d;font-weight:700;text-decoration:underline;">View SIPs →</a>`;
+        } catch(syncErr) {
+          sucEl.innerHTML = `✓ ${_qsCurrentType} saved. <a href="${sipPageUrl}" style="color:#15803d;">View SIPs →</a>`;
+        }
+      }
+
       btn.textContent = `✓ ${_qsCurrentType} Saved!`;
       btn.style.background = '#15803d';
-      _sipHoldingsFunds = null;
       setTimeout(() => {
         document.getElementById('quickSipModal')?.remove();
         window.location.href = sipPageUrl;
-      }, 1800);
+      }, 2000);
     } else {
       throw new Error(json.message || 'Save failed');
     }
