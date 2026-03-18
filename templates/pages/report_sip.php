@@ -170,6 +170,20 @@ window.addEventListener('unhandledrejection', function(e) {
     </div>
     <div class="modal-body">
       <input type="hidden" id="sipId">
+      <input type="hidden" id="sipScheduleType" value="SIP">
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <div style="display:flex;gap:0;border:1px solid var(--border-color,#e2e8f0);border-radius:8px;overflow:hidden;">
+          <button type="button" id="btnTypeSip" onclick="setSipType('SIP')"
+            style="flex:1;padding:8px;border:none;cursor:pointer;background:var(--primary,#3b82f6);color:#fff;font-weight:600;transition:.15s">
+            🔵 SIP
+          </button>
+          <button type="button" id="btnTypeSwp" onclick="setSipType('SWP')"
+            style="flex:1;padding:8px;border:none;cursor:pointer;background:var(--bg-secondary,#f8fafc);color:var(--text-muted,#64748b);font-weight:600;transition:.15s">
+            🔴 SWP
+          </button>
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">Fund <span class="text-danger">*</span></label>
         <input type="text" class="form-control" id="sipFundSearch"
@@ -244,6 +258,17 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 
 <script>
+function setSipType(type) {
+  document.getElementById('sipScheduleType').value = type;
+  const isSWP = type === 'SWP';
+  document.getElementById('btnTypeSip').style.background = isSWP ? 'var(--bg-secondary,#f8fafc)' : 'var(--primary,#3b82f6)';
+  document.getElementById('btnTypeSip').style.color      = isSWP ? 'var(--text-muted,#64748b)' : '#fff';
+  document.getElementById('btnTypeSwp').style.background = isSWP ? '#dc2626' : 'var(--bg-secondary,#f8fafc)';
+  document.getElementById('btnTypeSwp').style.color      = isSWP ? '#fff' : 'var(--text-muted,#64748b)';
+  document.getElementById('btnSipSave').textContent = 'Save ' + type;
+  document.getElementById('sipModalTitle').textContent =
+    document.getElementById('sipId').value ? ('Edit ' + type) : ('Add ' + type);
+}
 document.addEventListener('DOMContentLoaded', () => {
   loadSipAnalysis();
   loadUpcoming();
@@ -381,6 +406,7 @@ async function loadMonthlyChart(months) {
 function openAddSip() {
   document.getElementById('sipModalTitle').textContent = 'Add SIP';
   document.getElementById('sipId').value        = '';
+  setSipType('SIP');
   document.getElementById('sipFundSearch').value = '';
   document.getElementById('sipFundId').value     = '';
   document.getElementById('sipFundInfo').textContent = '';
@@ -407,7 +433,9 @@ async function editSip(id) {
     const r = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
     const sip = (r.data?.sips || []).find(s => s.id == id);
     if (!sip) return;
-    document.getElementById('sipModalTitle').textContent = 'Edit SIP';
+    const editType = (sip.schedule_type||'SIP').toUpperCase();
+    setSipType(editType);
+    document.getElementById('sipModalTitle').textContent = 'Edit ' + editType;
     document.getElementById('sipId').value        = sip.id;
     document.getElementById('sipFundSearch').value = sip.fund_name||'';
     document.getElementById('sipFundId').value     = sip.fund_id||'';
@@ -451,6 +479,7 @@ async function saveSip() {
     folio_number: document.getElementById('sipFolio').value,
     platform    : document.getElementById('sipPlatform').value,
     notes       : document.getElementById('sipNotes').value,
+    schedule_type: document.getElementById('sipScheduleType').value,
     is_active   : document.getElementById('sipIsActive')?.checked ? 1 : 0,
     csrf_token  : window.CSRF_TOKEN,
   };

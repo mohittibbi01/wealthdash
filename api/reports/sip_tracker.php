@@ -196,8 +196,11 @@ switch ($action) {
         $fund = DB::fetchOne('SELECT id, scheme_name, scheme_code FROM funds WHERE id = ?', [$fundId]);
         if (!$fund) json_response(false, 'Fund not found.');
 
-        // Determine type: SWP if notes='SWP', otherwise SIP
-        $scheduleType = (strtoupper($notes) === 'SWP') ? 'SWP' : 'SIP';
+        // Determine type: use schedule_type POST field, fallback to notes check for backward compat
+        $scheduleType = strtoupper(clean($_POST['schedule_type'] ?? ''));
+        if (!in_array($scheduleType, ['SIP', 'SWP'])) {
+            $scheduleType = (strtoupper($notes) === 'SWP') ? 'SWP' : 'SIP';
+        }
 
         DB::run(
             'INSERT INTO sip_schedules
