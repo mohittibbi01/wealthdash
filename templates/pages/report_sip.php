@@ -13,19 +13,21 @@ $activePage  = 'report_sip';
 
 // ── Fetch user portfolios & set selected portfolio ──
 $db = DB::conn();
-$portfolios = $db->prepare("SELECT id, name FROM portfolios WHERE user_id = ? ORDER BY name ASC");
-$portfolios->execute([$currentUser['id']]);
-$portfolios = $portfolios->fetchAll();
+$portfoliosStmt = $db->prepare("SELECT id, name FROM portfolios WHERE user_id = ? ORDER BY name ASC");
+$portfoliosStmt->execute([$currentUser['id']]);
+$portfolios = $portfoliosStmt->fetchAll();
 
-// Set selected portfolio in session (same as dashboard logic)
-$portfolioId = (int) ($_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id'] ?? 0));
-if ($portfolioId && !isset($_SESSION['selected_portfolio_id'])) {
-    $_SESSION['selected_portfolio_id'] = $portfolioId;
-}
-// If session has stale value, use first portfolio
-if (!$portfolioId && !empty($portfolios)) {
+// Always ensure portfolioId belongs to this user
+$validIds = array_column($portfolios, 'id');
+$sessionPid = (int) ($_SESSION['selected_portfolio_id'] ?? 0);
+
+if ($sessionPid && in_array($sessionPid, $validIds)) {
+    $portfolioId = $sessionPid;
+} elseif (!empty($portfolios)) {
     $portfolioId = (int) $portfolios[0]['id'];
     $_SESSION['selected_portfolio_id'] = $portfolioId;
+} else {
+    $portfolioId = 0;
 }
 
 ob_start();
@@ -68,12 +70,25 @@ function onPortfolioChange(id) {
   loadUpcoming();
   loadSipList();
   loadMonthlyChart(12);
-  _holdingsFunds = null; // reset cache
+  _holdingsFunds = null;
   loadHoldingsFunds();
 }
 function getSipPortfolioId() {
   return window._SIP_PORTFOLIO_ID || window.WD?.selectedPortfolio || 0;
 }
+
+// Global unhandled promise rejection catcher — shows error on page
+window.addEventListener('unhandledrejection', function(e) {
+  const msg = e.reason?.message || String(e.reason);
+  // Update any still-loading cells
+  document.querySelectorAll('td[colspan]').forEach(td => {
+    if (td.textContent.trim() === 'Loading...') {
+      td.textContent = 'Error: ' + msg;
+      td.style.color = '#dc2626';
+    }
+  });
+  console.error('Unhandled rejection:', e.reason);
+});
 </script>
 
 <!-- Summary Cards -->
@@ -234,9 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadUpcoming();
   loadSipList();
   loadMonthlyChart(12);
-  loadHoldingsFunds(); // preload holdings for instant dropdown
 
-  document.getElementById('btnAddSip').addEventListener('click', openAddSip);
   document.getElementById('btnSipSave').addEventListener('click', saveSip);
   document.getElementById('showInactive').addEventListener('change', loadSipList);
   document.getElementById('chartMonths').addEventListener('change', e => loadMonthlyChart(+e.target.value));
@@ -244,7 +257,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadSipAnalysis() {
   try {
-    const d = await API.post('/api/router.php', { action: 'sip_analysis', portfolio_id: getSipPortfolioId() });
+    const r = await API.post('/api/router.php', { action: 'sip_analysis', portfolio_id: getSipPortfolioId() });
+    const d = r.data || {};
     document.getElementById('cardActiveSips').textContent    = d.sips?.length ?? 0;
     document.getElementById('cardMonthlyAmt').textContent    = formatINR(d.total_monthly_sip);
     document.getElementById('cardTotalInvested').textContent = formatINR(d.total_invested);
@@ -253,12 +267,19 @@ async function loadSipAnalysis() {
     const pct    = d.overall_gain_pct ?? 0;
     gainEl.textContent  = formatINR(gain) + ' (' + (pct > 0 ? '+' : '') + Number(pct).toFixed(2) + '%)';
     gainEl.className    = 'stat-value ' + (gain >= 0 ? 'text-success' : 'text-danger');
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    document.getElementById('cardActiveSips').textContent = '—';
+    document.getElementById('cardMonthlyAmt').textContent = '—';
+    document.getElementById('cardTotalInvested').textContent = '—';
+    document.getElementById('cardOverallGain').textContent = '—';
+    console.error('sip_analysis error:', e);
+  }
 }
 
 async function loadUpcoming() {
   try {
-    const d = await API.post('/api/router.php', { action: 'sip_upcoming', days: 30, portfolio_id: getSipPortfolioId() });
+    const r = await API.post('/api/router.php', { action: 'sip_upcoming', days: 30, portfolio_id: getSipPortfolioId() });
+    const d = r.data || {};
     document.getElementById('upcomingCount').textContent = d.upcoming?.length ?? 0;
     const tbody = document.getElementById('upcomingBody');
     if (!d.upcoming?.length) {
@@ -274,12 +295,16 @@ async function loadUpcoming() {
         <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-info'}">${s.days_remaining}d</span></td>
         <td>${esc(s.platform||'—')}</td>
       </tr>`).join('');
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    document.getElementById('upcomingBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading data</td></tr>';
+    console.error('sip_upcoming error:', e);
+  }
 }
 
 async function loadSipList() {
   try {
-    const d = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
+    const r = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
+    const d = r.data || {};
     const showInactive = document.getElementById('showInactive').checked;
     const sips = (d.sips || []).filter(s => showInactive || s.is_active == 1);
     const tbody = document.getElementById('sipBody');
@@ -288,7 +313,7 @@ async function loadSipList() {
       return;
     }
     tbody.innerHTML = sips.map(function(s) {
-      var isSwp = (s.notes||'').toUpperCase() === 'SWP';
+      var isSwp = (s.schedule_type||'').toUpperCase() === 'SWP';
       var stype = isSwp ? 'SWP' : 'SIP';
       var tbg = isSwp
         ? 'background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;'
@@ -311,20 +336,25 @@ async function loadSipList() {
         + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Paused') + '</span></td>'
         + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
         + stopBtn
-        + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ','' + esc(s.fund_name||'') + '')">Delete</button></td>'
+        + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ',"' + esc(s.fund_name||'') + '")">Delete</button></td>'
         + '</tr>';
     }).join('');
-  } catch(e) { console.error(e); }
+  } catch(e) {
+    document.getElementById('sipBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error loading SIPs: ' + esc(e.message) + '</td></tr>';
+    console.error('sip_list error:', e);
+  }
 }
 
 let sipChartInst = null;
 async function loadMonthlyChart(months) {
   try {
-    const d = await API.post('/api/router.php', { action: 'sip_monthly_chart', months, portfolio_id: getSipPortfolioId() });
-    const labels = d.chart.map(r => r.ym);
-    const values = d.chart.map(r => +r.invested);
+    const r = await API.post('/api/router.php', { action: 'sip_monthly_chart', months, portfolio_id: getSipPortfolioId() });
+    const chart  = (r.data || {}).chart || [];
+    const labels = chart.map(r => r.ym);
+    const values = chart.map(r => +r.invested);
     const ctx    = document.getElementById('sipMonthlyChart').getContext('2d');
     if (sipChartInst) sipChartInst.destroy();
+    if (!chart.length) return; // no data, leave canvas empty
     sipChartInst = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -373,8 +403,8 @@ function openAddSip() {
 
 async function editSip(id) {
   try {
-    const d = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
-    const sip = d.sips.find(s => s.id == id);
+    const r = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
+    const sip = (r.data?.sips || []).find(s => s.id == id);
     if (!sip) return;
     document.getElementById('sipModalTitle').textContent = 'Edit SIP';
     document.getElementById('sipId').value        = sip.id;
@@ -433,10 +463,10 @@ async function saveSip() {
 
     // ── Handle NAV download status ──────────────────────────
     if (!id) { // only on add
-      const d          = res.data || res;   // handle both {data:{}} and flat response
+      const d          = res.data || {};
       const navStatus  = d.nav_status  || 'available';
       const navMessage = d.nav_message || '';
-      const sipId      = d.id || res.id;
+      const sipId      = d.id || 0;
 
       if (navStatus === 'downloading') {
         // Show persistent notice — poll for completion
@@ -524,12 +554,13 @@ async function pollNavReady(sipId, fundId, startDate, attempts = 0) {
       fund_id: fundId, start_date: startDate,
     });
 
-    if (res.is_ready) {
+    const pdata = res.data || {};
+    if (pdata.is_ready) {
       hideNavDownloadBanner();
       showToast('✅ NAV data ready! Calculating XIRR...', 'success');
       loadSipXirr(sipId);
       loadSipList();
-    } else if (res.dl_status === 'error') {
+    } else if (pdata.dl_status === 'error') {
       hideNavDownloadBanner();
       showToast('⚠ NAV download failed. Go to NAV Downloader page and run it manually.', 'error');
     } else {
@@ -548,13 +579,14 @@ async function loadSipXirr(sipId) {
       portfolio_id: getSipPortfolioId(),
       sip_id: sipId,
     });
+    const xdata = res.data || {};
 
     // Update the SIP row in table with XIRR
     const row = document.querySelector(`tr[data-sip-id="${sipId}"]`);
     if (row) {
       const xirrEl = row.querySelector('.sip-xirr');
-      if (xirrEl && res.xirr !== null) {
-        const pct   = res.xirr;
+      if (xirrEl && xdata.xirr !== null) {
+        const pct   = xdata.xirr;
         const color = pct >= 0 ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
         xirrEl.innerHTML = `<span style="color:${color};font-weight:600;">${pct > 0 ? '+' : ''}${pct}%</span>`;
       }

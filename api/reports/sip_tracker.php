@@ -12,6 +12,19 @@ $isAdmin     = is_admin();
 $portfolioId = (int) ($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ??
                       $_SESSION['selected_portfolio_id'] ?? 0);
 
+// DEBUG: log what we're getting
+
+// If no portfolioId given, use user's first portfolio
+if (!$portfolioId) {
+    $firstPortfolio = DB::fetchOne(
+        'SELECT id FROM portfolios WHERE user_id = ? ORDER BY id ASC LIMIT 1',
+        [$userId]
+    );
+    if ($firstPortfolio) {
+        $portfolioId = (int) $firstPortfolio['id'];
+    }
+}
+
 if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
     json_response(false, 'Invalid or inaccessible portfolio.');
 }
@@ -22,6 +35,7 @@ switch ($action) {
 
     // ── List SIPs ─────────────────────────────────────────────
     case 'sip_list':
+        try {
         $siPs = DB::fetchAll(
             "SELECT s.*,
                     f.scheme_name AS fund_name,
@@ -46,9 +60,13 @@ switch ($action) {
         unset($sip);
 
         json_response(true, '', ['sips' => $siPs]);
+        } catch (Exception $e) {
+            json_response(false, 'sip_list error: ' . $e->getMessage());
+        }
 
     // ── SIP Analysis (all active SIPs summary) ────────────────
     case 'sip_analysis':
+        try {
         $siPs = DB::fetchAll(
             "SELECT s.*, f.scheme_name, f.latest_nav, f.category,
                     mh.total_invested AS holding_invested,
@@ -98,10 +116,14 @@ switch ($action) {
             'overall_gain'        => round($overallGain, 2),
             'overall_gain_pct'    => $overallGainPct,
         ]);
+        } catch (Exception $e) {
+            json_response(false, 'sip_analysis error: ' . $e->getMessage());
+        }
 
     // ── Upcoming SIPs (next 30 days) ──────────────────────────
     case 'sip_upcoming':
-        $days   = min((int) ($_GET['days'] ?? 30), 90);
+        try {
+        $days   = min((int) ($_GET['days'] ?? $_POST['days'] ?? 30), 90);
         $today  = new DateTime();
         $endDay = (clone $today)->modify("+{$days} days");
 
@@ -127,10 +149,13 @@ switch ($action) {
         usort($upcoming, fn($a, $b) => $a['days_remaining'] <=> $b['days_remaining']);
 
         json_response(true, '', ['upcoming' => $upcoming, 'days_checked' => $days]);
+        } catch (Exception $e) {
+            json_response(false, 'sip_upcoming error: ' . $e->getMessage());
+        }
 
     // ── Monthly SIP history (months × amount chart data) ─────
     case 'sip_monthly_chart':
-        $months = min((int) ($_GET['months'] ?? 12), 60);
+        $months = min((int) ($_POST['months'] ?? $_GET['months'] ?? 12), 60);
 
         $rows = DB::fetchAll(
             "SELECT DATE_FORMAT(txn_date,'%Y-%m') AS ym,
@@ -143,7 +168,7 @@ switch ($action) {
             [$portfolioId, $months]
         );
 
-        json_response(true, '', ['chart' => $rows, 'months' => $months]);
+        json_response(true, '', ['chart' => $rows ?: [], 'months' => $months]);
 
     // ── Add SIP ───────────────────────────────────────────────
     case 'sip_add':
