@@ -119,8 +119,9 @@ $inserted = 0; $updated = 0; $skipped = 0;
 
 $insStmt = $db->prepare("
     INSERT INTO funds (fund_house_id, scheme_code, scheme_name, isin_growth, isin_div,
-                       category, option_type, latest_nav, latest_nav_date, is_active)
-    VALUES (?,?,?,?,?,?,?,?,?,1)
+                       category, option_type, latest_nav, latest_nav_date, is_active,
+                       min_ltcg_days, lock_in_days)
+    VALUES (?,?,?,?,?,?,?,?,?,1,?,?)
     ON DUPLICATE KEY UPDATE
         scheme_name    = VALUES(scheme_name),
         isin_growth    = VALUES(isin_growth),
@@ -129,8 +130,76 @@ $insStmt = $db->prepare("
         option_type    = VALUES(option_type),
         latest_nav     = VALUES(latest_nav),
         latest_nav_date= VALUES(latest_nav_date),
+        min_ltcg_days  = VALUES(min_ltcg_days),
+        lock_in_days   = VALUES(lock_in_days),
         is_active      = 1
 ");
+
+/**
+ * Detect LTCG holding days & lock-in days from AMFI category string.
+ *
+ * Indian MF LTCG rules (as of FY 2024-25):
+ *  - Equity / Hybrid Equity-oriented (>65% equity) → 12 months (365 days)
+ *  - ELSS                                           → 36 months (1095 days) lock-in + LTCG at 12m
+ *  - Debt / Conservative Hybrid / FoF               → 24 months (730 days)  [post Apr 2023 amendment]
+ *  - International / Overseas FoF                   → 24 months (730 days)
+ *  - Gold / Silver ETF / FoF                        → 24 months (730 days)  [post Apr 2023]
+ *  - Liquid / Overnight / Money Market / Ultra ST   → No LTCG (treated as debt, 730 days)
+ *  - Arbitrage                                       → 12 months (365 days, equity-taxed)
+ *  - Index / ETF (equity benchmark)                 → 12 months (365 days)
+ *
+ * lock_in_days: only ELSS has mandatory 3-year lock-in (1095 days).
+ *
+ * @param string $category  Raw AMFI category header string
+ * @return array            [min_ltcg_days, lock_in_days]
+ */
+function get_ltcg_rules_from_category(string $category): array
+{
+    $cat = strtolower($category);
+
+    // ── ELSS: 3-year lock-in, but LTCG kicks in at 12m ─────────────────
+    if (strpos($cat, 'elss') !== false || strpos($cat, 'tax saving') !== false) {
+        return [365, 1095];
+    }
+
+    // ── Equity / Arbitrage / Index / ETF (equity) → 12 months ──────────
+    $equityKeywords = [
+        'equity', 'large cap', 'mid cap', 'small cap', 'multi cap',
+        'flexi cap', 'large & mid', 'large and mid', 'focused',
+        'value fund', 'contra', 'dividend yield', 'thematic',
+        'sectoral', 'infrastructure', 'banking', 'pharma', 'technology',
+        'consumption', 'psu', 'index fund', 'etf', 'arbitrage',
+        'balanced advantage', 'dynamic asset allocation',
+        'multi asset allocation', 'aggressive hybrid', 'equity savings',
+    ];
+    foreach ($equityKeywords as $kw) {
+        if (strpos($cat, $kw) !== false) {
+            return [365, 0];
+        }
+    }
+
+    // ── Debt / Conservative / FoF / Gold / Liquid → 24 months ──────────
+    // (Post April 2023: debt LTCG benefit removed, but holding period for
+    //  indexation was 36m; from Apr 2023 all debt gains taxed as STCG at slab.
+    //  We keep 730 days as the threshold for display/info purposes.)
+    $debtKeywords = [
+        'debt', 'banking and psu', 'corporate bond', 'credit risk',
+        'dynamic bond', 'gilt', 'medium duration', 'long duration',
+        'short duration', 'low duration', 'ultra short', 'liquid',
+        'overnight', 'money market', 'floater', 'fixed maturity',
+        'conservative hybrid', 'gold', 'silver', 'commodit',
+        'international', 'overseas', 'fund of fund', 'fund of funds',
+        'fof', 'retirement', 'children',
+    ];
+    foreach ($debtKeywords as $kw) {
+        if (strpos($cat, $kw) !== false) {
+            return [730, 0];
+        }
+    }
+
+    // ── Default: assume equity (365 days) if unclassified ───────────────
+    return [365, 0];
+}
 
 foreach ($lines as $line) {
     $line = trim($line);
@@ -190,8 +259,10 @@ foreach ($lines as $line) {
     }
 
     try {
+        [$minLtcgDays, $lockInDays] = get_ltcg_rules_from_category($currentCategory);
         $insStmt->execute([$fhId, $scheme_code, $scheme_name, $isin_growth, $isin_div,
-                           $currentCategory, $option_type, $nav, $nav_date]);
+                           $currentCategory, $option_type, $nav, $nav_date,
+                           $minLtcgDays, $lockInDays]);
         if ($insStmt->rowCount() > 0) $inserted++;
         else $skipped++;
     } catch (Exception $e) {

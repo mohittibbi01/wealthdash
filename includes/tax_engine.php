@@ -20,15 +20,21 @@ class TaxEngine {
         float  $gainAmount,
         string $purchaseDate,
         string $sellDate,
-        string $assetType = 'equity'
+        string $assetType = 'equity',
+        int    $minLtcgDays = 0   // 0 = auto-detect from assetType
     ): array {
 
         $days = (int) (new DateTime($sellDate))->diff(new DateTime($purchaseDate))->days;
 
-        $ltcgDays = match ($assetType) {
-            'debt'  => DEBT_LTCG_DAYS,
-            default => EQUITY_LTCG_DAYS,  // equity, elss
-        };
+        // Use fund-specific days if provided, otherwise fall back to asset-type constant
+        if ($minLtcgDays > 0) {
+            $ltcgDays = $minLtcgDays;
+        } else {
+            $ltcgDays = match ($assetType) {
+                'debt'  => DEBT_LTCG_DAYS,
+                default => EQUITY_LTCG_DAYS,  // equity, elss
+            };
+        }
 
         $isLTCG = $days >= $ltcgDays;
 
@@ -160,4 +166,3 @@ class TaxEngine {
         return max(0, EQUITY_LTCG_EXEMPTION - $ltcgBookedThisFy);
     }
 }
-

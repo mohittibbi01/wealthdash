@@ -51,6 +51,8 @@ $isAdmin = is_admin();
 $csrfExempt = [
     'admin_stats', 'admin_users', 'admin_portfolios',
     'admin_settings_get', 'admin_audit_log', 'admin_db_list',
+    'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
+    'admin_import_ter',
     'get_portfolio_summary', 'get_dashboard_data',
     'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
     'stocks_list', 'stocks_get',
@@ -319,6 +321,20 @@ try {
         case 'admin_recalc_holdings':
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/recalc_holdings.php'; exit;
+
+        // ── Admin — TER Import ────────────────────────────────
+        case 'admin_import_ter':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/mutual_funds/import_ter.php'; exit;
+
+        // ── Admin — Fund Rules (LTCG / Lock-in) ──────────────
+        case 'admin_fund_rules_search':
+        case 'admin_fund_rules_get':
+        case 'admin_fund_rules_update':
+        case 'admin_fund_rules_bulk_update':
+        case 'admin_fund_rules_categories':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/fund_rules.php'; exit;
 
         // ── Admin — DB Manager ────────────────────────────────
         case 'admin_db_list':

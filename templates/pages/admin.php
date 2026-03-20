@@ -28,6 +28,7 @@ ob_start();
   <button class="admin-tab" data-tab="users"    onclick="adminSwitchTab('users',this)">Users</button>
   <button class="admin-tab" data-tab="settings" onclick="adminSwitchTab('settings',this)">Settings</button>
   <button class="admin-tab" data-tab="nav"      onclick="adminSwitchTab('nav',this)">NAV &amp; Data</button>
+  <button class="admin-tab" data-tab="fundrules" onclick="adminSwitchTab('fundrules',this)">⚙️ Fund Rules</button>
   <button class="admin-tab" data-tab="audit"    onclick="adminSwitchTab('audit',this)">Audit Log</button>
   <button class="admin-tab" data-tab="dbmgr" onclick="adminSwitchTab('dbmgr',this)">🗄️ DB Manager</button>
 </div>
@@ -269,6 +270,31 @@ ob_start();
 
   </div>
 
+  <!-- Row 1b: TER Import -->
+  <div style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">📊</span>
+          <div>
+            <h3 class="card-title" style="margin:0;">Expense Ratio (TER) Import</h3>
+            <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted);">
+              Imports TER data from <strong>AMFI via GitHub</strong> (captn3m0/india-mutual-fund-ter-tracker) — daily updated.
+              Run this monthly to keep expense ratios fresh.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnImportTer" onclick="importTer()">
+          <span id="terBtnIcon">📥</span>
+          <span id="terBtnText"> Import TER Data</span>
+        </button>
+        <div id="terResult" style="display:none;font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Row 2: Holdings Recalc + Cron (side by side) -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
 
@@ -325,6 +351,150 @@ ob_start();
   </div>
 
 </div>
+
+<!-- ═══════ TAB: FUND RULES ═══════ -->
+<div id="tab-fundrules" class="admin-tab-content" style="display:none">
+<div style="display:grid;grid-template-columns:240px 1fr;gap:12px;align-items:start;">
+
+  <!-- LEFT: Category Browser -->
+  <div class="card" style="position:sticky;top:16px;">
+    <div class="card-header" style="padding:12px 16px;">
+      <h3 class="card-title" style="margin:0;font-size:14px;">📂 Browse by Category</h3>
+    </div>
+    <div id="frCatList" style="max-height:70vh;overflow-y:auto;">
+      <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">
+        <div class="spinner"></div><br>Loading categories…
+      </div>
+    </div>
+    <div style="padding:10px 14px;border-top:1px solid var(--border-color);">
+      <button class="btn btn-ghost btn-sm" onclick="frLoadCategories()" style="width:100%;font-size:12px;">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Fund List + Bulk Editor -->
+  <div>
+
+    <!-- Bulk Action Bar (hidden until selection) -->
+    <div id="frBulkBar" style="display:none;margin-bottom:10px;padding:10px 12px;border-radius:8px;
+         background:rgba(37,99,235,.07);border:1.5px solid rgba(37,99,235,.25);
+         display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span id="frSelCount" style="font-weight:700;color:var(--accent);font-size:13px;">0 selected</span>
+      <span style="color:var(--text-muted);font-size:12px;">→</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:11px;font-weight:600;white-space:nowrap;">LTCG (d)</label>
+        <input type="number" id="frBulkLtcg" class="form-control" style="width:70px;padding:3px 6px;font-size:12px;" value="365" min="1">
+        <button class="fr-preset" onclick="document.getElementById('frBulkLtcg').value=365">1yr</button>
+        <button class="fr-preset" onclick="document.getElementById('frBulkLtcg').value=730">2yr</button>
+        <button class="fr-preset" onclick="document.getElementById('frBulkLtcg').value=1095">3yr</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:11px;font-weight:600;white-space:nowrap;">Lock-in (d)</label>
+        <input type="number" id="frBulkLock" class="form-control" style="width:70px;padding:3px 6px;font-size:12px;" value="0" min="0">
+        <button class="fr-preset" onclick="document.getElementById('frBulkLock').value=0">None</button>
+        <button class="fr-preset" onclick="document.getElementById('frBulkLock').value=1095">3yr</button>
+        <button class="fr-preset" onclick="document.getElementById('frBulkLock').value=1825">5yr</button>
+      </div>
+      <button class="btn btn-primary btn-sm" id="frBulkSaveBtn" onclick="frBulkSave()" style="margin-left:auto;font-size:12px;padding:5px 12px;">
+        <span id="frBulkSaveLbl">💾 Apply</span>
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="frDeselectAll()" style="font-size:12px;padding:5px 8px;">✕</button>
+    </div>
+
+    <!-- Search + Filter row -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+      <div style="position:relative;flex:1;">
+        <input type="text" id="frSearchInput" class="form-control"
+          placeholder="Search fund name or code…"
+          style="padding-left:34px;"
+          oninput="frOnSearch(this.value)">
+        <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.4;" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <div id="frDropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:300;
+             background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;
+             box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:280px;overflow-y:auto;margin-top:4px;"></div>
+      </div>
+      <span id="frActiveCategory" style="display:none;padding:4px 10px;border-radius:6px;font-size:12px;
+            font-weight:600;background:var(--accent);color:#fff;white-space:nowrap;"></span>
+      <button id="frSelectAllBtn" class="btn btn-ghost btn-sm" style="display:none;white-space:nowrap;" onclick="frToggleSelectAll()">☐ Select All</button>
+    </div>
+
+    <!-- Fund Results Table -->
+    <div class="card" style="overflow:hidden;">
+      <div id="frTableHeader" style="display:none;padding:8px 16px;background:var(--bg-secondary);
+           border-bottom:1px solid var(--border-color);font-size:12px;color:var(--text-muted);">
+      </div>
+      <div class="table-wrapper" style="max-height:65vh;overflow-y:auto;">
+        <table class="table" style="margin:0;font-size:13px;table-layout:fixed;width:100%;" id="frFundsTable">
+          <colgroup>
+            <col style="width:32px;">
+            <col><!-- fund name takes remaining -->
+            <col style="width:80px;">
+            <col style="width:80px;">
+            <col style="width:44px;">
+          </colgroup>
+          <thead style="position:sticky;top:0;z-index:10;background:var(--bg-card);">
+            <tr>
+              <th style="width:32px;padding:8px 6px;"><input type="checkbox" id="frCheckAll" onchange="frCheckAllToggle(this)" title="Select all visible"></th>
+              <th style="padding:8px 6px;">Fund</th>
+              <th class="text-center" style="width:80px;padding:8px 4px;">LTCG</th>
+              <th class="text-center" style="width:80px;padding:8px 4px;">Lock-in</th>
+              <th class="text-center" style="width:44px;padding:8px 4px;">Edit</th>
+            </tr>
+          </thead>
+          <tbody id="frFundsBody">
+            <tr><td colspan="5" style="padding:40px;text-align:center;color:var(--text-muted);">
+              ← Select a category from the left, or search above
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Inline single-fund editor (appears below table) -->
+    <div id="frEditor" style="display:none;margin-top:12px;">
+      <div class="card">
+        <div class="card-header" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:14px;font-weight:600;" id="frFundName">—</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="frFundMeta">—</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="frCloseEditor()">✕</button>
+        </div>
+        <div class="card-body" style="padding:14px 16px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">
+            <div>
+              <label class="form-label" style="font-weight:600;font-size:12px;">LTCG Period (days)</label>
+              <input type="number" id="frLtcgDays" class="form-control" min="1" max="3650">
+              <div style="margin-top:5px;display:flex;gap:5px;">
+                <button class="fr-preset" onclick="frSetLtcg(365)">365d</button>
+                <button class="fr-preset" onclick="frSetLtcg(730)">730d</button>
+                <button class="fr-preset" onclick="frSetLtcg(1095)">1095d</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label" style="font-weight:600;font-size:12px;">Lock-in (days, 0 = none)</label>
+              <input type="number" id="frLockDays" class="form-control" min="0" max="7300">
+              <div style="margin-top:5px;display:flex;gap:5px;">
+                <button class="fr-preset" onclick="frSetLock(0)">0</button>
+                <button class="fr-preset" onclick="frSetLock(1095)">1095d</button>
+                <button class="fr-preset" onclick="frSetLock(1825)">1825d</button>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button class="btn btn-primary btn-sm" id="frSaveBtn" onclick="frSave()">
+              <span id="frSaveBtnLabel">💾 Save</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="frCloseEditor()">Cancel</button>
+            <span id="frSaveStatus" style="font-size:12px;"></span>
+          </div>
+          <input type="hidden" id="frFundId">
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end right col -->
+</div><!-- end grid -->
+</div><!-- end tab-fundrules -->
 
 <!-- ═══════ TAB: AUDIT LOG ═══════ -->
 <div id="tab-audit" class="admin-tab-content" style="display:none">
@@ -477,7 +647,13 @@ ob_start();
   --input-bg:  var(--bg-surface-2);
 }
 
-.admin-tabs { display:flex; gap:.25rem; border-bottom:2px solid var(--border); flex-wrap:wrap; }
+.fr-preset {
+  padding: 3px 10px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border-color); background: var(--bg-secondary);
+  color: var(--text-muted); cursor: pointer; transition: background .15s, color .15s;
+}
+.fr-preset:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 .admin-tab  { background:none; border:none; padding:.6rem 1.1rem; cursor:pointer; color:var(--text-secondary); font-size:.9rem; border-bottom:2px solid transparent; margin-bottom:-2px; border-radius:var(--radius-md) var(--radius-md) 0 0; transition:color .2s; }
 .admin-tab:hover { color:var(--text-primary); background:var(--bg-surface-2); }
 .admin-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
@@ -497,6 +673,15 @@ ob_start();
 </style>
 
 <script>
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escAttr(s) {
+  if (!s) return '';
+  return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
 let allUsers = [];
 let auditOffset = 0;
 const AUDIT_LIMIT = 50;
@@ -514,6 +699,7 @@ function adminSwitchTab(name, btn) {
 
   if (name==='users' && allUsers.length===0) loadUsers();
   if (name==='settings') { loadSettings(); loadPortfolioList(); }
+  if (name==='fundrules') { frLoadCategories(); }
   if (name==='audit') loadAuditLog();
   if (name==='dbmgr') loadDbTables();
 }
@@ -1035,6 +1221,369 @@ async function deleteAllTables() {
 }
 
 document.getElementById('auditFilter')?.addEventListener('input', () => { auditOffset=0; loadAuditLog(); });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FUND RULES — LTCG / Lock-in Admin (Category + Bulk + Single)
+═══════════════════════════════════════════════════════════════════════════ */
+const FR = {
+  selectedIds:     new Set(),   // checked fund IDs
+  currentCategory: '',          // active category filter
+  currentFunds:    [],          // funds currently in table
+  searchTimer:     null,
+  allVisibleSelected: false,
+};
+
+// ── Categories ─────────────────────────────────────────────────────────────
+async function frLoadCategories() {
+  const list = document.getElementById('frCatList');
+  list.innerHTML = '<div style="padding:16px;text-align:center;"><div class="spinner"></div></div>';
+  try {
+    const d = await API.get('/api/router.php?action=admin_fund_rules_categories');
+    const cats = d.data?.categories || [];
+    if (!cats.length) { list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;">No categories found.</div>'; return; }
+
+    list.innerHTML = cats.map(c => {
+      const ltcgLabel = c.ltcg_days_min === c.ltcg_days_max
+        ? frDaysLabel(c.ltcg_days_min)
+        : frDaysLabel(c.ltcg_days_min) + '–' + frDaysLabel(c.ltcg_days_max);
+      const lockBadge = c.lock_days_max > 0
+        ? `<span style="font-size:10px;color:#b45309;font-weight:700;">🔒</span>` : '';
+      const uniformDot = c.is_uniform
+        ? `<span title="All funds same rules" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-left:4px;vertical-align:middle;"></span>` : '';
+
+      // Shorten category display name
+      const displayName = c.category
+        .replace('Open Ended Schemes(', '').replace('Close Ended Schemes(', 'CE: ')
+        .replace('Interval Schemes(', 'Int: ').replace(')', '').trim();
+
+    return `<div class="fr-cat-item" data-cat="${escAttr(c.category)}" onclick="frSelectCategory('${escAttr(c.category)}')"
+        style="padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border-color);
+               transition:background .1s;" title="${escAttr(c.category)}"
+        onmouseover="this.style.background='var(--bg-secondary)'"
+        onmouseout="if(FR.currentCategory!==this.dataset.cat) this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:500;line-height:1.3;">${esc(displayName)}${uniformDot}</span>
+          ${lockBadge}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:1px;">
+          <span style="font-size:10px;color:var(--text-muted);">${c.fund_count} funds</span>
+          <span style="font-size:10px;color:#15803d;font-weight:600;">${ltcgLabel}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<div style="padding:16px;color:var(--danger);font-size:13px;">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function frSelectCategory(category) {
+  FR.currentCategory = category;
+  FR.selectedIds.clear();
+  frUpdateBulkBar();
+
+  // Highlight active category in left panel
+  document.querySelectorAll('.fr-cat-item').forEach(el => {
+    el.style.background = el.dataset.cat === category ? 'rgba(37,99,235,.08)' : '';
+  });
+
+  // Show category badge
+  const badge = document.getElementById('frActiveCategory');
+  const shortName = category.replace('Open Ended Schemes(','').replace('Close Ended Schemes(','').replace(')','').trim();
+  badge.textContent = shortName;
+  badge.style.display = 'inline-block';
+
+  document.getElementById('frSearchInput').value = '';
+  document.getElementById('frDropdown').style.display = 'none';
+  document.getElementById('frSelectAllBtn').style.display = '';
+  document.getElementById('frEditor').style.display = 'none';
+  document.getElementById('frTableHeader').style.display = '';
+  document.getElementById('frTableHeader').textContent = `Loading funds in: ${shortName}…`;
+
+  try {
+    const d = await API.get(`/api/router.php?action=admin_fund_rules_search&category=${encodeURIComponent(category)}&limit=500`);
+    FR.currentFunds = d.data?.funds || [];
+    frRenderTable(FR.currentFunds);
+    document.getElementById('frTableHeader').textContent =
+      `${FR.currentFunds.length} funds in: ${shortName}`;
+  } catch(e) {
+    document.getElementById('frFundsBody').innerHTML =
+      `<tr><td colspan="5" style="color:var(--danger);padding:16px;">${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ── Table render ───────────────────────────────────────────────────────────
+function frRenderTable(funds) {
+  const tbody = document.getElementById('frFundsBody');
+  if (!funds.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="padding:30px;text-align:center;color:var(--text-muted);">No funds found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = funds.map(f => {
+    const ltcgLbl = frDaysLabel(f.min_ltcg_days);
+    const lockLbl = f.lock_in_days > 0
+      ? `<span style="color:#b45309;font-weight:700;">🔒 ${frDaysLabel(f.lock_in_days)}</span>`
+      : `<span style="color:var(--text-muted);">—</span>`;
+    const checked = FR.selectedIds.has(f.id) ? 'checked' : '';
+
+    return `<tr id="fr-row-${f.id}">
+      <td style="padding:6px;width:32px;"><input type="checkbox" class="fr-chk" data-id="${f.id}" ${checked} onchange="frOnCheck(this,${f.id})"></td>
+      <td style="padding:6px 4px;">
+        <div style="font-size:12px;font-weight:500;line-height:1.3;word-break:break-word;">${esc(f.scheme_name)}</div>
+        <div style="font-size:10px;color:var(--text-muted);">${esc(f.fund_house)}</div>
+      </td>
+      <td class="text-center" id="fr-ltcg-${f.id}" style="font-weight:600;font-size:11px;padding:6px 4px;white-space:nowrap;">${ltcgLbl}</td>
+      <td class="text-center" id="fr-lock-${f.id}" style="font-size:11px;padding:6px 4px;white-space:nowrap;">${lockLbl}</td>
+      <td class="text-center" style="padding:6px 4px;">
+        <button class="btn btn-ghost btn-xs" style="padding:2px 6px;font-size:11px;"
+          onclick="frOpenEditor(${f.id},'${escAttr(f.scheme_name)}','${escAttr(f.fund_house)}','${escAttr(f.category||'')}',${f.min_ltcg_days},${f.lock_in_days})">
+          ✏️
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('frCheckAll').checked = false;
+  FR.allVisibleSelected = false;
+}
+
+// ── Checkbox logic ─────────────────────────────────────────────────────────
+function frOnCheck(el, fundId) {
+  if (el.checked) FR.selectedIds.add(fundId);
+  else FR.selectedIds.delete(fundId);
+  frUpdateBulkBar();
+}
+
+function frCheckAllToggle(masterCb) {
+  const chks = document.querySelectorAll('.fr-chk');
+  chks.forEach(cb => {
+    cb.checked = masterCb.checked;
+    const id = parseInt(cb.dataset.id);
+    if (masterCb.checked) FR.selectedIds.add(id);
+    else FR.selectedIds.delete(id);
+  });
+  frUpdateBulkBar();
+}
+
+function frToggleSelectAll() {
+  const masterCb = document.getElementById('frCheckAll');
+  masterCb.checked = !masterCb.checked;
+  frCheckAllToggle(masterCb);
+}
+
+function frDeselectAll() {
+  FR.selectedIds.clear();
+  document.querySelectorAll('.fr-chk').forEach(cb => cb.checked = false);
+  document.getElementById('frCheckAll').checked = false;
+  frUpdateBulkBar();
+}
+
+function frUpdateBulkBar() {
+  const bar = document.getElementById('frBulkBar');
+  const cnt = document.getElementById('frSelCount');
+  const n   = FR.selectedIds.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  cnt.textContent   = `${n} fund${n !== 1 ? 's' : ''} selected`;
+}
+
+// ── Bulk Save ──────────────────────────────────────────────────────────────
+async function frBulkSave() {
+  const ltcg = parseInt(document.getElementById('frBulkLtcg').value);
+  const lock = parseInt(document.getElementById('frBulkLock').value);
+  const n    = FR.selectedIds.size;
+
+  if (!n)       { showToast('No funds selected','error'); return; }
+  if (ltcg < 1) { showToast('LTCG days must be ≥ 1','error'); return; }
+  if (!confirm(`Apply LTCG=${ltcg}d, Lock-in=${lock}d to ${n} fund${n!==1?'s':''}?`)) return;
+
+  const btn = document.getElementById('frBulkSaveBtn');
+  const lbl = document.getElementById('frBulkSaveLbl');
+  btn.disabled = true; lbl.textContent = 'Saving…';
+
+  try {
+    const res = await API.post('/api/router.php', {
+      action:        'admin_fund_rules_bulk_update',
+      fund_ids:      [...FR.selectedIds],
+      min_ltcg_days: ltcg,
+      lock_in_days:  lock,
+      csrf_token:    window.CSRF_TOKEN,
+    });
+
+    // Update table cells in-place
+    FR.selectedIds.forEach(id => {
+      const ltcgEl = document.getElementById(`fr-ltcg-${id}`);
+      const lockEl = document.getElementById(`fr-lock-${id}`);
+      if (ltcgEl) ltcgEl.textContent = frDaysLabel(ltcg);
+      if (lockEl) lockEl.innerHTML = lock > 0
+        ? `<span style="color:#b45309;font-weight:700;">🔒 ${frDaysLabel(lock)}</span>`
+        : `<span style="color:var(--text-muted);">—</span>`;
+    });
+
+    showToast(`✅ ${res.message}`, 'success');
+    frDeselectAll();
+  } catch(e) {
+    showToast('⚠️ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; lbl.textContent = '💾 Apply to Selected';
+  }
+}
+
+// ── Single Fund Editor ─────────────────────────────────────────────────────
+function frOpenEditor(id, name, house, category, ltcgDays, lockDays) {
+  document.getElementById('frFundId').value    = id;
+  document.getElementById('frFundName').textContent = name;
+  document.getElementById('frFundMeta').textContent = house + (category ? ' · ' + category : '');
+  document.getElementById('frLtcgDays').value  = ltcgDays;
+  document.getElementById('frLockDays').value  = lockDays;
+  document.getElementById('frSaveStatus').textContent = '';
+  document.getElementById('frEditor').style.display = 'block';
+  document.getElementById('frEditor').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function frCloseEditor() {
+  document.getElementById('frEditor').style.display = 'none';
+}
+
+function frSetLtcg(d) { document.getElementById('frLtcgDays').value = d; }
+function frSetLock(d) { document.getElementById('frLockDays').value = d; }
+
+async function frSave() {
+  const fundId = parseInt(document.getElementById('frFundId').value);
+  const ltcg   = parseInt(document.getElementById('frLtcgDays').value);
+  const lock   = parseInt(document.getElementById('frLockDays').value);
+  const status = document.getElementById('frSaveStatus');
+  const btn    = document.getElementById('frSaveBtn');
+
+  if (!fundId || isNaN(ltcg) || isNaN(lock)) { status.innerHTML = '<span style="color:var(--danger);">⚠️ All fields required.</span>'; return; }
+  if (ltcg < 1) { status.innerHTML = '<span style="color:var(--danger);">⚠️ LTCG days ≥ 1.</span>'; return; }
+
+  btn.disabled = true;
+  document.getElementById('frSaveBtnLabel').textContent = 'Saving…';
+  status.textContent = '';
+
+  try {
+    const res = await API.post('/api/router.php', {
+      action: 'admin_fund_rules_update', fund_id: fundId,
+      min_ltcg_days: ltcg, lock_in_days: lock, csrf_token: window.CSRF_TOKEN,
+    });
+
+    // Update table row in-place
+    const ltcgEl = document.getElementById(`fr-ltcg-${fundId}`);
+    const lockEl = document.getElementById(`fr-lock-${fundId}`);
+    if (ltcgEl) ltcgEl.textContent = frDaysLabel(ltcg);
+    if (lockEl) lockEl.innerHTML = lock > 0
+      ? `<span style="color:#b45309;font-weight:700;">🔒 ${frDaysLabel(lock)}</span>`
+      : `<span style="color:var(--text-muted);">—</span>`;
+
+    status.innerHTML = `<span style="color:var(--success);">✅ Saved!</span>`;
+    showToast('Fund rules updated!', 'success');
+    setTimeout(frCloseEditor, 1200);
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--danger);">⚠️ ${esc(e.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+    document.getElementById('frSaveBtnLabel').textContent = '💾 Save';
+  }
+}
+
+// ── Search (text) ──────────────────────────────────────────────────────────
+function frOnSearch(q) {
+  clearTimeout(FR.searchTimer);
+  const dd = document.getElementById('frDropdown');
+  if (q.trim().length < 2) { dd.style.display = 'none'; return; }
+  FR.searchTimer = setTimeout(() => frDoSearch(q.trim()), 300);
+}
+
+async function frDoSearch(q) {
+  const dd  = document.getElementById('frDropdown');
+  dd.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:13px;">Searching…</div>';
+  dd.style.display = 'block';
+  try {
+    const d = await API.get(`/api/router.php?action=admin_fund_rules_search&q=${encodeURIComponent(q)}&limit=20`);
+    const funds = d.data?.funds || [];
+    if (!funds.length) {
+      dd.innerHTML = `<div style="padding:10px 14px;color:var(--text-muted);font-size:13px;">No funds found.</div>`;
+      return;
+    }
+    dd.innerHTML = funds.map(f => `
+      <div onmousedown="frPickFromSearch(${f.id},'${escAttr(f.scheme_name)}','${escAttr(f.fund_house)}','${escAttr(f.category||'')}',${f.min_ltcg_days},${f.lock_in_days})"
+        style="padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border-color);"
+        onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+        <div style="font-size:13px;font-weight:500;">${esc(f.scheme_name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${esc(f.fund_house)} · ${esc(f.category||'—')}</div>
+        <div style="margin-top:3px;display:flex;gap:5px;">
+          <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:rgba(22,163,74,.1);color:#15803d;">LTCG ${frDaysLabel(f.min_ltcg_days)}</span>
+          ${f.lock_in_days > 0 ? `<span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:rgba(234,179,8,.1);color:#b45309;">🔒 ${frDaysLabel(f.lock_in_days)}</span>` : ''}
+        </div>
+      </div>`).join('');
+
+    // Also show in table
+    FR.currentFunds = funds;
+    FR.currentCategory = '';
+    document.getElementById('frActiveCategory').style.display = 'none';
+    document.getElementById('frSelectAllBtn').style.display = '';
+    document.getElementById('frTableHeader').style.display = '';
+    document.getElementById('frTableHeader').textContent = `${funds.length} search results`;
+    frRenderTable(funds);
+  } catch(e) {
+    dd.innerHTML = `<div style="padding:10px;color:var(--danger);">${esc(e.message)}</div>`;
+  }
+}
+
+function frPickFromSearch(id, name, house, category, ltcg, lock) {
+  document.getElementById('frDropdown').style.display = 'none';
+  document.getElementById('frSearchInput').value = name;
+  frOpenEditor(id, name, house, category, ltcg, lock);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function frDaysLabel(d) {
+  if (d === 365)  return '1yr';
+  if (d === 730)  return '2yr';
+  if (d === 1095) return '3yr';
+  if (d === 1825) return '5yr';
+  return d + 'd';
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('#frSearchInput') && !e.target.closest('#frDropdown')) {
+    const dd = document.getElementById('frDropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+// ── TER Import ────────────────────────────────────────────
+async function importTer() {
+  const btn = document.getElementById('btnImportTer');
+  const icon = document.getElementById('terBtnIcon');
+  const text = document.getElementById('terBtnText');
+  const res = document.getElementById('terResult');
+  
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  text.textContent = ' Importing TER data...';
+  res.style.display = 'none';
+
+  try {
+    const d = await API.get('/api/router.php?action=admin_import_ter');
+    res.style.display = 'block';
+    res.style.color = d.success ? 'var(--success)' : 'var(--danger)';
+    res.innerHTML = d.success
+      ? `✅ <strong>${d.message}</strong><br><small style="color:var(--text-muted);">Not found: ${d.not_found || 0} · Skipped: ${d.skipped || 0}</small>`
+      : `⚠️ ${d.message}`;
+    if (d.success) showToast('TER import complete!', 'success');
+    else showToast(d.message, 'error');
+  } catch(e) {
+    res.style.display = 'block';
+    res.style.color = 'var(--danger)';
+    res.textContent = '⚠️ Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    icon.textContent = '📥';
+    text.textContent = ' Import TER Data';
+  }
+}
 
 // ── Peak NAV — Background Processor ───────────────────────
 let pnRunning   = false;

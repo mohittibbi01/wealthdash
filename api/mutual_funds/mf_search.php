@@ -26,6 +26,7 @@ try {
     $stmt = $db->prepare("
         SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.sub_category,
                f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
+               f.min_ltcg_days, f.lock_in_days,
                fh.name AS fund_house_name, fh.short_name AS fund_house_short
         FROM funds f
         JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -56,6 +57,8 @@ try {
             'option_type'      => $f['option_type'],
             'latest_nav'       => $f['latest_nav'] ? (float)$f['latest_nav'] : null,
             'latest_nav_date'  => $f['latest_nav_date'],
+            'min_ltcg_days'    => (int)$f['min_ltcg_days'],
+            'lock_in_days'     => (int)$f['lock_in_days'],
             'fund_house'       => $f['fund_house_name'],
             'fund_house_short' => $f['fund_house_short'],
             'label'            => $f['scheme_name'] . ' (' . $f['scheme_code'] . ')',
@@ -68,4 +71,3 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Search failed: ' . $e->getMessage()]);
 }
-

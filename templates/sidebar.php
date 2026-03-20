@@ -16,6 +16,7 @@ $navItems = [
         'children' => [
             'mf_holdings'     => ['label' => 'Holdings',     'href' => APP_URL . '/templates/pages/mf_holdings.php'],
             'mf_transactions' => ['label' => 'Transactions', 'href' => APP_URL . '/templates/pages/mf_transactions.php'],
+            'mf_screener'     => ['label' => '🔍 Find Funds', 'href' => APP_URL . '/templates/pages/mf_screener.php'],
         ],
     ],
     'nps' => [

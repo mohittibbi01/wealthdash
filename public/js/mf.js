@@ -254,10 +254,39 @@ function renderHoldings() {
       }
     }
 
+    // Lock-in & LTCG badges for fund name cell
+    const lockDays   = h.lock_in_days || 0;
+    const ltcgDays   = h.min_ltcg_days || 365;
+    const today      = new Date();
+    let   lockBadge  = '';
+    let   ltcgBadge  = '';
+
+    if (lockDays > 0 && h.first_purchase_date) {
+      // ELSS: show lock-in status
+      const lockEndDate = new Date(new Date(h.first_purchase_date).getTime() + lockDays * 86400000);
+      const daysLeft    = Math.ceil((lockEndDate - today) / 86400000);
+      if (daysLeft > 0) {
+        lockBadge = `<span title="Lock-in ends ${lockEndDate.toLocaleDateString('en-IN')}" style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(234,179,8,.15);color:#b45309;border:1px solid rgba(234,179,8,.3);margin-left:4px;">🔒 ${daysLeft}d left</span>`;
+      } else {
+        lockBadge = `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.25);margin-left:4px;">🔓 Unlocked</span>`;
+      }
+    }
+
+    if (h.ltcg_date) {
+      const ltcgEndDate = new Date(h.ltcg_date);
+      const daysToLtcg  = Math.ceil((ltcgEndDate - today) / 86400000);
+      if (daysToLtcg > 0) {
+        ltcgBadge = `<span title="LTCG eligible on ${h.ltcg_date}" style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(239,68,68,.08);color:#dc2626;border:1px solid rgba(239,68,68,.2);margin-left:4px;">⏳ STCG ${daysToLtcg}d</span>`;
+      } else {
+        ltcgBadge = `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.25);margin-left:4px;">✓ LTCG</span>`;
+      }
+    }
+
     return `<tr data-fund-id="${fundId}" data-folio="${h.folio_number||''}">
       <td class="fund-name-cell">
         <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
         <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')} · ${escHtml(h.category||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
+        <div style="margin-top:3px;">${ltcgBadge}${lockBadge}</div>
       </td>
       <td class="text-center" style="font-weight:600;">₹${Number(h.total_invested).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td class="text-center" style="font-weight:600;">₹${Number(h.value_now||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -768,6 +797,35 @@ async function updateAvailableUnits() {
     if (avgEl)      avgEl.textContent      = data.avg_cost_nav  ? '₹' + parseFloat(data.avg_cost_nav).toFixed(4) : '—';
     if (investedEl) investedEl.textContent = data.total_invested ? '₹' + parseFloat(data.total_invested).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
 
+    // ── ELSS lock-in warning ─────────────────────────────────────
+    const lockDays = MF.selectedFundLockDays || 0;
+    let lockWarnEl = document.getElementById('elssLockWarn');
+    if (lockDays > 0) {
+      // Find first purchase date from holdings data
+      const holding = MF.data.find(h => h.fund_id === MF.selectedFundId);
+      const firstDate = holding?.first_purchase_date;
+      if (firstDate) {
+        const lockEndDate = new Date(new Date(firstDate).getTime() + lockDays * 86400000);
+        const today       = new Date();
+        const daysLeft    = Math.ceil((lockEndDate - today) / 86400000);
+        if (daysLeft > 0) {
+          if (!lockWarnEl) {
+            lockWarnEl = document.createElement('div');
+            lockWarnEl.id = 'elssLockWarn';
+            lockWarnEl.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:6px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);font-size:12px;color:#dc2626;font-weight:600;';
+            banner.appendChild(lockWarnEl);
+          }
+          lockWarnEl.innerHTML = `⚠️ ELSS Lock-in: Cannot redeem until ${lockEndDate.toLocaleDateString('en-IN')} &nbsp;(${daysLeft} days remaining)`;
+          lockWarnEl.style.display = 'block';
+        } else if (lockWarnEl) {
+          lockWarnEl.style.display = 'none';
+        }
+      }
+    } else if (lockWarnEl) {
+      lockWarnEl.style.display = 'none';
+    }
+    // ─────────────────────────────────────────────────────────────
+
     // Auto-fill max units hint
     const unitsInput = document.getElementById('txnUnits');
     if (unitsInput && units > 0 && (!unitsInput.value || parseFloat(unitsInput.value) === 0)) {
@@ -797,29 +855,38 @@ async function searchFunds(q) {
       return;
     }
 
-    dropdown.innerHTML = funds.map(f => `
+    dropdown.innerHTML = funds.map(f => {
+      const ltcgDays = f.min_ltcg_days || 365;
+      const lockDays = f.lock_in_days  || 0;
+      const ltcgYrs  = ltcgDays === 365 ? '1 yr' : ltcgDays === 730 ? '2 yr' : ltcgDays === 1095 ? '3 yr' : ltcgDays + 'd';
+      const isElss   = lockDays > 0;
+      const ltcgBadge = `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.2);">LTCG ${ltcgYrs}</span>`;
+      const lockBadge = isElss ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(234,179,8,.1);color:#b45309;border:1px solid rgba(234,179,8,.2);margin-left:4px;">🔒 Lock-in 3yr</span>` : '';
+      return `
       <div class="autocomplete-item" data-fund-id="${f.id}" data-nav="${f.latest_nav||0}"
            style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border-color);transition:background .15s;"
-           onmousedown="selectFund(${f.id},'${escAttr(f.scheme_name)}',${f.latest_nav||0})"
+           onmousedown="selectFund(${f.id},'${escAttr(f.scheme_name)}',${f.latest_nav||0},${ltcgDays},${lockDays})"
            onmouseover="this.style.background='var(--bg-secondary)'"
            onmouseout="this.style.background=''">
         <div style="font-size:13px;font-weight:500;">${escHtml(f.scheme_name)}</div>
-        <div style="font-size:11px;color:var(--text-muted);">${escHtml(f.fund_house_short||f.fund_house||'')} · ${escHtml(f.category||'')} · Code: ${f.scheme_code}</div>
-        ${f.latest_nav ? `<div style="font-size:11px;color:var(--text-muted);">NAV: ₹${Number(f.latest_nav).toFixed(4)} (${f.latest_nav_date||''})</div>` : ''}
-      </div>
-    `).join('');
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${escHtml(f.fund_house_short||f.fund_house||'')} · ${escHtml(f.category||'')} · Code: ${f.scheme_code}</div>
+        <div style="margin-top:4px;">${ltcgBadge}${lockBadge}${f.latest_nav ? `<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">NAV: ₹${Number(f.latest_nav).toFixed(4)} (${f.latest_nav_date||''})</span>` : ''}</div>
+      </div>`;
+    }).join('');
 
   } catch (err) {
     dropdown.innerHTML = `<div style="padding:12px;color:var(--danger);font-size:13px;">Search error: ${err.message}</div>`;
   }
 }
 
-function selectFund(id, name, nav) {
+function selectFund(id, name, nav, minLtcgDays, lockInDays) {
   document.getElementById('txnFundSearch').value = name;
   document.getElementById('txnFundId').value     = id;
   document.getElementById('fundSearchDropdown').style.display = 'none';
-  MF.selectedFundId  = id;
-  MF.selectedFundNav = nav;
+  MF.selectedFundId       = id;
+  MF.selectedFundNav      = nav;
+  MF.selectedFundLtcgDays = minLtcgDays || 365;
+  MF.selectedFundLockDays = lockInDays  || 0;
   fetchAndShowFundInfo(id);
   updateValuePreview();
   updateAvailableUnits(); // refresh available units when fund changes
@@ -831,7 +898,13 @@ async function fetchAndShowFundInfo(fundId) {
     const res = await API.get(`/api/mutual_funds/mf_nav_history.php?fund_id=${fundId}`);
     if (res.latest_nav) {
       MF.selectedFundNav = res.latest_nav;
-      infoEl.innerHTML = `Latest NAV: <strong>₹${Number(res.latest_nav).toFixed(4)}</strong> as of ${res.latest_nav_date||''}`;
+      const ltcgDays = MF.selectedFundLtcgDays || 365;
+      const lockDays = MF.selectedFundLockDays || 0;
+      const ltcgLabel = ltcgDays === 365 ? '1 year' : ltcgDays === 730 ? '2 years' : ltcgDays === 1095 ? '3 years' : ltcgDays + ' days';
+      const lockHtml  = lockDays > 0
+        ? ` &nbsp;·&nbsp; <span style="color:#b45309;font-weight:600;">🔒 Lock-in: 3 years (ELSS)</span>`
+        : '';
+      infoEl.innerHTML = `Latest NAV: <strong>₹${Number(res.latest_nav).toFixed(4)}</strong> as of ${res.latest_nav_date||''} &nbsp;·&nbsp; <span style="color:#15803d;font-weight:600;">LTCG after ${ltcgLabel}</span>${lockHtml}`;
       document.getElementById('previewCurrentNav').textContent = `₹${Number(res.latest_nav).toFixed(4)}`;
       updateValuePreview();
     }

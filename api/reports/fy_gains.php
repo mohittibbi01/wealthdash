@@ -50,7 +50,8 @@ foreach ($mfCombos as $combo) {
     if ($folio !== null) {
         $allTxns = DB::fetchAll(
             "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
+                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house,
+                    f.min_ltcg_days, f.lock_in_days
              FROM mf_transactions t
              JOIN funds f ON f.id = t.fund_id
              JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -63,7 +64,8 @@ foreach ($mfCombos as $combo) {
     } else {
         $allTxns = DB::fetchAll(
             "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house
+                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house,
+                    f.min_ltcg_days, f.lock_in_days
              FROM mf_transactions t
              JOIN funds f ON f.id = t.fund_id
              JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -131,11 +133,15 @@ foreach ($mfCombos as $combo) {
             $days     = (int)(new DateTime($date))->diff(new DateTime($firstBuyDate))->days;
 
             $cat      = strtolower($t['category'] ?? '');
+            // Detect asset type from category for debt-slab rule
             $assetType = (strpos($cat, 'debt') !== false || strpos($cat, 'liquid') !== false
                           || strpos($cat, 'money market') !== false || strpos($cat, 'credit') !== false)
                          ? 'debt' : (strpos($cat, 'elss') !== false ? 'elss' : 'equity');
 
-            $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuyDate, $date, $assetType);
+            // Use fund-specific LTCG days from DB (set correctly by fetch_amfi_funds.php)
+            $fundMinLtcgDays = (int)($t['min_ltcg_days'] ?? 0);
+
+            $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuyDate, $date, $assetType, $fundMinLtcgDays);
 
             $mfGains[] = [
                 'asset_class'  => 'Mutual Fund',
