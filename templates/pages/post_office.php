@@ -13,11 +13,25 @@ $activePage  = 'post_office';
 
 $db = DB::conn();
 
-// Portfolios for filter/add
-$portfolios = DB::fetchAll(
-    "SELECT id, name, color FROM portfolios WHERE user_id=? ORDER BY name ASC",
+// Auto-mature: mark any active scheme whose maturity_date has passed
+DB::run(
+    "UPDATE po_schemes po
+     JOIN portfolios p ON p.id = po.portfolio_id
+     SET po.status = 'matured', po.updated_at = NOW()
+     WHERE p.user_id = ?
+       AND po.status = 'active'
+       AND po.maturity_date IS NOT NULL
+       AND po.maturity_date < CURDATE()",
     [$currentUser['id']]
 );
+
+
+// Fetch user's single portfolio
+$portfolio = DB::fetchOne(
+    "SELECT id, name, color FROM portfolios WHERE user_id=? ORDER BY id ASC LIMIT 1",
+    [$currentUser['id']]
+);
+$portfolioId = (int)($portfolio['id'] ?? 0);
 
 // Summary across all active PO schemes
 $summary = DB::fetchOne(
@@ -105,14 +119,36 @@ ob_start();
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($maturing as $m): ?>
+        <?php
+        $poSchemeLabels = [
+            'savings_account' => 'Post Office Savings Account',
+            'rd'   => 'Recurring Deposit (RD)',
+            'td'   => 'Time Deposit (TD)',
+            'mis'  => 'Monthly Income Scheme (MIS)',
+            'scss' => 'Senior Citizen Savings Scheme (SCSS)',
+            'ppf'  => 'Public Provident Fund (PPF)',
+            'ssy'  => 'Sukanya Samriddhi Yojana (SSY)',
+            'nsc'  => 'National Savings Certificate (NSC)',
+            'kvp'  => 'Kisan Vikas Patra (KVP)',
+        ];
+        foreach ($maturing as $m):
+            $schemeLabel = $poSchemeLabels[$m['scheme_type']] ?? strtoupper($m['scheme_type']);
+            // For RD, show monthly deposit amount; for others show principal
+            $displayPrincipal = ($m['scheme_type'] === 'rd' && !empty($m['deposit_amount']))
+                ? $m['deposit_amount'] : $m['principal'];
+        ?>
         <tr>
-          <td><strong><?= e($m['scheme_type']) ?></strong></td>
+          <td><strong><?= e($schemeLabel) ?></strong></td>
           <td><?= e($m['holder_name']) ?></td>
           <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">
             <?= $m['account_number'] ? '••••'.substr($m['account_number'],-4) : '—' ?>
           </td>
-          <td class="text-right"><?= inr($m['principal']) ?></td>
+          <td class="text-right">
+            <?= inr($displayPrincipal) ?>
+            <?php if ($m['scheme_type'] === 'rd'): ?>
+              <br><small style="color:var(--text-muted);font-size:10px">per month</small>
+            <?php endif; ?>
+          </td>
           <td class="text-right text-success"><?= inr($m['maturity_amount']) ?></td>
           <td><?= fmt_date($m['maturity_date']) ?></td>
           <td>
@@ -127,6 +163,7 @@ ob_start();
   </div>
 </div>
 <?php endif; ?>
+
 
 <!-- Scheme Type Quick Filter chips -->
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;" id="schemeChips">
@@ -153,12 +190,7 @@ ob_start();
     <div style="display:flex;gap:8px;align-items:center">
       <input type="text" class="form-input" id="poSearch" placeholder="Search holder / account..."
              style="width:200px" oninput="PO.filterTable()">
-      <select class="form-select" id="poFilterPortfolio" style="width:160px" onchange="PO.load()">
-        <option value="">All Portfolios</option>
-        <?php foreach ($portfolios as $p): ?>
-        <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
+      <input type="hidden" id="poFilterPortfolio" value="<?= $portfolioId ?>">
     </div>
   </div>
   <div class="table-wrapper">
@@ -168,7 +200,6 @@ ob_start();
           <th>Scheme</th>
           <th>Holder</th>
           <th>Account No.</th>
-          <th>Portfolio</th>
           <th class="text-right">Principal</th>
           <th class="text-right">Rate %</th>
           <th>Open Date</th>
@@ -182,18 +213,32 @@ ob_start();
       </thead>
       <tbody id="poBody">
         <tr>
-          <td colspan="13" class="text-center" style="padding:40px;color:var(--text-muted)">
+          <td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted)">
             <span class="spinner"></span> Loading...
           </td>
         </tr>
       </tbody>
     </table>
   </div>
+  <div class="card-footer" id="poPaginationWrap" style="display:none;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--text-muted);">Show</label>
+      <select id="poPerPageSelect" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="PO.changePerPage(this.value)">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="9999">All</option>
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);">per page</span>
+    </div>
+    <div id="poPaginationInfo" style="font-size:13px;color:var(--text-muted);"></div>
+    <div id="poPagination" style="display:flex;gap:4px;"></div>
+  </div>
 </div>
 
 <!-- ═══ ADD / EDIT MODAL ═══ -->
 <div class="modal-overlay" id="modalAddPo" style="display:none">
-  <div class="modal" style="max-width:620px;width:95%">
+  <div class="modal" style="max-width:820px;width:95%">
     <div class="modal-header">
       <h3 class="modal-title" id="poModalTitle">Add Post Office Scheme</h3>
       <button class="modal-close" id="closePo">✕</button>
@@ -204,7 +249,7 @@ ob_start();
       <!-- Scheme Type Selector -->
       <div class="form-group" id="schemeTypeGroup">
         <label class="form-label">Scheme Type *</label>
-        <div id="poSchemeGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px">
+        <div id="poSchemeGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px">
           <!-- Populated by JS -->
         </div>
       </div>
@@ -214,14 +259,7 @@ ob_start();
         <div id="poSchemeBanner" style="border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px"></div>
 
         <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Portfolio *</label>
-            <select class="form-select" id="poPortfolio">
-              <?php foreach ($portfolios as $p): ?>
-              <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
+          <input type="hidden" id="poPortfolio" value="<?= $portfolioId ?>">
           <div class="form-group">
             <label class="form-label">Holder Name *</label>
             <input type="text" class="form-input" id="poHolder" placeholder="Account holder name">
@@ -239,6 +277,7 @@ ob_start();
           </div>
         </div>
 
+        <!-- Row 1: Principal Amount | Open Date -->
         <div class="form-row">
           <div class="form-group" id="poRdGroup" style="display:none">
             <label class="form-label">Monthly Deposit (₹) *</label>
@@ -251,16 +290,38 @@ ob_start();
                    placeholder="Deposit amount" oninput="PO.calcPreview()">
           </div>
           <div class="form-group">
-            <label class="form-label">Interest Rate (% p.a.) *</label>
-            <input type="number" class="form-input" id="poRate" step="0.01" min="0.01" max="15"
-                   placeholder="7.10" oninput="PO.calcPreview()">
+            <label class="form-label">Open Date *</label>
+            <input type="date" class="form-input" id="poOpenDate" onchange="PO.calcPreview()">
           </div>
         </div>
 
+        <!-- Row 2: Tenure (TD only) | Maturity Date -->
         <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Open Date *</label>
-            <input type="date" class="form-input" id="poOpenDate" onchange="PO.calcPreview()">
+          <div class="form-group" id="poTdTenureGroup" style="display:none">
+            <label class="form-label">Tenure *</label>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px" id="poTdTenureGrid">
+              <button type="button" class="td-tenure-btn" data-years="1" data-rate="6.9" onclick="PO.selectTdTenure(1,6.9)">
+                <span style="font-weight:700;font-size:13px">1 Year</span>
+                <span style="font-size:11px;color:var(--text-muted)">6.9% p.a.</span>
+              </button>
+              <button type="button" class="td-tenure-btn" data-years="2" data-rate="7.0" onclick="PO.selectTdTenure(2,7.0)">
+                <span style="font-weight:700;font-size:13px">2 Years</span>
+                <span style="font-size:11px;color:var(--text-muted)">7.0% p.a.</span>
+              </button>
+              <button type="button" class="td-tenure-btn" data-years="3" data-rate="7.1" onclick="PO.selectTdTenure(3,7.1)">
+                <span style="font-weight:700;font-size:13px">3 Years</span>
+                <span style="font-size:11px;color:var(--text-muted)">7.1% p.a.</span>
+              </button>
+              <button type="button" class="td-tenure-btn" data-years="5" data-rate="7.5" onclick="PO.selectTdTenure(5,7.5)">
+                <span style="font-weight:700;font-size:13px">5 Years</span>
+                <span style="font-size:11px;color:var(--text-muted)">7.5% p.a. · 80C</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-group" id="poRateGroup">
+            <label class="form-label">Interest Rate (% p.a.) *</label>
+            <input type="number" class="form-input" id="poRate" step="0.01" min="0.01" max="15"
+                   placeholder="7.10" oninput="PO.calcPreview()">
           </div>
           <div class="form-group">
             <label class="form-label">Maturity Date</label>
@@ -327,6 +388,22 @@ ob_start();
 </div>
 
 <style>
+.td-tenure-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 6px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: all .15s;
+  gap: 2px;
+  color: var(--text-primary);
+}
+.td-tenure-btn:hover { border-color: var(--accent); background: var(--bg-surface-2); }
+.td-tenure-btn.selected { border-color: #0891b2; background: rgba(8,145,178,.07); }
+
 .po-chip {
   padding: 5px 14px;
   border-radius: 99px;
@@ -342,19 +419,19 @@ ob_start();
 .po-chip-active { background: var(--accent); color: #fff !important; border-color: var(--accent); }
 
 .po-scheme-card {
-  padding: 10px 12px;
+  padding: 7px 6px;
   border: 1.5px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all .15s;
   font-size: 12px;
-  text-align: left;
+  text-align: center;
 }
 .po-scheme-card:hover { border-color: var(--accent); background: var(--bg-surface-2); }
 .po-scheme-card.selected { border-color: var(--accent); background: rgba(37,99,235,.07); }
-.po-scheme-card .sc-icon { font-size: 20px; margin-bottom: 4px; }
-.po-scheme-card .sc-label { font-weight: 700; font-size: 11px; color: var(--text-primary); }
-.po-scheme-card .sc-rate { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.po-scheme-card .sc-icon { font-size: 15px; margin-bottom: 3px; }
+.po-scheme-card .sc-label { font-weight: 700; font-size: 10px; color: var(--text-primary); line-height: 1.2; }
+.po-scheme-card .sc-rate { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 </style>
 
 <script src="<?= APP_URL ?>/public/js/post_office.js?v=<?= ASSET_VERSION ?>"></script>

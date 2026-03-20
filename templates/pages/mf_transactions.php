@@ -102,7 +102,17 @@ ob_start();
       </tbody>
     </table>
   </div>
-  <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;">
+  <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:12px;color:var(--text-muted);">Show</label>
+      <select id="txnPerPageSelect" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="changeTxnPerPage(this.value)">
+        <option value="10" selected>10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);">per page</span>
+    </div>
     <div id="txnPaginationInfo" style="font-size:13px;color:var(--text-muted);"></div>
     <div id="txnPagination" style="display:flex;gap:4px;"></div>
   </div>

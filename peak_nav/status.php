@@ -160,16 +160,16 @@ tr:hover td{background:var(--surf2)}
   <div class="card c-total"  data-tip="Total active schemes in funds table">
     <div class="num" id="c-total">—</div><div class="lbl">Total Schemes</div>
   </div>
+  <div class="card c-stale"  data-tip="Completed but checked before today — incremental update next run">
+    <div class="num" id="c-stale">—</div><div class="lbl">Needs Update</div>
+    <div class="sub">Old data, incremental next run</div>
+  </div>
   <div class="card c-work"   data-tip="Pending + currently processing">
     <div class="num" id="c-work">—</div><div class="lbl">Pending + Working</div>
   </div>
   <div class="card c-done"   data-tip="Schemes with peak NAV data saved">
     <div class="num" id="c-done">—</div><div class="lbl">Completed</div>
     <div class="sub" id="c-sub">—</div>
-  </div>
-  <div class="card c-stale"  data-tip="Completed but checked before today — incremental update next run">
-    <div class="num" id="c-stale">—</div><div class="lbl">Needs Update</div>
-    <div class="sub">Old data, incremental next run</div>
   </div>
   <div class="card c-errors" data-tip="Click to see error details" onclick="showErrors()">
     <div class="num" id="c-errors">—</div><div class="lbl">⚠ Errors</div>
@@ -281,16 +281,19 @@ let activeTab  = 'pending';
 let activePage = 1;
 let totalStart = null;
 let sessStart  = null;
-let procWin    = null;       // reference to processor popup window
+let procWin    = null;
 let isRunning  = false;
 let userStopped = false;
 let pollTimer  = null;
 let prevDone   = 0;
 let stuckSecs  = 0;
+let activeXhr  = null;   // keep reference so we can abort on stop
 
 // ── INIT ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     totalStart = parseInt(localStorage.getItem('pkTotal') || '0') || null;
+    // Restore stopped state across page refreshes
+    userStopped = localStorage.getItem('pkStopped') === '1';
     initParallel();
     fetchSummary();
     fetchTable();
@@ -299,6 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(tickTimers, 1000);
     setInterval(updateClock, 1000);
     updateClock();
+    // Auto-start if launched from admin panel
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1' && !userStopped) {
+        setTimeout(runProcessor, 800);
+    }
 });
 
 // ── CLOCK & TIMERS ────────────────────────────────────
@@ -315,8 +323,9 @@ function tickTimers() {
 // ── PROCESSOR CONTROL ─────────────────────────────────
 function runProcessor() {
     userStopped = false;
-    isRunning = false;
+    localStorage.removeItem('pkStopped');
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (activeXhr) { activeXhr.abort(); activeXhr = null; }
 
     // Start timers
     if (!totalStart) { totalStart = Date.now(); localStorage.setItem('pkTotal', totalStart); }
@@ -324,7 +333,7 @@ function runProcessor() {
     prevDone  = 0;
     stuckSecs = 0;
 
-    // Hide alerts
+    // Hide alerts, lock button immediately
     ['al-stop','al-done','al-err'].forEach(id => g(id).classList.remove('show'));
     setStatus('run', '🟢 Running...');
     g('btn-run').textContent = '⏸ Running...';
@@ -332,20 +341,34 @@ function runProcessor() {
     const stopBtn = g('btn-stop');
     if (stopBtn) { stopBtn.style.display = 'inline-flex'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
 
+    // Mark running BEFORE XHR so no gap where button looks idle
+    isRunning = true;
+
     // Clear any old stop flag
     fetch('api.php?action=clear_stop', {method:'POST'}).catch(()=>{});
 
     const parallel = getPar();
     const url = 'processor.php?t=' + Date.now() + '&parallel=' + parallel;
 
-    isRunning = true;
-
     const xhr = new XMLHttpRequest();
+    activeXhr = xhr;
     xhr.open('GET', url, true);
-    xhr.timeout = 120000;
-    xhr.onload  = () => { onProcFinished(xhr.responseText); };
-    xhr.onerror = () => { onProcFinished(''); };
-    xhr.ontimeout = () => { onProcFinished(''); };
+    xhr.timeout = 150000;
+    xhr.onload    = () => { activeXhr = null; onProcFinished(xhr.responseText); };
+    xhr.onerror   = () => {
+        activeXhr = null;
+        if (!userStopped) {
+            console.warn('XHR error — will auto-restart in 3s');
+            setTimeout(() => { if (!isRunning && !userStopped) runProcessor(); }, 3000);
+        }
+    };
+    xhr.ontimeout = () => {
+        activeXhr = null;
+        if (!userStopped) {
+            console.warn('XHR timeout — checking progress then restarting');
+            onProcFinished('');
+        }
+    };
     xhr.send();
 
     pollTimer = setInterval(checkProgress, 3000);
@@ -355,46 +378,71 @@ async function stopProcessor() {
     if (!confirm('⏹ Stop the processor?\n\nCurrent batch will finish then it will halt.\nProgress is saved — run again to continue.')) return;
     const stopBtn = g('btn-stop');
     if (stopBtn) { stopBtn.disabled = true; stopBtn.textContent = '⏳ Stopping...'; }
+
+    // Set stopped state immediately — persisted across refreshes
     userStopped = true;
+    localStorage.setItem('pkStopped', '1');
+    isRunning = false;
+
+    // Stop polling loop
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+
+    // Abort the active XHR so onProcFinished doesn't trigger auto-restart
+    if (activeXhr) { activeXhr.abort(); activeXhr = null; }
+
+    // Update UI immediately
+    g('btn-run').textContent = '▶ Run Processor';
+    g('btn-run').disabled = false;
+    if (stopBtn) { stopBtn.style.display = 'none'; }
+    setStatus('stop', '⏸ Stop requested — finishing current batch...');
+
     try {
+        // Tell processor.php to halt after current batch via DB flag
         const res = await fetch('api.php?action=stop', {method:'POST'}).then(r=>r.json());
-        setStatus('stop', '⏸ Stop requested — finishing current batch...');
-        // Show toast
         const t = document.createElement('div');
         t.textContent = '⏹ ' + (res.message || 'Stop requested');
         t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1e293b;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25)';
         document.body.appendChild(t);
         setTimeout(()=>t.remove(), 3500);
-    } catch(e) {
-        if (stopBtn) { stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
-    }
+    } catch(e) {}
+
+    g('al-stop').classList.add('show');
+    fetchSummary();
 }
 
 async function onProcFinished(responseText) {
     // Called when processor.php finishes (success or timeout)
     isRunning = false;
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-    g('btn-run').textContent = '▶ Run Processor';
-    g('btn-run').disabled = false;
-    const stopBtn = g('btn-stop');
-    if (stopBtn) { stopBtn.style.display = 'none'; stopBtn.disabled = false; stopBtn.textContent = '⏹ Stop'; }
 
     try {
         const d = await fetch('api.php?action=summary&_='+Date.now(),{cache:'no-store'}).then(r=>r.json());
         const c = d.counts;
-        const remaining = parseInt(c.pending||0) + parseInt(c.working||0);
+        // remaining = ALL unfinished work: pending + working + needs_update + errors
+        const remaining = parseInt(d.not_done || 0);
         const errors    = parseInt(c.errors||0);
         if (remaining === 0) {
+            // Truly done — enable run button, hide stop
+            g('btn-run').textContent = '▶ Run Processor';
+            g('btn-run').disabled = false;
+            const sb = g('btn-stop'); if (sb) sb.style.display = 'none';
             setStatus('done','✅ All Complete!');
             g('al-done').classList.add('show');
             localStorage.removeItem('pkTotal'); totalStart = null;
         } else {
             if (!userStopped) {
-                setStatus('run','🔄 Next batch in 2s...');
+                // Auto-restart — keep button locked, restart immediately
+                setStatus('run','🔄 Next batch starting...');
+                g('btn-run').textContent = '⏸ Running...';
+                g('btn-run').disabled = true;
                 setTimeout(() => {
                     if (!isRunning && !userStopped) runProcessor();
-                }, 2000);
+                }, 1500);
             } else {
+                // User stopped — enable button
+                g('btn-run').textContent = '▶ Run Processor';
+                g('btn-run').disabled = false;
+                const sb = g('btn-stop'); if (sb) sb.style.display = 'none';
                 setStatus('stop','⏸ Paused — '+fmt(remaining)+' remaining');
                 g('al-stop').classList.add('show');
             }
@@ -404,6 +452,10 @@ async function onProcFinished(responseText) {
             g('al-err').classList.add('show');
         }
     } catch(e) {
+        // Fetch failed — keep button available so user can restart manually
+        g('btn-run').textContent = '▶ Run Processor';
+        g('btn-run').disabled = false;
+        const sb = g('btn-stop'); if (sb) sb.style.display = 'none';
         setStatus('stop','⏸ Paused — click Restart');
         g('al-stop').classList.add('show');
     }
@@ -418,7 +470,7 @@ async function checkProgress() {
         const d = await fetch('api.php?action=summary&_='+Date.now(),{cache:'no-store'}).then(r => r.json());
         const c = d.counts;
         const nowDone   = parseInt(c.completed || 0);
-        const remaining = parseInt(c.pending||0) + parseInt(c.working||0);
+        const remaining = parseInt(d.not_done || 0);
         const errors    = parseInt(c.errors||0);
 
         // Live speed update in hint area
@@ -431,13 +483,25 @@ async function checkProgress() {
             stuckSecs = 0;
         } else if (isRunning) {
             stuckSecs += 3;
+            // If stuck for 30s with pending work and processor not responding — auto restart
+            if (stuckSecs >= 30 && remaining > 0 && !userStopped) {
+                console.warn('Processor appears stuck — auto-restarting');
+                stuckSecs = 0;
+                isRunning = false;
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                setTimeout(() => { if (!userStopped) runProcessor(); }, 1000);
+                return;
+            }
         }
 
         if (remaining === 0) {
-            // All done
+            // All done — pending=0, working=0, needs_update=0, errors=0
             clearInterval(pollTimer); pollTimer = null;
             isRunning = false;
             g('btn-run').textContent = '▶ Run Processor';
+            g('btn-run').disabled = false;
+            const stopBtn = g('btn-stop');
+            if (stopBtn) stopBtn.style.display = 'none';
             setStatus('done', '✅ All Complete!');
             g('al-done').classList.add('show');
             localStorage.removeItem('pkTotal');
@@ -445,8 +509,6 @@ async function checkProgress() {
             fetchSummary(); fetchTable(false);
             return;
         }
-
-        // onProcFinished() handles final state when XHR completes
     } catch(e) {}
 }
 
@@ -486,11 +548,19 @@ async function fetchSummary() {
         g('tc-c').textContent = fmt(c.completed);
         g('tc-e').textContent = fmt(c.errors);
 
-        // Show/hide stop button based on whether working
+        // Show/hide Run/Stop buttons based on actual running state
         const stopBtn = g('btn-stop');
-        if (stopBtn) {
-            const running = (+c.pending > 0 || +c.working > 0) && isRunning;
-            stopBtn.style.display = running ? 'inline-flex' : 'none';
+        const runBtn  = g('btn-run');
+        if (stopBtn && runBtn) {
+            if (isRunning) {
+                stopBtn.style.display = 'inline-flex';
+                runBtn.disabled = true;
+                runBtn.textContent = '⏸ Running...';
+            } else {
+                stopBtn.style.display = 'none';
+                runBtn.disabled = false;
+                runBtn.textContent = '▶ Run Processor';
+            }
         }
     } catch(e) {}
 }
@@ -607,6 +677,7 @@ async function resetAll() {
     g('btn-run').textContent = '▶ Run Processor';
     totalStart=null; sessStart=null;
     localStorage.removeItem('pkTotal');
+    localStorage.removeItem('pkStopped');
     g('total-timer').textContent='00:00:00';
     g('sess-timer').textContent='00:00:00';
     setStatus('idle','● Idle');

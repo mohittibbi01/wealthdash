@@ -183,36 +183,71 @@ if (document.getElementById('fySummaryBody')) {
         bar.className = 'progress-bar ' + (pct > 90 ? 'progress-danger' : pct > 60 ? 'progress-warning' : 'progress-success');
     }
 
-    function renderMfGains(gains) {
-        const body = document.getElementById('mfGainsBody');
-        if (!body) return;
-        if (!gains || !gains.length) { body.innerHTML = `<tr><td colspan="12" class="text-center text-secondary">No MF sell transactions</td></tr>`; return; }
-        body.innerHTML = gains.map(g => `
-        <tr>
+    // ── Shared pagination helper for FY report tables ─────────────────────
+    const fyPagination = {
+        state: {
+            mfGains:  { data:[], page:1, perPage:10 },
+            stGains:  { data:[], page:1, perPage:10 },
+            mfDiv:    { data:[], page:1, perPage:10 },
+            stDiv:    { data:[], page:1, perPage:10 },
+        },
+        render(key) {
+            const s       = this.state[key];
+            const total   = s.data.length;
+            const pages   = Math.max(1, Math.ceil(total / s.perPage));
+            if (s.page > pages) s.page = 1;
+            const start   = (s.page - 1) * s.perPage;
+            const paged   = s.perPage >= 9999 ? s.data : s.data.slice(start, start + s.perPage);
+            const bodyId  = { mfGains:'mfGainsBody', stGains:'stockGainsBody', mfDiv:'mfDivBody', stDiv:'stDivBody' }[key];
+            const infoId  = key + 'PagInfo';
+            const pagId   = key + 'Pag';
+            const colspans= { mfGains:12, stGains:11, mfDiv:5, stDiv:5 };
+            const emptyMsg= { mfGains:'No MF sell transactions', stGains:'No stock sell transactions', mfDiv:'No MF dividends', stDiv:'No stock dividends' };
+            const renderFn= { mfGains: this._rowMfGain, stGains: this._rowStGain, mfDiv: this._rowMfDiv, stDiv: this._rowStDiv };
+
+            const body = document.getElementById(bodyId);
+            if (!body) return;
+            if (!total) { body.innerHTML = `<tr><td colspan="${colspans[key]}" class="text-center text-secondary">${emptyMsg[key]}</td></tr>`; }
+            else        { body.innerHTML = paged.map(renderFn[key]).join(''); }
+
+            // Info
+            const infoEl = document.getElementById(infoId);
+            if (infoEl) infoEl.textContent = total > 0 ? `${Math.min(start+1,total)}–${Math.min(start+s.perPage,total)} of ${total}` : '';
+
+            // Pagination buttons
+            const pagEl = document.getElementById(pagId);
+            if (!pagEl) return;
+            if (pages <= 1) { pagEl.innerHTML = ''; return; }
+            let html = '';
+            if (s.page > 1) html += `<button class="btn btn-ghost btn-sm" onclick="fyPagination.go('${key}',${s.page-1})">‹</button>`;
+            const ps = Math.max(1, s.page-2), pe = Math.min(pages, s.page+2);
+            for (let p = ps; p <= pe; p++) html += `<button class="btn btn-ghost btn-sm ${p===s.page?'active':''}" onclick="fyPagination.go('${key}',${p})">${p}</button>`;
+            if (s.page < pages) html += `<button class="btn btn-ghost btn-sm" onclick="fyPagination.go('${key}',${s.page+1})">›</button>`;
+            pagEl.innerHTML = html;
+        },
+        go(key, page)    { this.state[key].page = page; this.render(key); },
+        changePerPage(key, val) { this.state[key].perPage = parseInt(val); this.state[key].page = 1; this.render(key); },
+        set(key, data)   { this.state[key].data = data || []; this.state[key].page = 1; this.render(key); },
+
+        _rowMfGain: g => `<tr>
             <td>${g.fy}</td>
-            <td class="text-nowrap" title="${g.name}">${truncate(g.name, 35)}</td>
+            <td class="text-nowrap" title="${g.name}">${truncate(g.name,35)}</td>
             <td><small>${g.category}</small></td>
-            <td><small>${g.folio || '-'}</small></td>
-            <td class="text-right">${numFmt(g.units, 4)}</td>
+            <td><small>${g.folio||'-'}</small></td>
+            <td class="text-right">${numFmt(g.units,4)}</td>
             <td class="text-right">${inrFmt(g.sell_nav)}</td>
             <td class="text-right">${inrFmt(g.proceeds)}</td>
             <td class="text-right">${inrFmt(g.cost)}</td>
             <td class="text-right fw-600 ${gainCls(g.gain)}">${inrFmt(g.gain)}</td>
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
-            <td class="text-right text-warning">${g.tax_amount != null ? inrFmt(g.tax_amount) : g.tax_rate != null ? g.tax_rate + '%' : 'Slab'}</td>
-        </tr>`).join('');
-    }
+            <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):g.tax_rate!=null?g.tax_rate+'%':'Slab'}</td>
+        </tr>`,
 
-    function renderStockGains(gains) {
-        const body = document.getElementById('stockGainsBody');
-        if (!body) return;
-        if (!gains || !gains.length) { body.innerHTML = `<tr><td colspan="11" class="text-center text-secondary">No stock sell transactions</td></tr>`; return; }
-        body.innerHTML = gains.map(g => `
-        <tr>
+        _rowStGain: g => `<tr>
             <td>${g.fy}</td>
             <td><strong>${g.symbol}</strong></td>
-            <td>${truncate(g.name, 25)}</td>
+            <td>${truncate(g.name,25)}</td>
             <td class="text-right">${g.quantity}</td>
             <td class="text-right">${inrFmt(g.sell_price)}</td>
             <td class="text-right">${inrFmt(g.proceeds)}</td>
@@ -220,27 +255,21 @@ if (document.getElementById('fySummaryBody')) {
             <td class="text-right fw-600 ${gainCls(g.gain)}">${inrFmt(g.gain)}</td>
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
-            <td class="text-right text-warning">${g.tax_amount != null ? inrFmt(g.tax_amount) : '-'}</td>
-        </tr>`).join('');
-    }
+            <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):'-'}</td>
+        </tr>`,
 
-    function renderMfDivs(divs) {
-        const body = document.getElementById('mfDivBody');
-        if (!body) return;
-        if (!divs || !divs.length) { body.innerHTML = `<tr><td colspan="5" class="text-center text-secondary">No MF dividends</td></tr>`; return; }
-        body.innerHTML = divs.map(d => `
-        <tr><td>${d.fy}</td><td>${truncate(d.name, 40)}</td><td>${d.fund_house}</td>
-        <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`).join('');
-    }
+        _rowMfDiv: d => `<tr><td>${d.fy}</td><td>${truncate(d.name,40)}</td><td>${d.fund_house}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
 
-    function renderStDivs(divs) {
-        const body = document.getElementById('stDivBody');
-        if (!body) return;
-        if (!divs || !divs.length) { body.innerHTML = `<tr><td colspan="5" class="text-center text-secondary">No stock dividends</td></tr>`; return; }
-        body.innerHTML = divs.map(d => `
-        <tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
-        <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`).join('');
-    }
+        _rowStDiv: d => `<tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
+    };
+    window.fyPagination = fyPagination; // expose globally for onchange handlers
+
+    function renderMfGains(gains)   { fyPagination.set('mfGains', gains); }
+    function renderStockGains(gains){ fyPagination.set('stGains', gains); }
+    function renderMfDivs(divs)     { fyPagination.set('mfDiv',   divs);  }
+    function renderStDivs(divs)     { fyPagination.set('stDiv',   divs);  }
 
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {

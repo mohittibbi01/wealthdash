@@ -270,7 +270,7 @@ try {
         case 'po_close':
         case 'po_delete':
         case 'po_meta':
-            require APP_ROOT . '/api/post_office/po_schemes.php'; exit;
+            require APP_ROOT . '/api/po_schemes/po_schemes.php'; exit;
 
         case 'savings_list':
             require APP_ROOT . '/api/savings/savings_list.php'; exit;

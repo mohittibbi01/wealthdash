@@ -1,4 +1,4 @@
-	<?php
+<?php
 	/**
 	 * WealthDash — Peak NAV Processor (Parallel curl_multi)
 	 * Path: wealthdash/peak_nav/processor.php
@@ -11,7 +11,7 @@
 	define('DB_USER',     'root');
 	define('DB_PASS',     '');
 	define('DB_NAME',     'wealthdash');
-	define('EXEC_LIMIT',  85);
+	define('EXEC_LIMIT',  110);   // stop at 110s so PHP doesn't hard-kill at 180s
 	define('API_TIMEOUT', 20);
 	define('MFAPI_BASE',  'https://api.mfapi.in/mf/');
 
@@ -19,7 +19,7 @@
 	$PARALLEL_SIZE = isset($_GET['parallel']) ? (int)$_GET['parallel'] : 8;
 	$PARALLEL_SIZE = max(1, min(50, $PARALLEL_SIZE));
 
-	set_time_limit(180);
+	set_time_limit(240);
 	header('Content-Type: text/plain; charset=utf-8');
 	// Disable output buffering so logs stream live
 	if (ob_get_level()) ob_end_clean();

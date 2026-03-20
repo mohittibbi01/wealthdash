@@ -177,33 +177,72 @@ ob_start();
 <!-- ═══════ TAB: NAV & DATA ═══════ -->
 <div id="tab-nav" class="admin-tab-content" style="display:none">
 
-  <!-- Row 1: AMFI + Stocks (side by side) -->
+  <!-- Row 1: NAV Update (AMFI + Peak combined) + Stocks (side by side) -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
 
-    <!-- AMFI NAV Update -->
+    <!-- Combined NAV Update card -->
     <div class="card">
       <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:20px;">📡</span>
-          <h3 class="card-title" style="margin:0;">AMFI NAV Update</h3>
+          <h3 class="card-title" style="margin:0;">Mutual Fund NAV Update</h3>
         </div>
         <div class="nav-info-btn" data-info="amfi">ℹ</div>
       </div>
       <div class="nav-info-box" id="info-amfi">
         <strong>Update Today's NAV</strong> — AMFI India se aaj ke sabhi mutual funds ke latest NAV fetch karta hai aur <code>funds.latest_nav</code> update karta hai. Holdings ka "Current Value" yahi se aata hai.<br><br>
-        <strong>Import Full Fund List</strong> — AMFI se poori fund list download karta hai (14,000+ funds). Nayi fund add hone pe ya fresh install pe run karo. 2-5 min lagta hai.
+        <strong>Import Full Fund List</strong> — AMFI se poori fund list download karta hai (14,000+ funds). Nayi fund add hone pe ya fresh install pe run karo. 2-5 min lagta hai.<br><br>
+        <strong>Peak NAV Update</strong> — MFAPI.in se har fund ka poora NAV history fetch karta hai aur sabse zyada NAV dhundh ke <code>funds.highest_nav</code> save karta hai. Holdings page pe Drawdown column ke liye.
       </div>
       <div class="card-body">
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+
+        <!-- AMFI section -->
+        <p class="text-secondary text-sm" style="margin:0 0 10px;font-weight:600;">AMFI — Daily NAV</p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
           <button class="btn btn-primary" id="btnUpdateNav" onclick="runNavUpdate('nav_only')">
-            <span id="navBtnLabel">Update Today's NAV</span>
-            <span id="navBtnSpinner" style="display:none">⏳</span>
+            <span id="navBtnIcon">🔄</span>
+            <span id="navBtnText"> Update Today's NAV</span>
           </button>
           <button class="btn btn-outline" id="btnImportAmfi" onclick="confirmImportAmfi()">
-            Import Full Fund List
+            <span id="importBtnIcon">📥</span>
+            <span id="importBtnText"> Import Full Fund List</span>
           </button>
         </div>
-        <div id="navUpdateResult" style="display:none;margin-top:1rem;padding:.75rem 1rem;border-radius:var(--radius)"></div>
+
+        <!-- Inline status strip -->
+        <div id="navStatusStrip" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:4px;"></div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 14px;">
+
+        <!-- Peak NAV section -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          <p class="text-secondary text-sm" style="margin:0;font-weight:600;">Peak NAV — All-Time High</p>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-primary" id="btnRunPeakNav" onclick="runPeakNavBackground()">
+              <span id="btnRunPeakNavIcon">&#9654;</span>
+              <span id="btnRunPeakNavText"> Run Peak NAV</span>
+            </button>
+            <a href="<?= APP_URL ?>/peak_nav/status.php" target="_blank" class="btn btn-ghost btn-sm">↗ Full Tracker</a>
+          </div>
+        </div>
+
+        <!-- Live status tiles from status.php API -->
+        <div id="pnTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;">
+          <div class="pn-tile pn-total">  <div class="pn-num" id="pnTotal">—</div>  <div class="pn-lbl">Total</div></div>
+          <div class="pn-tile pn-stale">  <div class="pn-num" id="pnStale">—</div>  <div class="pn-lbl">Needs Update</div></div>
+          <div class="pn-tile pn-pending"><div class="pn-num" id="pnPending">—</div><div class="pn-lbl">Pending</div></div>
+          <div class="pn-tile pn-done">   <div class="pn-num" id="pnDone">—</div>   <div class="pn-lbl">Completed</div></div>
+          <div class="pn-tile pn-err">    <div class="pn-num" id="pnErrors">—</div> <div class="pn-lbl">Errors</div></div>
+        </div>
+
+        <!-- Progress bar -->
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
+            <div id="pnBar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .6s;"></div>
+          </div>
+          <span id="pnPct" style="font-size:12px;font-weight:700;color:var(--accent);min-width:36px;text-align:right;">0%</span>
+        </div>
+
       </div>
     </div>
 
@@ -283,56 +322,6 @@ ob_start();
       </div>
     </div>
 
-  </div>
-
-  <!-- Row 3: Peak NAV (full width) -->
-  <div class="card">
-    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:20px;">&#128200;</span>
-        <div>
-          <h3 class="card-title" style="margin:0;">Peak NAV Update</h3>
-          <p class="text-secondary text-sm" style="margin:2px 0 0;">All-Time High NAV — Holdings page pe Drawdown column ke liye</p>
-        </div>
-        <div class="nav-info-btn" data-info="peaknav">ℹ</div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <label class="text-sm text-secondary" for="peakNavParallel">Parallel:</label>
-          <select id="peakNavParallel" class="form-select" style="width:80px;padding:5px 8px;font-size:13px;">
-            <option value="4">4</option>
-            <option value="8" selected>8</option>
-            <option value="16">16</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" id="btnPeakNav" onclick="runPeakNav()">
-          <span id="peakNavBtnLabel">&#9654; Run Peak NAV Update</span>
-          <span id="peakNavBtnSpinner" style="display:none;">&#9203; Running...</span>
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="loadPeakNavStatus()">&#8635; Status</button>
-      </div>
-    </div>
-    <div class="nav-info-box" id="info-peaknav">
-      MFAPI.in se har fund ka <strong>poora NAV history</strong> fetch karta hai aur sabse zyada NAV dhundh ke <code>funds.highest_nav</code> aur <code>funds.highest_nav_date</code> save karta hai.<br><br>
-      <strong>Drawdown</strong> = (Peak NAV - Current NAV) / Peak NAV × 100 — holdings page pe dikhta hai ki fund apne ATH se kitna neeche hai.<br><br>
-      <strong>Parallel:</strong> Ek saath kitne funds fetch kare. 8 = safe, 16 = fast but errors ho sakte hain.
-      Pehli baar run karne mein 14,000+ funds hain isliye zyada time lagega. Uske baad roz sirf incremental update hoti hai.
-    </div>
-    <div id="peakNavStatusBar" style="display:none;padding:10px 20px;background:var(--bg-surface-2);border-bottom:1px solid var(--border);font-size:13px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
-      <span>Total: <strong id="pnTotal">&#8212;</strong></span>
-      <span>Completed: <strong id="pnDone" style="color:var(--success);">&#8212;</strong></span>
-      <span>Pending: <strong id="pnPending" style="color:var(--warning);">&#8212;</strong></span>
-      <span>Needs Update: <strong id="pnStale" style="color:#d97706;">&#8212;</strong></span>
-      <span>Errors: <strong id="pnErrors" style="color:var(--danger);">&#8212;</strong></span>
-      <span>Progress: <strong id="pnPct">&#8212;</strong></span>
-    </div>
-    <div id="peakNavLogWrap" style="display:none;padding:16px 20px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span class="text-sm text-secondary">Live Output</span>
-        <button class="btn btn-ghost btn-xs" onclick="document.getElementById('peakNavLog').textContent=''">Clear</button>
-      </div>
-      <pre id="peakNavLog" style="background:var(--bg-surface-2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-primary);margin:0;"></pre>
-    </div>
   </div>
 
 </div>
@@ -495,6 +484,14 @@ ob_start();
 .code-block { background:var(--bg-surface-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem; font-family:monospace; font-size:.8rem; line-height:1.7; overflow-x:auto; }
 .nav-info-btn { width:22px;height:22px;border-radius:50%;background:var(--bg-surface-2);border:1.5px solid var(--border);color:var(--text-secondary);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;transition:background .15s,color .15s; }
 .nav-info-btn:hover { background:var(--accent);color:#fff;border-color:var(--accent); }
+.pn-tile { background:var(--bg-surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center; }
+.pn-num  { font-size:1.2rem;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums; }
+.pn-lbl  { font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;margin-top:2px; }
+.pn-total .pn-num  { color:var(--accent); }
+.pn-stale .pn-num  { color:#d97706; }
+.pn-pending .pn-num{ color:var(--warning,#d97706); }
+.pn-done .pn-num   { color:var(--success); }
+.pn-err .pn-num    { color:var(--danger); }
 .nav-info-box { display:none;padding:12px 20px;background:rgba(37,99,235,.06);border-bottom:1px solid rgba(37,99,235,.15);font-size:13px;line-height:1.6;color:var(--text-secondary); }
 .nav-info-box code { background:var(--bg-surface-2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--accent); }
 </style>
@@ -712,56 +709,91 @@ async function saveResetPw() {
 }
 
 // ── NAV ───────────────────────────────────────────────────
+// ── AMFI NAV Update ────────────────────────────────────────
+const navBtnStates = {
+  nav: {
+    idle:    { icon:'🔄', text:' Update Today\'s NAV',  disabled:false },
+    running: { icon:'⏳', text:' Fetching NAV...',       disabled:true  },
+    done:    { icon:'✅', text:' NAV Updated!',          disabled:false },
+    error:   { icon:'⚠️', text:' Update Today\'s NAV',  disabled:false },
+  },
+  import: {
+    idle:    { icon:'📥', text:' Import Full Fund List', disabled:false },
+    running: { icon:'⏳', text:' Importing... (2-5 min)',disabled:true  },
+    done:    { icon:'✅', text:' Import Complete!',      disabled:false },
+    error:   { icon:'⚠️', text:' Import Full Fund List', disabled:false },
+  },
+};
+
+function navSetBtn(type, state) {
+  const isNav    = type === 'nav';
+  const btn      = document.getElementById(isNav ? 'btnUpdateNav' : 'btnImportAmfi');
+  const iconEl   = document.getElementById(isNav ? 'navBtnIcon' : 'importBtnIcon');
+  const textEl   = document.getElementById(isNav ? 'navBtnText' : 'importBtnText');
+  const s        = navBtnStates[type][state];
+  if (!btn) return;
+  btn.disabled        = s.disabled;
+  iconEl.textContent  = s.icon;
+  textEl.textContent  = s.text;
+}
+
+function navShowStrip(msg, type) {
+  const strip = document.getElementById('navStatusStrip');
+  if (!strip) return;
+  const styles = {
+    success: 'background:rgba(34,197,94,.12);color:var(--success);border:1px solid rgba(34,197,94,.3)',
+    error:   'background:rgba(239,68,68,.1);color:var(--danger);border:1px solid rgba(239,68,68,.25)',
+    info:    'background:rgba(59,130,246,.1);color:var(--accent);border:1px solid rgba(59,130,246,.25)',
+  };
+  strip.style.cssText = `display:block;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:4px;${styles[type]||styles.info}`;
+  strip.textContent = msg;
+}
+
 async function runNavUpdate(mode) {
   const isImport = mode === 'full_import';
-  const btn    = isImport ? document.getElementById('btnImportAmfi') : document.getElementById('btnUpdateNav');
-  const label  = document.getElementById('navBtnLabel');
-  const spin   = document.getElementById('navBtnSpinner');
-  const result = document.getElementById('navUpdateResult');
+  const type     = isImport ? 'import' : 'nav';
 
-  if (!isImport) { btn.disabled=true; label.style.display='none'; spin.style.display=''; }
-  else { btn.disabled=true; btn.textContent='⏳ Importing...'; }
-  result.style.display='none';
+  navSetBtn(type, 'running');
+  navShowStrip(isImport ? '⏳ Downloading full fund list from AMFI — please wait...' : '⏳ Fetching latest NAV from AMFI...', 'info');
 
-  // ?manual=1 forces update even if already done today
-  // full_import uses a longer XHR timeout (5 min) since AMFI data is large
   const url = `${window.APP_URL}/api/nav/update_amfi.php?manual=1&mode=${mode}`;
 
   try {
     let d;
     if (isImport) {
-      // Use XMLHttpRequest for full import — supports longer timeout than fetch
       d = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', url, true);
-        xhr.timeout = 300000; // 5 minutes
+        xhr.timeout = 300000;
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.onload  = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('Invalid response')); } };
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.ontimeout = () => reject(new Error('Request timed out after 5 minutes'));
+        xhr.onload    = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('Invalid response')); } };
+        xhr.onerror   = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Timed out after 5 min'));
         xhr.send();
       });
     } else {
       const res = await fetch(url, { headers:{'X-Requested-With':'XMLHttpRequest'} });
       d = await res.json();
     }
-    result.style.display='block';
-    result.style.background = d.success ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)';
-    result.style.color = d.success ? 'var(--success)' : 'var(--danger)';
-    result.innerHTML = `<strong>${d.message||(d.success?'Done':'Failed')}</strong>`;
-    loadStats();
+
+    if (d.success) {
+      navSetBtn(type, 'done');
+      navShowStrip('✅ ' + (d.message || (isImport ? 'Fund list imported successfully!' : 'NAV updated successfully!')), 'success');
+      setTimeout(() => navSetBtn(type, 'idle'), 4000);
+      showToast(isImport ? '✅ Fund list import complete!' : '✅ NAV updated successfully!', 'success');
+      loadStats();
+    } else {
+      throw new Error(d.message || 'Failed');
+    }
   } catch(err) {
-    result.style.display='block';
-    result.style.background='rgba(239,68,68,.1)';
-    result.innerHTML = `<span style="color:var(--danger)">⚠️ Error: ${err.message}</span>`;
-  } finally {
-    if (!isImport) { btn.disabled=false; label.style.display=''; spin.style.display='none'; }
-    else { btn.disabled=false; btn.textContent='Import Full Fund List'; }
+    navSetBtn(type, 'error');
+    navShowStrip('⚠️ ' + err.message, 'error');
+    showToast('⚠️ ' + err.message, 'error');
   }
 }
 
 function confirmImportAmfi() {
-  if (!confirm('Import full AMFI fund list?\n\nThis fetches ~20,000 funds from AMFI and may take 2-5 minutes.\nDo not close this tab.')) return;
+  if (!confirm('📥 Import Full Fund List?\n\nThis downloads ~14,000+ funds from AMFI.\nMay take 2–5 minutes — page will stay open.\n\nProceed?')) return;
   runNavUpdate('full_import');
 }
 
@@ -1004,86 +1036,120 @@ async function deleteAllTables() {
 
 document.getElementById('auditFilter')?.addEventListener('input', () => { auditOffset=0; loadAuditLog(); });
 
-// ── Peak NAV — Run Processor ───────────────────────────────
-async function runPeakNav() {
-  const btn     = document.getElementById('btnPeakNav');
-  const label   = document.getElementById('peakNavBtnLabel');
-  const spinner = document.getElementById('peakNavBtnSpinner');
-  const logWrap = document.getElementById('peakNavLogWrap');
-  const log     = document.getElementById('peakNavLog');
-  const parallel = document.getElementById('peakNavParallel')?.value || 8;
+// ── Peak NAV — Background Processor ───────────────────────
+let pnRunning   = false;
+let pnStopped   = false;
+let pnXhr       = null;
+let pnPollTimer = null;
 
-  btn.disabled          = true;
-  label.style.display   = 'none';
-  spinner.style.display = '';
-  logWrap.style.display = 'block';
-  log.textContent       = '[' + new Date().toLocaleTimeString('en-IN') + '] Starting Peak NAV processor...\n';
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', window.APP_URL + '/peak_nav/processor.php?parallel=' + parallel + '&t=' + Date.now(), true);
-  xhr.timeout = 180000;
-
-  xhr.onprogress = () => {
-    log.textContent = xhr.responseText;
-    log.scrollTop   = log.scrollHeight;
+function pnSetBtn(state) {
+  const btn  = document.getElementById('btnRunPeakNav');
+  const icon = document.getElementById('btnRunPeakNavIcon');
+  const txt  = document.getElementById('btnRunPeakNavText');
+  if (!btn) return;
+  const states = {
+    idle:     { label:' Run Peak NAV',         icon:'▶',  disabled:false, cls:'btn-primary' },
+    running:  { label:' Processing...',         icon:'⏳', disabled:true,  cls:'btn-primary' },
+    waiting:  { label:' Next batch soon...',    icon:'🔄', disabled:true,  cls:'btn-primary' },
+    done:     { label:' All Up to Date!',       icon:'✅', disabled:false, cls:'btn-success'  },
+    error:    { label:' Run Peak NAV',          icon:'▶',  disabled:false, cls:'btn-primary' },
   };
-
-  xhr.onload = () => {
-    log.textContent = xhr.responseText;
-    log.scrollTop   = log.scrollHeight;
-    btn.disabled          = false;
-    label.style.display   = '';
-    spinner.style.display = 'none';
-    const allDone = xhr.responseText.includes('ALL_COMPLETE');
-    showToast(allDone ? '✅ Peak NAV update complete!' : '⏸ Time limit reached — run again to continue.', allDone ? 'success' : 'warning');
-    loadPeakNavStatus();
-  };
-
-  xhr.onerror = xhr.ontimeout = () => {
-    log.textContent += '\n[Error: request failed or timed out — check server logs]';
-    log.scrollTop         = log.scrollHeight;
-    btn.disabled          = false;
-    label.style.display   = '';
-    spinner.style.display = 'none';
-    showToast('Peak NAV processor error — check log below.', 'error');
-  };
-
-  xhr.send();
+  const s = states[state] || states.idle;
+  txt.textContent  = s.label;
+  icon.textContent = s.icon;
+  btn.disabled     = s.disabled;
 }
 
-// ── Peak NAV — Load Status Bar ────────────────────────────
-async function loadPeakNavStatus() {
-  const bar = document.getElementById('peakNavStatusBar');
-  if (!bar) return;
-  bar.style.display = 'flex';
-  bar.innerHTML = '<span style="color:var(--text-muted)">⏳ Loading status...</span>';
+async function runPeakNavBackground() {
+  if (pnRunning) return;
+  pnRunning = true;
+  pnStopped = false;
 
+  // Clear old stop flag in DB
+  await fetch(window.APP_URL + '/peak_nav/api.php?action=clear_stop', {method:'POST'}).catch(()=>{});
+
+  pnSetBtn('running');
+
+  // Start polling tiles every 2s while running
+  if (pnPollTimer) clearInterval(pnPollTimer);
+  pnPollTimer = setInterval(loadPeakNavStatus, 2000);
+
+  pnFireBatch();
+}
+
+function pnFireBatch() {
+  const parallel = 8;
+  const url = window.APP_URL + '/peak_nav/processor.php?parallel=' + parallel + '&t=' + Date.now();
+
+  pnXhr = new XMLHttpRequest();
+  pnXhr.open('GET', url, true);
+  pnXhr.timeout = 150000;
+
+  pnXhr.onload = () => { pnOnBatchDone(); };
+  pnXhr.onerror = () => {
+    if (!pnStopped) setTimeout(pnOnBatchDone, 2000);
+  };
+  pnXhr.ontimeout = () => {
+    if (!pnStopped) pnOnBatchDone();
+  };
+  pnXhr.send();
+}
+
+async function pnOnBatchDone() {
+  pnXhr = null;
+  if (pnStopped) { pnRunning = false; pnSetBtn('idle'); return; }
+
+  // Check if more work remains
   try {
-    const d = await fetch(window.APP_URL + '/peak_nav/api.php?action=summary&_=' + Date.now(), { cache: 'no-store' })
-                    .then(r => r.json());
-    const c   = d.counts || {};
-    const pct = d.pct || 0;
-    const barColor = pct >= 100 ? 'var(--success)' : pct > 50 ? 'var(--accent)' : 'var(--warning, #d97706)';
+    const d = await fetch(window.APP_URL + '/peak_nav/api.php?action=summary&_=' + Date.now(), {cache:'no-store'}).then(r=>r.json());
+    const remaining = parseInt(d.not_done || 0);
+    loadPeakNavStatus();
 
-    bar.innerHTML = `
-      <span>📊 <strong>Total:</strong> ${(+c.total||0).toLocaleString('en-IN')}</span>
-      <span>✅ <strong>Done:</strong> ${(+c.completed||0).toLocaleString('en-IN')}</span>
-      <span>⏳ <strong>Pending:</strong> ${(+(c.pending||0) + +(c.working||0)).toLocaleString('en-IN')}</span>
-      <span style="color:var(--danger)">⚠️ <strong>Errors:</strong> ${(+c.errors||0).toLocaleString('en-IN')}</span>
-      <span>
-        <strong>${pct}%</strong>
-        <span style="display:inline-block;width:80px;height:8px;background:var(--border);border-radius:99px;vertical-align:middle;margin-left:5px;overflow:hidden;">
-          <span style="display:block;height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .5s;"></span>
-        </span>
-      </span>
-      <span style="margin-left:auto;color:var(--text-muted);font-size:12px;">
-        🕐 ${d.timestamp || '—'} &nbsp;
-        <a href="${window.APP_URL}/peak_nav/status.php" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600;">Open Full Tracker ↗</a>
-      </span>`;
+    if (remaining === 0) {
+      // All done
+      pnRunning = false;
+      if (pnPollTimer) { clearInterval(pnPollTimer); pnPollTimer = null; }
+      pnSetBtn('done');
+      showToast('✅ Peak NAV — All schemes up to date!', 'success');
+      setTimeout(() => pnSetBtn('idle'), 4000);
+    } else {
+      // More batches needed — auto-continue after 1.5s
+      pnSetBtn('waiting');
+      setTimeout(() => {
+        if (!pnStopped) { pnSetBtn('running'); pnFireBatch(); }
+      }, 1500);
+    }
   } catch(e) {
-    bar.innerHTML = `<span style="color:var(--danger)">⚠️ Could not load Peak NAV status: ${e.message}</span>`;
+    pnRunning = false;
+    pnSetBtn('error');
+    if (pnPollTimer) { clearInterval(pnPollTimer); pnPollTimer = null; }
   }
 }
+
+// Live tile refresh
+async function loadPeakNavStatus() {
+  try {
+    const d = await fetch(window.APP_URL + '/peak_nav/api.php?action=summary&_=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+    const c = d.counts || {};
+    const pct = d.pct || 0;
+    const fmt = n => (+n||0).toLocaleString('en-IN');
+    const el = id => document.getElementById(id);
+    if (el('pnTotal'))   el('pnTotal').textContent   = fmt(c.total);
+    if (el('pnStale'))   el('pnStale').textContent   = fmt(c.needs_update);
+    if (el('pnPending')) el('pnPending').textContent = fmt(+c.pending + +c.working);
+    if (el('pnDone'))    el('pnDone').textContent    = fmt(c.completed);
+    if (el('pnErrors'))  el('pnErrors').textContent  = fmt(c.errors);
+    if (el('pnPct'))     el('pnPct').textContent     = pct + '%';
+    if (el('pnBar')) {
+      el('pnBar').style.width = pct + '%';
+      el('pnBar').style.background = pct >= 100 ? 'var(--success)' : 'var(--accent)';
+    }
+  } catch(e) {}
+}
+
+// Initial load + idle poll every 10s
+loadPeakNavStatus();
+setInterval(() => { if (!pnRunning) loadPeakNavStatus(); }, 10000);
 
 function formatDate(d) {
   if (!d) return '—';

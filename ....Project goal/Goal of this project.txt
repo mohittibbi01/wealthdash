@@ -46,3 +46,40 @@ yha pr implement hone ke baad iski report SIP tracker me show ho,
 
 SIP tracker ka menu or page pr MF SIP/SWP kro 
 
+
+
+
+
+
+
+
+============================================
+POST OFFICE SCHEMES
+============================================
+Turant fix needed:
+
+TD — 4 sub-tenures (1/2/3/5yr) alag-alag rates ke saath, rate auto-set by tenure
+MIS & SCSS — principal wapas milta hai maturity pe, interest monthly/quarterly payout hai — maturity_amount ≠ principal + interest
+KVP — tenure fixed nahi, current rate pe 115 months; interest annually taxable (maturity pe nahi)
+
+Medium priority:
+
+PPF & SSY — yearly deposit tracker chahiye, ek baar ka amount nahi
+NSC — years 1-4 interest 80C eligible (deemed reinvestment), sirf year 5 taxable
+
+Tax badges — har scheme ki tax info alag hai, RD wala template baaki schemes pe apply nahi hoga
+
+
+
+===========================================
+suggestion by claude
+===========================================
+Aur kya improve ho sakta hai (jo aap baad mein bol sakte ho):
+Search within table — holdings, transactions, report_fy mein fund name se quick filter (holdings mein already hai)
+Sort columns — holdings mein hai, transactions aur FY report mein nahi
+Export filtered data — current export sab data export karta hai, filtered/paginated nahi
+MIS/SCSS interest column — Post Office table mein monthly/quarterly payout alag dikhana
+FD page — abhi koi pagination nahi hai wahan bhi
+Savings page — same
+Dashboard charts — portfolio breakdown interactive chart
+Mobile responsive — tables horizontal scroll pe hain, cards stack nahi hote properly

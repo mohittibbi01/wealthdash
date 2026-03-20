@@ -188,6 +188,17 @@ ob_start();
                 </tbody>
             </table>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-muted);">Show</label>
+            <select id="mfGainsPerPage" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="fyPagination.changePerPage('mfGains',this.value)">
+              <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="9999">All</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);">per page</span>
+          </div>
+          <div id="mfGainsPagInfo" style="font-size:12px;color:var(--text-muted);"></div>
+          <div id="mfGainsPag" style="display:flex;gap:4px;"></div>
+        </div>
     </div>
 
     <!-- Stock Gains Tab -->
@@ -214,6 +225,17 @@ ob_start();
                 </tbody>
             </table>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-muted);">Show</label>
+            <select id="stGainsPerPage" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="fyPagination.changePerPage('stGains',this.value)">
+              <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="9999">All</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);">per page</span>
+          </div>
+          <div id="stGainsPagInfo" style="font-size:12px;color:var(--text-muted);"></div>
+          <div id="stGainsPag" style="display:flex;gap:4px;"></div>
+        </div>
     </div>
 
     <!-- MF Dividends Tab -->
@@ -234,6 +256,17 @@ ob_start();
                 </tbody>
             </table>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-muted);">Show</label>
+            <select id="mfDivPerPage" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="fyPagination.changePerPage('mfDiv',this.value)">
+              <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="9999">All</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);">per page</span>
+          </div>
+          <div id="mfDivPagInfo" style="font-size:12px;color:var(--text-muted);"></div>
+          <div id="mfDivPag" style="display:flex;gap:4px;"></div>
+        </div>
     </div>
 
     <!-- Stock Dividends Tab -->
@@ -253,6 +286,17 @@ ob_start();
                     <tr><td colspan="5" class="text-center text-secondary">No data</td></tr>
                 </tbody>
             </table>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-size:12px;color:var(--text-muted);">Show</label>
+            <select id="stDivPerPage" class="form-select" style="width:75px;padding:4px 8px;font-size:12px;" onchange="fyPagination.changePerPage('stDiv',this.value)">
+              <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="9999">All</option>
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);">per page</span>
+          </div>
+          <div id="stDivPagInfo" style="font-size:12px;color:var(--text-muted);"></div>
+          <div id="stDivPag" style="display:flex;gap:4px;"></div>
         </div>
     </div>
 </div>

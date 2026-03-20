@@ -82,7 +82,13 @@ try {
 $PO_META = [
     'savings_account' => ['label'=>'Post Office Savings Account','short'=>'PO Savings','rate'=>4.0,'icon'=>'🏦','color'=>'#0369a1','has_maturity'=>false,'desc'=>'Basic savings @ 4% p.a.','compounding'=>'simple','freq'=>'yearly'],
     'rd'   => ['label'=>'Post Office Recurring Deposit','short'=>'PO RD','rate'=>6.7,'icon'=>'🔄','color'=>'#7c3aed','has_maturity'=>true,'tenure_years'=>5,'desc'=>'5yr RD @ 6.7% quarterly compounding','compounding'=>'compound','freq'=>'quarterly'],
-    'td'   => ['label'=>'Post Office Time Deposit','short'=>'PO TD','rate'=>7.5,'icon'=>'📅','color'=>'#0891b2','has_maturity'=>true,'desc'=>'1/2/3/5yr TD up to 7.5% p.a.','compounding'=>'compound','freq'=>'yearly'],
+    'td'   => ['label'=>'Post Office Time Deposit','short'=>'PO TD','rate'=>7.5,'icon'=>'📅','color'=>'#0891b2','has_maturity'=>true,'desc'=>'TD up to 7.5% p.a. (quarterly compounding)','compounding'=>'compound','freq'=>'quarterly',
+               'sub_tenures'=>[
+                   ['years'=>1,'rate'=>6.9,'label'=>'1 Year'],
+                   ['years'=>2,'rate'=>7.0,'label'=>'2 Years'],
+                   ['years'=>3,'rate'=>7.1,'label'=>'3 Years'],
+                   ['years'=>5,'rate'=>7.5,'label'=>'5 Years'],
+               ]],
     'mis'  => ['label'=>'Post Office Monthly Income Scheme','short'=>'MIS','rate'=>7.4,'icon'=>'💰','color'=>'#059669','has_maturity'=>true,'tenure_years'=>5,'desc'=>'5yr MIS @ 7.4% monthly payouts','compounding'=>'simple','freq'=>'monthly'],
     'scss' => ['label'=>'Senior Citizen Savings Scheme','short'=>'SCSS','rate'=>8.2,'icon'=>'👴','color'=>'#d97706','has_maturity'=>true,'tenure_years'=>5,'desc'=>'5yr SCSS @ 8.2% quarterly (60+ yrs)','compounding'=>'simple','freq'=>'quarterly'],
     'ppf'  => ['label'=>'Public Provident Fund','short'=>'PPF','rate'=>7.1,'icon'=>'🛡️','color'=>'#1d4ed8','has_maturity'=>true,'tenure_years'=>15,'desc'=>'15yr PPF @ 7.1% p.a. tax-free','compounding'=>'compound','freq'=>'yearly'],
@@ -93,17 +99,29 @@ $PO_META = [
 
 // ── Maturity calculator ─────────────────────────────────────────────────────
 $calcMat = function(string $type, float $principal, float $rate, string $open, string $mat, float $dep=0.0): float {
-    $days  = (int)(new DateTime($mat))->diff(new DateTime($open))->days;
+    $d1    = new DateTime($open);
+    $d2    = new DateTime($mat);
+    $days  = (int)$d2->diff($d1)->days;
     $years = $days / 365;
     if ($years <= 0) return $principal;
     if ($type === 'rd') {
-        $P   = ($dep > 0) ? $dep : $principal;
-        $r   = $rate / 100;
-        $den = 1 - pow(1 + $r/4, -1.0/3.0);
-        return ($den != 0) ? round($P * ((pow(1+$r/4,4*$years)-1) / $den), 2) : round($P*$years*12, 2);
+        $P      = ($dep > 0) ? $dep : $principal;
+        $r      = $rate / 100;
+        // Use exact calendar months (not days/365) for accuracy
+        $months = ($d2->format('Y') - $d1->format('Y')) * 12 + ($d2->format('n') - $d1->format('n'));
+        $n      = $months / 12;
+        $den    = 1 - pow(1 + $r/4, -1.0/3.0);
+        return ($den != 0 && $months > 0) ? round($P * ((pow(1+$r/4, 4*$n)-1) / $den), 2) : round($P * $months, 2);
     }
     if (in_array($type, ['mis','scss','savings_account'], true))
         return round($principal + $principal*($rate/100)*$years, 2);
+    if ($type === 'td') {
+        // TD: quarterly compounding within each year, but interest PAID OUT annually (not reinvested)
+        // Annual interest = P × [(1 + r/4)^4 - 1]  (same every year, no inter-year compounding)
+        // Maturity = P + (annual_interest × n_years)
+        $annualInterest = $principal * (pow(1 + $rate/100/4, 4) - 1);
+        return round($principal + $annualInterest * $years, 2);
+    }
     return round($principal * pow(1+$rate/100, $years), 2);
 };
 
@@ -114,6 +132,19 @@ if ($action === 'po_list') {
     $pid    = (int)($_GET['portfolio_id'] ?? 0);
     $status = clean($_GET['status']      ?? '');
     $type   = clean($_GET['scheme_type'] ?? '');
+
+    // Auto-mature: flip any active scheme whose maturity_date has passed
+    DB::run(
+        "UPDATE po_schemes po
+         JOIN portfolios p ON p.id = po.portfolio_id
+         SET po.status = 'matured', po.updated_at = NOW()
+         WHERE p.user_id = ?
+           AND po.status = 'active'
+           AND po.maturity_date IS NOT NULL
+           AND po.maturity_date < CURDATE()",
+        [$userId]
+    );
+
     $where  = 'p.user_id = ?';
     $params = [$userId];
     if ($pid)    { $where .= ' AND po.portfolio_id = ?'; $params[] = $pid; }
@@ -162,6 +193,8 @@ if ($action === 'po_add') {
     if (!$holder)                                                 { ob_clean(); echo json_encode(['success'=>false,'message'=>'Holder name is required.']); exit; }
     if ($schemeType === 'rd' && $deposit <= 0)                   { ob_clean(); echo json_encode(['success'=>false,'message'=>'Monthly deposit is required for RD.']); exit; }
     if ($schemeType !== 'rd' && $principal <= 0)                 { ob_clean(); echo json_encode(['success'=>false,'message'=>'Principal amount must be positive.']); exit; }
+    if ($schemeType === 'td' && $principal < 1000)               { ob_clean(); echo json_encode(['success'=>false,'message'=>'Minimum deposit for TD is ₹1,000.']); exit; }
+    if ($schemeType === 'td' && fmod($principal, 100) != 0)      { ob_clean(); echo json_encode(['success'=>false,'message'=>'TD deposit must be in multiples of ₹100.']); exit; }
     if ($rate <= 0 || $rate > 15)                                { ob_clean(); echo json_encode(['success'=>false,'message'=>'Interest rate must be between 0.01% and 15%.']); exit; }
     if (!$openDate || !validate_date($openDate))                 { ob_clean(); echo json_encode(['success'=>false,'message'=>'Invalid open date.']); exit; }
     if ($matDate !== null && (!validate_date($matDate) || $matDate <= $openDate)) { ob_clean(); echo json_encode(['success'=>false,'message'=>'Maturity date must be a valid date after open date.']); exit; }

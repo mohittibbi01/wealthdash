@@ -20,11 +20,11 @@ const MF = {
   selectedFundId: null,
   selectedFundNav: null,
   page: 1,
-  perPage: 50,
+  perPage: 10,
   totalTxns: 0,
   txnFilters: {},
   holdingsPage: 1,
-  holdingsPerPage: 25,
+  holdingsPerPage: 10,
   oneDayData: {},        // fund_id => {day_change_amt, day_change_pct}
 };
 
@@ -307,15 +307,13 @@ function renderHoldings() {
   const pgEl     = document.getElementById('holdingsPagination');
 
   if (wrap && infoEl && pgEl) {
-    if (pages <= 1) {
-      wrap.style.display = 'none';
-    } else {
-      wrap.style.display = 'flex';
-      const from = pageStart + 1;
-      const to   = Math.min(pageStart + perPage, total);
-      infoEl.textContent = `${from}–${to} of ${total}`;
+    wrap.style.display = total > 0 ? 'flex' : 'none';
+    const from = pageStart + 1;
+    const to   = Math.min(pageStart + perPage, total);
+    infoEl.textContent = total > 0 ? `${from}–${to} of ${total}` : '';
 
-      let html = '';
+    let html = '';
+    if (pages > 1) {
       if (MF.holdingsPage > 1)
         html += `<button class="btn btn-ghost btn-sm" onclick="goHoldingsPage(${MF.holdingsPage-1})">‹ Prev</button>`;
       const start = Math.max(1, MF.holdingsPage - 2);
@@ -411,6 +409,18 @@ function goHoldingsPage(p) {
   document.getElementById('holdingsBody')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function changeHoldingsPerPage(val) {
+  MF.holdingsPerPage = parseInt(val);
+  MF.holdingsPage = 1;
+  renderHoldings();
+}
+
+function changeTxnPerPage(val) {
+  MF.perPage = parseInt(val);
+  MF.page = 1;
+  loadTransactions(1);
+}
+
 function updateSummaryCards(summary) {
   window._lastSummary = summary; // cache for format toggle re-render
   const inv  = summary.total_invested  || 0;
@@ -473,7 +483,7 @@ async function loadTransactions(page = 1) {
   const params = new URLSearchParams({
     view: 'transactions',
     page: page,
-    per_page: 50
+    per_page: MF.perPage
   });
   const pid = document.getElementById('txnFilterPortfolio')?.value;
   const type = document.getElementById('txnFilterType')?.value;
