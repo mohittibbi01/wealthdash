@@ -295,6 +295,32 @@ ob_start();
     </div>
   </div>
 
+  <!-- Row 1c: Exit Load Import -->
+  <div style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">🚪</span>
+          <div>
+            <h3 class="card-title" style="margin:0;">Exit Load Seeder</h3>
+            <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted);">
+              Applies standard SEBI exit load rules based on fund category —
+              <strong>1% for 1yr</strong> on Equity/Hybrid, <strong>Nil</strong> on Debt/Index/ELSS/Liquid.
+              Run once after adding new funds.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnImportExitLoad" onclick="importExitLoad()">
+          <span id="elBtnIcon">🚪</span>
+          <span id="elBtnText"> Seed Exit Load Data</span>
+        </button>
+        <div id="elResult" style="display:none;font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Row 2: Holdings Recalc + Cron (side by side) -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
 
@@ -1582,6 +1608,38 @@ async function importTer() {
     btn.disabled = false;
     icon.textContent = '📥';
     text.textContent = ' Import TER Data';
+  }
+}
+
+// ── Exit Load Seeder ──────────────────────────────────────
+async function importExitLoad() {
+  const btn  = document.getElementById('btnImportExitLoad');
+  const icon = document.getElementById('elBtnIcon');
+  const text = document.getElementById('elBtnText');
+  const res  = document.getElementById('elResult');
+
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  text.textContent = ' Seeding exit loads...';
+  res.style.display = 'none';
+
+  try {
+    const d = await API.get('/api/router.php?action=admin_import_exit_load');
+    res.style.display = 'block';
+    res.style.color = d.success ? 'var(--success)' : 'var(--danger)';
+    res.innerHTML = d.success
+      ? `✅ <strong>${d.message}</strong><br><small style="color:var(--text-muted);">With load: ${d.with_load || 0} &nbsp;|&nbsp; Nil: ${d.nil_load || 0} &nbsp;|&nbsp; Total: ${d.total || 0}</small>`
+      : `⚠️ ${d.message}`;
+    if (d.success) showToast('Exit load seeded!', 'success');
+    else showToast(d.message, 'error');
+  } catch(e) {
+    res.style.display = 'block';
+    res.style.color = 'var(--danger)';
+    res.textContent = '⚠️ Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    icon.textContent = '🚪';
+    text.textContent = ' Seed Exit Load Data';
   }
 }
 

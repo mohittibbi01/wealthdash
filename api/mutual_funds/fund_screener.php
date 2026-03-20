@@ -10,7 +10,21 @@ require_once APP_ROOT . '/includes/helpers.php';
 header('Content-Type: application/json; charset=utf-8');
 // Suppress PHP warnings/notices from corrupting JSON
 error_reporting(0);
+ini_set('display_errors', '0');
+// Buffer output so stray warnings/errors don't corrupt JSON
+ob_start();
 require_auth();
+
+// Global exception handler — always return JSON, never HTML
+set_exception_handler(function(Throwable $e) {
+    ob_clean();
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    exit;
+});
+
+try {
 
 $db = DB::conn();
 
@@ -104,25 +118,29 @@ $total = (int)$countStmt->fetchColumn();
 $hasPrevNav = false;
 try { $db->query("SELECT prev_nav FROM funds LIMIT 1"); $hasPrevNav = true; } catch(Exception $e){}
 
-$expColSQL = $hasExpCol ? ', f.expense_ratio, f.exit_load_pct, f.exit_load_days' : '';
+// Check for risk_level and aum_crore columns
+$hasRiskCol = false;
+try { $db->query("SELECT risk_level FROM funds LIMIT 1"); $hasRiskCol = true; } catch(Exception $e){}
+$hasAumCol = false;
+try { $db->query("SELECT aum_crore FROM funds LIMIT 1"); $hasAumCol = true; } catch(Exception $e){}
+
+$expColSQL  = $hasExpCol  ? ', f.expense_ratio, f.exit_load_pct, f.exit_load_days' : '';
+$riskColSQL = $hasRiskCol ? ', f.risk_level' : '';
+$aumColSQL  = $hasAumCol  ? ', f.aum_crore'  : '';
 $prevNavSQL = $hasPrevNav ? ', f.prev_nav, f.prev_nav_date' : '';
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
            f.latest_nav, f.latest_nav_date, f.min_ltcg_days, f.lock_in_days,
            f.highest_nav, f.highest_nav_date
-           $expColSQL $prevNavSQL,
+           $expColSQL $prevNavSQL $riskColSQL $aumColSQL,
            COALESCE(fh.short_name, fh.name, '') AS fund_house
     FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
     $whereSQL ORDER BY $orderSQL LIMIT ? OFFSET ?
 ";
-$allParams = array_merge($params, [$perPage, $offset]);
+$allParams = array_merge($params, [(int)$perPage, (int)$offset]);
 $stmt = $db->prepare($mainSQL);
-foreach ($allParams as $i => $v) {
-    $isLast2 = $i >= count($allParams) - 2;
-    $stmt->bindValue($i + 1, $isLast2 ? (int)$v : $v, $isLast2 ? PDO::PARAM_INT : PDO::PARAM_STR);
-}
-$stmt->execute();
+$stmt->execute($allParams);
 $rows = $stmt->fetchAll();
 
 // ── HELPER FUNCTIONS ─────────────────────────────────────
@@ -162,7 +180,7 @@ function title_case(string $name): string {
 }
 
 // ── MAP ROWS ─────────────────────────────────────────────
-$funds = array_map(function($r) use ($hasPrevNav, $hasExpCol) {
+$funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasAumCol) {
     $latNav  = $r['latest_nav']  ? (float)$r['latest_nav']  : null;
     $highNav = $r['highest_nav'] ? (float)$r['highest_nav'] : null;
     $prevNav = ($hasPrevNav && !empty($r['prev_nav'])) ? (float)$r['prev_nav'] : null;
@@ -197,6 +215,10 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol) {
         'min_ltcg_days'   => (int)$r['min_ltcg_days'],
         'lock_in_days'    => (int)$r['lock_in_days'],
         'expense_ratio'   => ($hasExpCol && isset($r['expense_ratio'])) ? (float)$r['expense_ratio'] ?: null : null,
+        'exit_load_pct'   => ($hasExpCol && isset($r['exit_load_pct']))  ? (float)$r['exit_load_pct']  : null,
+        'exit_load_days'  => ($hasExpCol && isset($r['exit_load_days'])) ? (int)$r['exit_load_days']   : null,
+        'risk_level'      => ($hasRiskCol && isset($r['risk_level']))    ? $r['risk_level']             : null,
+        'aum_crore'       => ($hasAumCol  && isset($r['aum_crore']))     ? (float)$r['aum_crore']       : null,
     ];
 }, $rows);
 
@@ -233,6 +255,7 @@ if ($sendFacets) {
 }
 
 // ── RESPONSE ─────────────────────────────────────────────
+ob_clean(); // discard any stray output before JSON
 echo json_encode([
     'success' => true,
     'total'   => $total,
@@ -242,3 +265,13 @@ echo json_encode([
     'data'    => $funds,
     'facets'  => $facets,
 ], JSON_UNESCAPED_UNICODE);
+
+} catch (Throwable $e) {
+    ob_clean();
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => false,
+        'message' => 'DB error: ' . $e->getMessage(),
+    ], JSON_UNESCAPED_UNICODE);
+}

@@ -783,12 +783,14 @@ function renderTable(funds,total){
     const safeFh=(f.fund_house||'').replace(/'/g,"\\'");
 
     // Expense ratio + exit load
+    const exitHtml = f.exit_load_pct>0&&f.exit_load_days>0
+      ? `<div style="font-size:10px;color:#d97706;margin-top:1px;" title="Exit load: ${f.exit_load_pct}% if sold within ${f.exit_load_days} days">⚠ ${f.exit_load_pct}% / ${f.exit_load_days}d</div>`
+      : f.exit_load_pct===0
+        ? `<div style="font-size:10px;color:#16a34a;margin-top:1px;">✓ Nil exit load</div>`
+        : '';
     const erHtml = f.expense_ratio!==null && f.expense_ratio!==undefined
-      ? `<div style="font-weight:700;font-size:12px;">${Number(f.expense_ratio).toFixed(2)}%</div>`
-        + (f.exit_load_pct>0&&f.exit_load_days>0
-          ? `<div style="font-size:10px;color:#d97706;margin-top:1px;" title="Exit load: ${f.exit_load_pct}% if sold within ${f.exit_load_days} days">⚠ ${f.exit_load_pct}% / ${f.exit_load_days}d</div>`
-          : `<div style="font-size:10px;color:var(--text-muted);">No exit load</div>`)
-      : '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+      ? `<div style="font-weight:700;font-size:12px;">${Number(f.expense_ratio).toFixed(2)}%</div>` + exitHtml
+      : (exitHtml || '<span style="color:var(--text-muted);font-size:11px;">—</span>');
 
     // Risk badge
     const riskColors={'Low':'#15803d','Low to Moderate':'#16a34a','Moderate':'#d97706','Moderately High':'#ea580c','High':'#dc2626','Very High':'#9f1239'};
@@ -815,8 +817,14 @@ function renderTable(funds,total){
         </div>
       </td>
       <td style="width:110px;"><div style="font-weight:700;font-size:13px;">${nav}</div>${f.latest_nav?`<div style="font-size:10px;color:var(--text-muted);">${f.latest_nav_date||''}</div>`:''}</td>
-      <td style="width:70px;text-align:center;">${f.nav_change_pct!==null&&f.nav_change_pct!==undefined
-        ?`<span style="font-size:11px;font-weight:700;color:${f.nav_change_pct>=0?'#16a34a':'#dc2626'};">${f.nav_change_pct>=0?'▲':'▼'}${Math.abs(f.nav_change_pct).toFixed(2)}%</span>`
+      <td style="width:80px;text-align:center;">${f.nav_change_pct!==null&&f.nav_change_pct!==undefined&&f.latest_nav
+        ?(()=>{
+            const chg = f.latest_nav - (f.latest_nav / (1 + f.nav_change_pct/100));
+            const color = f.nav_change_pct>=0 ? '#16a34a' : '#dc2626';
+            const arr   = f.nav_change_pct>=0 ? '▲' : '▼';
+            return `<span style="font-size:11px;font-weight:700;color:${color};line-height:1.3;">${arr}${Math.abs(f.nav_change_pct).toFixed(2)}%</span>`
+                 + `<div style="font-size:10px;font-weight:600;color:${color};margin-top:1px;">${arr}₹${Math.abs(chg).toFixed(4)}</div>`;
+          })()
         :'<span style="color:var(--text-muted);font-size:10px;">—</span>'}</td>
       <td style="width:110px;">${f.highest_nav
         ?`<div style="font-weight:700;font-size:13px;">₹${Number(f.highest_nav).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:4})}</div>
@@ -846,7 +854,7 @@ function renderTable(funds,total){
       <th onclick="scSort('name')" id="sh_name" style="cursor:pointer;user-select:none;">Fund · AMC <span class="sh-arr" id="sa_name"></span></th>
       <th style="cursor:default;">Type / Plan</th>
       <th onclick="scSort('nav_desc')" id="sh_nav" style="cursor:pointer;user-select:none;">NAV <span class="sh-arr" id="sa_nav"></span></th>
-      <th style="cursor:default;width:70px;">1D Change</th>
+      <th style="cursor:default;width:80px;">1D Change</th>
       <th onclick="scSort('peak_nav')" id="sh_peak" style="cursor:pointer;user-select:none;">Peak NAV <span class="sh-arr" id="sa_peak"></span></th>
       <th onclick="scSort('drawdown')" id="sh_dd" style="cursor:pointer;user-select:none;">Drawdown <span class="sh-arr" id="sa_dd"></span></th>
       <th onclick="scSort('ltcg')" id="sh_ltcg" style="cursor:pointer;user-select:none;">LTCG <span class="sh-arr" id="sa_ltcg"></span></th>
@@ -1038,8 +1046,7 @@ function scExportCSV() {
     f.scheme_code||''
   ].join(','));
 
-  const csv  = [headers.join(','), ...rows].join('
-');
+  const csv  = [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], {type:'text/csv'});
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -1049,22 +1056,16 @@ function scExportCSV() {
   URL.revokeObjectURL(url);
 }
 
-// Init immediately — works both on fresh load and back-navigation
-// APP_URL from WD object (set in layout.php) or fallback
-window._SCBASE = window.WD?.appUrl || window.APP_URL || '';
-
+// Init — window.WD is defined AFTER pageContent in layout.php,
+// so always wait for DOMContentLoaded to ensure WD is available.
 function _scInit() {
+  var metaUrl = document.querySelector('meta[name="app-url"]');
+  window._SCBASE = (metaUrl ? metaUrl.getAttribute('content') : '') || '';
   SC.fetch();
   updSortHeaders('name');
 }
 
-// If DOM already ready (back navigation), run immediately
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', _scInit);
-} else {
-  // DOM already loaded — run on next tick
-  setTimeout(_scInit, 0);
-}
+document.addEventListener('DOMContentLoaded', _scInit);
 </script>
 <?php
 $pageContent = ob_get_clean();

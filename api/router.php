@@ -53,6 +53,7 @@ $csrfExempt = [
     'admin_settings_get', 'admin_audit_log', 'admin_db_list',
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
+    'admin_import_exit_load',
     'get_portfolio_summary', 'get_dashboard_data',
     'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
     'stocks_list', 'stocks_get',
@@ -326,6 +327,11 @@ try {
         case 'admin_import_ter':
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/api/mutual_funds/import_ter.php'; exit;
+
+        // ── Admin — Exit Load Seeder ──────────────────────────
+        case 'admin_import_exit_load':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/mutual_funds/import_exit_load.php'; exit;
 
         // ── Admin — Fund Rules (LTCG / Lock-in) ──────────────
         case 'admin_fund_rules_search':
