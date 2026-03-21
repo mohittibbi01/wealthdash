@@ -58,48 +58,24 @@ function toggleUserMenu() {
   trigger?.setAttribute('aria-expanded', open);
 }
 
-// ============================================================
-// PORTFOLIO DROPDOWN
-// ============================================================
-function togglePortfolioDropdown() {
-  const menu     = document.getElementById('portfolioSelectorMenu');
-  const dropdown = document.getElementById('portfolioDropdown');
-  const trigger  = menu?.querySelector('.portfolio-trigger');
-  const open = dropdown.classList.toggle('open');
-  menu.classList.toggle('open', open);
-  trigger?.setAttribute('aria-expanded', open);
-}
-
-// Close both dropdowns when clicking outside
+// Close user dropdown when clicking outside
 document.addEventListener('click', (e) => {
   const userMenu = document.getElementById('userMenu');
   if (userMenu && !userMenu.contains(e.target)) {
     document.getElementById('userDropdown')?.classList.remove('open');
   }
-  const pfMenu = document.getElementById('portfolioSelectorMenu');
-  if (pfMenu && !pfMenu.contains(e.target)) {
-    document.getElementById('portfolioDropdown')?.classList.remove('open');
-    pfMenu.classList.remove('open');
-  }
 });
 
-// ============================================================
-// PORTFOLIO SWITCHER
-// ============================================================
-function switchPortfolio(portfolioId) {
-  if (!portfolioId) return;
-  showLoading();
-  apiPost({ action: 'switch_portfolio', portfolio_id: portfolioId })
-    .then(res => {
-      if (res.success) {
-        window.location.reload();
-      } else {
-        showToast(res.message || 'Failed to switch portfolio.', 'error');
-        hideLoading();
-      }
-    })
-    .catch(() => { window.location.reload(); });
-}
+// Close sort menu when page is scrolled — menu uses fixed positioning
+// so it would float away from the button on scroll
+window.addEventListener('scroll', () => {
+  const menu = document.getElementById('sortMenuDropdown');
+  if (menu && menu.style.display === 'block') menu.style.display = 'none';
+}, { passive: true, capture: true });
+
+window.addEventListener('resize', () => {
+  if (typeof _positionSortMenu === 'function') _positionSortMenu();
+}, { passive: true });
 
 // ============================================================
 // MODAL HELPERS
@@ -151,46 +127,6 @@ function confirmDelete(message, onConfirm) {
   });
 
   openModal('confirmDeleteModal');
-}
-
-// ============================================================
-// NEW PORTFOLIO MODAL
-// ============================================================
-function openNewPortfolioModal() {
-  openModal('newPortfolioModal');
-}
-
-function submitNewPortfolio() {
-  const form   = document.getElementById('newPortfolioForm');
-  const errEl  = document.getElementById('portfolioFormError');
-  const btn    = form.closest('.modal').querySelector('.btn-primary');
-  const data   = Object.fromEntries(new FormData(form).entries());
-
-  errEl.style.display = 'none';
-
-  if (!data.name?.trim()) {
-    errEl.textContent = 'Portfolio name is required.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  setBtnLoading(btn, true);
-  apiPost({ action: 'create_portfolio', ...data })
-    .then(res => {
-      if (res.success) {
-        showToast('Portfolio created!', 'success');
-        closeModal('newPortfolioModal');
-        setTimeout(() => window.location.reload(), 600);
-      } else {
-        errEl.textContent = res.message || 'Failed to create portfolio.';
-        errEl.style.display = 'block';
-      }
-    })
-    .catch(() => {
-      errEl.textContent = 'Request failed. Please try again.';
-      errEl.style.display = 'block';
-    })
-    .finally(() => setBtnLoading(btn, false));
 }
 
 // ============================================================
@@ -291,7 +227,7 @@ function toggleNumFormat() {
   localStorage.setItem('wd_num_format', window.WD_NUM_SHORT ? 'short' : 'full');
   _updateNumFormatBtn();
   // Re-render without API reload
-  if (typeof renderHoldings     === 'function') renderHoldings();
+  if (typeof renderHoldings === 'function') renderHoldings();
   if (typeof renderTxnTable     === 'function' && window._lastTxns) renderTxnTable(window._lastTxns);
   if (typeof renderRealized     === 'function') renderRealized();
   if (typeof renderDividends    === 'function') renderDividends();
@@ -300,7 +236,7 @@ function toggleNumFormat() {
 
 function _updateNumFormatBtn() {
   const el = document.getElementById('numFormatLabel');
-  if (el) el.textContent = window.WD_NUM_SHORT ? '1.3L' : '1,31K';
+  if (el) el.textContent = window.WD_NUM_SHORT ? 'Short' : 'Long';
 }
 
 document.addEventListener('DOMContentLoaded', _updateNumFormatBtn);
@@ -326,9 +262,10 @@ function fmtINR(n) {
   let s;
   const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
   if (short) {
-    if (abs >= 1e7)      s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
-    else if (abs >= 1e5) s = '₹' + (abs / 1e5).toFixed(2) + ' L';
-    else                 s = '₹' + indianComma(abs) + '.' + dec;
+    if (abs >= 1e7)       s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
+    else if (abs >= 1e5)  s = '₹' + (abs / 1e5).toFixed(2) + ' L';
+    else if (abs >= 1000) s = '₹' + (abs / 1000).toFixed(1) + ' K';
+    else                  s = '₹' + indianComma(abs) + '.' + dec;
   } else {
     s = '₹' + indianComma(abs) + '.' + dec;
   }

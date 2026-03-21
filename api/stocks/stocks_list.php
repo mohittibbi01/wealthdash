@@ -17,8 +17,8 @@ $portJoin  = "JOIN portfolios p ON p.id = h.portfolio_id";
 $portWhere = $isAdmin && !$portfolioId
     ? ''
     : ($portfolioId
-        ? "AND p.id = {$portfolioId} AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))"
-        : "AND (p.user_id = {$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))");
+        ? "AND p.id = {$portfolioId} AND p.user_id = {$userId}"
+        : "AND p.user_id = {$userId}");
 
 if ($type === 'holdings') {
     $gainCond = $gainType ? "AND h.gain_type = " . DB::pdo()->quote($gainType) : '';

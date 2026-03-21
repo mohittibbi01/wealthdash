@@ -27,6 +27,7 @@ const MF = {
   holdingsPerPage: 10,
   oneDayData: {},        // fund_id => {day_change_amt, day_change_pct}
 };
+window.MF = MF; // expose globally so app.js toggleNumFormat can access
 
 /* ═══════════════════════════════════════════════════════════════════════════
    INIT
@@ -45,16 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function initHoldingsPage() {
   loadHoldings();
 
-  // View toggle
-  document.getElementById('viewCombined')?.addEventListener('click', () => {
-    MF.view = 'holdings'; setViewActive('viewCombined'); loadHoldings();
-  });
-  document.getElementById('viewFolio')?.addEventListener('click', () => {
-    MF.view = 'folio'; setViewActive('viewFolio'); loadHoldings();
-  });
-
   // Filters
-  ['filterPortfolio','filterCategory','filterGainType'].forEach(id => {
+  ['filterCategory','filterGainType'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', applyHoldingsFilter);
   });
   document.getElementById('searchFund')?.addEventListener('input', e => {
@@ -130,9 +123,7 @@ async function loadHoldings() {
   const body = document.getElementById('holdingsBody');
   body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
 
-  const portfolioId = document.getElementById('filterPortfolio')?.value || '';
-  const params = new URLSearchParams({ view: MF.view });
-  if (portfolioId) params.set('portfolio_id', portfolioId);
+  const params = new URLSearchParams({ view: MF.view, portfolio_id: window.WD?.selectedPortfolio || 0 });
 
   try {
     const res  = await API.get(`/api/mutual_funds/mf_list.php?${params}`);
@@ -150,7 +141,6 @@ async function loadHoldings() {
 }
 
 function applyHoldingsFilter() {
-  MF.portfolioFilter = document.getElementById('filterPortfolio')?.value || '';
   MF.categoryFilter  = document.getElementById('filterCategory')?.value || '';
   MF.gainTypeFilter  = document.getElementById('filterGainType')?.value || '';
   MF.search = document.getElementById('searchFund')?.value?.toLowerCase() || '';
@@ -170,31 +160,35 @@ function applyHoldingsFilter() {
 
 function renderHoldings() {
   const body    = document.getElementById('holdingsBody');
-  const tfoot   = document.getElementById('holdingsTfoot');
   const countEl = document.getElementById('holdingsCount');
 
-  // Sort
+  // Sort — map virtual cols to actual data fields
+  const sortVal = (h, col) => {
+    switch(col) {
+      case 'fund_house':          return (h.fund_house || '').toLowerCase();
+      case 'scheme_name':         return (h.scheme_name || '').toLowerCase();
+      case 'ltcg_units':          return parseFloat(h.ltcg_units ?? h.stcg_units_ltcg ?? 0);
+      case 'stcg_units':          return parseFloat(h.stcg_units ?? 0);
+      case 'one_day_change_pct':  return parseFloat(h.one_day_pct ?? h.change_1d_pct ?? 0);
+      case 'one_day_change_val':  return parseFloat(h.one_day_nav_change ?? h.change_1d_nav ?? 0);
+      case 'drawdown_nav':        return parseFloat(h.drawdown_nav ?? ((h.highest_nav||0) - (h.latest_nav||0)));
+      default:                    return h[col] ?? 0;
+    }
+  };
   MF.filtered.sort((a, b) => {
-    let av = a[MF.sortCol] ?? 0, bv = b[MF.sortCol] ?? 0;
-    if (typeof av === 'string') av = av.toLowerCase(), bv = bv?.toLowerCase?.() ?? '';
-    return MF.sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    let av = sortVal(a, MF.sortCol), bv = sortVal(b, MF.sortCol);
+    if (typeof av === 'string') return MF.sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return MF.sortDir === 'asc' ? av - bv : bv - av;
   });
 
   if (!MF.filtered.length) {
     body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
-    if (tfoot) tfoot.style.display = 'none';
     if (countEl) countEl.textContent = '0 funds';
     clearFundSelection();
     return;
   }
 
   if (countEl) countEl.textContent = `${MF.filtered.length} fund${MF.filtered.length !== 1 ? 's' : ''}`;
-
-  // Totals for footer
-  const totInv  = MF.filtered.reduce((s,h) => s + (h.total_invested||0), 0);
-  const totVal  = MF.filtered.reduce((s,h) => s + (h.value_now||0), 0);
-  const totGain = totVal - totInv;
-  const totPct  = totInv > 0 ? ((totGain / totInv) * 100).toFixed(2) : '0.00';
 
   const isFolio = MF.view === 'folio';
 
@@ -219,7 +213,7 @@ function renderHoldings() {
       const clr  = pos ? '#16a34a' : '#dc2626';
       const arr  = pos ? '▲' : '▼';
       const sign = pos ? '+' : '';
-      const fmt  = isAmt ? (sign + fmtInr(Math.abs(n))) : (sign + Math.abs(n).toFixed(decimals) + '%');
+      const fmt  = isAmt ? (sign + fmtFull(Math.abs(n))) : (sign + Math.abs(n).toFixed(decimals) + '%');
       return `<span style="color:${clr};font-weight:600;">${arr} ${fmt}</span>`;
     }
 
@@ -370,34 +364,7 @@ function renderHoldings() {
     </tr>`;
   }).join('');
 
-  // Footer totals
-  if (tfoot) {
-    tfoot.style.display = '';
-    const g    = totGain;
-    const gPos = g >= 0;
-    const gArr = gPos ? '▲' : '▼';
-    const gClr = gPos ? '#16a34a' : '#dc2626';
 
-    const footMergedEl = document.getElementById('footInvGainCol');
-    if (footMergedEl) {
-      footMergedEl.innerHTML = `
-        <div style="display:flex;flex-direction:column;gap:1px;text-align:center;">
-          <div style="font-size:12px;color:var(--text-muted);font-weight:500;">${fmtInr(totInv)}</div>
-          <div style="font-weight:700;font-size:13px;">${fmtInr(totVal)}</div>
-          <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:2px;margin-top:1px;color:${gClr};font-weight:700;">
-            ${gArr} ${gPos?'+':''}${fmtInr(Math.abs(g))}
-          </div>
-        </div>`;
-    }
-
-    document.getElementById('footGainPct').innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:3px;text-align:center;">
-        <div style="font-size:12px;color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${totPct}%</div>
-        <div style="font-size:11px;color:var(--text-muted);border-top:1px solid var(--border-color);padding-top:3px;">XIRR —</div>
-      </div>`;
-    const f1d = document.getElementById('foot1dChange');
-    if (f1d) f1d.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">⏳</span>';
-  }
 
   // --- Render pagination bar ---
   const wrap     = document.getElementById('holdingsPaginationWrap');
@@ -427,7 +394,7 @@ function renderHoldings() {
 
 async function load1DayChange() {
   try {
-    const portfolioId = document.getElementById('filterPortfolio')?.value || '';
+    const portfolioId = window.WD?.selectedPortfolio || 0;
     let url = '/api/nav/nav_1d_change.php';
     if (portfolioId) url += '?portfolio_id=' + portfolioId;
     const res = await API.get(url);
@@ -461,22 +428,12 @@ function inject1DayChange() {
     const sign  = isPos ? '+' : '';
     const arr   = isPos ? '▲' : '▼';
     cell.innerHTML = `
-      <div style="color:${color};font-weight:600;font-size:13px;">${arr} ${sign}${fmtInr(Math.abs(amt))}</div>
+      <div style="color:${color};font-weight:600;font-size:13px;">${arr} ${sign}${fmtFull(Math.abs(amt))}</div>
       <div style="color:${color};font-size:11px;">${arr} ${sign}${Math.abs(pct).toFixed(3)}%</div>
     `;
   });
 
-  // Update footer 1D total
-  const f1d = document.getElementById('foot1dChange');
-  if (f1d && hasSomeData) {
-    const isPos  = totalAmt >= 0;
-    const color  = isPos ? '#16a34a' : '#dc2626';
-    const sign   = isPos ? '+' : '';
-    const arr    = isPos ? '▲' : '▼';
-    const totVal = MF.filtered.reduce((s,h) => s + (h.value_now||0), 0);
-    const totPct = totVal > 0 ? ((totalAmt / totVal) * 100).toFixed(3) : '0.000';
-    f1d.innerHTML = `<div style="color:${color};font-weight:600;">${arr} ${sign}${fmtInr(Math.abs(totalAmt))}</div><div style="color:${color};font-size:11px;">${arr} ${sign}${totPct}%</div>`;
-  }
+
 
   // Update stat card
   const cardAmt  = document.getElementById('stat1dAmt');
@@ -499,6 +456,8 @@ function inject1DayChange() {
         : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/><polyline points="19,20 23,20 23,16"/></svg>`;
     }
   }
+  // Always inject 1D data after render if available
+  if (Object.keys(MF.oneDayData).length > 0) inject1DayChange();
 }
 
 function goHoldingsPage(p) {
@@ -583,12 +542,11 @@ async function loadTransactions(page = 1) {
     page: page,
     per_page: MF.perPage
   });
-  const pid = document.getElementById('txnFilterPortfolio')?.value;
   const type = document.getElementById('txnFilterType')?.value;
   const from = document.getElementById('txnFilterFrom')?.value;
   const to   = document.getElementById('txnFilterTo')?.value;
   const q    = document.getElementById('txnSearch')?.value;
-  if (pid)  params.set('portfolio_id', pid);
+  params.set('portfolio_id', window.WD?.selectedPortfolio || 0);
   if (type) params.set('txn_type', type);
   if (from) params.set('from', from);
   if (to)   params.set('to', to);
@@ -630,9 +588,8 @@ function renderTxnTable(txns) {
       <td><span class="badge ${typeColors[t.transaction_type]||'badge-secondary'}">${t.transaction_type}</span></td>
       <td class="text-right">${Number(t.units).toFixed(4)}</td>
       <td class="text-right">₹${Number(t.nav).toFixed(4)}</td>
-      <td class="text-right">${fmtInr(t.value_at_cost)}</td>
+      <td class="text-right">${fmtFull(t.value_at_cost)}</td>
       <td>${escHtml(t.platform||'—')}</td>
-      <td>${escHtml(t.portfolio_name||'')}</td>
       <td>
         <div style="display:flex;gap:4px;">
           <button class="btn btn-ghost btn-xs" onclick="editTransaction(${t.id})" title="Edit">✏️</button>
@@ -663,7 +620,7 @@ function renderPagination(total, page, perPage, pages) {
 }
 
 function resetTxnFilters() {
-  ['txnFilterPortfolio','txnFilterType','txnFilterFrom','txnFilterTo','txnSearch'].forEach(id => {
+  ['txnFilterType','txnFilterFrom','txnFilterTo','txnSearch'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -719,7 +676,6 @@ async function editTransaction(txnId) {
 
     document.getElementById('modalTxnTitle').textContent = 'Edit Transaction';
     document.getElementById('txnEditId').value    = txn.id;
-    document.getElementById('txnPortfolio').value = txn.portfolio_id;
     document.getElementById('txnType').value      = txn.transaction_type;
     document.getElementById('txnFundSearch').value= txn.scheme_name;
     document.getElementById('txnFundId').value    = txn.fund_id;
@@ -754,7 +710,7 @@ async function deleteTransaction(txnId, fundName) {
 }
 
 function _getPortfolioId() {
-  return document.getElementById('filterPortfolio')?.value || 0;
+  return window.WD?.selectedPortfolio || 0;
 }
 
 // ── FUND-LEVEL DELETE ─────────────────────────────────────────
@@ -854,34 +810,48 @@ function onFundCheckboxChange() {
   if (selAll && checked.length === 0) { selAll.checked = false; selAll.indeterminate = false; }
 }
 
+function _positionSortMenu() {
+  const menu = document.getElementById('sortMenuDropdown');
+  const btn  = document.getElementById('btnSortMenu');
+  if (!menu || !btn || menu.style.display !== 'block') return;
+
+  const rect  = btn.getBoundingClientRect();
+  const menuW = 240;
+  const gap   = 4;
+  const viewH = window.innerHeight;
+  const viewW = window.innerWidth;
+
+  // Horizontal: align left edge of menu to left edge of button, clamp to viewport
+  let left = rect.left;
+  if (left + menuW > viewW - 8) left = Math.max(8, viewW - menuW - 8);
+
+  // Vertical: prefer below, flip above if not enough room
+  const spaceBelow = viewH - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  let top, maxH;
+  if (spaceBelow >= 180 || spaceBelow >= spaceAbove) {
+    top  = rect.bottom + gap;
+    maxH = Math.min(spaceBelow - 4, 480);
+  } else {
+    maxH = Math.min(spaceAbove - 4, 480);
+    top  = rect.top - gap - Math.min(menu.scrollHeight, maxH);
+  }
+
+  menu.style.position  = 'fixed';
+  menu.style.left      = left + 'px';
+  menu.style.top       = top + 'px';
+  menu.style.maxHeight = maxH + 'px';
+  menu.style.width     = menuW + 'px';
+  menu.style.overflowY = 'auto';
+}
+
 function toggleSortMenu(e) {
   e.stopPropagation();
   const menu = document.getElementById('sortMenuDropdown');
   if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
-  const btn  = document.getElementById('btnSortMenu');
-  const rect = btn.getBoundingClientRect();
+
   menu.style.display = 'block';
-
-  // Use fixed positioning (viewport-relative, no scroll offset needed)
-  const menuW = 220;
-  const menuH = menu.offsetHeight || 320;
-
-  let left = rect.left;
-  if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
-  if (left < 8) left = 8;
-
-  // Flip up if not enough space below
-  const spaceBelow = window.innerHeight - rect.bottom;
-  let top;
-  if (spaceBelow < menuH + 8) {
-    top = rect.top - menuH - 4; // open above
-  } else {
-    top = rect.bottom + 4;      // open below
-  }
-
-  menu.style.position = 'fixed';
-  menu.style.top  = top + 'px';
-  menu.style.left = left + 'px';
+  _positionSortMenu();
 
   // Update active indicators
   document.querySelectorAll('.sort-dir-indicator').forEach(el => {
@@ -907,10 +877,13 @@ function applySortMenu(col) {
   document.getElementById('sortMenuDropdown').style.display = 'none';
   // Update btn label to show active sort
   const labels = {
-    total_invested:'Invested', value_now:'Value', gain_loss:'Gain',
-    gain_pct:'Returns', cagr:'XIRR', drawdown_pct:'Drawdown',
-    total_units:'Units', latest_nav:'NAV', highest_nav:'Peak NAV',
-    scheme_name:'Name', first_purchase_date:'Date'
+    scheme_name:'Name',        fund_house:'Fund House',
+    total_invested:'Invested', value_now:'Value',      gain_loss:'Gain',
+    gain_pct:'Returns',        cagr:'XIRR',
+    total_units:'Units',       ltcg_units:'LTCG Units', stcg_units:'STCG Units',
+    latest_nav:'NAV',          highest_nav:'Peak NAV',
+    one_day_change_pct:'1D %', one_day_change_val:'1D ₹',
+    drawdown_pct:'Drawdown %', drawdown_nav:'Drawdown ₹'
   };
   const btn = document.getElementById('btnSortMenu');
   if (btn) btn.innerHTML = `
@@ -1009,7 +982,7 @@ function escHtml(str) {
 
 async function saveTransaction() {
   const editId     = document.getElementById('txnEditId').value;
-  const portfolioId= document.getElementById('txnPortfolio').value;
+  const portfolioId= window.WD?.selectedPortfolio || 0;
   const txnType    = document.getElementById('txnType').value;
   const fundId     = document.getElementById('txnFundId').value;
   const folio      = document.getElementById('txnFolio').value;
@@ -1080,7 +1053,7 @@ async function updateAvailableUnits() {
     return;
   }
 
-  const portfolioId = document.getElementById('txnPortfolio')?.value;
+  const portfolioId = window.WD?.selectedPortfolio || 0;
   // Read date directly from input value (already in YYYY-MM-DD format)
   const txnDateEl = document.getElementById('txnDate');
   const txnDate   = txnDateEl?.value || (() => {
@@ -1321,7 +1294,7 @@ function renderDrawerPage(content, fundId, fundName) {
       <td><span class="badge ${typeColors[t.transaction_type]||''}">${t.transaction_type}</span></td>
       <td>${Number(t.units).toFixed(4)}</td>
       <td>₹${Number(t.nav).toFixed(4)}</td>
-      <td class="text-right">${fmtInr(t.value_at_cost)}</td>
+      <td class="text-right">${fmtFull(t.value_at_cost)}</td>
       <td>${t.folio_number||'—'}</td>
       ${ltcgCell}
       <td style="white-space:nowrap;">
@@ -1597,7 +1570,7 @@ function closeTxnDrawer() {
 ═══════════════════════════════════════════════════════════════════════════ */
 async function startCsvImport() {
   const fileInput = document.getElementById('importFile');
-  const portfolioId = document.getElementById('importPortfolio').value;
+  const portfolioId = window.WD?.selectedPortfolio || 0;
   const format = document.getElementById('importFormat').value;
   const resultEl = document.getElementById('importResult');
   const csrf = await getCsrf();
@@ -1758,12 +1731,7 @@ function reloadCurrentPage() {
   if (document.getElementById('txnBody'))      loadTransactions(MF.page);
 }
 
-function setViewActive(activeId) {
-  ['viewCombined','viewFolio'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle('active', id === activeId);
-  });
-}
+function setViewActive(activeId) { /* view toggle removed */ }
 
 function showError(el, msg) {
   if (!el) { showToast(msg,'error'); return; }
@@ -1796,6 +1764,21 @@ function setEl(id, val) {
   if (el) el.textContent = val;
 }
 
+// fmtFull — always full Indian format for tables (no K/L/Cr, ignores toggle)
+function fmtFull(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  n = Number(n);
+  const abs  = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const ic   = window.indianComma || function(x) {
+    const s = Math.floor(Math.abs(x)).toString();
+    if (s.length <= 3) return s;
+    return s.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + s.slice(-3);
+  };
+  const dec = (abs % 1).toFixed(2).slice(2);
+  return sign + '\u20B9' + ic(abs) + '.' + dec;
+}
+
 function fmtInr(n) {
   if (n === null || n === undefined || isNaN(n)) return '—';
   n = Number(n);
@@ -1810,9 +1793,10 @@ function fmtInr(n) {
   const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
   let s;
   if (short) {
-    if (abs >= 1e7)      s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
-    else if (abs >= 1e5) s = '₹' + (abs / 1e5).toFixed(2) + ' L';
-    else                 s = '₹' + ic(abs) + '.' + dec;
+    if (abs >= 1e7)       s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
+    else if (abs >= 1e5)  s = '₹' + (abs / 1e5).toFixed(2) + ' L';
+    else if (abs >= 1000) s = '₹' + (abs / 1000).toFixed(1) + ' K';
+    else                  s = '₹' + ic(abs) + '.' + dec;
   } else {
     s = '₹' + ic(abs) + '.' + dec;
   }
@@ -1873,7 +1857,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Realized gains filters
-  ['rFilterPortfolio','rFilterFy','rFilterType'].forEach(id => {
+  ['rFilterFy','rFilterType'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => { RG.loaded = false; loadRealizedGains(); });
   });
@@ -1881,7 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (rSearch) rSearch.addEventListener('input', debounce(() => renderRealized(), 250));
 
   // Dividend filters
-  ['dFilterPortfolio','dFilterFy'].forEach(id => {
+  ['dFilterFy'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', () => { DIV.loaded = false; loadDividends(); });
   });
@@ -1893,17 +1877,8 @@ document.addEventListener('DOMContentLoaded', () => {
 const RG = { data: [], loaded: false };
 
 async function loadRealizedGains() {
-  const sel = document.getElementById('rFilterPortfolio');
-  let portfolioId = sel?.value || '';
-  if (!portfolioId && sel && sel.options.length > 1) {
-    portfolioId = sel.options[1].value;
-    sel.value = portfolioId;
-  }
-  if (!portfolioId) {
-    document.getElementById('realizedBody').innerHTML =
-      `<tr><td colspan="11" class="text-center" style="padding:32px;color:var(--text-muted);">Please select a portfolio above.</td></tr>`;
-    return;
-  }
+  const portfolioId = window.WD?.selectedPortfolio || 0;
+  if (!portfolioId) return;
   const fyEl = document.getElementById('rFilterFy');
   const fy   = fyEl?.value || '';
 
@@ -1975,8 +1950,8 @@ function renderRealized() {
       <td class="text-center">${escHtml(r.sell_date||'')}</td>
       <td class="text-center">${Number(r.units||0).toFixed(4)}</td>
       <td class="text-center">₹${Number(r.sell_nav||0).toFixed(4)}</td>
-      <td class="text-center">${fmtInr(r.proceeds)}</td>
-      <td class="text-center">${fmtInr(r.cost)}</td>
+      <td class="text-center">${fmtFull(r.proceeds)}</td>
+      <td class="text-center">${fmtFull(r.cost)}</td>
       <td class="text-center ${gainCls}" style="font-weight:600;">${r.gain >= 0 ? '+' : ''}${fmtInr(r.gain)}</td>
       <td class="text-center">${r.days_held ?? '—'} days</td>
       <td class="text-center"><span class="badge ${typeCls}">${escHtml(r.gain_type||'')}</span></td>
@@ -2014,17 +1989,8 @@ function updateRealizedSummary(s) {
 const DIV = { data: [], loaded: false };
 
 async function loadDividends() {
-  const sel = document.getElementById('dFilterPortfolio');
-  let portfolioId = sel?.value || '';
-  if (!portfolioId && sel && sel.options.length > 1) {
-    portfolioId = sel.options[1].value;
-    sel.value = portfolioId;
-  }
-  if (!portfolioId) {
-    document.getElementById('dividendsBody').innerHTML =
-      `<tr><td colspan="7" class="text-center" style="padding:32px;color:var(--text-muted);">Please select a portfolio above.</td></tr>`;
-    return;
-  }
+  const portfolioId = window.WD?.selectedPortfolio || 0;
+  if (!portfolioId) return;
   const fy   = document.getElementById('dFilterFy')?.value || '';
   const body = document.getElementById('dividendsBody');
 
@@ -2089,7 +2055,7 @@ function renderDividends() {
       </td>
       <td class="text-center">${escHtml(d.date||'')}</td>
       <td class="text-center" colspan="2" style="color:var(--text-muted);font-size:12px;">— (not tracked separately)</td>
-      <td class="text-center" style="font-weight:600;color:var(--gain);">${fmtInr(d.amount)}</td>
+      <td class="text-center" style="font-weight:600;color:var(--gain);">${fmtFull(d.amount)}</td>
       <td class="text-center"><span class="badge badge-ltcg">Payout</span></td>
       <td class="text-center" style="font-size:12px;color:var(--text-muted);">${escHtml(d.fy||'')}</td>
     </tr>`;

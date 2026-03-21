@@ -49,7 +49,7 @@ $isAdmin = is_admin();
 
 // Read-only actions don't need CSRF (no state change)
 $csrfExempt = [
-    'admin_stats', 'admin_users', 'admin_portfolios',
+    'admin_stats', 'admin_users',
     'admin_settings_get', 'admin_audit_log', 'admin_db_list',
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
@@ -64,6 +64,7 @@ $csrfExempt = [
     'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
     'sip_xirr', 'sip_nav_status', 'sip_nav_token',
     'indexes_fetch',
+    'report_fy_gains',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -71,34 +72,6 @@ if (!in_array($action, $csrfExempt)) {
 
 try {
     switch ($action) {
-
-        // ---- PORTFOLIO: Create ----
-        case 'create_portfolio':
-            $name  = clean($_POST['name'] ?? '');
-            $desc  = clean($_POST['description'] ?? '');
-            $color = clean($_POST['color'] ?? '#2563EB');
-
-            if (strlen($name) < 2)  json_response(false, 'Name must be at least 2 characters.');
-            if (strlen($name) > 100) json_response(false, 'Name too long.');
-
-            $validColors = ['#2563EB','#7C3AED','#059669','#DC2626','#D97706','#0891B2','#BE185D','#1D4ED8'];
-            if (!in_array($color, $validColors)) $color = '#2563EB';
-
-            $id = DB::insert(
-                'INSERT INTO portfolios (user_id, name, description, color) VALUES (?, ?, ?, ?)',
-                [$userId, $name, $desc ?: null, $color]
-            );
-            audit_log('create_portfolio', 'portfolio', (int)$id);
-            json_response(true, 'Portfolio created.', ['id' => $id, 'name' => $name]);
-
-        // ---- PORTFOLIO: Switch selected ----
-        case 'switch_portfolio':
-            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
-            if (!can_access_portfolio($portfolioId, $userId, $isAdmin)) {
-                json_response(false, 'Access denied.');
-            }
-            $_SESSION['selected_portfolio_id'] = $portfolioId;
-            json_response(true, 'Portfolio switched.', ['portfolio_id' => $portfolioId]);
 
         // ---- THEME: Update ----
         case 'update_theme':
@@ -110,7 +83,8 @@ try {
 
         // ---- DASHBOARD: Net worth summary ----
         case 'net_worth_summary':
-            $portfolioId = (int) ($_POST['portfolio_id'] ?? $_SESSION['selected_portfolio_id'] ?? 0);
+            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
+            if (!$portfolioId) $portfolioId = get_user_portfolio_id($userId);
             if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
                 json_response(false, 'Invalid portfolio.');
             }
@@ -182,25 +156,6 @@ try {
                     'savings' => ['value' => round($savTotal, 2), 'invested' => round($savTotal, 2)],
                 ],
             ]);
-
-        // ---- PORTFOLIO: Delete ----
-        case 'delete_portfolio':
-            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
-            $portfolio = DB::fetchOne('SELECT * FROM portfolios WHERE id = ? AND user_id = ?', [$portfolioId, $userId]);
-            if (!$portfolio && !$isAdmin) json_response(false, 'Portfolio not found or access denied.');
-
-            DB::run('DELETE FROM portfolios WHERE id = ?', [$portfolioId]);
-            audit_log('delete_portfolio', 'portfolio', $portfolioId);
-            json_response(true, 'Portfolio deleted.');
-
-        // ---- PORTFOLIO: Rename ----
-        case 'rename_portfolio':
-            $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
-            $name = clean($_POST['name'] ?? '');
-            if (strlen($name) < 2) json_response(false, 'Name too short.');
-            if (!can_edit_portfolio($portfolioId, $userId, $isAdmin)) json_response(false, 'Access denied.');
-            DB::run('UPDATE portfolios SET name = ? WHERE id = ?', [$name, $portfolioId]);
-            json_response(true, 'Portfolio renamed.', ['name' => $name]);
 
         // ── MF routes (delegate to specific files) ──────────
         case 'mf_search':
@@ -365,7 +320,6 @@ try {
         case 'admin_change_role':
         case 'admin_reset_password':
         case 'admin_delete_user':
-        case 'admin_portfolios':
         case 'admin_stats':
             require APP_ROOT . '/api/admin/users.php'; exit;
 
@@ -373,8 +327,6 @@ try {
         case 'admin_settings_get':
         case 'admin_settings_save':
         case 'admin_audit_log':
-        case 'admin_add_portfolio_member':
-        case 'admin_remove_portfolio_member':
             require APP_ROOT . '/api/admin/settings.php'; exit;
 
         default:

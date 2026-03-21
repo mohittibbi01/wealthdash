@@ -6,7 +6,8 @@
 declare(strict_types=1);
 defined('WEALTHDASH') or die('Direct access not permitted.');
 
-$portfolioId     = (int)($_POST['portfolio_id']     ?? $_SESSION['selected_portfolio_id'] ?? 0);
+$portfolioId     = (int)($_POST['portfolio_id'] ?? 0);
+if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)$currentUser['id'] ?? 0);
 $bankName        = clean($_POST['bank_name']         ?? '');
 $accountNumber   = clean($_POST['account_number']    ?? '');
 $principal       = (float)($_POST['principal']       ?? 0);

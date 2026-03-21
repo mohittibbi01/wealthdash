@@ -17,17 +17,10 @@ $portfoliosStmt = $db->prepare("SELECT id, name FROM portfolios WHERE user_id = 
 $portfoliosStmt->execute([$currentUser['id']]);
 $portfolios = $portfoliosStmt->fetchAll();
 
-// Always ensure portfolioId belongs to this user
-$validIds = array_column($portfolios, 'id');
-$sessionPid = (int) ($_SESSION['selected_portfolio_id'] ?? 0);
-
-if ($sessionPid && in_array($sessionPid, $validIds)) {
-    $portfolioId = $sessionPid;
-} elseif (!empty($portfolios)) {
+// Resolve portfolio for current user (one portfolio per user)
+$portfolioId = get_user_portfolio_id((int)$currentUser['id']);
+if (!$portfolioId && !empty($portfolios)) {
     $portfolioId = (int) $portfolios[0]['id'];
-    $_SESSION['selected_portfolio_id'] = $portfolioId;
-} else {
-    $portfolioId = 0;
 }
 
 ob_start();

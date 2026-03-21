@@ -34,9 +34,8 @@ try {
             exit;
         }
         if ($portfolio['user_id'] != $currentUser['id'] && $currentUser['role'] !== 'admin') {
-            $mStmt = $db->prepare("SELECT id FROM portfolio_members WHERE portfolio_id=? AND user_id=?");
-            $mStmt->execute([$portfolio_id, $currentUser['id']]);
-            if (!$mStmt->fetch()) {
+            // access denied — not owner
+            {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'message' => 'Access denied']);
                 exit;

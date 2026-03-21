@@ -41,7 +41,6 @@ ob_start();
       <div class="stat-value" id="statUsers">—</div>
       <div id="statUsersBreakdown" style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.6;">—</div>
     </div>
-    <div class="stat-card"><div class="stat-label">Portfolios</div><div class="stat-value" id="statPortfolios">—</div></div>
     <div class="stat-card"><div class="stat-label">MF Holdings</div><div class="stat-value" id="statMfHoldings">—</div></div>
     <div class="stat-card"><div class="stat-label">Funds in DB</div><div class="stat-value" id="statFunds">—</div></div>
     <div class="stat-card"><div class="stat-label">Stock Holdings</div><div class="stat-value" id="statStocks">—</div></div>
@@ -65,7 +64,7 @@ ob_start();
         <thead>
           <tr>
             <th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th>
-            <th>Senior</th><th>Portfolios</th><th>MF Holdings</th>
+            <th>Senior</th><th>MF Holdings</th>
             <th>Last Login</th><th>Joined</th><th>Actions</th>
           </tr>
         </thead>
@@ -144,35 +143,6 @@ ob_start();
     </div>
   </div>
 
-  <!-- Portfolio Members Management -->
-  <div class="card mt-4">
-    <div class="card-header">
-      <h3 class="card-title">Portfolio Sharing</h3>
-      <span class="text-secondary text-sm">Share portfolios across family members</span>
-    </div>
-    <div class="card-body">
-      <div class="form-row" style="align-items:flex-end;flex-wrap:wrap;gap:1rem">
-        <div class="form-group mb-0">
-          <label class="form-label">Portfolio</label>
-          <select class="form-select" id="sharePortfolioId" style="width:240px">
-            <option value="">Select portfolio…</option>
-          </select>
-        </div>
-        <div class="form-group mb-0">
-          <label class="form-label">Member Email</label>
-          <input type="email" class="form-control" id="shareMemberEmail" placeholder="member@email.com" style="width:220px">
-        </div>
-        <div class="form-group mb-0">
-          <label class="form-check">
-            <input type="checkbox" id="shareCanEdit"> Can Edit
-          </label>
-        </div>
-        <div class="form-group mb-0">
-          <button class="btn btn-primary" onclick="addPortfolioMember()">Add Member</button>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- ═══════ TAB: NAV & DATA ═══════ -->
@@ -724,7 +694,7 @@ function adminSwitchTab(name, btn) {
   btn.classList.add('active');
 
   if (name==='users' && allUsers.length===0) loadUsers();
-  if (name==='settings') { loadSettings(); loadPortfolioList(); }
+  if (name==='settings') { loadSettings(); }
   if (name==='fundrules') { frLoadCategories(); }
   if (name==='audit') loadAuditLog();
   if (name==='dbmgr') loadDbTables();
@@ -739,7 +709,6 @@ async function loadStats() {
     if (bd && s.admin_count != null) {
       bd.innerHTML = `Admin <strong>${s.admin_count}</strong> + Members <strong>${s.member_count}</strong> = <strong>${s.users}</strong>`;
     }
-    document.getElementById('statPortfolios').textContent= s.portfolios     ?? '—';
     document.getElementById('statMfHoldings').textContent= s.mf_holdings    ?? '—';
     document.getElementById('statFunds').textContent     = s.funds          ?? '—';
     document.getElementById('statStocks').textContent    = s.stock_holdings ?? '—';
@@ -778,7 +747,6 @@ function renderUsers(users) {
       <td><span class="badge ${u.role==='admin'?'badge-primary':'badge-secondary'}">${u.role}</span></td>
       <td><span class="badge ${u.status==='active'?'badge-success':'badge-danger'}">${u.status}</span></td>
       <td>${u.is_senior_citizen?'✓':'—'}</td>
-      <td class="text-center">${u.portfolio_count}</td>
       <td class="text-center">${u.mf_holdings_count}</td>
       <td class="text-secondary text-sm">${u.last_login_at ? formatDate(u.last_login_at) : '—'}</td>
       <td class="text-secondary text-sm">${formatDate(u.created_at)}</td>
@@ -827,32 +795,6 @@ async function saveSettings(keys) {
   try {
     await API.post('/api/router.php', payload);
     showToast('Settings saved!');
-  } catch(e) { showToast(e.message,'error'); }
-}
-
-async function loadPortfolioList() {
-  try {
-    const d = await API.post('/api/router.php', { action:'admin_portfolios' });
-    const sel = document.getElementById('sharePortfolioId');
-    sel.innerHTML = '<option value="">Select portfolio…</option>' +
-      (d.data?.portfolios || d.portfolios || []).map(p =>
-        `<option value="${p.id}">${esc(p.name)} (${esc(p.owner_name)})</option>`
-      ).join('');
-  } catch(e) {}
-}
-
-async function addPortfolioMember() {
-  const pid   = document.getElementById('sharePortfolioId').value;
-  const email = document.getElementById('shareMemberEmail').value.trim();
-  const canEdit = document.getElementById('shareCanEdit').checked ? 1 : 0;
-  if (!pid || !email) { showToast('Select portfolio and enter email','error'); return; }
-  try {
-    await API.post('/api/router.php', {
-      action:'admin_add_portfolio_member', portfolio_id:pid, member_email:email,
-      can_edit:canEdit, csrf_token:window.CSRF_TOKEN
-    });
-    showToast('Member added!');
-    document.getElementById('shareMemberEmail').value = '';
   } catch(e) { showToast(e.message,'error'); }
 }
 

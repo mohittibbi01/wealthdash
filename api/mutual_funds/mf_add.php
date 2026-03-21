@@ -140,12 +140,7 @@ try {
         json_die(false, 'Portfolio not found', 404);
     }
     if ($portfolio['user_id'] != $currentUser['id'] && $currentUser['role'] !== 'admin') {
-        $mStmt = $db->prepare("SELECT can_edit FROM portfolio_members WHERE portfolio_id=? AND user_id=?");
-        $mStmt->execute([$portfolio_id, $currentUser['id']]);
-        $member = $mStmt->fetch();
-        if (!$member || !$member['can_edit']) {
-            json_die(false, 'You do not have edit access to this portfolio', 403);
-        }
+        json_die(false, 'You do not have edit access to this portfolio', 403);
     }
 
     // Verify fund exists

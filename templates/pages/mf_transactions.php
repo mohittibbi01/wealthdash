@@ -12,9 +12,7 @@ $pageTitle   = 'MF Transactions';
 $activePage  = 'mf_transactions';
 
 $db = DB::conn();
-$pStmt = $db->prepare("SELECT id, name FROM portfolios WHERE user_id=? ORDER BY name");
-$pStmt->execute([$currentUser['id']]);
-$portfolios = $pStmt->fetchAll();
+// portfolio resolved via WD.selectedPortfolio in JS
 
 ob_start();
 ?>
@@ -33,13 +31,6 @@ ob_start();
 <div class="card" style="margin-bottom:20px;overflow:visible;">
   <div class="card-body" style="padding:12px 16px;overflow:visible;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-
-      <select id="txnFilterPortfolio" class="filter-select" data-custom-dropdown style="min-width:150px;">
-        <option value="">All Portfolios</option>
-        <?php foreach ($portfolios as $p): ?>
-        <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
 
       <select id="txnFilterType" class="filter-select" data-custom-dropdown>
         <option value="">All Types</option>
@@ -91,12 +82,11 @@ ob_start();
           <th class="text-right sortable" data-col="nav">NAV</th>
           <th class="text-right sortable" data-col="value_at_cost">Amount</th>
           <th>Platform</th>
-          <th>Portfolio</th>
           <th style="width:80px;">Actions</th>
         </tr>
       </thead>
       <tbody id="txnBody">
-        <tr><td colspan="10" class="text-center" style="padding:40px;">
+        <tr><td colspan="9" class="text-center" style="padding:40px;">
           <div class="spinner"></div>
         </td></tr>
       </tbody>
@@ -129,15 +119,8 @@ ob_start();
       <input type="hidden" id="txnEditId">
       <input type="hidden" id="txnCsrf" value="<?= generate_csrf() ?>">
 
+      <!-- portfolio_id passed via JS from WD.selectedPortfolio -->
       <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Portfolio *</label>
-          <select id="txnPortfolio" class="form-control">
-            <?php foreach ($portfolios as $p): ?>
-            <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
         <div class="form-group" style="flex:1;">
           <label class="form-label">Transaction Type *</label>
           <select id="txnType" class="form-control">

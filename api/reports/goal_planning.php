@@ -9,8 +9,8 @@ if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
 $userId      = (int) $_SESSION['user_id'];
 $isAdmin     = is_admin();
-$portfolioId = (int) ($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ??
-                      $_SESSION['selected_portfolio_id'] ?? 0);
+$portfolioId = (int)($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ?? 0);
+if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)($currentUser['id'] ?? 0));
 
 if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
     json_response(false, 'Invalid or inaccessible portfolio.');

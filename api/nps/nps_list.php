@@ -15,8 +15,8 @@ $contribType = clean($_GET['contrib_type'] ?? '');
 // Build portfolio access filter
 $portWhere = $isAdmin && !$portfolioId
     ? ''
-    : ($portfolioId ? 'AND p.id = ' . $portfolioId . ' AND (p.user_id = ' . $userId . ' OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id=' . $userId . '))'
-    : 'AND (p.user_id = ' . $userId . ' OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id=' . $userId . '))');
+    : ($portfolioId ? 'AND p.id = ' . $portfolioId . ' AND p.user_id = ' . $userId
+    : 'AND p.user_id = ' . $userId));
 
 if ($type === 'holdings') {
     $tierCond = $tier ? "AND h.tier = " . DB::pdo()->quote($tier) : '';

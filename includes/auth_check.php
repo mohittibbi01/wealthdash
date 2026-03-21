@@ -80,54 +80,48 @@ function is_admin(): bool {
 }
 
 /**
- * Get portfolios accessible to current user
- * Admin sees all; member sees own + shared
+ * Get the single portfolio for a user.
+ * Returns array with one portfolio row, or empty array.
  */
 function get_user_portfolios(int $userId, bool $isAdmin = false): array {
-    // Always return only portfolios owned by or shared with this user
-    return DB::fetchAll(
-        'SELECT DISTINCT p.*, u.name as owner_name,
-                pm.can_edit,
-                (p.user_id = :uid) as is_owner
+    $row = DB::fetchOne(
+        'SELECT p.id, p.user_id, p.name, p.created_at, u.name as owner_name, 1 as is_owner, 1 as can_edit
          FROM portfolios p
          JOIN users u ON u.id = p.user_id
-         LEFT JOIN portfolio_members pm ON pm.portfolio_id = p.id AND pm.user_id = :uid2
-         WHERE p.user_id = :uid3 OR pm.user_id = :uid4
-         ORDER BY is_owner DESC, p.is_default DESC, p.name',
-        [':uid' => $userId, ':uid2' => $userId, ':uid3' => $userId, ':uid4' => $userId]
+         WHERE p.user_id = ?',
+        [$userId]
     );
+    return $row ? [$row] : [];
 }
 
 /**
- * Verify user can access a specific portfolio
+ * Get the portfolio_id for a user directly.
+ */
+function get_user_portfolio_id(int $userId): int {
+    $id = DB::fetchVal('SELECT id FROM portfolios WHERE user_id = ?', [$userId]);
+    return $id ? (int)$id : 0;
+}
+
+/**
+ * Verify user can access a specific portfolio (must own it).
  */
 function can_access_portfolio(int $portfolioId, int $userId, bool $isAdmin = false): bool {
-    // Even admins should only access portfolios they own or are members of
+    if ($isAdmin) {
+        return (bool) DB::fetchOne('SELECT id FROM portfolios WHERE id = ?', [$portfolioId]);
+    }
     $row = DB::fetchOne(
-        'SELECT p.id FROM portfolios p
-         LEFT JOIN portfolio_members pm ON pm.portfolio_id = p.id AND pm.user_id = ?
-         WHERE p.id = ? AND (p.user_id = ? OR pm.user_id = ?)',
-        [$userId, $portfolioId, $userId, $userId]
+        'SELECT id FROM portfolios WHERE id = ? AND user_id = ?',
+        [$portfolioId, $userId]
     );
     return $row !== false;
 }
 
 /**
- * Verify user can EDIT a specific portfolio
+ * Verify user can edit a specific portfolio (must own it).
  */
 function can_edit_portfolio(int $portfolioId, int $userId, bool $isAdmin = false): bool {
     if ($isAdmin) return true;
-
-    $row = DB::fetchOne(
-        'SELECT p.id, (p.user_id = :uid) as is_owner, pm.can_edit
-         FROM portfolios p
-         LEFT JOIN portfolio_members pm ON pm.portfolio_id = p.id AND pm.user_id = :uid2
-         WHERE p.id = :pid',
-        [':uid' => $userId, ':uid2' => $userId, ':pid' => $portfolioId]
-    );
-
-    if (!$row) return false;
-    return $row['is_owner'] || $row['can_edit'];
+    return can_access_portfolio($portfolioId, $userId, false);
 }
 
 /**

@@ -13,8 +13,8 @@ $accountId   = (int)($_GET['account_id']  ?? 0);
 $portWhere = $isAdmin && !$portfolioId
     ? ''
     : ($portfolioId
-        ? "AND p.id = {$portfolioId} AND (p.user_id={$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))"
-        : "AND (p.user_id={$userId} OR EXISTS (SELECT 1 FROM portfolio_members pm WHERE pm.portfolio_id=p.id AND pm.user_id={$userId}))");
+        ? "AND p.id = {$portfolioId} AND p.user_id={$userId}"
+        : "AND p.user_id={$userId}");
 
 if ($type === 'accounts') {
     $rows = DB::fetchAll(

@@ -7,7 +7,8 @@ declare(strict_types=1);
 defined('WEALTHDASH') or die('Direct access not permitted.');
 require_once APP_ROOT . '/includes/holding_calculator.php';
 
-$portfolioId     = (int)($_POST['portfolio_id'] ?? $_SESSION['selected_portfolio_id'] ?? 0);
+$portfolioId     = (int)($_POST['portfolio_id'] ?? 0);
+if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)$currentUser['id'] ?? 0);
 $schemeId        = (int)($_POST['scheme_id'] ?? 0);
 $tier            = clean($_POST['tier'] ?? 'tier1');
 $contributionType= clean($_POST['contribution_type'] ?? 'SELF');

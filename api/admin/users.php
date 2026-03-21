@@ -65,7 +65,7 @@ switch ($action) {
 
         // Create default portfolio for new user
         DB::run(
-            "INSERT INTO portfolios (user_id, name, is_default, color) VALUES (?, 'My Portfolio', 1, '#2563EB')",
+            "INSERT INTO portfolios (user_id, name) VALUES (?, 'My Portfolio')",
             [$newId]
         );
 
@@ -150,25 +150,6 @@ switch ($action) {
         DB::run("UPDATE users SET status='deleted', email=CONCAT(email, ?) WHERE id=?", [$suffix, $targetId]);
         audit_log('admin_delete_user', 'user', $targetId);
         json_response(true, 'User deleted.');
-
-    // ── Portfolio list (admin view) ───────────────────────────
-    case 'admin_portfolios':
-        $portfolios = DB::fetchAll(
-            "SELECT p.*, u.name AS owner_name, u.email AS owner_email,
-                    COUNT(DISTINCT mh.id) AS mf_count,
-                    COUNT(DISTINCT sh.id) AS stock_count,
-                    COUNT(DISTINCT fa.id) AS fd_count,
-                    COUNT(DISTINCT sa.id) AS savings_count
-             FROM portfolios p
-             JOIN users u ON u.id = p.user_id
-             LEFT JOIN mf_holdings mh ON mh.portfolio_id = p.id AND mh.is_active = 1
-             LEFT JOIN stock_holdings sh ON sh.portfolio_id = p.id AND sh.is_active = 1
-             LEFT JOIN fd_accounts fa ON fa.portfolio_id = p.id AND fa.status = 'active'
-             LEFT JOIN savings_accounts sa ON sa.portfolio_id = p.id AND sa.is_active = 1
-             GROUP BY p.id
-             ORDER BY u.name, p.is_default DESC"
-        );
-        json_response(true, '', ['portfolios' => $portfolios]);
 
     // ── System stats ──────────────────────────────────────────
     case 'admin_stats':

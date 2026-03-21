@@ -76,58 +76,6 @@ switch ($action) {
 
         json_response(true, '', ['logs' => $logs, 'total' => $total]);
 
-    // ── Portfolio member management ───────────────────────────
-    case 'admin_add_portfolio_member':
-        csrf_verify();
-        $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
-        $memberEmail = clean($_POST['member_email'] ?? '');
-        $canEdit     = (int) ($_POST['can_edit'] ?? 0);
-
-        if (!$portfolioId || !$memberEmail) {
-            json_response(false, 'Portfolio ID and member email are required.');
-        }
-
-        $member = DB::fetchOne('SELECT id, name FROM users WHERE email = ? AND status = ?',
-            [$memberEmail, 'active']);
-        if (!$member) json_response(false, 'No active user found with that email.');
-
-        $portfolio = DB::fetchOne('SELECT id, name, user_id FROM portfolios WHERE id = ?', [$portfolioId]);
-        if (!$portfolio) json_response(false, 'Portfolio not found.');
-
-        if ($portfolio['user_id'] === $member['id']) {
-            json_response(false, 'User is the portfolio owner.');
-        }
-
-        $exists = DB::fetchOne(
-            'SELECT id FROM portfolio_members WHERE portfolio_id = ? AND user_id = ?',
-            [$portfolioId, $member['id']]
-        );
-        if ($exists) {
-            // Update can_edit
-            DB::run('UPDATE portfolio_members SET can_edit = ? WHERE portfolio_id = ? AND user_id = ?',
-                [$canEdit, $portfolioId, $member['id']]);
-            json_response(true, 'Member access updated.');
-        }
-
-        DB::run(
-            'INSERT INTO portfolio_members (portfolio_id, user_id, can_edit) VALUES (?, ?, ?)',
-            [$portfolioId, $member['id'], $canEdit]
-        );
-        audit_log('admin_add_portfolio_member', 'portfolio_members', $portfolioId,
-            [], ['member_id' => $member['id'], 'can_edit' => $canEdit]);
-        json_response(true, "{$member['name']} added to portfolio.");
-
-    case 'admin_remove_portfolio_member':
-        csrf_verify();
-        $portfolioId = (int) ($_POST['portfolio_id'] ?? 0);
-        $memberId    = (int) ($_POST['member_id']    ?? 0);
-        if (!$portfolioId || !$memberId) json_response(false, 'Invalid parameters.');
-
-        DB::run('DELETE FROM portfolio_members WHERE portfolio_id = ? AND user_id = ?',
-            [$portfolioId, $memberId]);
-        audit_log('admin_remove_portfolio_member', 'portfolio_members', $portfolioId);
-        json_response(true, 'Member removed from portfolio.');
-
     default:
         json_response(false, 'Unknown settings action.', [], 400);
 }

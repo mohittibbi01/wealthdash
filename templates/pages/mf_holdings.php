@@ -12,19 +12,8 @@ $pageTitle   = 'Mutual Funds';
 $activePage  = 'mf_holdings';
 
 $db = DB::conn();
-$pStmt = $db->prepare("SELECT p.id, p.name, p.color FROM portfolios p WHERE p.user_id=? ORDER BY p.name ASC");
-$pStmt->execute([$currentUser['id']]);
-$portfolios = $pStmt->fetchAll();
-
-// ── Ensure session portfolio is set (same as dashboard) ──────
-$portfolioId = (int) ($_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id'] ?? 0));
-if (!isset($_SESSION['selected_portfolio_id']) && $portfolioId) {
-    $_SESSION['selected_portfolio_id'] = $portfolioId;
-}
-if (!$portfolioId && !empty($portfolios)) {
-    $portfolioId = (int) $portfolios[0]['id'];
-    $_SESSION['selected_portfolio_id'] = $portfolioId;
-}
+// ── Resolve portfolio for current user ──────────────────────
+$portfolioId = get_user_portfolio_id((int)$currentUser['id']);
 
 $summaryStmt = $db->prepare("
     SELECT COUNT(DISTINCT h.fund_id) AS fund_count,
@@ -49,7 +38,7 @@ ob_start();
 <div class="page-header">
   <div>
     <h1 class="page-title">Mutual Funds</h1>
-    <p class="page-subtitle">Holdings across all portfolios</p>
+    <p class="page-subtitle">Mutual fund holdings &amp; transactions</p>
   </div>
   <div class="page-header-actions">
     <button class="btn btn-ghost" id="btnImportCsv">
@@ -181,12 +170,6 @@ ob_start();
 <div id="tabHoldings">
 <div class="mf-filter-bar">
   <div class="mf-filter-selects">
-    <select id="filterPortfolio" class="filter-select" data-custom-dropdown>
-      <option value="">All Portfolios</option>
-      <?php foreach ($portfolios as $p): ?>
-      <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-      <?php endforeach; ?>
-    </select>
     <select id="filterCategory" class="filter-select" data-custom-dropdown>
       <option value="">All Categories</option>
       <option value="Equity">Equity</option>
@@ -202,10 +185,7 @@ ob_start();
       <option value="STCG">STCG</option>
     </select>
   </div>
-  <div class="mf-view-toggle">
-    <button class="view-btn active" id="viewCombined">Combined</button>
-    <button class="view-btn" id="viewFolio">Folio-wise</button>
-  </div>
+
 </div>
 
 <div class="card">
@@ -282,17 +262,7 @@ ob_start();
           <p style="color:var(--text-muted);margin-top:12px;">Loading holdings...</p>
         </td></tr>
       </tbody>
-      <tfoot id="holdingsTfoot" style="display:none;">
-        <tr style="background:var(--bg-secondary);font-weight:600;">
-          <td></td>
-          <td>Total</td>
-          <td class="text-center" id="footInvGainCol"></td>
-          <td class="text-center" id="footGainPct"></td>
-          <td colspan="4"></td>
-          <td class="text-center" id="foot1dChange"></td>
-          <td></td>
-        </tr>
-      </tfoot>
+
     </table>
   </div>
   <!-- Pagination -->
@@ -342,12 +312,6 @@ ob_start();
 
 <!-- Filter bar -->
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-  <select id="rFilterPortfolio" class="filter-select" data-custom-dropdown>
-    <option value="">All Portfolios</option>
-    <?php foreach ($portfolios as $p): ?>
-    <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
   <select id="rFilterFy" class="filter-select" data-custom-dropdown>
     <option value="">All FYs</option>
     <?php
@@ -392,7 +356,7 @@ ob_start();
       </thead>
       <tbody id="realizedBody">
         <tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted);">
-          Select a portfolio to load realized gains.
+          No realized gains found.
         </td></tr>
       </tbody>
       <tfoot id="realizedTfoot" style="display:none;">
@@ -430,12 +394,6 @@ ob_start();
 
 <!-- Filter -->
 <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-  <select id="dFilterPortfolio" class="filter-select" data-custom-dropdown>
-    <option value="">All Portfolios</option>
-    <?php foreach ($portfolios as $p): ?>
-    <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
   <select id="dFilterFy" class="filter-select" data-custom-dropdown>
     <option value="">All FYs</option>
     <?php
@@ -469,7 +427,7 @@ ob_start();
       </thead>
       <tbody id="dividendsBody">
         <tr><td colspan="7" class="text-center" style="padding:40px;color:var(--text-muted);">
-          Select a portfolio to load dividends.
+          No dividend entries found.
         </td></tr>
       </tbody>
       <tfoot id="dividendsTfoot" style="display:none;">
@@ -495,25 +453,16 @@ ob_start();
       <input type="hidden" id="txnEditId">
       <input type="hidden" id="txnCsrf" value="<?= generate_csrf() ?>">
 
-      <div class="form-row">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Portfolio *</label>
-          <select id="txnPortfolio" class="form-control">
-            <?php foreach ($portfolios as $p): ?>
-            <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Transaction Type *</label>
-          <select id="txnType" class="form-control">
-            <option value="BUY">BUY — Purchase</option>
-            <option value="SELL">SELL — Redemption</option>
-            <option value="DIV_REINVEST">Dividend Reinvestment</option>
-            <option value="SWITCH_IN">Switch In</option>
-            <option value="SWITCH_OUT">Switch Out</option>
-          </select>
-        </div>
+      <!-- portfolio_id passed via JS from WD.selectedPortfolio -->
+      <div class="form-group">
+        <label class="form-label">Transaction Type *</label>
+        <select id="txnType" class="form-control">
+          <option value="BUY">BUY — Purchase</option>
+          <option value="SELL">SELL — Redemption</option>
+          <option value="DIV_REINVEST">Dividend Reinvestment</option>
+          <option value="SWITCH_IN">Switch In</option>
+          <option value="SWITCH_OUT">Switch Out</option>
+        </select>
       </div>
 
       <div class="form-group" style="position:relative;">
@@ -609,14 +558,6 @@ ob_start();
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Portfolio</label>
-        <select id="importPortfolio" class="form-control">
-          <?php foreach ($portfolios as $p): ?>
-          <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="form-group">
         <label class="form-label">Source Format</label>
         <select id="importFormat" class="form-control">
           <option value="auto">Auto-detect</option>
@@ -673,31 +614,47 @@ ob_start();
 
 
 <!-- ═══ SORT MENU DROPDOWN ═══ -->
-<div id="sortMenuDropdown" style="display:none;position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:220px;padding:6px 0;overflow:hidden;">
-  <div style="padding:8px 14px 6px;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border-color);">Sort Holdings By</div>
+<div id="sortMenuDropdown" style="display:none;position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:230px;padding:0;overflow:hidden;">
+  <div style="padding:9px 14px 7px;font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.6px;text-transform:uppercase;border-bottom:1px solid var(--border-color);">Sort Holdings By</div>
+
   <?php
-  $sortOptions = [
-    ['col'=>'total_invested','label'=>'Invested Amount'],
-    ['col'=>'value_now',     'label'=>'Current Value'],
-    ['col'=>'gain_loss',     'label'=>'Gain / Loss (₹)'],
-    ['col'=>'gain_pct',      'label'=>'Returns (%)'],
-    ['col'=>'cagr',          'label'=>'XIRR'],
-    ['col'=>'drawdown_pct',  'label'=>'Drawdown %'],
-    ['col'=>'total_units',   'label'=>'Units'],
-    ['col'=>'latest_nav',    'label'=>'NAV'],
-    ['col'=>'highest_nav',   'label'=>'Peak NAV'],
-    ['col'=>'scheme_name',   'label'=>'Fund Name (A–Z)'],
-    ['col'=>'first_purchase_date','label'=>'First Purchase Date'],
+  /* ── Group structure: [col, label, divider_after?] ── */
+  $sortGroups = [
+    // Group 1: Fund identity
+    ['col'=>'scheme_name',       'label'=>'Fund Name (A–Z)',       'div'=>false],
+    ['col'=>'fund_house',        'label'=>'Fund House (A–Z)',       'div'=>true],
+    // Group 2: Value
+    ['col'=>'total_invested',    'label'=>'Invested Amount',        'div'=>false],
+    ['col'=>'value_now',         'label'=>'Current Value',          'div'=>false],
+    ['col'=>'gain_loss',         'label'=>'Gain / Loss (₹)',        'div'=>true],
+    // Group 3: Returns
+    ['col'=>'gain_pct',          'label'=>'Returns (%)',            'div'=>false],
+    ['col'=>'cagr',              'label'=>'XIRR',                   'div'=>true],
+    // Group 4: Units
+    ['col'=>'total_units',       'label'=>'Units (Total)',          'div'=>false],
+    ['col'=>'ltcg_units',        'label'=>'Units (LTCG)',           'div'=>false],
+    ['col'=>'stcg_units',        'label'=>'Units (STCG)',           'div'=>true],
+    // Group 5: NAV
+    ['col'=>'latest_nav',        'label'=>'NAV',                    'div'=>false],
+    ['col'=>'highest_nav',       'label'=>'Peak NAV',               'div'=>true],
+    // Group 6: 1D Change
+    ['col'=>'one_day_change_pct','label'=>'1 Day Change %',         'div'=>false],
+    ['col'=>'one_day_change_val','label'=>'1 Day Change (₹/unit)',  'div'=>true],
+    // Group 7: Drawdown
+    ['col'=>'drawdown_pct',      'label'=>'Drawdown %',             'div'=>false],
+    ['col'=>'drawdown_nav',      'label'=>'Drawdown (₹ from Peak)', 'div'=>false],
   ];
-  foreach ($sortOptions as $opt): ?>
+  foreach ($sortGroups as $opt): ?>
   <button class="sort-menu-item" data-col="<?= $opt['col'] ?>"
     onclick="applySortMenu('<?= $opt['col'] ?>')"
-    style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-primary);text-align:left;transition:background .15s;"
+    style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:7px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-primary);text-align:left;transition:background .15s;"
     onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">
     <span><?= $opt['label'] ?></span>
-    <span class="sort-dir-indicator" data-col="<?= $opt['col'] ?>" style="font-size:11px;color:var(--accent);font-weight:700;display:none;"></span>
+    <span class="sort-dir-indicator" data-col="<?= $opt['col'] ?>" style="font-size:10px;color:var(--accent);font-weight:700;display:none;"></span>
   </button>
-  <?php endforeach; ?>
+  <?php if ($opt['div']): ?>
+  <div style="height:1px;background:var(--border-color);margin:3px 0;"></div>
+  <?php endif; endforeach; ?>
 </div>
 
 <!-- ═══ DELETE FUND MODAL (single) ═══ -->

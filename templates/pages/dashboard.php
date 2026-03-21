@@ -12,11 +12,9 @@ $activePage  = 'dashboard';
 
 // Get portfolios
 $portfolios  = get_user_portfolios((int)$currentUser['id'], is_admin());
-$portfolioId = (int) ($_SESSION['selected_portfolio_id'] ?? ($portfolios[0]['id'] ?? 0));
-
+$portfolioId = get_user_portfolio_id((int)$currentUser['id']);
 if (!$portfolioId && !empty($portfolios)) {
     $portfolioId = (int) $portfolios[0]['id'];
-    $_SESSION['selected_portfolio_id'] = $portfolioId;
 }
 
 // ---- Dashboard data ----
@@ -87,9 +85,8 @@ ob_start();
   <div class="card">
     <div class="card-body" style="text-align:center;padding:48px">
       <div style="font-size:48px;margin-bottom:16px">📊</div>
-      <h2>No portfolios yet</h2>
-      <p style="color:var(--text-muted);margin:12px 0 24px">Create your first portfolio to start tracking your wealth.</p>
-      <button class="btn btn-primary" onclick="openNewPortfolioModal()">+ Create Portfolio</button>
+      <h2>Portfolio is empty</h2>
+      <p style="color:var(--text-muted);margin:12px 0 24px">Start by adding mutual funds, stocks, or other assets.</p>
     </div>
   </div>
   <?php else: ?>

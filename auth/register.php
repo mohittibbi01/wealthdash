@@ -77,8 +77,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Create default portfolio
             DB::run(
-                'INSERT INTO portfolios (user_id, name, color, is_default) VALUES (?, ?, ?, 1)',
-                [(int)$userId, $name . "'s Portfolio", '#2563EB']
+                'INSERT INTO portfolios (user_id, name) VALUES (?, ?)',
+                [(int)$userId, $name . "'s Portfolio"]
             );
 
             DB::commit();
@@ -249,4 +249,3 @@ document.getElementById('password').addEventListener('input', function() {
 </script>
 </body>
 </html>
-

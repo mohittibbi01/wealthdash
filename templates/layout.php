@@ -85,7 +85,7 @@ $flashMsgs     = flash_get();
   window.WD = {
     appUrl           : '<?= e(APP_URL) ?>',
     csrf             : '<?= e(csrf_token()) ?>',
-    selectedPortfolio: <?= (int)($_SESSION['selected_portfolio_id'] ?? 0) ?>,
+    selectedPortfolio: <?= get_user_portfolio_id((int)($currentUser['id'] ?? 0)) ?>,
     apiUrl           : '<?= e(APP_URL) ?>/api/reports/export_csv.php',
   };
   window.CSRF_TOKEN = window.WD.csrf;
