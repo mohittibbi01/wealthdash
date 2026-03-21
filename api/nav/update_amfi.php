@@ -175,6 +175,22 @@ try {
 
     DB::commit();
 
+    // ── Bulk-refresh mf_holdings value_now/gain_loss after NAV update ──
+    // This is the critical step — without this, holdings show stale values
+    DB::run("
+        UPDATE mf_holdings h
+        JOIN funds f ON f.id = h.fund_id
+        SET
+            h.value_now  = ROUND(h.total_units * f.latest_nav, 2),
+            h.gain_loss  = ROUND((h.total_units * f.latest_nav) - h.total_invested, 2),
+            h.gain_pct   = CASE
+                               WHEN h.total_invested > 0
+                               THEN ROUND(((h.total_units * f.latest_nav) - h.total_invested) / h.total_invested * 100, 4)
+                               ELSE 0
+                           END
+        WHERE h.is_active = 1 AND f.latest_nav > 0
+    ", []);
+
     $msg = "NAV update complete. Updated: {$updated}, New funds: {$inserted}. Date: {$today}";
     if ($isCron) { echo $msg . PHP_EOL; exit(0); }
     json_response(true, $msg, ['updated' => $updated, 'inserted' => $inserted]);

@@ -1,16 +1,10 @@
 <?php
 /**
- * WealthDash — Live 1-Day NAV Change
- * GET /api/nav/nav_1d_change.php
+ * WealthDash — 1-Day NAV Change
  *
- * Logic:
- *  1. User ke active holdings ke funds fetch karo
- *  2. mfapi.in se per-fund last 2 NAVs fetch karo (last 2 working days)
- *  3. Difference = 1D Change (weekends/holidays automatically skip)
- *  4. nav_history + funds table bhi update karo side-effect se
- *
- * mfapi.in: https://api.mfapi.in/mf/{scheme_code} — free, no auth
- * Returns: newest first, sirf working days ka data
+ * Fast path (default): funds.prev_nav from DB — instant, no HTTP calls
+ * Slow path (fallback): nav_history table for missing prev_nav
+ * Last resort: mfapi.in parallel curl for funds still missing data
  */
 define('WEALTHDASH', true);
 require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
@@ -20,21 +14,18 @@ require_once APP_ROOT . '/includes/helpers.php';
 header('Content-Type: application/json');
 $currentUser = require_auth();
 
-$ctx = stream_context_create([
-    'http' => ['timeout' => 15, 'user_agent' => 'WealthDash/1.0'],
-    'ssl'  => ['verify_peer' => false],
-]);
-
 try {
     $db = DB::conn();
 
-    // ── Step 1: User ke active holdings fetch karo ──
+    // ── Fetch active holdings with prev_nav already stored in funds table ──
     $stmt = $db->prepare("
         SELECT
             f.id               AS fund_id,
             f.scheme_code,
-            f.latest_nav       AS stored_nav,
-            f.latest_nav_date  AS stored_date,
+            f.latest_nav,
+            f.latest_nav_date,
+            f.prev_nav,
+            f.prev_nav_date,
             SUM(h.total_units) AS total_units
         FROM mf_holdings h
         JOIN funds f ON f.id = h.fund_id
@@ -50,45 +41,17 @@ try {
         exit;
     }
 
-    $result = [];
+    $result      = [];
 
     foreach ($holdings as $h) {
         $fundId     = (int)$h['fund_id'];
-        $code       = $h['scheme_code'];
         $totalUnits = (float)$h['total_units'];
+        $latestNav  = $h['latest_nav']  ? (float)$h['latest_nav']  : null;
+        $latestDate = $h['latest_nav_date'] ?? null;
+        $prevNav    = $h['prev_nav']    ? (float)$h['prev_nav']    : null;
+        $prevDate   = $h['prev_nav_date'] ?? null;
 
-        $latestNav  = null;
-        $latestDate = null;
-        $prevNav    = null;
-        $prevDate   = null;
-
-        // ── mfapi.in se last 2 working day NAVs fetch karo ──
-        // newest first, sirf working days — weekends skip hote hain automatically
-        $raw = @file_get_contents("https://api.mfapi.in/mf/{$code}", false, $ctx);
-
-        if ($raw) {
-            $json    = @json_decode($raw, true);
-            $navData = $json['data'] ?? [];
-
-            if (isset($navData[0])) {
-                $d0 = DateTime::createFromFormat('d-m-Y', $navData[0]['date'] ?? '');
-                $latestNav  = (float)$navData[0]['nav'];
-                $latestDate = $d0 ? $d0->format('Y-m-d') : null;
-            }
-            if (isset($navData[1])) {
-                $d1 = DateTime::createFromFormat('d-m-Y', $navData[1]['date'] ?? '');
-                $prevNav  = (float)$navData[1]['nav'];
-                $prevDate = $d1 ? $d1->format('Y-m-d') : null;
-            }
-        }
-
-        // Fallback to stored nav
-        if (!$latestNav && $h['stored_nav']) {
-            $latestNav  = (float)$h['stored_nav'];
-            $latestDate = $h['stored_date'];
-        }
-
-        // Fallback prev: nav_history se
+        // ── Fallback 1: nav_history table ──
         if (!$prevNav && $latestDate) {
             $ps = $db->prepare("
                 SELECT nav, nav_date FROM nav_history
@@ -100,58 +63,65 @@ try {
             if ($pr) {
                 $prevNav  = (float)$pr['nav'];
                 $prevDate = $pr['nav_date'];
+                // Persist so next time it's instant
+                $db->prepare("UPDATE funds SET prev_nav=?, prev_nav_date=? WHERE id=? AND (prev_nav IS NULL OR prev_nav=0)")
+                   ->execute([$prevNav, $prevDate, $fundId]);
             }
         }
 
-        // ── Calculate 1D Change ──
-        $dayChangeAmt = null;
-        $dayChangePct = null;
-        if ($latestNav && $prevNav && $prevNav > 0 && round($latestNav,4) !== round($prevNav,4)) {
-            $diff         = $latestNav - $prevNav;
-            $dayChangePct = round(($diff / $prevNav) * 100, 3);
-            $dayChangeAmt = round($diff * $totalUnits, 2);
-        }
-
-        $result[$fundId] = [
-            'latest_nav'     => $latestNav,
-            'latest_date'    => $latestDate,
-            'prev_nav'       => $prevNav,
-            'prev_date'      => $prevDate,
-            'day_change_amt' => $dayChangeAmt,
-            'day_change_pct' => $dayChangePct,
-        ];
-
-        // ── Side effect: nav_history + funds table update ──
-        if ($latestNav && $latestDate) {
-            try {
-                $db->prepare("INSERT IGNORE INTO nav_history (fund_id,nav_date,nav) VALUES(?,?,?)")
-                   ->execute([$fundId, $latestDate, $latestNav]);
-                if ($prevNav && $prevDate) {
-                    $db->prepare("INSERT IGNORE INTO nav_history (fund_id,nav_date,nav) VALUES(?,?,?)")
-                       ->execute([$fundId, $prevDate, $prevNav]);
-                }
-                $db->prepare("
-                    UPDATE funds SET
-                        prev_nav        = IF(latest_nav_date IS NULL OR latest_nav_date < ?, latest_nav, prev_nav),
-                        prev_nav_date   = IF(latest_nav_date IS NULL OR latest_nav_date < ?, latest_nav_date, prev_nav_date),
-                        latest_nav      = IF(latest_nav_date IS NULL OR latest_nav_date < ?, ?, latest_nav),
-                        latest_nav_date = IF(latest_nav_date IS NULL OR latest_nav_date < ?, ?, latest_nav_date),
-                        updated_at      = NOW()
-                    WHERE id = ?
-                ")->execute([$latestDate,$latestDate,$latestDate,$latestNav,$latestDate,$latestDate,$fundId]);
-            } catch (Exception $ignored) {}
+    // ── Fallback 2: nav_history table (second try with broader date range) ──
+    if (!$prevNav && $latestNav) {
+        $ps2 = $db->prepare("
+            SELECT nav, nav_date FROM nav_history
+            WHERE fund_id = ? AND nav > 0
+            ORDER BY nav_date DESC LIMIT 2
+        ");
+        $ps2->execute([$fundId]);
+        $rows = $ps2->fetchAll();
+        // Pick the row that isn't the latest
+        foreach ($rows as $row) {
+            if (round((float)$row['nav'], 4) !== round($latestNav, 4)) {
+                $prevNav  = (float)$row['nav'];
+                $prevDate = $row['nav_date'];
+                $db->prepare("UPDATE funds SET prev_nav=?, prev_nav_date=? WHERE id=? AND (prev_nav IS NULL OR prev_nav=0)")
+                   ->execute([$prevNav, $prevDate, $fundId]);
+                break;
+            }
         }
     }
 
+    if (!$prevNav || !$latestNav) continue; // skip, not enough data
+
+    $result[$fundId] = _calc($latestNav, $latestDate, $prevNav, $prevDate, $totalUnits);
+}
+
     echo json_encode([
-        'success' => true,
-        'source'  => 'mfapi',
-        'date'    => date('Y-m-d'),
-        'count'   => count($result),
-        'data'    => $result,
+        'success'      => true,
+        'source'       => 'db_cache',
+        'date'         => date('Y-m-d'),
+        'count'        => count($result),
+        'data'         => $result,
     ]);
 
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+}
+
+function _calc(?float $latestNav, ?string $latestDate, ?float $prevNav, ?string $prevDate, float $units): array {
+    $dayChangeAmt = null;
+    $dayChangePct = null;
+    if ($latestNav && $prevNav && $prevNav > 0 && round($latestNav,4) !== round($prevNav,4)) {
+        $diff         = $latestNav - $prevNav;
+        $dayChangePct = round(($diff / $prevNav) * 100, 3);
+        $dayChangeAmt = round($diff * $units, 2);
+    }
+    return [
+        'latest_nav'     => $latestNav,
+        'latest_date'    => $latestDate,
+        'prev_nav'       => $prevNav,
+        'prev_date'      => $prevDate,
+        'day_change_amt' => $dayChangeAmt,
+        'day_change_pct' => $dayChangePct,
+    ];
 }

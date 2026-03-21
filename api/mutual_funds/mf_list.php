@@ -174,8 +174,11 @@ try {
 
         $data = array_map(function($r) use ($db, $portfolio_id, $portfolioParams) {
             $invested = (float)$r['total_invested'];
-            $valueNow = (float)$r['value_now'];
-            $gainLoss = (float)$r['gain_loss'];
+            // Always compute live from latest_nav — never trust stale mf_holdings.value_now
+            $latestNavLive = $r['latest_nav'] ? (float)$r['latest_nav'] : 0;
+            $totalUnits    = (float)$r['total_units'];
+            $valueNow = $latestNavLive > 0 ? round($totalUnits * $latestNavLive, 2) : (float)$r['value_now'];
+            $gainLoss = round($valueNow - $invested, 2);
             $gainPct  = $invested > 0 ? round(($gainLoss / $invested) * 100, 2) : 0;
 
             // XIRR for this specific folio
@@ -315,8 +318,10 @@ try {
         $data = array_map(function($r) use ($db, $portfolio_id, $portfolioParams) {
             $totalUnits    = (float)$r['total_units'];
             $totalInvested = (float)$r['total_invested'];
-            $valueNow      = (float)$r['value_now'];
-            $gainLoss      = (float)$r['gain_loss'];
+            // Always compute live from latest_nav — never trust stale mf_holdings.value_now
+            $latestNavLive = $r['latest_nav'] ? (float)$r['latest_nav'] : 0;
+            $valueNow      = $latestNavLive > 0 ? round($totalUnits * $latestNavLive, 2) : (float)$r['value_now'];
+            $gainLoss      = round($valueNow - $totalInvested, 2);
             $gainPct       = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 2) : 0;
 
             // --- XIRR: fetch all transactions for this fund ---

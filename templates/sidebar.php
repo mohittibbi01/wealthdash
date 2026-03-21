@@ -29,6 +29,11 @@ $navItems = [
         'href'  => APP_URL . '/templates/pages/stocks.php',
         'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
     ],
+        'market_indexes' => [
+        'label' => 'Market Indexes',
+        'href'  => APP_URL . '/templates/pages/market_indexes.php',
+        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/></svg>',
+    ],
     'fd' => [
         'label' => 'Fixed Deposits',
         'href'  => APP_URL . '/templates/pages/fd.php',

@@ -33,6 +33,77 @@ if (!verify_csrf($input['csrf_token'] ?? '')) {
     delete_json_die(false, 'Invalid CSRF token', 403);
 }
 
+// ── FUND-LEVEL DELETE MODE ─────────────────────────────────────
+// Called with { fund_ids: [1,2,...], portfolio_id: X, csrf_token }
+// Deletes ALL transactions + holdings rows for given fund(s)
+$fundIdsRaw = $input['fund_ids'] ?? null;
+if ($fundIdsRaw !== null) {
+    $fundIds     = array_filter(array_map('intval', (array)$fundIdsRaw));
+    $portfolioId = (int)($input['portfolio_id'] ?? 0);
+
+    if (empty($fundIds)) {
+        delete_json_die(false, 'No fund IDs provided', 400);
+    }
+
+    try {
+        $db = DB::conn();
+
+        // Verify each fund belongs to this user
+        $placeholders = implode(',', array_fill(0, count($fundIds), '?'));
+        $chkStmt = $db->prepare("
+            SELECT DISTINCT t.fund_id
+            FROM mf_transactions t
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.fund_id IN ($placeholders)
+              AND p.user_id = ?
+              " . ($portfolioId > 0 ? "AND t.portfolio_id = ?" : "") . "
+        ");
+        $params = array_merge($fundIds, [$currentUser['id']]);
+        if ($portfolioId > 0) $params[] = $portfolioId;
+        $chkStmt->execute($params);
+        $allowed = array_column($chkStmt->fetchAll(), 'fund_id');
+
+        // Only delete funds that user owns
+        $toDelete = array_intersect($fundIds, $allowed);
+        if (empty($toDelete)) {
+            delete_json_die(false, 'No matching funds found or access denied', 403);
+        }
+
+        $db->beginTransaction();
+        $ph2 = implode(',', array_fill(0, count($toDelete), '?'));
+        $baseParams = $portfolioId > 0
+            ? array_merge($toDelete, [$portfolioId])
+            : $toDelete;
+        $portWhere = $portfolioId > 0 ? " AND portfolio_id = ?" : "";
+
+        // Delete transactions
+        $db->prepare("DELETE FROM mf_transactions WHERE fund_id IN ($ph2)$portWhere")
+           ->execute($baseParams);
+
+        // Delete holdings rows
+        $db->prepare("DELETE FROM mf_holdings WHERE fund_id IN ($ph2)$portWhere")
+           ->execute($baseParams);
+
+        foreach ($toDelete as $fid) {
+            audit_log_pdo($db, $currentUser['id'], 'mf_fund_delete', "fund:$fid portfolio:$portfolioId", '');
+        }
+
+        $db->commit();
+        echo json_encode([
+            'success' => true,
+            'message' => count($toDelete) . ' fund(s) deleted successfully.',
+            'deleted_fund_ids' => $toDelete,
+        ]);
+        exit;
+
+    } catch (Throwable $e) {
+        if (isset($db) && $db->inTransaction()) $db->rollBack();
+        error_log('[WealthDash] fund_delete error: ' . $e->getMessage());
+        delete_json_die(false, 'Server error: ' . $e->getMessage(), 500);
+    }
+}
+// ── END FUND-LEVEL DELETE ──────────────────────────────────────
+
 $txn_id = (int)($input['txn_id'] ?? 0);
 if ($txn_id <= 0) {
     delete_json_die(false, 'Invalid transaction ID', 400);

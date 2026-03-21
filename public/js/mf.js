@@ -61,14 +61,11 @@ function initHoldingsPage() {
     MF.search = e.target.value.toLowerCase(); applyHoldingsFilter();
   });
 
-  // Sort headers
-  document.querySelectorAll('#holdingsTable th.sortable').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.col;
-      if (MF.sortCol === col) MF.sortDir = MF.sortDir === 'asc' ? 'desc' : 'asc';
-      else { MF.sortCol = col; MF.sortDir = 'desc'; }
-      renderHoldings();
-    });
+  // Sort menu (replaces click-on-header)
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#btnSortMenu') && !e.target.closest('#sortMenuDropdown')) {
+      document.getElementById('sortMenuDropdown').style.display = 'none';
+    }
   });
 
   // Add Transaction
@@ -184,9 +181,10 @@ function renderHoldings() {
   });
 
   if (!MF.filtered.length) {
-    body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
+    body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
     if (tfoot) tfoot.style.display = 'none';
     if (countEl) countEl.textContent = '0 funds';
+    clearFundSelection();
     return;
   }
 
@@ -249,8 +247,11 @@ function renderHoldings() {
       if (h.drawdown_pct <= 0) {
         drawdownHtml = `<span style="color:#16a34a;font-weight:600;">🏆 ATH</span>`;
       } else {
-        const ddClr = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#16a34a';
-        drawdownHtml = `<span style="color:${ddClr};font-weight:600;">▼ -${h.drawdown_pct}%</span>`;
+        const ddClr = h.drawdown_pct > 20 ? '#dc2626' : h.drawdown_pct > 10 ? '#d97706' : '#ef4444';
+        const navDiff = (h.highest_nav && h.latest_nav)
+          ? `<div style="font-size:11px;color:#dc2626;margin-top:2px;">▼ ₹${Number(h.highest_nav - h.latest_nav).toFixed(4)}</div>`
+          : '';
+        drawdownHtml = `<div style="color:${ddClr};font-weight:600;">▼ -${h.drawdown_pct}%</div>${navDiff}`;
       }
     }
 
@@ -283,16 +284,60 @@ function renderHoldings() {
     }
 
     return `<tr data-fund-id="${fundId}" data-folio="${h.folio_number||''}">
-      <td class="fund-name-cell">
-        <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
-        <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')} · ${escHtml(h.category||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
-        <div style="margin-top:3px;">${ltcgBadge}${lockBadge}</div>
+      <td style="text-align:center;padding:8px 4px;vertical-align:middle;">
+        <input type="checkbox" class="fund-select-cb" data-fund-id="${fundId}"
+          data-scheme-name="${escAttr(h.scheme_name)}"
+          data-invested="${h.total_invested||0}"
+          onchange="onFundCheckboxChange()"
+          style="width:15px;height:15px;cursor:pointer;accent-color:#3b82f6;">
       </td>
-      <td class="text-center" style="font-weight:600;">₹${Number(h.total_invested).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td class="text-center" style="font-weight:600;">₹${Number(h.value_now||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td class="text-center">${cell(gain, true)}</td>
-      <td class="text-center">${cell(gainPct, false)}</td>
-      <td class="text-center">${cagrHtml}</td>
+      <td class="fund-name-cell" style="text-align:center;">
+        <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
+        <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
+        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center;">
+          ${(() => {
+            const name = (h.scheme_name||'').toLowerCase();
+            const isDirect = name.includes('direct');
+            const planBadge = isDirect
+              ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.2);">Direct</span>`
+              : `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(234,179,8,.1);color:#b45309;border:1px solid rgba(234,179,8,.2);">Regular</span>`;
+            const opt = (h.option_type||'').toLowerCase();
+            const optBadge = opt === 'idcw'
+              ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(168,85,247,.08);color:#7c3aed;">IDCW</span>`
+              : `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(37,99,235,.08);color:var(--accent);">Growth</span>`;
+            const cat = (h.category||'').toLowerCase();
+            const catColor = cat.includes('debt') || cat.includes('liquid') ? ['rgba(239,68,68,.08)','#dc2626']
+                           : cat.includes('hybrid') ? ['rgba(168,85,247,.08)','#7c3aed']
+                           : cat.includes('index') || cat.includes('etf') ? ['rgba(6,182,212,.08)','#0891b2']
+                           : cat.includes('elss') ? ['rgba(234,179,8,.1)','#b45309']
+                           : ['rgba(22,163,74,.08)','#15803d'];
+            const catBadge = h.category
+              ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${catColor[0]};color:${catColor[1]};">${escHtml(h.category)}</span>`
+              : '';
+            return catBadge + planBadge + optBadge;
+          })()}
+          ${lockBadge}
+        </div>
+      </td>
+      <td class="text-center" style="padding:6px 8px;">
+        <div style="display:flex;flex-direction:column;gap:1px;">
+          <div style="font-size:12px;color:var(--text-muted);">
+            ₹${Number(h.total_invested).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+          </div>
+          <div style="font-weight:700;font-size:13px;">
+            ₹${Number(h.value_now||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+          </div>
+          <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:2px;margin-top:1px;">
+            ${cell(gain, true)}
+          </div>
+        </div>
+      </td>
+      <td class="text-center" style="padding:6px 8px;">
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="font-size:12px;">${cell(gainPct, false)}</div>
+          <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:3px;">${cagrHtml}</div>
+        </div>
+      </td>
       <td class="text-center">
         <div style="font-weight:600;">${Number(h.total_units).toFixed(4)}</div>
         ${h.ltcg_units > 0 ? `<div style="font-size:11px;margin-top:2px;color:#16a34a;font-weight:600;">▲ L: ${Number(h.ltcg_units).toFixed(4)}</div>` : ''}
@@ -302,11 +347,24 @@ function renderHoldings() {
       <td class="text-center">${peakNav}</td>
       <td class="text-center">${drawdownHtml}</td>
       <td class="text-center" data-1d-fund="${fundId}"><span style="color:var(--text-muted);font-size:12px;">⏳</span></td>
-      <td style="white-space:nowrap;text-align:center;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+      <td style="white-space:nowrap;text-align:center;padding:6px 4px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
           ${h.active_sip_count > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:default;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}
           ${(h.active_swp_count||0) > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:default;' title='SWP Active'>💸 SWP</span>` : ''}
-          <button class="btn btn-ghost btn-xs" onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions">📋</button>
+          <button onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:500;transition:all .15s;"
+            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';this.style.background='rgba(37,99,235,.06)'"
+            onmouseout="this.style.borderColor='var(--border-color)';this.style.color='var(--text-muted)';this.style.background='var(--bg-secondary)'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+            Txns
+          </button>
+          <button onclick="openDeleteFundModal(${fundId},'${escAttr(h.scheme_name)}',${h.total_invested||0})" title="Delete this fund"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.06);cursor:pointer;font-size:11px;color:#dc2626;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(239,68,68,.15)';this.style.borderColor='#dc2626'"
+            onmouseout="this.style.background='rgba(239,68,68,.06)';this.style.borderColor='rgba(239,68,68,.35)'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Delete
+          </button>
         </div>
       </td>
     </tr>`;
@@ -315,17 +373,28 @@ function renderHoldings() {
   // Footer totals
   if (tfoot) {
     tfoot.style.display = '';
-    document.getElementById('footInvested').textContent = fmtInr(totInv);
-    document.getElementById('footValue').textContent    = fmtInr(totVal);
-    const g = totGain;
+    const g    = totGain;
     const gPos = g >= 0;
     const gArr = gPos ? '▲' : '▼';
     const gClr = gPos ? '#16a34a' : '#dc2626';
-    const footGainEl    = document.getElementById('footGain');
-    const footGainPctEl = document.getElementById('footGainPct');
-    footGainEl.innerHTML    = `<span style="color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${fmtInr(Math.abs(g))}</span>`;
-    footGainPctEl.innerHTML = `<span style="color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${totPct}%</span>`;
-    // 1D footer will be filled by load1DayChange()
+
+    const footMergedEl = document.getElementById('footInvGainCol');
+    if (footMergedEl) {
+      footMergedEl.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:1px;text-align:center;">
+          <div style="font-size:12px;color:var(--text-muted);font-weight:500;">${fmtInr(totInv)}</div>
+          <div style="font-weight:700;font-size:13px;">${fmtInr(totVal)}</div>
+          <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:2px;margin-top:1px;color:${gClr};font-weight:700;">
+            ${gArr} ${gPos?'+':''}${fmtInr(Math.abs(g))}
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('footGainPct').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:3px;text-align:center;">
+        <div style="font-size:12px;color:${gClr};font-weight:700;">${gArr} ${gPos?'+':''}${totPct}%</div>
+        <div style="font-size:11px;color:var(--text-muted);border-top:1px solid var(--border-color);padding-top:3px;">XIRR —</div>
+      </div>`;
     const f1d = document.getElementById('foot1dChange');
     if (f1d) f1d.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">⏳</span>';
   }
@@ -684,6 +753,256 @@ async function deleteTransaction(txnId, fundName) {
   });
 }
 
+function _getPortfolioId() {
+  return document.getElementById('filterPortfolio')?.value || 0;
+}
+
+// ── FUND-LEVEL DELETE ─────────────────────────────────────────
+
+// State for single-fund delete modal
+const _df = { fundId: null, confirmPhrase: '' };
+
+function _randPhrase() {
+  // 6-char random alphanumeric (uppercase)
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+function openDeleteFundModal(fundId, schemeName, invested) {
+  _df.fundId        = fundId;
+  _df.confirmPhrase = _randPhrase();
+
+  document.getElementById('deleteFundName').textContent      = schemeName;
+  document.getElementById('deleteFundMeta').textContent      = `Invested: ₹${Number(invested).toLocaleString('en-IN', {minimumFractionDigits:2})}`;
+  document.getElementById('deleteConfirmPhrase').textContent = _df.confirmPhrase;
+
+  const inp = document.getElementById('deleteFundConfirmInput');
+  inp.value = '';
+  inp.onpaste     = (e) => { e.preventDefault(); showToast('Paste / drop not allowed — type the code manually', 'error'); };
+  inp.ondrop      = (e) => { e.preventDefault(); showToast('Paste / drop not allowed — type the code manually', 'error'); };
+  inp.ondragover  = (e) => e.preventDefault();
+
+  document.getElementById('deleteFundConfirmHint').textContent = '';
+
+  const btn = document.getElementById('btnConfirmDeleteFund');
+  btn.disabled = true;
+  btn.style.opacity = '0.45';
+  btn.style.cursor  = 'not-allowed';
+
+  showModal('modalDeleteFund');
+  setTimeout(() => inp.focus(), 200);
+}
+
+function closeDeleteFundModal() {
+  hideModal('modalDeleteFund');
+  _df.fundId = null;
+}
+
+function checkDeleteFundConfirm() {
+  const val  = document.getElementById('deleteFundConfirmInput').value.trim().toUpperCase();
+  const hint = document.getElementById('deleteFundConfirmHint');
+  const btn  = document.getElementById('btnConfirmDeleteFund');
+  const ok   = val === _df.confirmPhrase;
+  btn.disabled      = !ok;
+  btn.style.opacity = ok ? '1' : '0.45';
+  btn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+  hint.textContent  = ok ? '✓ Code matched — you can now delete.' : '';
+  hint.style.color  = '#16a34a';
+}
+
+async function confirmDeleteFund() {
+  const btn     = document.getElementById('btnConfirmDeleteFund');
+  const label   = document.getElementById('btnConfirmDeleteFundLabel');
+  const spinner = document.getElementById('btnConfirmDeleteFundSpinner');
+  if (btn.disabled) return;
+
+  btn.disabled    = true;
+  label.style.display   = 'none';
+  spinner.style.display = 'inline-block';
+
+  try {
+    const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
+    const res  = await API.post('/api/mutual_funds/mf_delete.php', {
+      fund_ids:     [_df.fundId],
+      portfolio_id: _getPortfolioId(),
+      csrf_token:   csrf,
+    });
+    hideModal('modalDeleteFund');
+    showToast(res.message || 'Fund deleted successfully', 'success');
+    clearFundSelection();
+    await loadHoldings();
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
+    btn.disabled          = false;
+    label.style.display   = '';
+    spinner.style.display = 'none';
+  }
+}
+
+// ── BULK DELETE ───────────────────────────────────────────────
+
+function onFundCheckboxChange() {
+  const checked = document.querySelectorAll('.fund-select-cb:checked');
+  const bar     = document.getElementById('bulkDeleteBar');
+  const countEl = document.getElementById('bulkSelectedCount');
+  const selAll  = document.getElementById('selectAllFunds');
+  const allCbs  = document.querySelectorAll('.fund-select-cb');
+
+  if (bar)     bar.style.display     = checked.length > 0 ? 'flex' : 'none';
+  if (countEl) countEl.textContent   = `${checked.length} fund${checked.length !== 1 ? 's' : ''} selected`;
+  if (selAll)  selAll.indeterminate  = checked.length > 0 && checked.length < allCbs.length;
+  if (selAll && checked.length === allCbs.length && allCbs.length > 0) selAll.checked = true;
+  if (selAll && checked.length === 0) { selAll.checked = false; selAll.indeterminate = false; }
+}
+
+function toggleSortMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('sortMenuDropdown');
+  if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
+  const btn  = document.getElementById('btnSortMenu');
+  const rect = btn.getBoundingClientRect();
+  menu.style.display = 'block';
+
+  // Use fixed positioning (viewport-relative, no scroll offset needed)
+  const menuW = 220;
+  const menuH = menu.offsetHeight || 320;
+
+  let left = rect.left;
+  if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+  if (left < 8) left = 8;
+
+  // Flip up if not enough space below
+  const spaceBelow = window.innerHeight - rect.bottom;
+  let top;
+  if (spaceBelow < menuH + 8) {
+    top = rect.top - menuH - 4; // open above
+  } else {
+    top = rect.bottom + 4;      // open below
+  }
+
+  menu.style.position = 'fixed';
+  menu.style.top  = top + 'px';
+  menu.style.left = left + 'px';
+
+  // Update active indicators
+  document.querySelectorAll('.sort-dir-indicator').forEach(el => {
+    if (el.dataset.col === MF.sortCol) {
+      el.textContent = MF.sortDir === 'asc' ? '↑ ASC' : '↓ DESC';
+      el.style.display = 'inline';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+  document.querySelectorAll('.sort-menu-item').forEach(el => {
+    el.style.fontWeight = el.dataset.col === MF.sortCol ? '700' : '400';
+  });
+}
+
+function applySortMenu(col) {
+  if (MF.sortCol === col) {
+    MF.sortDir = MF.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    MF.sortCol = col;
+    MF.sortDir = 'desc';
+  }
+  document.getElementById('sortMenuDropdown').style.display = 'none';
+  // Update btn label to show active sort
+  const labels = {
+    total_invested:'Invested', value_now:'Value', gain_loss:'Gain',
+    gain_pct:'Returns', cagr:'XIRR', drawdown_pct:'Drawdown',
+    total_units:'Units', latest_nav:'NAV', highest_nav:'Peak NAV',
+    scheme_name:'Name', first_purchase_date:'Date'
+  };
+  const btn = document.getElementById('btnSortMenu');
+  if (btn) btn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+    ${labels[col]||col} ${MF.sortDir==='asc'?'↑':'↓'}`;
+  renderHoldings();
+}
+
+
+function toggleSelectAllFunds(checked) {
+  document.querySelectorAll('.fund-select-cb').forEach(cb => cb.checked = checked);
+  onFundCheckboxChange();
+}
+
+function clearFundSelection() {
+  document.querySelectorAll('.fund-select-cb').forEach(cb => cb.checked = false);
+  const selAll = document.getElementById('selectAllFunds');
+  if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+  const bar = document.getElementById('bulkDeleteBar');
+  if (bar) bar.style.display = 'none';
+}
+
+function openBulkDeleteModal() {
+  const checked = document.querySelectorAll('.fund-select-cb:checked');
+  if (!checked.length) return;
+
+  document.getElementById('bulkModalCount').textContent     = checked.length;
+  const inp = document.getElementById('bulkDeleteConfirmInput');
+  inp.value = '';
+  inp.onpaste    = (e) => { e.preventDefault(); showToast('Paste / drop not allowed — type DELETE manually', 'error'); };
+  inp.ondrop     = (e) => { e.preventDefault(); showToast('Paste / drop not allowed — type DELETE manually', 'error'); };
+  inp.ondragover = (e) => e.preventDefault();
+  document.getElementById('bulkDeleteConfirmHint').textContent = '';
+
+  const list = document.getElementById('bulkDeleteFundList');
+  list.innerHTML = Array.from(checked).map(cb => {
+    const inv = Number(cb.dataset.invested || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
+    return `<li><strong>${escHtml(cb.dataset.schemeName)}</strong> <span style="color:var(--text-muted);font-size:12px;">— ₹${inv} invested</span></li>`;
+  }).join('');
+
+  const btn = document.getElementById('btnConfirmBulkDelete');
+  btn.disabled = true; btn.style.opacity = '0.45'; btn.style.cursor = 'not-allowed';
+
+  showModal('modalBulkDelete');
+  setTimeout(() => inp.focus(), 200);
+}
+
+function closeBulkDeleteModal() { hideModal('modalBulkDelete'); }
+
+function checkBulkDeleteConfirm() {
+  const val  = document.getElementById('bulkDeleteConfirmInput').value.trim().toUpperCase();
+  const hint = document.getElementById('bulkDeleteConfirmHint');
+  const btn  = document.getElementById('btnConfirmBulkDelete');
+  const ok   = val === 'DELETE';
+  btn.disabled      = !ok;
+  btn.style.opacity = ok ? '1' : '0.45';
+  btn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+  hint.textContent  = ok ? '✓ Confirmed — proceed with deletion.' : '';
+  hint.style.color  = '#16a34a';
+}
+
+async function confirmBulkDelete() {
+  const btn     = document.getElementById('btnConfirmBulkDelete');
+  const label   = document.getElementById('btnConfirmBulkDeleteLabel');
+  const spinner = document.getElementById('btnConfirmBulkDeleteSpinner');
+  if (btn.disabled) return;
+
+  const checked = document.querySelectorAll('.fund-select-cb:checked');
+  const fundIds = Array.from(checked).map(cb => parseInt(cb.dataset.fundId));
+  if (!fundIds.length) return;
+
+  btn.disabled = true; label.style.display = 'none'; spinner.style.display = 'inline-block';
+
+  try {
+    const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
+    const res  = await API.post('/api/mutual_funds/mf_delete.php', {
+      fund_ids:     fundIds,
+      portfolio_id: _getPortfolioId(),
+      csrf_token:   csrf,
+    });
+    hideModal('modalBulkDelete');
+    showToast(res.message || `${fundIds.length} fund(s) deleted`, 'success');
+    clearFundSelection();
+    await loadHoldings();
+  } catch (err) {
+    showToast('Bulk delete failed: ' + err.message, 'error');
+    btn.disabled = false; label.style.display = ''; spinner.style.display = 'none';
+  }
+}
+
+// ── END FUND DELETE ───────────────────────────────────────────
+
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -991,7 +1310,13 @@ function renderDrawerPage(content, fundId, fundName) {
         ? `<td><span class="badge badge-success">✓ ${lbl}</span></td>`
         : `<td style="color:var(--warning);font-size:12px;">⏳ ${lbl}</td>`;
     }
-    return `<tr>
+    return `<tr data-txn-id="${t.id}">
+      <td style="text-align:center;padding:8px 6px;">
+        <input type="checkbox" class="drawer-txn-cb" data-txn-id="${t.id}"
+          data-date="${escAttr(t.txn_date)}" data-type="${escAttr(t.transaction_type)}"
+          onchange="onDrawerCbChange()"
+          style="width:14px;height:14px;cursor:pointer;accent-color:#3b82f6;">
+      </td>
       <td>${formatDateDisplay(t.txn_date)}</td>
       <td><span class="badge ${typeColors[t.transaction_type]||''}">${t.transaction_type}</span></td>
       <td>${Number(t.units).toFixed(4)}</td>
@@ -999,9 +1324,9 @@ function renderDrawerPage(content, fundId, fundName) {
       <td class="text-right">${fmtInr(t.value_at_cost)}</td>
       <td>${t.folio_number||'—'}</td>
       ${ltcgCell}
-      <td>
+      <td style="white-space:nowrap;">
         <button class="btn btn-ghost btn-xs" onclick="editTransaction(${t.id})">✏️</button>
-        <button class="btn btn-ghost btn-xs" onclick="deleteTransaction(${t.id},'${escAttr(t.scheme_name)}')">🗑</button>
+        <button class="btn btn-ghost btn-xs" style="color:#dc2626;" onclick="openDeleteTxnModal(${t.id},'${escAttr(t.scheme_name)}','${escAttr(t.txn_date)}','${escAttr(t.transaction_type)}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -1012,9 +1337,7 @@ function renderDrawerPage(content, fundId, fundName) {
     const btnStyle = (active) => `style="min-width:32px;height:32px;border:1px solid var(--border);border-radius:6px;background:${active ? 'var(--accent)' : 'var(--bg-surface)'};color:${active ? '#fff' : 'var(--text-primary)'};font-size:13px;font-weight:${active ? '600' : '400'};cursor:${active ? 'default' : 'pointer'};padding:0 8px;"`;
 
     let btns = '';
-    // Prev
     btns += `<button ${btnStyle(false)} ${page===1?'disabled style="opacity:.4;cursor:default;"':''} onclick="goDrawerPage(${page-1})">‹</button>`;
-    // Page numbers
     for (let p = 1; p <= pages; p++) {
       if (p === 1 || p === pages || (p >= page-2 && p <= page+2)) {
         btns += `<button ${btnStyle(p===page)} onclick="goDrawerPage(${p})">${p}</button>`;
@@ -1022,7 +1345,6 @@ function renderDrawerPage(content, fundId, fundName) {
         btns += `<span style="padding:0 4px;color:var(--text-muted);">…</span>`;
       }
     }
-    // Next
     btns += `<button ${btnStyle(false)} ${page===pages?'disabled style="opacity:.4;cursor:default;"':''} onclick="goDrawerPage(${page+1})">›</button>`;
 
     paginationHtml = `
@@ -1035,17 +1357,226 @@ function renderDrawerPage(content, fundId, fundName) {
   }
 
   content.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-      <button class="btn btn-primary btn-sm" onclick="openAddTxnForFund(${fundId},'${escAttr(fundName)}')">+ Add</button>
+    <!-- Top action bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div id="drawerBulkBar" style="display:none;align-items:center;gap:8px;padding:5px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;">
+        <span id="drawerBulkCount" style="font-size:13px;font-weight:600;color:#dc2626;"></span>
+        <button onclick="openDrawerBulkDeleteModal()"
+          style="background:#dc2626;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+          🗑 Delete Selected
+        </button>
+        <button onclick="clearDrawerSelection()" style="background:none;border:1px solid var(--border);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-muted);">
+          ✕ Clear
+        </button>
+      </div>
+      <div style="margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="openAddTxnForFund(${fundId},'${escAttr(fundName)}')">+ Add</button>
+      </div>
     </div>
+
     <table class="table table-hover" style="font-size:13px;">
       <thead><tr>
-        <th>Date</th><th>Type</th><th>Units</th><th>NAV</th><th class="text-right">Amount</th><th>Folio</th><th>LTCG Date</th><th></th>
+        <th style="text-align:center;width:32px;">
+          <input type="checkbox" id="drawerSelectAll" title="Select all on this page"
+            onchange="drawerToggleAll(this.checked)"
+            style="width:14px;height:14px;cursor:pointer;accent-color:#3b82f6;">
+        </th>
+        <th>Date</th><th>Type</th><th>Units</th><th>NAV</th>
+        <th class="text-right">Amount</th><th>Folio</th><th>LTCG Date</th><th></th>
       </tr></thead>
       <tbody>${drawerRows}</tbody>
     </table>
     ${paginationHtml}
+
+    <!-- Single txn delete modal (inline) -->
+    <div id="drawerDeleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border-radius:12px;padding:24px;width:min(420px,92vw);box-shadow:0 24px 64px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#dc2626;">🗑 Delete Transaction</h3>
+        <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;">
+          <div id="dtmDetail" style="font-weight:600;"></div>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">
+          This action <strong>cannot be undone</strong>. Holdings will be recalculated.
+        </p>
+        <label style="font-size:13px;">Type <strong style="color:#dc2626;font-family:monospace;">DELETE</strong> to confirm:</label>
+        <input type="text" id="dtmInput" placeholder='Type "DELETE"...'
+          oninput="checkDtm()"
+          onpaste="event.preventDefault();showToast('Paste / drop not allowed','error');"
+          ondrop="event.preventDefault();showToast('Paste / drop not allowed','error');"
+          ondragover="event.preventDefault()"
+          style="width:100%;margin-top:6px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:monospace;font-size:14px;letter-spacing:1px;text-transform:uppercase;background:var(--bg-input,var(--bg-secondary));color:var(--text-primary);box-sizing:border-box;">
+        <div id="dtmHint" style="font-size:12px;color:#16a34a;margin-top:4px;min-height:16px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+          <button onclick="closeDtm()" style="padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:none;cursor:pointer;font-size:13px;color:var(--text-primary);">Cancel</button>
+          <button id="dtmConfirmBtn" disabled onclick="confirmDtm()"
+            style="padding:7px 18px;border-radius:6px;border:none;background:#dc2626;color:#fff;font-weight:600;font-size:13px;cursor:not-allowed;opacity:.45;transition:opacity .2s;">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk txn delete modal (inline) -->
+    <div id="drawerBulkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card);border-radius:12px;padding:24px;width:min(460px,92vw);box-shadow:0 24px 64px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#dc2626;">🗑 Delete <span id="dbmCount"></span> Transaction(s)</h3>
+        <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;max-height:150px;overflow-y:auto;">
+          <ul id="dbmList" style="margin:0;padding-left:16px;font-size:13px;line-height:1.8;"></ul>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">
+          Holdings will be recalculated after deletion. <strong>Cannot be undone.</strong>
+        </p>
+        <label style="font-size:13px;">Type <strong style="color:#dc2626;font-family:monospace;">DELETE</strong> to confirm:</label>
+        <input type="text" id="dbmInput" placeholder='Type "DELETE"...'
+          oninput="checkDbm()"
+          onpaste="event.preventDefault();showToast('Paste / drop not allowed','error');"
+          ondrop="event.preventDefault();showToast('Paste / drop not allowed','error');"
+          ondragover="event.preventDefault()"
+          style="width:100%;margin-top:6px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:monospace;font-size:14px;letter-spacing:1px;text-transform:uppercase;background:var(--bg-input,var(--bg-secondary));color:var(--text-primary);box-sizing:border-box;">
+        <div id="dbmHint" style="font-size:12px;color:#16a34a;margin-top:4px;min-height:16px;"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+          <button onclick="closeDbm()" style="padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:none;cursor:pointer;font-size:13px;color:var(--text-primary);">Cancel</button>
+          <button id="dbmConfirmBtn" disabled onclick="confirmDbm()"
+            style="padding:7px 18px;border-radius:6px;border:none;background:#dc2626;color:#fff;font-weight:600;font-size:13px;cursor:not-allowed;opacity:.45;transition:opacity .2s;">
+            Delete All
+          </button>
+        </div>
+      </div>
+    </div>
   `;
+
+  // Bind state for DTM / DBM
+  window._dtm = { txnId: null, fundName: '' };
+}
+
+// ── Drawer checkbox helpers ───────────────────────────────────
+function onDrawerCbChange() {
+  const checked = document.querySelectorAll('.drawer-txn-cb:checked');
+  const all     = document.querySelectorAll('.drawer-txn-cb');
+  const bar     = document.getElementById('drawerBulkBar');
+  const countEl = document.getElementById('drawerBulkCount');
+  const selAll  = document.getElementById('drawerSelectAll');
+  if (bar)     bar.style.display   = checked.length > 0 ? 'flex' : 'none';
+  if (countEl) countEl.textContent = `${checked.length} selected`;
+  if (selAll)  {
+    selAll.indeterminate = checked.length > 0 && checked.length < all.length;
+    selAll.checked = checked.length === all.length && all.length > 0;
+  }
+}
+
+function drawerToggleAll(checked) {
+  document.querySelectorAll('.drawer-txn-cb').forEach(cb => cb.checked = checked);
+  onDrawerCbChange();
+}
+
+function clearDrawerSelection() {
+  document.querySelectorAll('.drawer-txn-cb').forEach(cb => cb.checked = false);
+  const selAll = document.getElementById('drawerSelectAll');
+  if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+  const bar = document.getElementById('drawerBulkBar');
+  if (bar) bar.style.display = 'none';
+}
+
+// ── Single transaction delete (confirm word) ──────────────────
+function openDeleteTxnModal(txnId, schemeName, txnDate, txnType) {
+  window._dtm = { txnId, schemeName };
+  const modal = document.getElementById('drawerDeleteModal');
+  document.getElementById('dtmDetail').textContent = `${txnType} · ${txnDate} · ${schemeName}`;
+  document.getElementById('dtmInput').value = '';
+  document.getElementById('dtmHint').textContent = '';
+  const btn = document.getElementById('dtmConfirmBtn');
+  btn.disabled = true; btn.style.opacity = '0.45'; btn.style.cursor = 'not-allowed';
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('dtmInput')?.focus(), 100);
+}
+
+function closeDtm() {
+  const m = document.getElementById('drawerDeleteModal');
+  if (m) m.style.display = 'none';
+}
+
+function checkDtm() {
+  const val = document.getElementById('dtmInput').value.trim().toUpperCase();
+  const ok  = val === 'DELETE';
+  const btn = document.getElementById('dtmConfirmBtn');
+  const hint = document.getElementById('dtmHint');
+  btn.disabled = !ok; btn.style.opacity = ok ? '1' : '0.45'; btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+  hint.textContent = ok ? '✓ Confirmed.' : '';
+}
+
+async function confirmDtm() {
+  const btn = document.getElementById('dtmConfirmBtn');
+  if (btn.disabled) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
+    await API.post('/api/mutual_funds/mf_delete.php', { txn_id: window._dtm.txnId, csrf_token: csrf });
+    closeDtm();
+    showToast('Transaction deleted', 'success');
+    // Reload drawer
+    const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&fund_id=${window._drawerFundId}&per_page=1000`);
+    window._drawerTxns = res.data || [];
+    window._drawerPage = 1;
+    renderDrawerPage(document.getElementById('drawerContent'), window._drawerFundId, window._drawerFundName);
+    await loadHoldings();
+  } catch (err) {
+    showToast('Delete failed: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Delete';
+  }
+}
+
+// ── Bulk transaction delete ───────────────────────────────────
+function openDrawerBulkDeleteModal() {
+  const checked = document.querySelectorAll('.drawer-txn-cb:checked');
+  if (!checked.length) return;
+  document.getElementById('dbmCount').textContent = checked.length;
+  document.getElementById('dbmInput').value = '';
+  document.getElementById('dbmHint').textContent = '';
+  const list = document.getElementById('dbmList');
+  list.innerHTML = Array.from(checked).map(cb =>
+    `<li>${escHtml(cb.dataset.type)} · ${escHtml(cb.dataset.date)}</li>`
+  ).join('');
+  const btn = document.getElementById('dbmConfirmBtn');
+  btn.disabled = true; btn.style.opacity = '0.45'; btn.style.cursor = 'not-allowed';
+  document.getElementById('drawerBulkModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('dbmInput')?.focus(), 100);
+}
+
+function closeDbm() {
+  document.getElementById('drawerBulkModal').style.display = 'none';
+}
+
+function checkDbm() {
+  const val = document.getElementById('dbmInput').value.trim().toUpperCase();
+  const ok  = val === 'DELETE';
+  const btn = document.getElementById('dbmConfirmBtn');
+  const hint = document.getElementById('dbmHint');
+  btn.disabled = !ok; btn.style.opacity = ok ? '1' : '0.45'; btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+  hint.textContent = ok ? '✓ Confirmed — will delete selected transactions.' : '';
+}
+
+async function confirmDbm() {
+  const btn = document.getElementById('dbmConfirmBtn');
+  if (btn.disabled) return;
+  const txnIds = Array.from(document.querySelectorAll('.drawer-txn-cb:checked')).map(cb => parseInt(cb.dataset.txnId));
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const csrf = document.getElementById('txnCsrf')?.value || await getCsrf();
+    // Delete one by one (existing API supports single txn_id)
+    for (const id of txnIds) {
+      await API.post('/api/mutual_funds/mf_delete.php', { txn_id: id, csrf_token: csrf });
+    }
+    closeDbm();
+    showToast(`${txnIds.length} transaction(s) deleted`, 'success');
+    const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&fund_id=${window._drawerFundId}&per_page=1000`);
+    window._drawerTxns = res.data || [];
+    window._drawerPage = 1;
+    renderDrawerPage(document.getElementById('drawerContent'), window._drawerFundId, window._drawerFundName);
+    await loadHoldings();
+  } catch (err) {
+    showToast('Bulk delete failed: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = 'Delete All';
+  }
 }
 
 function goDrawerPage(page) {

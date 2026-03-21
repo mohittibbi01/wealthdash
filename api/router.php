@@ -63,6 +63,7 @@ $csrfExempt = [
     'goal_list', 'goal_projection',
     'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
     'sip_xirr', 'sip_nav_status', 'sip_nav_token',
+    'indexes_fetch',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -240,7 +241,11 @@ try {
         case 'nps_nav_update':
             require APP_ROOT . '/api/nps/nps_nav_update.php'; exit;
 
-        // ── Phase 4: Stocks ──────────────────────────────────
+                // ── Market Indexes ─────────────────────────────────
+        case 'indexes_fetch':
+            require APP_ROOT . '/api/indexes/indexes_fetch.php'; exit;
+
+// ── Phase 4: Stocks ──────────────────────────────────
         case 'stocks_list':
             require APP_ROOT . '/api/stocks/stocks_list.php'; exit;
         case 'stocks_add':

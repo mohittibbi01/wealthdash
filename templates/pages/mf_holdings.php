@@ -209,9 +209,27 @@ ob_start();
 </div>
 
 <div class="card">
-  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-    <h3 class="card-title" style="margin:0;">Holdings</h3>
-    <div style="display:flex;gap:8px;align-items:center;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h3 class="card-title" style="margin:0;">Holdings</h3>
+      <!-- Sort menu button — moved here -->
+      <button id="btnSortMenu" onclick="toggleSortMenu(event)"
+        title="Sort holdings"
+        style="background:none;border:1px solid var(--border-color);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;white-space:nowrap;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+        Sort
+      </button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <!-- Bulk-delete bar — shown when ≥1 fund selected -->
+      <div id="bulkDeleteBar" style="display:none;align-items:center;gap:8px;padding:5px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;">
+        <span id="bulkSelectedCount" style="font-size:13px;font-weight:600;color:#dc2626;"></span>
+        <button class="btn btn-sm" onclick="openBulkDeleteModal()"
+          style="background:#dc2626;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+          🗑 Delete Selected
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="clearFundSelection()" style="font-size:12px;">✕ Clear</button>
+      </div>
       <input type="search" id="searchFund" class="form-control form-control-sm" placeholder="Search fund..." style="width:200px;">
       <span id="holdingsCount" style="color:var(--text-muted);font-size:13px;"></span>
     </div>
@@ -219,12 +237,10 @@ ob_start();
   <div class="table-wrapper">
     <table class="table table-hover table-grid" id="holdingsTable" style="table-layout:fixed;width:100%;">
       <colgroup>
+        <col style="width:2.5%;"><!-- Checkbox -->
         <col style="width:20%;"><!-- Fund -->
-        <col style="width:9%;"><!-- Invested -->
-        <col style="width:9%;"><!-- Current Value -->
-        <col style="width:9%;"><!-- Gain/Loss -->
-        <col style="width:7%;"><!-- Returns -->
-        <col style="width:7%;"><!-- XIRR -->
+        <col style="width:13%;"><!-- Invested / Value / Gain -->
+        <col style="width:9%;"><!-- Returns / XIRR -->
         <col style="width:9%;"><!-- Units -->
         <col style="width:8%;"><!-- NAV -->
         <col style="width:8%;"><!-- Peak NAV -->
@@ -234,34 +250,45 @@ ob_start();
       </colgroup>
       <thead>
         <tr>
-          <th class="sortable" data-col="scheme_name">Fund</th>
-          <th class="text-center sortable" data-col="total_invested">Invested</th>
-          <th class="text-center sortable" data-col="value_now">Current Value</th>
-          <th class="text-center sortable" data-col="gain_loss">Gain/Loss</th>
-          <th class="text-center sortable" data-col="gain_pct">Returns</th>
-          <th class="text-center sortable" data-col="cagr">XIRR</th>
-          <th class="text-center sortable" data-col="total_units">Units</th>
-          <th class="text-center sortable" data-col="latest_nav">NAV</th>
-          <th class="text-center sortable" data-col="highest_nav" title="All-Time High NAV">Peak NAV 📈</th>
-          <th class="text-center sortable" data-col="drawdown_pct" title="% below ATH">Drawdown</th>
-          <th class="text-center sortable" data-col="day_change" title="Change since last trading day">1D Change</th>
+          <th style="text-align:center;padding:8px 4px;">
+            <input type="checkbox" id="selectAllFunds" title="Select all visible" onchange="toggleSelectAllFunds(this.checked)"
+              style="width:15px;height:15px;cursor:pointer;accent-color:#3b82f6;">
+          </th>
+          <th>Fund</th>
+          <th class="text-center">
+            <div style="line-height:1.3;">
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">Invested</span>
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">Current Value</span>
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">Gain / Loss</span>
+            </div>
+          </th>
+          <th class="text-center">
+            <div style="line-height:1.3;">
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">Returns</span>
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">XIRR</span>
+            </div>
+          </th>
+          <th class="text-center">Units</th>
+          <th class="text-center">NAV</th>
+          <th class="text-center">Peak NAV</th>
+          <th class="text-center">Drawdown</th>
+          <th class="text-center">1D Change</th>
           <th class="text-center">Actions</th>
         </tr>
       </thead>
       <tbody id="holdingsBody">
-        <tr><td colspan="10" class="text-center" style="padding:40px;">
+        <tr><td colspan="11" class="text-center" style="padding:40px;">
           <div class="spinner"></div>
           <p style="color:var(--text-muted);margin-top:12px;">Loading holdings...</p>
         </td></tr>
       </tbody>
       <tfoot id="holdingsTfoot" style="display:none;">
         <tr style="background:var(--bg-secondary);font-weight:600;">
+          <td></td>
           <td>Total</td>
-          <td class="text-center" id="footInvested"></td>
-          <td class="text-center" id="footValue"></td>
-          <td class="text-center" id="footGain"></td>
+          <td class="text-center" id="footInvGainCol"></td>
           <td class="text-center" id="footGainPct"></td>
-          <td colspan="5"></td>
+          <td colspan="4"></td>
           <td class="text-center" id="foot1dChange"></td>
           <td></td>
         </tr>
@@ -641,6 +668,119 @@ ob_start();
     <button class="btn btn-ghost btn-sm" onclick="closeTxnDrawer()">✕ Close</button>
   </div>
   <div id="drawerContent" style="padding:20px;overflow-y:auto;flex:1;"></div>
+</div>
+
+
+
+<!-- ═══ SORT MENU DROPDOWN ═══ -->
+<div id="sortMenuDropdown" style="display:none;position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:220px;padding:6px 0;overflow:hidden;">
+  <div style="padding:8px 14px 6px;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border-color);">Sort Holdings By</div>
+  <?php
+  $sortOptions = [
+    ['col'=>'total_invested','label'=>'Invested Amount'],
+    ['col'=>'value_now',     'label'=>'Current Value'],
+    ['col'=>'gain_loss',     'label'=>'Gain / Loss (₹)'],
+    ['col'=>'gain_pct',      'label'=>'Returns (%)'],
+    ['col'=>'cagr',          'label'=>'XIRR'],
+    ['col'=>'drawdown_pct',  'label'=>'Drawdown %'],
+    ['col'=>'total_units',   'label'=>'Units'],
+    ['col'=>'latest_nav',    'label'=>'NAV'],
+    ['col'=>'highest_nav',   'label'=>'Peak NAV'],
+    ['col'=>'scheme_name',   'label'=>'Fund Name (A–Z)'],
+    ['col'=>'first_purchase_date','label'=>'First Purchase Date'],
+  ];
+  foreach ($sortOptions as $opt): ?>
+  <button class="sort-menu-item" data-col="<?= $opt['col'] ?>"
+    onclick="applySortMenu('<?= $opt['col'] ?>')"
+    style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 14px;background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-primary);text-align:left;transition:background .15s;"
+    onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background='none'">
+    <span><?= $opt['label'] ?></span>
+    <span class="sort-dir-indicator" data-col="<?= $opt['col'] ?>" style="font-size:11px;color:var(--accent);font-weight:700;display:none;"></span>
+  </button>
+  <?php endforeach; ?>
+</div>
+
+<!-- ═══ DELETE FUND MODAL (single) ═══ -->
+<div class="modal-overlay" id="modalDeleteFund" style="display:none;">
+  <div class="modal" style="max-width:460px;width:95%;">
+    <div class="modal-header" style="border-bottom:2px solid rgba(239,68,68,.2);">
+      <h3 class="modal-title" style="color:#dc2626;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-3px;margin-right:6px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Delete Fund
+      </h3>
+      <button class="modal-close btn btn-ghost btn-sm" onclick="closeDeleteFundModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:14px;margin-bottom:16px;">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">Fund to delete:</div>
+        <div id="deleteFundName" style="font-weight:600;font-size:15px;color:var(--text-primary);"></div>
+        <div id="deleteFundMeta" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
+      </div>
+      <div style="background:rgba(239,68,68,.05);border-left:3px solid #dc2626;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:18px;font-size:13px;color:var(--text-muted);">
+        ⚠️ This will permanently delete <strong>all transactions</strong> for this fund. This action <strong>cannot be undone</strong>.
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" style="font-size:13px;">
+          To confirm, type <strong id="deleteConfirmPhrase" style="color:#dc2626;font-family:monospace;font-size:13px;letter-spacing:.5px;"></strong> below:
+        </label>
+        <input type="text" id="deleteFundConfirmInput" class="form-control"
+          placeholder="Type the code here..." autocomplete="off"
+          oninput="checkDeleteFundConfirm()"
+          style="margin-top:6px;font-family:monospace;letter-spacing:1px;">
+        <div id="deleteFundConfirmHint" style="font-size:12px;margin-top:5px;color:var(--text-muted);min-height:16px;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDeleteFundModal()">Cancel</button>
+      <button class="btn btn-sm" id="btnConfirmDeleteFund" disabled
+        onclick="confirmDeleteFund()"
+        style="background:#dc2626;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-weight:600;cursor:not-allowed;opacity:.45;transition:opacity .2s,cursor .2s;">
+        <span id="btnConfirmDeleteFundLabel">Delete Fund</span>
+        <div class="spinner-sm" id="btnConfirmDeleteFundSpinner" style="display:none;"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BULK DELETE MODAL (multiple funds) ═══ -->
+<div class="modal-overlay" id="modalBulkDelete" style="display:none;">
+  <div class="modal" style="max-width:520px;width:95%;">
+    <div class="modal-header" style="border-bottom:2px solid rgba(239,68,68,.2);">
+      <h3 class="modal-title" style="color:#dc2626;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:-3px;margin-right:6px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Delete <span id="bulkModalCount"></span> Fund(s)
+      </h3>
+      <button class="modal-close btn btn-ghost btn-sm" onclick="closeBulkDeleteModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px 14px;margin-bottom:14px;max-height:180px;overflow-y:auto;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">FUNDS TO BE DELETED:</div>
+        <ul id="bulkDeleteFundList" style="margin:0;padding-left:16px;font-size:13px;line-height:1.8;"></ul>
+      </div>
+      <div style="background:rgba(239,68,68,.05);border-left:3px solid #dc2626;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:18px;font-size:13px;color:var(--text-muted);">
+        ⚠️ All transactions for these funds will be permanently deleted. <strong>This cannot be undone.</strong>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" style="font-size:13px;">
+          Type <strong style="color:#dc2626;font-family:monospace;">DELETE</strong> to confirm:
+        </label>
+        <input type="text" id="bulkDeleteConfirmInput" class="form-control"
+          placeholder='Type "DELETE" here...' autocomplete="off"
+          oninput="checkBulkDeleteConfirm()"
+          style="margin-top:6px;font-family:monospace;letter-spacing:1px;text-transform:uppercase;">
+        <div id="bulkDeleteConfirmHint" style="font-size:12px;margin-top:5px;color:var(--text-muted);min-height:16px;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBulkDeleteModal()">Cancel</button>
+      <button class="btn btn-sm" id="btnConfirmBulkDelete" disabled
+        onclick="confirmBulkDelete()"
+        style="background:#dc2626;color:#fff;border:none;padding:7px 18px;border-radius:6px;font-weight:600;cursor:not-allowed;opacity:.45;transition:opacity .2s;">
+        <span id="btnConfirmBulkDeleteLabel">Delete All</span>
+        <div class="spinner-sm" id="btnConfirmBulkDeleteSpinner" style="display:none;"></div>
+      </button>
+    </div>
+  </div>
 </div>
 
 <?php
