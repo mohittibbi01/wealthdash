@@ -46,22 +46,25 @@ if ($action === 'summary') {
     $working     = (int)$counts['working'];
     $errors      = (int)$counts['errors'];
 
-    // Progress = up_to_date / total (only truly done today counts as 100%)
-    // When idle: up_to_date = completed = total → 100%
-    // When running: progress shows actual today's work
-    $notDone = $pending + $working + $needsUpdate + $errors;
-    $pct = $total > 0 ? round(($upToDate / $total) * 100, 1) : 0;
+    // Progress: done today / (done_today + pending + working + needs_update)
+    // needs_update wale "completed" hain but stale — progress mein NOT done maano
+    // This gives accurate % of today's actual work remaining
+    $effectiveTotal = $upToDate + $pending + $working + $needsUpdate;
+    $pct = $effectiveTotal > 0 ? round(($upToDate / $effectiveTotal) * 100, 1) : 0;
+
+    $notDone = $pending + $working + $needsUpdate;
 
     // Stop flag
     $stopFlag = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_stop'")->fetchColumn();
 
     echo json_encode([
-        'counts'    => $counts,
-        'pct'       => $pct,
-        'not_done'  => $notDone,
-        'stop_flag' => $stopFlag ?: '',
-        'timestamp' => date('H:i:s'),
-        'today'     => date('Y-m-d'),
+        'counts'          => $counts,
+        'pct'             => $pct,
+        'not_done'        => $notDone,
+        'effective_total' => $effectiveTotal,
+        'stop_flag'       => $stopFlag ?: '',
+        'timestamp'       => date('H:i:s'),
+        'today'           => date('Y-m-d'),
     ]);
     exit;
 }

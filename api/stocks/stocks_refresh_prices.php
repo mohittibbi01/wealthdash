@@ -64,5 +64,7 @@ foreach ($stocks as $stock) {
 
 $msg = "Updated {$updated} stock(s).";
 if ($failed) $msg .= " {$failed} failed (try again or check symbol).";
+// Save last-run timestamp
+DB::run("INSERT INTO app_settings (setting_key, setting_val) VALUES ('stocks_last_updated', NOW())
+         ON DUPLICATE KEY UPDATE setting_val = NOW()");
 json_response(true, $msg, ['updated' => $updated, 'failed' => $failed]);
-

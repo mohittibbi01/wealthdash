@@ -115,6 +115,10 @@ foreach ($lines as $line) {
     }
 }
 
+// Save last-run timestamp
+DB::run("INSERT INTO app_settings (setting_key, setting_val) VALUES ('ter_last_updated', NOW())
+         ON DUPLICATE KEY UPDATE setting_val = NOW()");
+
 $result = [
     'success'   => true,
     'message'   => "TER import complete. Updated {$updated} funds.",

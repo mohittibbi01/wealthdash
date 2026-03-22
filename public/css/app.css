@@ -1706,3 +1706,9 @@ html, body { overflow-x: hidden; }
 .sidebar-footer {
   flex-shrink: 0;
 }
+/* Sort menu — no slide animation, instant open */
+#sortMenuDropdown {
+  transform-origin: top left;
+  animation: none !important;
+  transition: none !important;
+}

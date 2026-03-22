@@ -166,8 +166,12 @@ switch ($action) {
             'stock_holdings'   => safe_count("SELECT COUNT(*) FROM stock_holdings WHERE is_active=1"),
             'fd_accounts'      => safe_count("SELECT COUNT(*) FROM fd_accounts WHERE status='active'"),
             'savings_accs'     => safe_count("SELECT COUNT(*) FROM savings_accounts WHERE is_active=1"),
-            'nav_last_updated' => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nav_last_updated'"),
-            'audit_log_count'  => safe_count("SELECT COUNT(*) FROM audit_log"),
+            'nav_last_updated'        => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nav_last_updated'"),
+            'ter_last_updated'        => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='ter_last_updated'"),
+            'exit_load_last_updated'  => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='exit_load_last_updated'"),
+            'stocks_last_updated'     => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='stocks_last_updated'"),
+            'last_recalc_holdings'    => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='last_recalc_holdings'"),
+            'audit_log_count'         => safe_count("SELECT COUNT(*) FROM audit_log"),
         ];
         json_response(true, '', ['stats' => $stats]);
 

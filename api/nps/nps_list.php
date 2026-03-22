@@ -16,7 +16,7 @@ $contribType = clean($_GET['contrib_type'] ?? '');
 $portWhere = $isAdmin && !$portfolioId
     ? ''
     : ($portfolioId ? 'AND p.id = ' . $portfolioId . ' AND p.user_id = ' . $userId
-    : 'AND p.user_id = ' . $userId));
+    : 'AND p.user_id = ' . $userId);
 
 if ($type === 'holdings') {
     $tierCond = $tier ? "AND h.tier = " . DB::pdo()->quote($tier) : '';

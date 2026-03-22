@@ -54,11 +54,37 @@ function initHoldingsPage() {
     MF.search = e.target.value.toLowerCase(); applyHoldingsFilter();
   });
 
-  // Sort menu (replaces click-on-header)
-  document.addEventListener('click', (e) => {
+  // ── Sticky header scroll shadow ─────────────────────────────────────────
+  // Adds .is-scrolled to table-wrapper once user scrolls past the sticky header
+  // so the box-shadow separator appears exactly when needed.
+  const _tableWrapper = document.querySelector('.table-wrapper');
+  const _topbarH = parseInt(getComputedStyle(document.documentElement)
+                              .getPropertyValue('--topbar-height')) || 60;
+  if (_tableWrapper) {
+    window.addEventListener('scroll', () => {
+      const wrapTop = _tableWrapper.getBoundingClientRect().top;
+      _tableWrapper.classList.toggle('is-scrolled', wrapTop < _topbarH);
+    }, { passive: true });
+  }
+
+  // ── Sort menu — close on OUTSIDE POINTERDOWN (not click) ────────────────
+  // Using pointerdown instead of click prevents the race where a slow drag
+  // from inside the menu ends outside and triggers a false close on 'click'.
+  document.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('#btnSortMenu') && !e.target.closest('#sortMenuDropdown')) {
       document.getElementById('sortMenuDropdown').style.display = 'none';
     }
+  });
+  // Scroll anywhere → close immediately
+  // capture:true fires before scroll moves content; passive:true keeps it smooth
+  window.addEventListener('scroll', () => {
+    document.getElementById('sortMenuDropdown').style.display = 'none';
+  }, { capture: true, passive: true });
+  // Resize → reposition if still open (debounced — don't thrash on every pixel)
+  let _sortMenuResizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(_sortMenuResizeTimer);
+    _sortMenuResizeTimer = setTimeout(_positionSortMenu, 80);
   });
 
   // Add Transaction
@@ -156,6 +182,27 @@ function applyHoldingsFilter() {
   });
 
   renderHoldings();
+}
+
+// ── 1D Change: inline cell renderer ─────────────────────────────────────────
+// Reads MF.oneDayData at render-time so sort/filter/page never loses 1D data.
+function render1DCell(fundId) {
+  const d = MF.oneDayData[fundId];
+  if (!d || (d.day_change_amt === null && d.day_change_pct === null)) {
+    // Data not yet loaded (⏳) or genuinely unavailable (—)
+    const notLoaded = Object.keys(MF.oneDayData).length === 0;
+    return notLoaded
+      ? '<span style="color:var(--text-muted);font-size:12px;">⏳</span>'
+      : '<span style="color:var(--text-muted);">—</span>';
+  }
+  const amt   = d.day_change_amt || 0;
+  const pct   = d.day_change_pct || 0;
+  const isPos = amt >= 0;
+  const color = isPos ? '#16a34a' : '#dc2626';
+  const sign  = isPos ? '+' : '';
+  const arr   = isPos ? '▲' : '▼';
+  return `<div style="color:${color};font-weight:600;font-size:13px;">${arr} ${sign}${fmtFull(Math.abs(amt))}</div>`
+       + `<div style="color:${color};font-size:11px;">${arr} ${sign}${Math.abs(pct).toFixed(3)}%</div>`;
 }
 
 function renderHoldings() {
@@ -316,10 +363,10 @@ function renderHoldings() {
       <td class="text-center" style="padding:6px 8px;">
         <div style="display:flex;flex-direction:column;gap:1px;">
           <div style="font-size:12px;color:var(--text-muted);">
-            ₹${Number(h.total_invested).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+            ${fmtFull(h.total_invested)}
           </div>
           <div style="font-weight:700;font-size:13px;">
-            ₹${Number(h.value_now||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+            ${fmtFull(h.value_now||0)}
           </div>
           <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:2px;margin-top:1px;">
             ${cell(gain, true)}
@@ -340,7 +387,7 @@ function renderHoldings() {
       <td class="text-center">${nav}${navDate}</td>
       <td class="text-center">${peakNav}</td>
       <td class="text-center">${drawdownHtml}</td>
-      <td class="text-center" data-1d-fund="${fundId}"><span style="color:var(--text-muted);font-size:12px;">⏳</span></td>
+      <td class="text-center" data-1d-fund="${fundId}">${render1DCell(fundId)}</td>
       <td style="white-space:nowrap;text-align:center;padding:6px 4px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
           ${h.active_sip_count > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:default;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}
@@ -390,6 +437,10 @@ function renderHoldings() {
       pgEl.innerHTML = html;
     }
   }
+
+  // Stat card sync: recalculate 1D total against currently visible (filtered) funds.
+  // Runs on every re-render so sort/filter/page never leaves the tile stale.
+  inject1DayStatCard();
 }
 
 async function load1DayChange() {
@@ -400,65 +451,61 @@ async function load1DayChange() {
     const res = await API.get(url);
     if (!res.success) return;
     MF.oneDayData = res.data || {};
-    inject1DayChange();
+    // Re-render all rows so render1DCell() picks up fresh data inline.
+    // This is cheaper than DOM-walking: renderHoldings already runs in <1 ms
+    // for typical portfolio sizes and also refreshes the stat card at the end.
+    renderHoldings();
   } catch(e) {
     // silent fail — 1D data is non-critical
     console.warn('1D change fetch failed:', e);
   }
 }
 
-function inject1DayChange() {
+// inject1DayStatCard — updates ONLY the "Today's Change" stat tile.
+// Called at the end of every renderHoldings() so it stays in sync with
+// whatever subset of funds is currently filtered/visible.
+function inject1DayStatCard() {
   const data = MF.oneDayData;
-  let totalAmt = 0, hasSomeData = false;
+  if (!Object.keys(data).length) return; // nothing loaded yet
 
-  // Update each row cell
-  document.querySelectorAll('[data-1d-fund]').forEach(cell => {
-    const fid = cell.getAttribute('data-1d-fund');
+  let totalAmt = 0, hasSomeData = false;
+  MF.filtered.forEach(h => {
+    const fid = String(h.fund_id || h.id);
     const d   = data[fid];
-    if (!d || (d.day_change_amt === null && d.day_change_pct === null)) {
-      cell.innerHTML = '<span style="color:var(--text-muted);">—</span>';
-      return;
+    if (d && (d.day_change_amt !== null || d.day_change_pct !== null)) {
+      hasSomeData = true;
+      totalAmt += d.day_change_amt || 0;
     }
-    hasSomeData = true;
-    const amt = d.day_change_amt || 0;
-    const pct = d.day_change_pct || 0;
-    totalAmt += amt;
-    const isPos = amt >= 0;
-    const color = isPos ? '#16a34a' : '#dc2626';
-    const sign  = isPos ? '+' : '';
-    const arr   = isPos ? '▲' : '▼';
-    cell.innerHTML = `
-      <div style="color:${color};font-weight:600;font-size:13px;">${arr} ${sign}${fmtFull(Math.abs(amt))}</div>
-      <div style="color:${color};font-size:11px;">${arr} ${sign}${Math.abs(pct).toFixed(3)}%</div>
-    `;
   });
 
-
-
-  // Update stat card
   const cardAmt  = document.getElementById('stat1dAmt');
   const cardPct  = document.getElementById('stat1dPct');
   const cardIcon = document.getElementById('stat1dIcon');
-  if (cardAmt && hasSomeData) {
-    const isPos2 = totalAmt >= 0;
-    const color2 = isPos2 ? '#16a34a' : '#dc2626';
-    const sign2  = isPos2 ? '+' : '';
-    const arr2   = isPos2 ? '▲' : '▼';
-    const totVal2 = MF.filtered.reduce((s,h) => s + (h.value_now||0), 0);
-    const totPct2 = totVal2 > 0 ? ((totalAmt / totVal2) * 100).toFixed(3) : '0.000';
-    cardAmt.textContent = arr2 + ' ' + sign2 + fmtInr(Math.abs(totalAmt));
-    cardAmt.style.color = color2;
-    if (cardPct) { cardPct.textContent = '(' + sign2 + totPct2 + '%)'; cardPct.style.color = color2; }
-    // Update icon — up arrow if positive, down arrow if negative
-    if (cardIcon) {
-      cardIcon.innerHTML = isPos2
-        ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/><polyline points="19,4 23,4 23,8"/></svg>`
-        : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/><polyline points="19,20 23,20 23,16"/></svg>`;
-    }
+  if (!cardAmt || !hasSomeData) return;
+
+  const isPos  = totalAmt >= 0;
+  const color  = isPos ? '#16a34a' : '#dc2626';
+  const sign   = isPos ? '+' : '';
+  const arr    = isPos ? '▲' : '▼';
+  const totVal = MF.filtered.reduce((s, h) => s + (h.value_now || 0), 0);
+  const totPct = totVal > 0 ? ((totalAmt / totVal) * 100).toFixed(3) : '0.000';
+
+  cardAmt.textContent = arr + ' ' + sign + fmtInr(Math.abs(totalAmt));
+  cardAmt.style.color = color;
+  if (cardPct) { cardPct.textContent = '(' + sign + totPct + '%)'; cardPct.style.color = color; }
+  if (cardIcon) {
+    cardIcon.innerHTML = isPos
+      ? `<svg width="26" height="24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,17 6,10 10,14 15,7 19,11 23,4"/><polyline points="19,4 23,4 23,8"/></svg>`
+      : `<svg width="26" height="24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="1,7 6,14 10,10 15,17 19,13 23,20"/><polyline points="19,20 23,20 23,16"/></svg>`;
   }
-  // Always inject 1D data after render if available
-  if (Object.keys(MF.oneDayData).length > 0) inject1DayChange();
 }
+
+// inject1DayChange — kept for backward-compat; now delegates to the stat card
+// updater only (row cells are rendered inline by render1DCell).
+function inject1DayChange() {
+  inject1DayStatCard();
+}
+
 
 function goHoldingsPage(p) {
   MF.holdingsPage = p;
@@ -728,7 +775,7 @@ function openDeleteFundModal(fundId, schemeName, invested) {
   _df.confirmPhrase = _randPhrase();
 
   document.getElementById('deleteFundName').textContent      = schemeName;
-  document.getElementById('deleteFundMeta').textContent      = `Invested: ₹${Number(invested).toLocaleString('en-IN', {minimumFractionDigits:2})}`;
+  document.getElementById('deleteFundMeta').textContent      = `Invested: ${fmtFull(invested)}`;
   document.getElementById('deleteConfirmPhrase').textContent = _df.confirmPhrase;
 
   const inp = document.getElementById('deleteFundConfirmInput');
@@ -851,7 +898,8 @@ function toggleSortMenu(e) {
   if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
 
   menu.style.display = 'block';
-  _positionSortMenu();
+  // rAF: let the browser do one layout pass so scrollHeight is real before we position
+  requestAnimationFrame(_positionSortMenu);
 
   // Update active indicators
   document.querySelectorAll('.sort-dir-indicator').forEach(el => {
@@ -920,8 +968,8 @@ function openBulkDeleteModal() {
 
   const list = document.getElementById('bulkDeleteFundList');
   list.innerHTML = Array.from(checked).map(cb => {
-    const inv = Number(cb.dataset.invested || 0).toLocaleString('en-IN', {minimumFractionDigits: 2});
-    return `<li><strong>${escHtml(cb.dataset.schemeName)}</strong> <span style="color:var(--text-muted);font-size:12px;">— ₹${inv} invested</span></li>`;
+    const inv = fmtFull(cb.dataset.invested || 0);
+    return `<li><strong>${escHtml(cb.dataset.schemeName)}</strong> <span style="color:var(--text-muted);font-size:12px;">— ${inv} invested</span></li>`;
   }).join('');
 
   const btn = document.getElementById('btnConfirmBulkDelete');
@@ -1087,7 +1135,7 @@ async function updateAvailableUnits() {
     }
     if (dateEl)     dateEl.textContent     = txnDate ? `(as of ${txnDate})` : '';
     if (avgEl)      avgEl.textContent      = data.avg_cost_nav  ? '₹' + parseFloat(data.avg_cost_nav).toFixed(4) : '—';
-    if (investedEl) investedEl.textContent = data.total_invested ? '₹' + parseFloat(data.total_invested).toLocaleString('en-IN', {maximumFractionDigits:2}) : '—';
+    if (investedEl) investedEl.textContent = data.total_invested ? fmtFull(data.total_invested) : '—';
 
     // ── ELSS lock-in warning ─────────────────────────────────────
     const lockDays = MF.selectedFundLockDays || 0;
@@ -1952,7 +2000,7 @@ function renderRealized() {
       <td class="text-center">₹${Number(r.sell_nav||0).toFixed(4)}</td>
       <td class="text-center">${fmtFull(r.proceeds)}</td>
       <td class="text-center">${fmtFull(r.cost)}</td>
-      <td class="text-center ${gainCls}" style="font-weight:600;">${r.gain >= 0 ? '+' : ''}${fmtInr(r.gain)}</td>
+      <td class="text-center ${gainCls}" style="font-weight:600;">${r.gain >= 0 ? '+' : ''}${fmtFull(r.gain)}</td>
       <td class="text-center">${r.days_held ?? '—'} days</td>
       <td class="text-center"><span class="badge ${typeCls}">${escHtml(r.gain_type||'')}</span></td>
       <td class="text-center">${r.tax_rate != null ? r.tax_rate + '%' : '—'}</td>
@@ -1960,10 +2008,10 @@ function renderRealized() {
     </tr>`;
   }).join('');
 
-  document.getElementById('rFootProceeds').textContent = fmtInr(totProceeds);
-  document.getElementById('rFootCost').textContent     = fmtInr(totCost);
+  document.getElementById('rFootProceeds').textContent = fmtFull(totProceeds);
+  document.getElementById('rFootCost').textContent     = fmtFull(totCost);
   const gainEl = document.getElementById('rFootGain');
-  gainEl.textContent  = (totGain >= 0 ? '+' : '') + fmtInr(totGain);
+  gainEl.textContent  = (totGain >= 0 ? '+' : '') + fmtFull(totGain);
   gainEl.className    = 'text-center ' + (totGain >= 0 ? 'positive' : 'negative');
   tfoot.style.display = '';
 
@@ -2061,7 +2109,7 @@ function renderDividends() {
     </tr>`;
   }).join('');
 
-  document.getElementById('dFootTotal').textContent = fmtInr(total);
+  document.getElementById('dFootTotal').textContent = fmtFull(total);
   tfoot.style.display = '';
 
   setEl('dSumTotal',  fmtInr(total));

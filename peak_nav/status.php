@@ -531,11 +531,12 @@ async function fetchSummary() {
         animNum('c-stale',  fmt(c.needs_update||0));
         animNum('c-errors', fmt(c.errors));
 
-        g('c-sub').textContent = fmt(c.up_to_date||0) + ' up to date today';
-
-        // Progress bar = up_to_date / total (pending + working + needs_update = not done)
+        // Progress bar = up_to_date / effective_total
+        // effective_total = up_to_date + pending + working + needs_update
+        // needs_update wale "old completed" hain — today ka progress mein NOT done count
         g('pct-lbl').textContent = d.pct + '%';
         g('bar').style.width = d.pct + '%';
+        g('c-sub').textContent = fmt(c.up_to_date||0) + ' updated today' + (d.effective_total ? ' of ' + fmt(d.effective_total) : '');
         g('oldest-date').textContent = c.oldest_update || '—';
         g('latest-date').textContent = c.latest_update || '—';
         g('today-val').textContent   = d.today;

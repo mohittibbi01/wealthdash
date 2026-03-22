@@ -148,202 +148,225 @@ ob_start();
 <!-- ═══════ TAB: NAV & DATA ═══════ -->
 <div id="tab-nav" class="admin-tab-content" style="display:none">
 
-  <!-- Row 1: NAV Update (AMFI + Peak combined) + Stocks (side by side) -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <!-- ── SECTION: MUTUAL FUNDS ──────────────────────────────── -->
+  <div class="nav-section-header">
+    <span class="nav-section-icon">📈</span>
+    <div>
+      <div class="nav-section-title">Mutual Funds</div>
+      <div class="nav-section-sub">NAV, fund list, expense ratios, exit loads, peak NAV — sabhi MF-related data operations</div>
+    </div>
+  </div>
 
-    <!-- Combined NAV Update card -->
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">📡</span>
-          <h3 class="card-title" style="margin:0;">Mutual Fund NAV Update</h3>
-        </div>
-        <div class="nav-info-btn" data-info="amfi">ℹ</div>
-      </div>
-      <div class="nav-info-box" id="info-amfi">
-        <strong>Update Today's NAV</strong> — AMFI India se aaj ke sabhi mutual funds ke latest NAV fetch karta hai aur <code>funds.latest_nav</code> update karta hai. Holdings ka "Current Value" yahi se aata hai.<br><br>
-        <strong>Import Full Fund List</strong> — AMFI se poori fund list download karta hai (14,000+ funds). Nayi fund add hone pe ya fresh install pe run karo. 2-5 min lagta hai.<br><br>
-        <strong>Peak NAV Update</strong> — MFAPI.in se har fund ka poora NAV history fetch karta hai aur sabse zyada NAV dhundh ke <code>funds.highest_nav</code> save karta hai. Holdings page pe Drawdown column ke liye.
-      </div>
-      <div class="card-body">
+  <div class="nav-ops-grid">
 
-        <!-- AMFI section -->
-        <p class="text-secondary text-sm" style="margin:0 0 10px;font-weight:600;">AMFI — Daily NAV</p>
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-          <button class="btn btn-primary" id="btnUpdateNav" onclick="runNavUpdate('nav_only')">
-            <span id="navBtnIcon">🔄</span>
-            <span id="navBtnText"> Update Today's NAV</span>
-          </button>
-          <button class="btn btn-outline" id="btnImportAmfi" onclick="confirmImportAmfi()">
-            <span id="importBtnIcon">📥</span>
-            <span id="importBtnText"> Import Full Fund List</span>
-          </button>
-        </div>
-
-        <!-- Inline status strip -->
-        <div id="navStatusStrip" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:4px;"></div>
-
-        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 14px;">
-
-        <!-- Peak NAV section -->
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-          <p class="text-secondary text-sm" style="margin:0;font-weight:600;">Peak NAV — All-Time High</p>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn btn-primary" id="btnRunPeakNav" onclick="runPeakNavBackground()">
-              <span id="btnRunPeakNavIcon">&#9654;</span>
-              <span id="btnRunPeakNavText"> Run Peak NAV</span>
-            </button>
-            <a href="<?= APP_URL ?>/peak_nav/status.php" target="_blank" class="btn btn-ghost btn-sm">↗ Full Tracker</a>
+    <!-- 1. Daily NAV Update -->
+    <div class="nav-op-card" id="navOpCard_nav">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">📡</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Update Today's NAV
+            <span id="navAutoStatus" class="nav-lastrun-badge nav-badge-idle">⏳ Checking...</span>
+          </div>
+          <div class="nav-op-desc">AMFI India se aaj ke sabhi 14,000+ mutual funds ke latest NAV fetch karta hai. Holdings ka <strong>Current Value</strong> aur <strong>Gain/Loss</strong> yahi se calculate hota hai.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">🔄 Roz chalao — weekdays 10 PM ke baad</span>
+            <span class="nav-lastrun" id="lastrun_nav">Last run: —</span>
           </div>
         </div>
-
-        <!-- Live status tiles from status.php API -->
-        <div id="pnTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px;">
-          <div class="pn-tile pn-total">  <div class="pn-num" id="pnTotal">—</div>  <div class="pn-lbl">Total</div></div>
-          <div class="pn-tile pn-stale">  <div class="pn-num" id="pnStale">—</div>  <div class="pn-lbl">Needs Update</div></div>
-          <div class="pn-tile pn-pending"><div class="pn-num" id="pnPending">—</div><div class="pn-lbl">Pending</div></div>
-          <div class="pn-tile pn-done">   <div class="pn-num" id="pnDone">—</div>   <div class="pn-lbl">Completed</div></div>
-          <div class="pn-tile pn-err">    <div class="pn-num" id="pnErrors">—</div> <div class="pn-lbl">Errors</div></div>
-        </div>
-
-        <!-- Progress bar -->
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;background:var(--border);border-radius:99px;height:8px;overflow:hidden;">
-            <div id="pnBar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .6s;"></div>
-          </div>
-          <span id="pnPct" style="font-size:12px;font-weight:700;color:var(--accent);min-width:36px;text-align:right;">0%</span>
-        </div>
-
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-primary btn-sm" id="btnUpdateNav" onclick="runNavUpdate('nav_only')">
+          <span id="navBtnIcon">🔄</span><span id="navBtnText"> Update NAV</span>
+        </button>
       </div>
     </div>
 
-    <!-- Stock Prices Update -->
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">📊</span>
-          <h3 class="card-title" style="margin:0;">Stock Prices Update</h3>
+    <!-- 2. Import Full Fund List -->
+    <div class="nav-op-card" id="navOpCard_import">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">📥</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Import Full Fund List</div>
+          <div class="nav-op-desc">AMFI se poori fund list download karta hai (14,000+ schemes). Fresh install pe ya naye funds add hone pe run karo. <strong>2–5 minute</strong> lagta hai.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">📅 Monthly ya fresh install pe</span>
+            <span class="nav-lastrun" id="lastrun_import">Last run: —</span>
+          </div>
         </div>
-        <div class="nav-info-btn" data-info="stocks">ℹ</div>
       </div>
-      <div class="nav-info-box" id="info-stocks">
-        Yahoo Finance se tumhare portfolio ke sabhi stocks ke latest prices fetch karta hai aur <code>stock_master.latest_price</code> update karta hai. Stock holdings ka "Current Value" yahi se calculate hota hai.<br><br>
-        <strong>Note:</strong> Market hours ke baad run karo (3:30 PM ke baad) taaki closing price mile.
-      </div>
-      <div class="card-body">
-        <button class="btn btn-primary" id="btnUpdateStocks" onclick="updateStockPrices()">
-          Refresh Stock Prices
+      <div class="nav-op-actions">
+        <button class="btn btn-outline btn-sm" id="btnImportAmfi" onclick="confirmImportAmfi()">
+          <span id="importBtnIcon">📥</span><span id="importBtnText"> Import Funds</span>
         </button>
-        <div id="stockUpdateResult" style="display:none;margin-top:1rem;padding:.75rem 1rem;border-radius:var(--radius)"></div>
+      </div>
+    </div>
+
+    <!-- 3. TER / Expense Ratio -->
+    <div class="nav-op-card" id="navOpCard_ter">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">📊</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Expense Ratio (TER) Import</div>
+          <div class="nav-op-desc">GitHub (captn3m0/india-mutual-fund-ter-tracker) se AMFI TER data import karta hai. <strong>Screener mein Expense Ratio column</strong> yahi se populate hota hai.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">📅 Mahine mein ek baar</span>
+            <span class="nav-lastrun" id="lastrun_ter">Last run: —</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-outline btn-sm" id="btnImportTer" onclick="importTer()">
+          <span id="terBtnIcon">📊</span><span id="terBtnText"> Import TER</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Exit Load Seeder -->
+    <div class="nav-op-card" id="navOpCard_el">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">🚪</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Exit Load Seeder</div>
+          <div class="nav-op-desc">SEBI rules ke basis pe har fund ka exit load set karta hai — Equity/Hybrid mein <strong>1% for 1yr</strong>, Debt/Index/ELSS/Liquid mein <strong>Nil</strong>. Nayi funds add hone ke baad run karo.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">📅 New funds add hone pe</span>
+            <span class="nav-lastrun" id="lastrun_el">Last run: —</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-outline btn-sm" id="btnImportExitLoad" onclick="importExitLoad()">
+          <span id="elBtnIcon">🚪</span><span id="elBtnText"> Seed Exit Loads</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. Peak NAV -->
+    <div class="nav-op-card" id="navOpCard_peak">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">🏔️</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Peak NAV — All-Time High</div>
+          <div class="nav-op-desc">MFAPI.in se har fund ka poora NAV history fetch karta hai aur <strong>sabse zyada NAV (ATH)</strong> save karta hai. Holdings page pe <strong>Drawdown column</strong> yahi se calculate hota hai.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">📅 Mahine mein ek baar ya naye funds ke baad</span>
+            <span class="nav-lastrun" id="lastrun_peak">Last run: —</span>
+          </div>
+          <!-- Compact progress tiles -->
+          <div id="pnTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;">
+            <div class="pn-tile pn-total">  <div class="pn-num" id="pnTotal">—</div>  <div class="pn-lbl">Total</div></div>
+            <div class="pn-tile pn-stale">  <div class="pn-num" id="pnStale">—</div>  <div class="pn-lbl">Needs Update</div></div>
+            <div class="pn-tile pn-pending"><div class="pn-num" id="pnPending">—</div><div class="pn-lbl">Pending</div></div>
+            <div class="pn-tile pn-done">   <div class="pn-num" id="pnDone">—</div>   <div class="pn-lbl">Done</div></div>
+            <div class="pn-tile pn-err">    <div class="pn-num" id="pnErrors">—</div> <div class="pn-lbl">Errors</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <div style="flex:1;background:var(--border);border-radius:99px;height:6px;overflow:hidden;">
+              <div id="pnBar" style="height:100%;width:0%;background:var(--accent);border-radius:99px;transition:width .6s;"></div>
+            </div>
+            <span id="pnPct" style="font-size:11px;font-weight:700;color:var(--accent);min-width:32px;text-align:right;">0%</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-primary btn-sm" id="btnRunPeakNav" onclick="runPeakNavBackground()">
+          <span id="btnRunPeakNavIcon">▶</span><span id="btnRunPeakNavText"> Run Peak NAV</span>
+        </button>
+        <a href="<?= APP_URL ?>/peak_nav/status.php" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;">↗ Full Tracker</a>
+      </div>
+    </div>
+
+    <!-- 6. Holdings Recalc -->
+    <div class="nav-op-card" id="navOpCard_recalc">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">🔄</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Holdings Recalculation</div>
+          <div class="nav-op-desc"><code>mf_transactions</code> table se scratch se sabhi holdings dobara calculate karta hai — total units, invested amount, avg cost NAV, gain/loss sab reset hota hai. <strong>CSV import ke baad ya data inconsistency pe use karo.</strong></div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">⚠️ Zarurat pe hi chalao — 1–2 min lagta hai</span>
+            <span class="nav-lastrun" id="lastrun_recalc">Last run: —</span>
+          </div>
+          <div id="recalcStatus" style="margin-top:8px;font-size:12px;display:none;"></div>
+        </div>
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-outline btn-sm" id="btnRecalc" onclick="recalcHoldings()">
+          <span id="recalcBtnLabel">🔄 Recalculate</span>
+        </button>
       </div>
     </div>
 
   </div>
 
-  <!-- Row 1b: TER Import -->
-  <div style="margin-bottom:16px;">
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">📊</span>
-          <div>
-            <h3 class="card-title" style="margin:0;">Expense Ratio (TER) Import</h3>
-            <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted);">
-              Imports TER data from <strong>AMFI via GitHub</strong> (captn3m0/india-mutual-fund-ter-tracker) — daily updated.
-              Run this monthly to keep expense ratios fresh.
-            </p>
+  <!-- inline status strips -->
+  <div id="navStatusStrip" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin:8px 0 16px;"></div>
+  <div id="terResult" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px;margin:8px 0 16px;"></div>
+  <div id="elResult" style="display:none;font-size:12px;padding:8px 12px;border-radius:8px;margin:8px 0 16px;"></div>
+
+  <!-- ── SECTION: STOCKS & ETF ───────────────────────────────── -->
+  <div class="nav-section-header" style="margin-top:8px;">
+    <span class="nav-section-icon">📉</span>
+    <div>
+      <div class="nav-section-title">Stocks & ETF</div>
+      <div class="nav-section-sub">Yahoo Finance se live stock prices refresh karo</div>
+    </div>
+  </div>
+
+  <div class="nav-ops-grid">
+    <div class="nav-op-card" id="navOpCard_stocks">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">💹</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Refresh Stock Prices</div>
+          <div class="nav-op-desc">Yahoo Finance se tumhare portfolio ke sabhi stocks ke latest prices fetch karta hai aur <code>stock_master.latest_price</code> update karta hai. <strong>Market close ke baad (3:30 PM+) run karo</strong> taaki closing price mile.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">🔄 Roz — weekdays 3:30 PM ke baad</span>
+            <span class="nav-lastrun" id="lastrun_stocks">Last run: —</span>
           </div>
+          <div id="stockUpdateResult" style="display:none;margin-top:8px;font-size:12px;"></div>
         </div>
       </div>
-      <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="btnImportTer" onclick="importTer()">
-          <span id="terBtnIcon">📥</span>
-          <span id="terBtnText"> Import TER Data</span>
+      <div class="nav-op-actions">
+        <button class="btn btn-primary btn-sm" id="btnUpdateStocks" onclick="updateStockPrices()">
+          💹 Refresh Prices
         </button>
-        <div id="terResult" style="display:none;font-size:13px;"></div>
       </div>
     </div>
   </div>
 
-  <!-- Row 1c: Exit Load Import -->
-  <div style="margin-bottom:16px;">
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🚪</span>
-          <div>
-            <h3 class="card-title" style="margin:0;">Exit Load Seeder</h3>
-            <p style="margin:3px 0 0;font-size:12px;color:var(--text-muted);">
-              Applies standard SEBI exit load rules based on fund category —
-              <strong>1% for 1yr</strong> on Equity/Hybrid, <strong>Nil</strong> on Debt/Index/ELSS/Liquid.
-              Run once after adding new funds.
-            </p>
-          </div>
-        </div>
-      </div>
-      <div class="card-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="btnImportExitLoad" onclick="importExitLoad()">
-          <span id="elBtnIcon">🚪</span>
-          <span id="elBtnText"> Seed Exit Load Data</span>
-        </button>
-        <div id="elResult" style="display:none;font-size:13px;"></div>
-      </div>
+  <!-- ── SECTION: SYSTEM ────────────────────────────────────── -->
+  <div class="nav-section-header" style="margin-top:8px;">
+    <span class="nav-section-icon">⚙️</span>
+    <div>
+      <div class="nav-section-title">System / Cron Reference</div>
+      <div class="nav-section-sub">Server hosting pe cron jobs ka reference — XAMPP pe manually upar ke buttons use karo</div>
     </div>
   </div>
 
-  <!-- Row 2: Holdings Recalc + Cron (side by side) -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-
-    <!-- Holdings Recalculation -->
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🔄</span>
-          <h3 class="card-title" style="margin:0;">Holdings Recalculation</h3>
-        </div>
-        <div class="nav-info-btn" data-info="recalc">ℹ</div>
-      </div>
-      <div class="nav-info-box" id="info-recalc">
-        <code>mf_transactions</code> table se scratch se sabhi holdings recalculate karta hai — total units, invested amount, avg cost NAV, gain/loss sab.<br><br>
-        <strong>Kab use karo:</strong> Agar holdings page pe values galat lag rahi hain, ya CSV import ke baad data inconsistent dikh raha ho.
-      </div>
-      <div class="card-body">
-        <button class="btn btn-outline" id="btnRecalc" onclick="recalcHoldings()">
-          <span id="recalcBtnLabel">&#128260; Recalculate All Holdings</span>
-        </button>
-        <p class="text-xs text-secondary mt-2">This may take 1-2 minutes for large portfolios.</p>
-        <div id="recalcStatus" style="margin-top:10px;font-size:13px;display:none;"></div>
-      </div>
-    </div>
-
-    <!-- Cron Schedule -->
-    <div class="card">
-      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">⏰</span>
-          <h3 class="card-title" style="margin:0;">Cron Schedule</h3>
-        </div>
-        <div class="nav-info-btn" data-info="cron">ℹ</div>
-      </div>
-      <div class="nav-info-box" id="info-cron">
-        Ye sirf reference hai — XAMPP localhost pe cron kaam nahi karta. <strong>Upar ke buttons manually use karo</strong> jab bhi NAV ya stock prices update karni ho.<br><br>
-        Agar kabhi server pe host karo tab yeh cron jobs add karna.
-      </div>
-      <div class="card-body">
-        <p class="text-secondary text-sm mb-2">Reference only (server hosting ke liye):</p>
-        <div class="code-block">
-          <code>
-# Daily NAV (10:15 PM)<br>
+  <div class="nav-ops-grid">
+    <div class="nav-op-card">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">⏰</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Cron Schedule <span style="font-size:11px;font-weight:400;color:var(--text-muted);background:var(--bg-secondary);padding:1px 7px;border-radius:4px;margin-left:4px;">Reference Only</span></div>
+          <div class="nav-op-desc" style="margin-bottom:10px;">XAMPP localhost pe cron kaam nahi karta — upar ke buttons manually use karo. Agar kabhi server pe host karo tab yeh add karna:</div>
+          <div class="code-block" style="font-size:11px;line-height:1.9;">
+            <code>
+# Daily NAV — 10:15 PM (after AMFI publishes)<br>
 15 22 * * * php /path/to/wealthdash/cron/update_nav_daily.php<br><br>
-# Daily Stocks (6:30 PM)<br>
+# Daily Stocks — 6:30 PM weekdays<br>
 30 18 * * 1-5 php /path/to/wealthdash/cron/update_stocks_daily.php<br><br>
-# FD Maturity Alerts (9 AM)<br>
-0 9 * * * php /path/to/wealthdash/cron/fd_maturity_alert.php
-          </code>
+# FD Maturity Alerts — 9 AM daily<br>
+0 9 * * * php /path/to/wealthdash/cron/fd_maturity_alert.php<br><br>
+# NPS NAV — 8 PM daily<br>
+0 20 * * * php /path/to/wealthdash/cron/nps_nav_scraper.php
+            </code>
+          </div>
         </div>
       </div>
+      <div class="nav-op-actions"></div>
     </div>
-
   </div>
 
 </div>
@@ -666,6 +689,32 @@ ob_start();
 .pn-err .pn-num    { color:var(--danger); }
 .nav-info-box { display:none;padding:12px 20px;background:rgba(37,99,235,.06);border-bottom:1px solid rgba(37,99,235,.15);font-size:13px;line-height:1.6;color:var(--text-secondary); }
 .nav-info-box code { background:var(--bg-surface-2);padding:1px 5px;border-radius:4px;font-size:12px;color:var(--accent); }
+
+/* ── NAV & Data Tab redesign ── */
+.nav-section-header { display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:10px 16px;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:10px; }
+.nav-section-icon { font-size:22px;flex-shrink:0; }
+.nav-section-title { font-size:14px;font-weight:700;color:var(--text-primary); }
+.nav-section-sub { font-size:12px;color:var(--text-secondary);margin-top:1px; }
+.nav-ops-grid { display:flex;flex-direction:column;gap:8px;margin-bottom:16px; }
+.nav-op-card { display:flex;align-items:flex-start;gap:16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;transition:box-shadow .15s; }
+.nav-op-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.07); }
+.nav-op-left { display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0; }
+.nav-op-icon { font-size:22px;flex-shrink:0;margin-top:1px; }
+.nav-op-info { flex:1;min-width:0; }
+.nav-op-title { font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;display:flex;align-items:center;flex-wrap:wrap;gap:6px; }
+.nav-op-desc { font-size:12px;color:var(--text-secondary);line-height:1.55;margin-bottom:6px; }
+.nav-op-desc code { background:var(--bg-surface-2);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--accent);border:1px solid var(--border); }
+.nav-op-meta { display:flex;align-items:center;flex-wrap:wrap;gap:10px; }
+.nav-op-freq { font-size:11px;color:var(--text-muted);font-style:italic; }
+.nav-lastrun { font-size:11px;font-weight:600;color:var(--text-muted); }
+.nav-op-actions { display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;padding-top:2px; }
+/* last-run badges */
+.nav-lastrun-badge { font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap; }
+.nav-badge-idle    { background:var(--bg-surface-2);color:var(--text-muted);border-color:var(--border); }
+.nav-badge-ok      { background:rgba(34,197,94,.1);color:#15803d;border-color:rgba(34,197,94,.3); }
+.nav-badge-updating{ background:rgba(59,130,246,.1);color:var(--accent);border-color:rgba(59,130,246,.3); }
+.nav-badge-error   { background:rgba(239,68,68,.1);color:var(--danger);border-color:rgba(239,68,68,.25); }
+.nav-badge-warn    { background:rgba(234,179,8,.1);color:#92400e;border-color:rgba(234,179,8,.3); }
 </style>
 
 <script>
@@ -715,9 +764,23 @@ async function loadStats() {
     document.getElementById('statFDs').textContent       = s.fd_accounts    ?? '—';
     document.getElementById('statSavings').textContent   = s.savings_accs   ?? '—';
     document.getElementById('statNav').textContent       = s.nav_last_updated ? formatDate(s.nav_last_updated) : 'Not updated';
+
+    // Populate last-run text for each operation
+    const fmtRun = (val) => val ? 'Last run: ' + formatDateTime(val) : 'Last run: Never';
+    const setLastRun = (id, val) => { const el=document.getElementById(id); if(el) el.textContent = fmtRun(val); };
+    setLastRun('lastrun_nav',    s.nav_last_updated);
+    setLastRun('lastrun_import', s.nav_last_updated);  // same key — import updates same setting
+    setLastRun('lastrun_ter',    s.ter_last_updated);
+    setLastRun('lastrun_el',     s.exit_load_last_updated);
+    setLastRun('lastrun_stocks', s.stocks_last_updated);
+    setLastRun('lastrun_recalc', s.last_recalc_holdings);
+    // Peak NAV has its own live tiles via loadPeakNavStatus()
+
+    // Auto-update check: trigger NAV update if not done today
+    checkNavAutoUpdate(s.nav_last_updated);
+
   } catch(e) {
     console.error('loadStats error:', e);
-    // Show error visibly on page
     document.getElementById('statsCards').insertAdjacentHTML('beforeend',
       `<div style="grid-column:1/-1;color:red;font-size:12px;padding:8px;background:#fee2e2;border-radius:6px;">
         ⚠ Stats load error: ${e.message} — Check browser Console (F12) for details
@@ -903,6 +966,84 @@ function navShowStrip(msg, type) {
   strip.textContent = msg;
 }
 
+// ── NAV Auto-Update Status Badge ──────────────────────────────────────────
+// Called by loadStats() with the stored nav_last_updated date.
+// If not updated today → silently trigger update in background.
+// Badge: "Updated Today ✅" | "Updating... ⏳" | "Failed ❌" | "Not updated today ⚠️"
+let _navAutoTriggered = false; // prevent double-trigger on repeated loadStats calls
+
+function navSetAutoStatus(text, style) {
+  const el = document.getElementById('navAutoStatus');
+  if (!el) return;
+  const styles = {
+    ok:       'background:rgba(34,197,94,.1);color:var(--success);border-color:rgba(34,197,94,.3)',
+    updating: 'background:rgba(59,130,246,.1);color:var(--accent);border-color:rgba(59,130,246,.3)',
+    error:    'background:rgba(239,68,68,.1);color:var(--danger);border-color:rgba(239,68,68,.3)',
+    warn:     'background:rgba(234,179,8,.1);color:#b45309;border-color:rgba(234,179,8,.3)',
+    idle:     'background:var(--bg-secondary);color:var(--text-muted);border-color:var(--border)',
+  };
+  el.style.cssText = `font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;border:1px solid;${styles[style]||styles.idle}`;
+  el.textContent = text;
+}
+
+async function checkNavAutoUpdate(navLastUpdated) {
+  const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const badge = document.getElementById('navAutoStatus');
+  if (!badge) return;
+
+  // Already updated today
+  if (navLastUpdated === today) {
+    navSetAutoStatus('Updated Today ✅', 'ok');
+    return;
+  }
+
+  // Weekend: AMFI doesn't publish on Sat/Sun — show info
+  const dow = new Date().getDay(); // 0=Sun, 6=Sat
+  if (dow === 0 || dow === 6) {
+    const lastDate = navLastUpdated ? navLastUpdated : 'Never';
+    navSetAutoStatus(`Weekend — Last: ${lastDate}`, 'warn');
+    return;
+  }
+
+  // Not updated today (weekday) — but only auto-trigger once per page load
+  if (_navAutoTriggered) return;
+  _navAutoTriggered = true;
+
+  // Show "Updating" status immediately
+  navSetAutoStatus('Updating... ⏳', 'updating');
+  navShowStrip('🤖 Auto-updating NAV — page load pe pata chala aaj update nahi tha...', 'info');
+
+  // Trigger silently — same as manual button but no confirm
+  const url = `${window.APP_URL}/api/nav/update_amfi.php`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      signal: AbortSignal.timeout ? AbortSignal.timeout(60000) : undefined,
+    });
+    const d = await res.json();
+
+    if (d.success) {
+      navSetAutoStatus('Updated Now ✅', 'ok');
+      navShowStrip('✅ Auto-update complete — ' + (d.message || 'NAV updated!'), 'success');
+      // Refresh statNav tile to show today's date
+      const statNavEl = document.getElementById('statNav');
+      if (statNavEl) statNavEl.textContent = formatDate(today);
+    } else {
+      // Could be "already updated" message (race condition) — treat as OK
+      if (d.message && d.message.toLowerCase().includes('already')) {
+        navSetAutoStatus('Updated Today ✅', 'ok');
+        navShowStrip('✅ ' + d.message, 'success');
+      } else {
+        navSetAutoStatus('Auto-update Failed ❌', 'error');
+        navShowStrip('⚠️ Auto-update failed: ' + (d.message || 'Unknown error') + ' — click Update button to retry.', 'error');
+      }
+    }
+  } catch (err) {
+    navSetAutoStatus('Failed ❌', 'error');
+    navShowStrip('⚠️ Auto-update error: ' + err.message + ' — click Update button to retry.', 'error');
+  }
+}
+
 async function runNavUpdate(mode) {
   const isImport = mode === 'full_import';
   const type     = isImport ? 'import' : 'nav';
@@ -935,6 +1076,12 @@ async function runNavUpdate(mode) {
       navShowStrip('✅ ' + (d.message || (isImport ? 'Fund list imported successfully!' : 'NAV updated successfully!')), 'success');
       setTimeout(() => navSetBtn(type, 'idle'), 4000);
       showToast(isImport ? '✅ Fund list import complete!' : '✅ NAV updated successfully!', 'success');
+      // Update auto-status badge if this was a NAV update
+      if (!isImport) {
+        navSetAutoStatus('Updated Now ✅', 'ok');
+        const lr = document.getElementById('lastrun_nav');
+        if (lr) lr.textContent = 'Last run: ' + formatDateTime(new Date().toISOString().replace('T',' ').substring(0,19));
+      }
       loadStats();
     } else {
       throw new Error(d.message || 'Failed');
@@ -961,6 +1108,8 @@ async function updateStockPrices() {
     result.style.background='rgba(34,197,94,.1)';
     result.style.color='var(--success)';
     result.innerHTML = `<strong>${d.message||'Stock prices updated.'}</strong>`;
+    const lr = document.getElementById('lastrun_stocks');
+    if (lr) lr.textContent = 'Last run: ' + formatDateTime(new Date().toISOString().replace('T',' ').substring(0,19));
   } catch(e) {
     result.style.display='block';
     result.style.background='rgba(239,68,68,.1)';
@@ -1016,7 +1165,11 @@ async function recalcHoldings() {
         </div>
       </div>`;
 
-    if (!isErr) showToast('Holdings recalculated successfully!', 'success');
+    if (!isErr) {
+      showToast('Holdings recalculated successfully!', 'success');
+      const lr = document.getElementById('lastrun_recalc');
+      if (lr) lr.textContent = 'Last run: ' + formatDateTime(new Date().toISOString().replace('T',' ').substring(0,19));
+    }
     else showToast(res.message, 'error');
 
   } catch(e) {
@@ -1540,7 +1693,11 @@ async function importTer() {
     res.innerHTML = d.success
       ? `✅ <strong>${d.message}</strong><br><small style="color:var(--text-muted);">Not found: ${d.not_found || 0} · Skipped: ${d.skipped || 0}</small>`
       : `⚠️ ${d.message}`;
-    if (d.success) showToast('TER import complete!', 'success');
+    if (d.success) {
+      showToast('TER import complete!', 'success');
+      const el = document.getElementById('lastrun_ter');
+      if (el) el.textContent = 'Last run: ' + formatDateTime(new Date().toISOString().replace('T',' ').substring(0,19));
+    }
     else showToast(d.message, 'error');
   } catch(e) {
     res.style.display = 'block';
@@ -1572,7 +1729,11 @@ async function importExitLoad() {
     res.innerHTML = d.success
       ? `✅ <strong>${d.message}</strong><br><small style="color:var(--text-muted);">With load: ${d.with_load || 0} &nbsp;|&nbsp; Nil: ${d.nil_load || 0} &nbsp;|&nbsp; Total: ${d.total || 0}</small>`
       : `⚠️ ${d.message}`;
-    if (d.success) showToast('Exit load seeded!', 'success');
+    if (d.success) {
+      showToast('Exit load seeded!', 'success');
+      const el = document.getElementById('lastrun_el');
+      if (el) el.textContent = 'Last run: ' + formatDateTime(new Date().toISOString().replace('T',' ').substring(0,19));
+    }
     else showToast(d.message, 'error');
   } catch(e) {
     res.style.display = 'block';
@@ -1703,6 +1864,21 @@ setInterval(() => { if (!pnRunning) loadPeakNavStatus(); }, 10000);
 function formatDate(d) {
   if (!d) return '—';
   return d.substring(0,10).split('-').reverse().join('-');
+}
+
+function formatDateTime(d) {
+  if (!d) return '—';
+  // "2026-03-22 22:30:00" → "22-03-2026, 10:30 PM"
+  const dt = new Date(d.replace(' ', 'T'));
+  if (isNaN(dt)) return d.substring(0,16);
+  const dd   = String(dt.getDate()).padStart(2,'0');
+  const mm   = String(dt.getMonth()+1).padStart(2,'0');
+  const yyyy = dt.getFullYear();
+  const h    = dt.getHours();
+  const min  = String(dt.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = String(h % 12 || 12);
+  return `${dd}-${mm}-${yyyy}, ${h12}:${min} ${ampm}`;
 }
 
 // Info button toggle

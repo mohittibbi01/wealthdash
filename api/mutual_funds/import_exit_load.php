@@ -68,6 +68,10 @@ foreach ($funds as $f) {
 }
 $db->commit();
 
+// Save last-run timestamp
+DB::run("INSERT INTO app_settings (setting_key, setting_val) VALUES ('exit_load_last_updated', NOW())
+         ON DUPLICATE KEY UPDATE setting_val = NOW()");
+
 echo json_encode([
     'success'   => true,
     'message'   => "Exit load seeded for {$updated} funds.",
