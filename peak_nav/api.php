@@ -27,41 +27,49 @@ $action = $_GET['action'] ?? 'summary';
 if ($action === 'summary') {
     $counts = $pdo->query("
         SELECT
-            COUNT(*)                                   AS total,
-            SUM(status='pending')                      AS pending,
-            SUM(status='in_progress')                  AS working,
-            SUM(status='completed')                    AS completed,
-            SUM(status='error')                        AS errors,
+            COUNT(*)                                                     AS total,
+            SUM(status='pending')                                        AS pending,
+            SUM(status='in_progress')                                    AS working,
+            SUM(status='completed')                                      AS completed,
+            SUM(status='error')                                          AS errors,
             SUM(status='completed' AND last_processed_date = CURDATE()) AS up_to_date,
             SUM(status='completed' AND last_processed_date < CURDATE()) AS needs_update,
-            MIN(last_processed_date)                   AS oldest_update,
-            MAX(last_processed_date)                   AS latest_update
+            MIN(last_processed_date)                                     AS oldest_update,
+            MAX(last_processed_date)                                     AS latest_update
         FROM mf_peak_progress
     ")->fetch(PDO::FETCH_ASSOC);
 
     $total       = (int)$counts['total'];
-    $upToDate    = (int)$counts['up_to_date'];
-    $needsUpdate = (int)$counts['needs_update'];
+    $completed   = (int)$counts['completed'];    // up_to_date + needs_update
+    $upToDate    = (int)$counts['up_to_date'];   // done TODAY  → progress "done"
+    $needsUpdate = (int)$counts['needs_update']; // stale completed → treated as not-done
     $pending     = (int)$counts['pending'];
     $working     = (int)$counts['working'];
     $errors      = (int)$counts['errors'];
 
-    // Progress: done today / (done_today + pending + working + needs_update)
-    // needs_update wale "completed" hain but stale — progress mein NOT done maano
-    // This gives accurate % of today's actual work remaining
-    $effectiveTotal = $upToDate + $pending + $working + $needsUpdate;
-    $pct = $effectiveTotal > 0 ? round(($upToDate / $effectiveTotal) * 100, 1) : 0;
+    // ── PROGRESS FORMULA ────────────────────────────────────────────────────
+    // effective_total = done(today) + needs_update + pending + working
+    // pct             = done(today) / effective_total × 100
+    // errors are excluded — they sit in retry queue, unrelated to progress
+    $effectiveTotal = $upToDate + $needsUpdate + $pending + $working;
+    $pct = $effectiveTotal > 0
+        ? round(($upToDate / $effectiveTotal) * 100, 1)
+        : 0;
 
-    $notDone = $pending + $working + $needsUpdate;
+    $notDone = $pending + $working + $needsUpdate; // all remaining real work
 
     // Stop flag
-    $stopFlag = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_stop'")->fetchColumn();
+    $stopFlag = $pdo->query(
+        "SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_stop'"
+    )->fetchColumn();
 
     echo json_encode([
         'counts'          => $counts,
         'pct'             => $pct,
         'not_done'        => $notDone,
         'effective_total' => $effectiveTotal,
+        'up_to_date'      => $upToDate,      // JS convenience — avoids parsing counts.up_to_date
+        'needs_update'    => $needsUpdate,   // JS convenience — breakdown table ke liye
         'stop_flag'       => $stopFlag ?: '',
         'timestamp'       => date('H:i:s'),
         'today'           => date('Y-m-d'),

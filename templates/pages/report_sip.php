@@ -87,6 +87,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Summary Cards -->
 <div class="cards-grid cards-grid-4 mb-4" id="sipSummaryCards">
   <div class="stat-card"><div class="stat-label">Active SIPs</div><div class="stat-value" id="cardActiveSips">—</div></div>
+  <div class="stat-card"><div class="stat-label">Active SWPs</div><div class="stat-value" id="cardActiveSwps">—</div></div>
   <div class="stat-card"><div class="stat-label">Monthly Investment</div><div class="stat-value" id="cardMonthlyAmt">—</div></div>
   <div class="stat-card"><div class="stat-label">Total Invested (via SIP)</div><div class="stat-value" id="cardTotalInvested">—</div></div>
   <div class="stat-card"><div class="stat-label">Overall Gain</div><div class="stat-value" id="cardOverallGain">—</div></div>
@@ -95,7 +96,7 @@ window.addEventListener('unhandledrejection', function(e) {
 <!-- Upcoming SIPs -->
 <div class="card mb-4">
   <div class="card-header">
-    <h3 class="card-title">Upcoming SIPs — Next 30 Days</h3>
+    <h3 class="card-title">🔄 Upcoming SIPs — Next 30 Days</h3>
     <span class="badge badge-info" id="upcomingCount">0</span>
   </div>
   <div class="table-wrap">
@@ -107,6 +108,27 @@ window.addEventListener('unhandledrejection', function(e) {
         </tr>
       </thead>
       <tbody id="upcomingBody">
+        <tr><td colspan="6" class="text-center text-secondary">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Upcoming SWPs -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">💸 Upcoming SWPs — Next 30 Days</h3>
+    <span class="badge badge-danger" id="upcomingSwpCount">0</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Fund</th><th>Amount</th><th>Frequency</th>
+          <th>Next Date</th><th>Days Left</th><th>Platform</th>
+        </tr>
+      </thead>
+      <tbody id="upcomingSwpBody">
         <tr><td colspan="6" class="text-center text-secondary">Loading...</td></tr>
       </tbody>
     </table>
@@ -129,9 +151,9 @@ window.addEventListener('unhandledrejection', function(e) {
 </div>
 
 <!-- All SIPs Table -->
-<div class="card">
+<div class="card mb-4">
   <div class="card-header">
-    <h3 class="card-title">All SIP Schedules</h3>
+    <h3 class="card-title">🔄 All SIP Schedules</h3>
     <div style="display:flex;gap:.5rem;align-items:center">
       <label class="form-check">
         <input type="checkbox" id="showInactive"> Show inactive
@@ -142,13 +164,35 @@ window.addEventListener('unhandledrejection', function(e) {
     <table class="data-table" id="sipTable">
       <thead>
         <tr>
-          <th>Fund</th><th>Type</th><th>Category</th><th>Amount</th><th>Frequency</th>
+          <th>Fund</th><th>Category</th><th>Amount</th><th>Frequency</th>
           <th>SIP Day</th><th>Start Date</th><th>Next Date</th>
           <th>Total Invested</th><th>XIRR</th><th>Status</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="sipBody">
         <tr><td colspan="11" class="text-center text-secondary">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- All SWPs Table -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">💸 All SWP Schedules</h3>
+    <span class="badge badge-danger" id="swpTableCount">0</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table" id="swpTable">
+      <thead>
+        <tr>
+          <th>Fund</th><th>Category</th><th>Withdrawal Amt</th><th>Frequency</th>
+          <th>SWP Day</th><th>Start Date</th><th>Next Date</th>
+          <th>Total Withdrawn</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="swpBody">
+        <tr><td colspan="10" class="text-center text-secondary">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -278,6 +322,7 @@ async function loadSipAnalysis() {
     const r = await API.post('/api/router.php', { action: 'sip_analysis', portfolio_id: getSipPortfolioId() });
     const d = r.data || {};
     document.getElementById('cardActiveSips').textContent    = d.sips?.length ?? 0;
+    document.getElementById('cardActiveSwps').textContent    = d.active_swp_count ?? 0;
     document.getElementById('cardMonthlyAmt').textContent    = formatINR(d.total_monthly_sip);
     document.getElementById('cardTotalInvested').textContent = formatINR(d.total_invested);
     const gainEl = document.getElementById('cardOverallGain');
@@ -286,10 +331,8 @@ async function loadSipAnalysis() {
     gainEl.textContent  = formatINR(gain) + ' (' + (pct > 0 ? '+' : '') + Number(pct).toFixed(2) + '%)';
     gainEl.className    = 'stat-value ' + (gain >= 0 ? 'text-success' : 'text-danger');
   } catch(e) {
-    document.getElementById('cardActiveSips').textContent = '—';
-    document.getElementById('cardMonthlyAmt').textContent = '—';
-    document.getElementById('cardTotalInvested').textContent = '—';
-    document.getElementById('cardOverallGain').textContent = '—';
+    ['cardActiveSips','cardActiveSwps','cardMonthlyAmt','cardTotalInvested','cardOverallGain']
+      .forEach(id => { const el = document.getElementById(id); if(el) el.textContent = '—'; });
     console.error('sip_analysis error:', e);
   }
 }
@@ -298,24 +341,63 @@ async function loadUpcoming() {
   try {
     const r = await API.post('/api/router.php', { action: 'sip_upcoming', days: 30, portfolio_id: getSipPortfolioId() });
     const d = r.data || {};
-    document.getElementById('upcomingCount').textContent = d.upcoming?.length ?? 0;
+    const all     = d.upcoming || [];
+    const sips    = all.filter(s => (s.schedule_type||'SIP').toUpperCase() === 'SIP');
+    const swps    = all.filter(s => (s.schedule_type||'').toUpperCase()    === 'SWP');
+
+    // ── SIP upcoming ─────────────────────────────────────────
+    const countEl = document.getElementById('upcomingCount');
+    if (countEl) countEl.textContent = sips.length;
     const tbody = document.getElementById('upcomingBody');
-    if (!d.upcoming?.length) {
+    if (!sips.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">No upcoming SIPs in next 30 days</td></tr>';
-      return;
+    } else {
+      tbody.innerHTML = sips.map(s => `
+        <tr>
+          <td>${esc(s.scheme_name || '—')}<br><small class="text-secondary">${esc(s.fund_house||'')}</small></td>
+          <td class="text-right">${formatINR(s.sip_amount)}</td>
+          <td><span class="badge badge-secondary">${s.frequency}</span></td>
+          <td>${s.next_date ? formatDate(s.next_date) : '—'}</td>
+          <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-info'}">${s.days_remaining}d</span></td>
+          <td>${esc(s.platform||'—')}</td>
+        </tr>`).join('');
     }
-    tbody.innerHTML = d.upcoming.map(s => `
-      <tr>
-        <td>${esc(s.scheme_name || '—')}<br><small class="text-secondary">${esc(s.fund_house||'')}</small></td>
-        <td class="text-right">${formatINR(s.sip_amount)}</td>
-        <td><span class="badge badge-secondary">${s.frequency}</span></td>
-        <td>${s.next_date ? formatDate(s.next_date) : '—'}</td>
-        <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-info'}">${s.days_remaining}d</span></td>
-        <td>${esc(s.platform||'—')}</td>
-      </tr>`).join('');
+
+    // ── SWP upcoming ─────────────────────────────────────────
+    const swpCountEl = document.getElementById('upcomingSwpCount');
+    if (swpCountEl) swpCountEl.textContent = swps.length;
+    const swpBody = document.getElementById('upcomingSwpBody');
+    if (!swpBody) return;
+    if (!swps.length) {
+      swpBody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">No upcoming SWPs in next 30 days</td></tr>';
+    } else {
+      swpBody.innerHTML = swps.map(s => `
+        <tr>
+          <td>${esc(s.scheme_name || '—')}<br><small class="text-secondary">${esc(s.fund_house||'')}</small></td>
+          <td class="text-right" style="color:#dc2626;font-weight:600;">${formatINR(s.sip_amount)}</td>
+          <td><span class="badge badge-secondary">${s.frequency}</span></td>
+          <td>${s.next_date ? formatDate(s.next_date) : '—'}</td>
+          <td><span class="badge ${s.days_remaining <= 3 ? 'badge-danger' : 'badge-warning'}">${s.days_remaining}d</span></td>
+          <td>${esc(s.platform||'—')}</td>
+        </tr>`).join('');
+    }
   } catch(e) {
-    document.getElementById('upcomingBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading data</td></tr>';
-    console.error('sip_upcoming error:', e);
+    const msg = e?.message || String(e) || 'Unknown error';
+    const errHtml = `<tr><td colspan="6" class="text-center" style="color:#dc2626;font-size:12px;padding:16px;">
+      <strong>⚠ Error:</strong> ${esc(msg)}<br>
+      <small style="color:#94a3b8;">Check browser Console (F12) for details</small>
+    </td></tr>`;
+    const tbody = document.getElementById('upcomingBody');
+    if (tbody) tbody.innerHTML = errHtml;
+    const swpBody = document.getElementById('upcomingSwpBody');
+    if (swpBody) swpBody.innerHTML = errHtml;
+    console.error('❌ sip_upcoming JS error:', e);
+    // Test direct fetch to see raw PHP response
+    fetch('/api/router.php', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+      body: JSON.stringify({action:'sip_upcoming', days:30, portfolio_id: getSipPortfolioId()})
+    }).then(r => r.text()).then(t => console.log('📦 sip_upcoming raw PHP response:', t)).catch(err => console.error('fetch failed:', err));
   }
 }
 
@@ -324,42 +406,70 @@ async function loadSipList() {
     const r = await API.post('/api/router.php', { action: 'sip_list', portfolio_id: getSipPortfolioId() });
     const d = r.data || {};
     const showInactive = document.getElementById('showInactive').checked;
-    const sips = (d.sips || []).filter(s => showInactive || s.is_active == 1);
-    const tbody = document.getElementById('sipBody');
+    const all  = (d.sips || []).filter(s => showInactive || s.is_active == 1);
+    const sips = all.filter(s => (s.schedule_type||'SIP').toUpperCase() === 'SIP');
+    const swps = all.filter(s => (s.schedule_type||'').toUpperCase()    === 'SWP');
+
+    // ── SIP table ─────────────────────────────────────────────
+    const sipBody = document.getElementById('sipBody');
     if (!sips.length) {
-      tbody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary">No SIPs found. Add your first SIP!</td></tr>';
-      return;
+      sipBody.innerHTML = '<tr><td colspan="11" class="text-center text-secondary">No SIPs found. Add your first SIP from Holdings page!</td></tr>';
+    } else {
+      sipBody.innerHTML = sips.map(function(s) {
+        var stopBtn = s.is_active == 1
+          ? '<button class="btn btn-ghost btn-xs" style="color:#d97706" onclick="stopSip(' + s.id + ',\'' + esc(s.fund_name||'') + '\',\'SIP\')">Stop</button>'
+          : '<span style="font-size:11px;color:#94a3b8;">Stopped</span>';
+        return '<tr class="' + (s.is_active != 1 ? 'row-inactive' : '') + '" data-sip-id="' + s.id + '">'
+          + '<td>' + esc(s.fund_name||'—') + '<br><small class="text-secondary">' + esc(s.fund_house||'') + '</small></td>'
+          + '<td><span class="badge badge-secondary text-xs">' + esc(s.fund_category||'—') + '</span></td>'
+          + '<td class="text-right"><strong>' + formatINR(s.sip_amount) + '</strong></td>'
+          + '<td>' + (s.frequency||'') + '</td>'
+          + '<td>' + (s.sip_day||'') + '</td>'
+          + '<td>' + formatDate(s.start_date) + '</td>'
+          + '<td>' + (s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>') + '</td>'
+          + '<td class="text-right">' + formatINR(s.total_invested) + '</td>'
+          + '<td class="text-right sip-xirr"><span style="color:var(--text-muted);font-size:12px;cursor:pointer" onclick="loadSipXirr(' + s.id + ')" title="Click to calculate XIRR">📊 Calc</span></td>'
+          + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Stopped') + '</span></td>'
+          + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
+          + stopBtn
+          + ' <button class="btn btn-ghost btn-xs" style="color:#0284c7;border-color:#bae6fd;" onclick="syncSipTxns(' + s.id + ',this)" title="Past transactions sync karo">⚙ Sync</button>'
+          + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ',\'' + esc(s.fund_name||'') + '\')">Delete</button></td>'
+          + '</tr>';
+      }).join('');
     }
-    tbody.innerHTML = sips.map(function(s) {
-      var isSwp = (s.schedule_type||'').toUpperCase() === 'SWP';
-      var stype = isSwp ? 'SWP' : 'SIP';
-      var tbg = isSwp
-        ? 'background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;'
-        : 'background:#dcfce7;color:#15803d;border:1px solid #86efac;';
-      var typeBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;' + tbg + '">' + stype + '</span>';
-      var stopBtn = s.is_active == 1
-        ? '<button class="btn btn-ghost btn-xs" style="color:#d97706" onclick="stopSip(' + s.id + ',this.dataset.name,this.dataset.type)" data-name="' + esc(s.fund_name||'') + '" data-type="' + stype + '">Stop</button>'
-        : '<span style="font-size:11px;color:#94a3b8;">Stopped</span>';
-      return '<tr class="' + (s.is_active != 1 ? 'row-inactive' : '') + '" data-sip-id="' + s.id + '">'
-        + '<td>' + esc(s.fund_name||'—') + '<br><small class="text-secondary">' + esc(s.fund_house||'') + '</small></td>'
-        + '<td>' + typeBadge + '</td>'
-        + '<td><span class="badge badge-secondary text-xs">' + esc(s.fund_category||'—') + '</span></td>'
-        + '<td class="text-right"><strong>' + formatINR(s.sip_amount) + '</strong></td>'
-        + '<td>' + (s.frequency||'') + '</td>'
-        + '<td>' + (s.sip_day||'') + '</td>'
-        + '<td>' + formatDate(s.start_date) + '</td>'
-        + '<td>' + (s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>') + '</td>'
-        + '<td class="text-right">' + formatINR(s.total_invested) + '</td>'
-        + '<td class="text-right sip-xirr"><span style="color:var(--text-muted);font-size:12px;cursor:pointer" onclick="loadSipXirr(' + s.id + ')" title="Click to calculate XIRR">&#128202; Calc</span></td>'
-        + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Paused') + '</span></td>'
-        + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
-        + stopBtn
-        + ' <button class="btn btn-ghost btn-xs" style="color:#0284c7;border-color:#bae6fd;" onclick="syncSipTxns(' + s.id + ',this)" title="Past transactions generate/sync karo">⚙ Sync Txns</button>'
-        + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ',"' + esc(s.fund_name||'') + '")">Delete</button></td>'
-        + '</tr>';
-    }).join('');
+
+    // ── SWP table ─────────────────────────────────────────────
+    const swpBody     = document.getElementById('swpBody');
+    const swpCountEl  = document.getElementById('swpTableCount');
+    if (swpCountEl) swpCountEl.textContent = swps.filter(s => s.is_active == 1).length;
+    if (!swpBody) return;
+    if (!swps.length) {
+      swpBody.innerHTML = '<tr><td colspan="10" class="text-center text-secondary">No SWPs found.</td></tr>';
+    } else {
+      swpBody.innerHTML = swps.map(function(s) {
+        var stopBtn = s.is_active == 1
+          ? '<button class="btn btn-ghost btn-xs" style="color:#d97706" onclick="stopSip(' + s.id + ',\'' + esc(s.fund_name||'') + '\',\'SWP\')">Stop</button>'
+          : '<span style="font-size:11px;color:#94a3b8;">Stopped</span>';
+        return '<tr class="' + (s.is_active != 1 ? 'row-inactive' : '') + '" data-sip-id="' + s.id + '">'
+          + '<td>' + esc(s.fund_name||'—') + '<br><small class="text-secondary">' + esc(s.fund_house||'') + '</small></td>'
+          + '<td><span class="badge badge-secondary text-xs">' + esc(s.fund_category||'—') + '</span></td>'
+          + '<td class="text-right" style="color:#dc2626;font-weight:600;"><strong>' + formatINR(s.sip_amount) + '</strong></td>'
+          + '<td>' + (s.frequency||'') + '</td>'
+          + '<td>' + (s.sip_day||'') + '</td>'
+          + '<td>' + formatDate(s.start_date) + '</td>'
+          + '<td>' + (s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>') + '</td>'
+          + '<td class="text-right">' + formatINR(s.total_invested) + '</td>'
+          + '<td><span class="badge ' + (s.is_active==1 ? 'badge-danger' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Stopped') + '</span></td>'
+          + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
+          + stopBtn
+          + ' <button class="btn btn-ghost btn-xs text-danger" onclick="deleteSip(' + s.id + ',\'' + esc(s.fund_name||'') + '\')">Delete</button></td>'
+          + '</tr>';
+      }).join('');
+    }
   } catch(e) {
-    document.getElementById('sipBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger">Error loading SIPs: ' + esc(e.message) + '</td></tr>';
+    document.getElementById('sipBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger">Error: ' + esc(e.message) + '</td></tr>';
+    const swpBody = document.getElementById('swpBody');
+    if (swpBody) swpBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Error: ' + esc(e.message) + '</td></tr>';
     console.error('sip_list error:', e);
   }
 }
@@ -373,7 +483,25 @@ async function loadMonthlyChart(months) {
     const values = chart.map(r => +r.invested);
     const ctx    = document.getElementById('sipMonthlyChart').getContext('2d');
     if (sipChartInst) sipChartInst.destroy();
-    if (!chart.length) return; // no data, leave canvas empty
+    if (!chart.length) {
+      // Show helpful empty state
+      const canvas = document.getElementById('sipMonthlyChart');
+      const ctx2 = canvas.getContext('2d');
+      ctx2.clearRect(0, 0, canvas.width, canvas.height);
+      const parent = canvas.parentElement;
+      let emptyMsg = parent.querySelector('.chart-empty-msg');
+      if (!emptyMsg) {
+        emptyMsg = document.createElement('div');
+        emptyMsg.className = 'chart-empty-msg';
+        emptyMsg.style.cssText = 'text-align:center;padding:32px;color:var(--text-muted,#94a3b8);font-size:13px;';
+        parent.appendChild(emptyMsg);
+      }
+      emptyMsg.innerHTML = '📊 No transaction history yet.<br><small>Use the <strong>⚙ Sync</strong> button on each SIP to load past transactions.</small>';
+      return;
+    }
+    // Remove empty msg if data exists
+    const existingMsg = document.getElementById('sipMonthlyChart').parentElement.querySelector('.chart-empty-msg');
+    if (existingMsg) existingMsg.remove();
     sipChartInst = new Chart(ctx, {
       type: 'bar',
       data: {
@@ -682,10 +810,22 @@ function closeSipModal() {
 }
 
 function formatDate(d) {
-  if (!d) return '—';
-  const parts = d.split('-');
-  if (parts.length === 3 && parts[0].length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-  return d;
+  if (!d || d === '0000-00-00' || d === '—' || d === null) return '—';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let day, mon, yr;
+  // YYYY-MM-DD format (correct DB format)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !d.startsWith('0000')) {
+    const parts = d.split('-');
+    yr = parts[0]; mon = parseInt(parts[1],10)-1; day = parseInt(parts[2],10);
+  }
+  // DD-MM-YYYY format (old bad data in DB)
+  else if (/^\d{2}-\d{2}-\d{4}$/.test(d)) {
+    const parts = d.split('-');
+    day = parseInt(parts[0],10); mon = parseInt(parts[1],10)-1; yr = parts[2];
+  }
+  else return '—';
+  if (mon < 0 || mon > 11 || day < 1 || day > 31) return '—';
+  return `${String(day).padStart(2,'0')} ${months[mon]} ${yr}`;
 }
 let _holdingsFunds = null;
 

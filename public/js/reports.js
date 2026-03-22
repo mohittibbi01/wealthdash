@@ -228,8 +228,35 @@ if (document.getElementById('fySummaryBody')) {
         go(key, page)    { this.state[key].page = page; this.render(key); },
         changePerPage(key, val) { this.state[key].perPage = parseInt(val); this.state[key].page = 1; this.render(key); },
         set(key, data)   { this.state[key].data = data || []; this.state[key].page = 1; this.render(key); },
+    }; // end fyPagination
 
-        _rowMfGain: g => `<tr>
+    // T32: MF Gains search filter ─────────────────────────────────────────
+    let _allMfGains = []; // full unfiltered data cache
+
+    window.filterMfGains = function(q) {
+        q = (q || '').trim().toLowerCase();
+        const filtered = q
+            ? _allMfGains.filter(g => (g.name || '').toLowerCase().includes(q) || (g.category || '').toLowerCase().includes(q))
+            : _allMfGains;
+        // Update count badge
+        const countEl = document.getElementById('mfGainsCount');
+        if (countEl) countEl.textContent = q ? `${filtered.length} of ${_allMfGains.length} matches` : `${_allMfGains.length} records`;
+        fyPagination.set('mfGains', filtered);
+    };
+
+    function renderMfGains(gains) {
+        _allMfGains = gains || [];
+        // Reset search input
+        const inp = document.getElementById('mfGainsSearch');
+        if (inp) inp.value = '';
+        // Update count
+        const countEl = document.getElementById('mfGainsCount');
+        if (countEl) countEl.textContent = _allMfGains.length ? `${_allMfGains.length} records` : '';
+        fyPagination.set('mfGains', _allMfGains);
+    }
+
+    // Add row renderers to fyPagination after definition
+    fyPagination._rowMfGain = g => `<tr>
             <td>${g.fy}</td>
             <td class="text-nowrap" title="${g.name}">${truncate(g.name,35)}</td>
             <td><small>${g.category}</small></td>
@@ -242,9 +269,8 @@ if (document.getElementById('fySummaryBody')) {
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
             <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):g.tax_rate!=null?g.tax_rate+'%':'Slab'}</td>
-        </tr>`,
-
-        _rowStGain: g => `<tr>
+        </tr>`;
+    fyPagination._rowStGain = g => `<tr>
             <td>${g.fy}</td>
             <td><strong>${g.symbol}</strong></td>
             <td>${truncate(g.name,25)}</td>
@@ -256,17 +282,14 @@ if (document.getElementById('fySummaryBody')) {
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
             <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):'-'}</td>
-        </tr>`,
+        </tr>`;
+    fyPagination._rowMfDiv = d => `<tr><td>${d.fy}</td><td>${truncate(d.name,40)}</td><td>${d.fund_house}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`;
+    fyPagination._rowStDiv = d => `<tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`;
 
-        _rowMfDiv: d => `<tr><td>${d.fy}</td><td>${truncate(d.name,40)}</td><td>${d.fund_house}</td>
-            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
-
-        _rowStDiv: d => `<tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
-            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
-    };
     window.fyPagination = fyPagination; // expose globally for onchange handlers
 
-    function renderMfGains(gains)   { fyPagination.set('mfGains', gains); }
     function renderStockGains(gains){ fyPagination.set('stGains', gains); }
     function renderMfDivs(divs)     { fyPagination.set('mfDiv',   divs);  }
     function renderStDivs(divs)     { fyPagination.set('stDiv',   divs);  }

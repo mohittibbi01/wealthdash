@@ -289,6 +289,56 @@ ob_start();
 </div>
 </div><!-- end tabHoldings -->
 
+<!-- ═══ ANALYTICS SECTION (below Holdings table, always visible) ═══ -->
+<div id="mfAnalyticsSection" style="display:none;margin-top:24px;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+
+    <!-- t71: Asset Allocation Donut -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">📊 Asset Allocation</h3>
+        <div id="allocToggle" style="display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-xs active" id="allocByValue" onclick="renderAllocChart('value')">By Value</button>
+          <button class="btn btn-ghost btn-xs" id="allocByInvest" onclick="renderAllocChart('invested')">By Invested</button>
+        </div>
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;gap:20px;padding:16px;">
+        <div style="position:relative;width:160px;height:160px;flex-shrink:0;">
+          <canvas id="allocChartCanvas" width="160" height="160"></canvas>
+          <div id="allocCenter" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;">
+            <div id="allocCenterPct" style="font-size:18px;font-weight:800;color:var(--text-primary);">—</div>
+            <div id="allocCenterLabel" style="font-size:10px;color:var(--text-muted);text-align:center;">Hover a segment</div>
+          </div>
+        </div>
+        <div id="allocLegend" style="flex:1;display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+
+    <!-- t73: Portfolio XIRR -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">📈 Portfolio Returns</h3>
+      </div>
+      <div class="card-body" style="padding:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Portfolio XIRR</div>
+            <div id="portfolioXirr" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Annualised return</div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Simple CAGR</div>
+            <div id="portfolioCagr" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Based on first purchase</div>
+          </div>
+        </div>
+        <div id="fundXirrList" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ═══ TAB: REALIZED GAINS ═══ -->
 <div id="tabRealized" style="display:none;">
 
@@ -748,6 +798,7 @@ ob_start();
 
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>';
+$extraScripts = '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>'
+             . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>

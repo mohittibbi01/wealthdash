@@ -1,6 +1,7 @@
 <?php
 /**
- * WealthDash — Fund Screener API (clean rewrite)
+ * WealthDash — Fund Screener API
+ * Phase 5: Returns columns (1Y/3Y/5Y) + sort support added
  */
 define('WEALTHDASH', true);
 require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
@@ -8,14 +9,11 @@ require_once APP_ROOT . '/includes/auth_check.php';
 require_once APP_ROOT . '/includes/helpers.php';
 
 header('Content-Type: application/json; charset=utf-8');
-// Suppress PHP warnings/notices from corrupting JSON
 error_reporting(0);
 ini_set('display_errors', '0');
-// Buffer output so stray warnings/errors don't corrupt JSON
 ob_start();
 require_auth();
 
-// Global exception handler — always return JSON, never HTML
 set_exception_handler(function(Throwable $e) {
     ob_clean();
     http_response_code(500);
@@ -44,6 +42,26 @@ $page       = max(1, (int)($_GET['page']     ?? 1));
 $perPage    = min(max(1,(int)($_GET['per_page'] ?? 50)), 100);
 $offset     = ($page - 1) * $perPage;
 
+// Phase 5: Returns filters
+$retMin1y   = isset($_GET['ret_min_1y'])  && is_numeric($_GET['ret_min_1y'])  ? (float)$_GET['ret_min_1y']  : null;
+$retMin3y   = isset($_GET['ret_min_3y'])  && is_numeric($_GET['ret_min_3y'])  ? (float)$_GET['ret_min_3y']  : null;
+$retMin5y   = isset($_GET['ret_min_5y'])  && is_numeric($_GET['ret_min_5y'])  ? (float)$_GET['ret_min_5y']  : null;
+$aumMin     = isset($_GET['aum_min'])     && is_numeric($_GET['aum_min'])     ? (float)$_GET['aum_min']     : null;
+$aumMax     = isset($_GET['aum_max'])     && is_numeric($_GET['aum_max'])     ? (float)$_GET['aum_max']     : null;
+
+// ── Column existence checks ──────────────────────────────
+$hasExpCol = $hasRiskCol = $hasAumCol = $hasPrevNav = $hasReturnsCol = false;
+$checks = [
+    'expense_ratio' => 'hasExpCol',
+    'risk_level'    => 'hasRiskCol',
+    'aum_crore'     => 'hasAumCol',
+    'prev_nav'      => 'hasPrevNav',
+    'returns_1y'    => 'hasReturnsCol',
+];
+foreach ($checks as $col => $var) {
+    try { $db->query("SELECT $col FROM funds LIMIT 1"); $$var = true; } catch (Exception $e) {}
+}
+
 // ── WHERE builder ───────────────────────────────────────
 $where  = ['f.is_active = 1'];
 $params = [];
@@ -66,24 +84,42 @@ if (!empty($fundHouses)) {
 if ($optionType === 'growth') { $where[] = "f.option_type = 'growth'"; }
 elseif ($optionType === 'idcw') { $where[] = "f.option_type IN ('idcw','dividend')"; }
 
-if ($planType === 'direct')  { $where[] = 'f.scheme_name LIKE ?'; $params[] = '%Direct%'; }
+if ($planType === 'direct')   { $where[] = 'f.scheme_name LIKE ?'; $params[] = '%Direct%'; }
 elseif ($planType === 'regular') { $where[] = 'f.scheme_name NOT LIKE ?'; $params[] = '%Direct%'; }
 
 if ($ltcgDays > 0) { $where[] = 'f.min_ltcg_days = ?'; $params[] = $ltcgDays; }
 if ($hasLockin === 1) { $where[] = 'f.lock_in_days > 0'; }
 elseif ($hasLockin === 0) { $where[] = 'f.lock_in_days = 0'; }
 
-// Expense ratio filters — only if column exists
-$hasExpCol = false;
-try {
-    $db->query("SELECT expense_ratio FROM funds LIMIT 1");
-    $hasExpCol = true;
-} catch (Exception $e) { $hasExpCol = false; }
-
 if ($hasExpCol) {
     if ($expMin !== null) { $where[] = 'f.expense_ratio >= ?'; $params[] = $expMin; }
     if ($expMax !== null) { $where[] = 'f.expense_ratio <= ?'; $params[] = $expMax; }
     if ($hasTer) { $where[] = 'f.expense_ratio IS NOT NULL AND f.expense_ratio > 0'; }
+}
+
+// Phase 5: AUM filters
+if ($hasAumCol) {
+    if ($aumMin !== null) { $where[] = 'f.aum_crore >= ?'; $params[] = $aumMin; }
+    if ($aumMax !== null) { $where[] = 'f.aum_crore <= ?'; $params[] = $aumMax; }
+}
+
+// t65: Risk level filter (array — multiple selections allowed)
+$riskLevels = (array)($_GET['risk_level'] ?? []);
+if ($hasRiskCol && !empty($riskLevels)) {
+    $validRisks = ['Low','Low to Moderate','Moderate','Moderately High','High','Very High'];
+    $riskLevels = array_filter($riskLevels, fn($r) => in_array($r, $validRisks));
+    if (!empty($riskLevels)) {
+        $ph = implode(',', array_fill(0, count($riskLevels), '?'));
+        $where[] = "f.risk_level IN ($ph)";
+        array_push($params, ...$riskLevels);
+    }
+}
+
+// Phase 5: Returns filters — only if column exists
+if ($hasReturnsCol) {
+    if ($retMin1y !== null) { $where[] = 'f.returns_1y >= ?'; $params[] = $retMin1y; }
+    if ($retMin3y !== null) { $where[] = 'f.returns_3y >= ?'; $params[] = $retMin3y; }
+    if ($retMin5y !== null) { $where[] = 'f.returns_5y >= ?'; $params[] = $retMin5y; }
 }
 
 $whereSQL = 'WHERE ' . implode(' AND ', $where);
@@ -103,9 +139,18 @@ $sortMap = [
     'peak_nav_asc'  => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav ASC',
     'peak_nav_desc' => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav DESC',
     'house'         => "COALESCE(fh.short_name,fh.name,'') ASC, f.scheme_name ASC",
+    // Phase 5: returns sort
+    'ret1y_desc'    => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y DESC',
+    'ret1y_asc'     => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y ASC',
+    'ret3y_desc'    => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y DESC',
+    'ret3y_asc'     => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y ASC',
+    'ret5y_desc'    => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y DESC',
+    'ret5y_asc'     => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y ASC',
+    'aum_desc'      => 'IF(f.aum_crore IS NULL,1,0) ASC, f.aum_crore DESC',
+    'aum_asc'       => 'IF(f.aum_crore IS NULL,1,0) ASC, f.aum_crore ASC',
 ];
-// expense sort only if column exists
-if (!$hasExpCol && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
+if (!$hasExpCol     && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
+if (!$hasReturnsCol && in_array($sort, ['ret1y_desc','ret1y_asc','ret3y_desc','ret3y_asc','ret5y_desc','ret5y_asc'])) $sort = 'name';
 $orderSQL = $sortMap[$sort] ?? $sortMap['name'];
 
 // ── COUNT ────────────────────────────────────────────────
@@ -114,26 +159,17 @@ $countStmt->execute($params);
 $total = (int)$countStmt->fetchColumn();
 
 // ── MAIN SELECT ──────────────────────────────────────────
-// Build column list dynamically based on available columns
-$hasPrevNav = false;
-try { $db->query("SELECT prev_nav FROM funds LIMIT 1"); $hasPrevNav = true; } catch(Exception $e){}
-
-// Check for risk_level and aum_crore columns
-$hasRiskCol = false;
-try { $db->query("SELECT risk_level FROM funds LIMIT 1"); $hasRiskCol = true; } catch(Exception $e){}
-$hasAumCol = false;
-try { $db->query("SELECT aum_crore FROM funds LIMIT 1"); $hasAumCol = true; } catch(Exception $e){}
-
-$expColSQL  = $hasExpCol  ? ', f.expense_ratio, f.exit_load_pct, f.exit_load_days' : '';
-$riskColSQL = $hasRiskCol ? ', f.risk_level' : '';
-$aumColSQL  = $hasAumCol  ? ', f.aum_crore'  : '';
-$prevNavSQL = $hasPrevNav ? ', f.prev_nav, f.prev_nav_date' : '';
+$expColSQL     = $hasExpCol     ? ', f.expense_ratio, f.exit_load_pct, f.exit_load_days' : '';
+$riskColSQL    = $hasRiskCol    ? ', f.risk_level' : '';
+$aumColSQL     = $hasAumCol     ? ', f.aum_crore'  : '';
+$prevNavSQL    = $hasPrevNav    ? ', f.prev_nav, f.prev_nav_date' : '';
+$returnsColSQL = $hasReturnsCol ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
            f.latest_nav, f.latest_nav_date, f.min_ltcg_days, f.lock_in_days,
            f.highest_nav, f.highest_nav_date
-           $expColSQL $prevNavSQL $riskColSQL $aumColSQL,
+           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $returnsColSQL,
            COALESCE(fh.short_name, fh.name, '') AS fund_house
     FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
     $whereSQL ORDER BY $orderSQL LIMIT ? OFFSET ?
@@ -143,7 +179,7 @@ $stmt = $db->prepare($mainSQL);
 $stmt->execute($allParams);
 $rows = $stmt->fetchAll();
 
-// ── HELPER FUNCTIONS ─────────────────────────────────────
+// ── HELPERS ──────────────────────────────────────────────
 function broad_type(string $cat): string {
     $c = strtolower($cat);
     if (str_contains($c,'elss')||str_contains($c,'tax sav')) return 'Equity';
@@ -162,16 +198,11 @@ function broad_type(string $cat): string {
         str_contains($c,'sectoral')) return 'Equity';
     return 'Other';
 }
-
 function cat_short(string $cat): string {
     $cat = preg_replace('/\b(fund|scheme|mutual)\b/i', '', $cat);
     return trim(preg_replace('/\s+/', ' ', $cat));
 }
-
-function is_direct(string $name): bool {
-    return stripos($name, 'direct') !== false;
-}
-
+function is_direct(string $name): bool { return stripos($name, 'direct') !== false; }
 function title_case(string $name): string {
     if ($name !== strtoupper($name)) return $name;
     $name = mb_convert_case(strtolower($name), MB_CASE_TITLE);
@@ -180,7 +211,7 @@ function title_case(string $name): string {
 }
 
 // ── MAP ROWS ─────────────────────────────────────────────
-$funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasAumCol) {
+$funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasAumCol, $hasReturnsCol) {
     $latNav  = $r['latest_nav']  ? (float)$r['latest_nav']  : null;
     $highNav = $r['highest_nav'] ? (float)$r['highest_nav'] : null;
     $prevNav = ($hasPrevNav && !empty($r['prev_nav'])) ? (float)$r['prev_nav'] : null;
@@ -190,43 +221,49 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         $dd = round(($highNav - $latNav) / $highNav * 100, 2);
         if ($dd <= 99) $drawdown = $dd;
     }
-
     $navChange = null;
     if ($prevNav && $prevNav > 0 && $latNav) {
         $navChange = round(($latNav - $prevNav) / $prevNav * 100, 2);
     }
 
     return [
-        'id'              => (int)$r['id'],
-        'scheme_code'     => $r['scheme_code'],
-        'scheme_name'     => title_case($r['scheme_name'] ?? ''),
-        'fund_house'      => $r['fund_house'] ?? '',
-        'category'        => $r['category'] ?? '',
-        'category_short'  => cat_short($r['category'] ?? ''),
-        'broad_type'      => broad_type($r['category'] ?? ''),
-        'option_type'     => $r['option_type'],
-        'plan_type'       => is_direct($r['scheme_name']) ? 'direct' : 'regular',
-        'latest_nav'      => $latNav,
-        'latest_nav_date' => $r['latest_nav_date'] ?? null,
-        'highest_nav'     => $highNav,
-        'highest_nav_date'=> $r['highest_nav_date'] ?? null,
-        'drawdown_pct'    => $drawdown,
-        'nav_change_pct'  => $navChange,
-        'min_ltcg_days'   => (int)$r['min_ltcg_days'],
-        'lock_in_days'    => (int)$r['lock_in_days'],
-        'expense_ratio'   => ($hasExpCol && isset($r['expense_ratio'])) ? (float)$r['expense_ratio'] ?: null : null,
-        'exit_load_pct'   => ($hasExpCol && isset($r['exit_load_pct']))  ? (float)$r['exit_load_pct']  : null,
-        'exit_load_days'  => ($hasExpCol && isset($r['exit_load_days'])) ? (int)$r['exit_load_days']   : null,
-        'risk_level'      => ($hasRiskCol && isset($r['risk_level']))    ? $r['risk_level']             : null,
-        'aum_crore'       => ($hasAumCol  && isset($r['aum_crore']))     ? (float)$r['aum_crore']       : null,
+        'id'               => (int)$r['id'],
+        'scheme_code'      => $r['scheme_code'],
+        'scheme_name'      => title_case($r['scheme_name'] ?? ''),
+        'fund_house'       => $r['fund_house'] ?? '',
+        'category'         => $r['category'] ?? '',
+        'category_short'   => cat_short($r['category'] ?? ''),
+        'broad_type'       => broad_type($r['category'] ?? ''),
+        'option_type'      => $r['option_type'],
+        'plan_type'        => is_direct($r['scheme_name']) ? 'direct' : 'regular',
+        'latest_nav'       => $latNav,
+        'latest_nav_date'  => $r['latest_nav_date'] ?? null,
+        'highest_nav'      => $highNav,
+        'highest_nav_date' => $r['highest_nav_date'] ?? null,
+        'drawdown_pct'     => $drawdown,
+        'nav_change_pct'   => $navChange,
+        'min_ltcg_days'    => (int)$r['min_ltcg_days'],
+        'lock_in_days'     => (int)$r['lock_in_days'],
+        'expense_ratio'    => ($hasExpCol  && isset($r['expense_ratio'])) ? ((float)$r['expense_ratio'] ?: null) : null,
+        'exit_load_pct'    => ($hasExpCol  && isset($r['exit_load_pct']))  ? (float)$r['exit_load_pct']  : null,
+        'exit_load_days'   => ($hasExpCol  && isset($r['exit_load_days'])) ? (int)$r['exit_load_days']   : null,
+        'risk_level'       => ($hasRiskCol && isset($r['risk_level']))     ? $r['risk_level']             : null,
+        'aum_crore'        => ($hasAumCol  && isset($r['aum_crore']))      ? (float)$r['aum_crore']       : null,
+        // Phase 5: returns
+        'returns_1y'       => ($hasReturnsCol && isset($r['returns_1y']))  ? (is_numeric($r['returns_1y'])  ? round((float)$r['returns_1y'],  2) : null) : null,
+        'returns_3y'       => ($hasReturnsCol && isset($r['returns_3y']))  ? (is_numeric($r['returns_3y'])  ? round((float)$r['returns_3y'],  2) : null) : null,
+        'returns_5y'       => ($hasReturnsCol && isset($r['returns_5y']))  ? (is_numeric($r['returns_5y'])  ? round((float)$r['returns_5y'],  2) : null) : null,
+        'returns_updated'  => ($hasReturnsCol && isset($r['returns_updated_at'])) ? $r['returns_updated_at'] : null,
     ];
 }, $rows);
 
-// ── FACETS (first page, no filters) ──────────────────────
+// ── FACETS ───────────────────────────────────────────────
 $sendFacets = $page === 1 && $q === '' && empty($categories) && empty($fundHouses)
               && $optionType === 'all' && $planType === 'all'
               && $ltcgDays === 0 && $hasLockin === -1
-              && $expMin === null && $expMax === null && !$hasTer;
+              && $expMin === null && $expMax === null && !$hasTer
+              && $retMin1y === null && $retMin3y === null && $retMin5y === null
+              && $aumMin === null && $aumMax === null;
 
 $facets = null;
 if ($sendFacets) {
@@ -251,27 +288,28 @@ if ($sendFacets) {
     $ltcgFacets = [];
     foreach ($ltcgRows as $r) $ltcgFacets[(int)$r['min_ltcg_days']] = (int)$r['cnt'];
 
-    $facets = ['fund_houses'=>$fhFacets,'categories'=>$catFacets,'ltcg_days'=>$ltcgFacets];
+    $facets = [
+        'fund_houses'  => $fhFacets,
+        'categories'   => $catFacets,
+        'ltcg_days'    => $ltcgFacets,
+        'has_returns'  => $hasReturnsCol,
+    ];
 }
 
-// ── RESPONSE ─────────────────────────────────────────────
-ob_clean(); // discard any stray output before JSON
+ob_clean();
 echo json_encode([
-    'success' => true,
-    'total'   => $total,
-    'page'    => $page,
-    'per_page'=> $perPage,
-    'pages'   => (int)ceil($total / max(1,$perPage)),
-    'data'    => $funds,
-    'facets'  => $facets,
+    'success'      => true,
+    'total'        => $total,
+    'page'         => $page,
+    'per_page'     => $perPage,
+    'pages'        => (int)ceil($total / max(1,$perPage)),
+    'data'         => $funds,
+    'facets'       => $facets,
+    'has_returns'  => $hasReturnsCol,
 ], JSON_UNESCAPED_UNICODE);
 
 } catch (Throwable $e) {
     ob_clean();
     http_response_code(500);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode([
-        'success' => false,
-        'message' => 'DB error: ' . $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => false, 'message' => 'DB error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
 }

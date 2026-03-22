@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WealthDash — Master Dev Dashboard</title>
+<title>WealthDash — Master Dev Dashboard v2.1</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -284,10 +284,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </style>
 </head>
 <body>
+<!-- Error banner — auto shows if JS crashes -->
+<div id="errBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;padding:10px 20px;font-family:monospace;font-size:13px;line-height:1.6;"></div>
+<script>
+window.onerror = function(msg, src, line, col, err) {
+  var b = document.getElementById('errBanner');
+  if (b) {
+    b.style.display = 'block';
+    b.innerHTML = '❌ JS Error: ' + msg + '<br>Line: ' + line + ' · ' + (src||'').split('/').pop();
+  }
+};
+</script>
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <div class="logo">⚡ WealthDash <span class="logo-sub">Master Dev Dashboard</span></div>
+  <div class="logo">⚡ WealthDash <span class="logo-sub">Dev Dashboard v2.1 · Phase 1✅ Phase 2✅ Phase 5✅</span></div>
   <div class="topbar-right">
     <span class="last-saved" id="lastSaved">—</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">↕ Collapse All</button>
@@ -344,7 +355,12 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     </div>
   </div>
 
-  <div class="phases" id="phasesWrap"></div>
+  <div class="phases" id="phasesWrap">
+    <div id="jsLoadingMsg" style="padding:40px;text-align:center;color:#64748b;font-size:14px;">
+      ⏳ Loading tasks...
+      <div style="font-size:12px;margin-top:8px;color:#94a3b8;">Agar yeh message 3 seconds se zyada dikh raha hai, to browser Console (F12) mein error check karo.</div>
+    </div>
+  </div>
 </div>
 
 <!-- ========== TAB: ROADMAP ========== -->
@@ -455,7 +471,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
       </div>
       <iframe id="debugIframe" src="about:blank"
         style="width:100%;height:600px;border:none;display:block;"
-        onload="onIframeLoad(this)">
+        onload="if(typeof onIframeLoad==='function')onIframeLoad(this)">
       </iframe>
     </div>
 
@@ -2087,11 +2103,31 @@ document.querySelectorAll('.modal-overlay').forEach(m=>{
 // INIT
 // =============================================
 load();
-renderAll();
-renderRoadmap();
-renderChecklist();
-renderDebugGrid();
-renderAiGrid();
+
+// ── Force-mark completed tasks (hamesha set karo, override karo) ──
+const _completedTasks = [
+  // Phase 1 — Critical Bug Fixes ✅
+  't01','t02','t03','t04','t05','t06',
+  // Phase 2 — MF Holdings & SIP/SWP ✅
+  't07','t08','t09','t10','t11','t12','t13',
+  // Phase 5 — MF Screener ✅
+  't25','t26','t27','t28','t29','t30','t31','t32','t71','t73','t63','t65','t66','t69',
+];
+_completedTasks.forEach(tid => { S[tid+'_m'] = true; });
+save();
+
+try { renderAll(); } catch(e) {
+  console.error('renderAll error:', e);
+  var pw = document.getElementById('phasesWrap');
+  if (pw) pw.innerHTML = '<div style="padding:40px;text-align:center;background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;margin:20px;">'
+    + '<div style="font-size:20px;margin-bottom:10px;">❌ JS Error</div>'
+    + '<div style="font-family:monospace;font-size:13px;color:#dc2626;">' + e.message + '</div>'
+    + '<div style="margin-top:12px;font-size:12px;color:#64748b;">F12 → Console mein full error dekho</div></div>';
+}
+try { renderRoadmap(); } catch(e) {}
+try { renderChecklist(); } catch(e) {}
+try { renderDebugGrid(); } catch(e) {}
+try { renderAiGrid(); } catch(e) {}
 </script>
 </body>
 </html>

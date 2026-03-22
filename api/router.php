@@ -62,7 +62,7 @@ $csrfExempt = [
     'po_list', 'po_meta',
     'goal_list', 'goal_projection',
     'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
-    'sip_xirr', 'sip_nav_status', 'sip_nav_token',
+    'sip_xirr', 'sip_nav_status', 'sip_nav_token', 'sip_sync_txns',
     'indexes_fetch',
     'report_fy_gains',
 ];
@@ -266,6 +266,7 @@ try {
         case 'sip_xirr':
         case 'sip_nav_status':
         case 'sip_nav_token':
+        case 'sip_sync_txns':
             require APP_ROOT . '/api/reports/sip_tracker.php'; exit;
 
         // ── Phase 5: Goal Planning ───────────────────────────

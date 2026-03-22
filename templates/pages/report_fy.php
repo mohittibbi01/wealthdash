@@ -165,6 +165,13 @@ ob_start();
 
     <!-- MF Gains Tab -->
     <div id="mfGainsTab" class="tab-panel active">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary);">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.45;flex-shrink:0;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="search" id="mfGainsSearch" placeholder="Search fund name..." autocomplete="off"
+                style="flex:1;max-width:280px;padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;background:var(--bg-card);color:var(--text-primary);font-size:12px;outline:none;"
+                oninput="filterMfGains(this.value)">
+            <span id="mfGainsCount" style="font-size:11px;color:var(--text-muted);"></span>
+        </div>
         <div class="table-wrap">
             <table class="data-table">
                 <thead>

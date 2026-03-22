@@ -142,9 +142,39 @@ tr:hover td{background:var(--surf2)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── STATUS BREAKDOWN TABLE ───────────────────────────── */
+.bk-box{
+  background:var(--surface);border-radius:10px;padding:14px 18px;
+  margin-bottom:14px;border:1px solid var(--border);
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.bk-title{
+  font-size:.72rem;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;
+}
+.bk-tbl{width:100%;border-collapse:collapse}
+.bk-tbl tr{border-bottom:1px solid var(--border)}
+.bk-tbl tr:last-child{border-bottom:none}
+.bk-tbl td{padding:6px 4px;font-size:.82rem;vertical-align:middle}
+.bk-lbl{color:var(--text);display:flex;align-items:center;gap:6px}
+.bk-count{
+  text-align:right;font-weight:700;font-size:.9rem;
+  font-variant-numeric:tabular-nums;min-width:72px;
+}
+.bk-bar-cell{width:140px;padding:6px 8px}
+.bk-mini-track{background:var(--bg);border-radius:99px;height:5px;overflow:hidden}
+.bk-mini-fill{height:100%;border-radius:99px;transition:width .6s ease}
+.bk-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+.bk-total-row td{
+  font-weight:800;font-size:.85rem;color:var(--text);
+  border-top:2px solid var(--border) !important;padding-top:8px;
+}
+.bk-total-row .bk-count{color:var(--blue)}
+
 @media(max-width:700px){
   .cards{grid-template-columns:repeat(2,1fr)}
   th:nth-child(n+5),td:nth-child(n+5){display:none}
+  .bk-bar-cell{display:none}
 }
 </style>
 </head>
@@ -187,6 +217,44 @@ tr:hover td{background:var(--surf2)}
     <span>Oldest checked: <b id="oldest-date">—</b></span>
     <span>Latest checked: <b id="latest-date">—</b></span>
   </div>
+</div>
+
+<!-- ── STATUS BREAKDOWN ──────────────────────────────── -->
+<div class="bk-box">
+  <div class="bk-title">📊 Status Breakdown</div>
+  <table class="bk-tbl">
+    <tbody>
+      <tr>
+        <td><div class="bk-lbl"><span class="bk-dot" style="background:var(--green)"></span>Done Today</div></td>
+        <td class="bk-bar-cell"><div class="bk-mini-track"><div class="bk-mini-fill" id="bk-bar-done" style="background:var(--green);width:0%"></div></div></td>
+        <td class="bk-count" style="color:var(--green)" id="bk-done">—</td>
+      </tr>
+      <tr>
+        <td><div class="bk-lbl"><span class="bk-dot" style="background:var(--orange)"></span>Needs Update</div></td>
+        <td class="bk-bar-cell"><div class="bk-mini-track"><div class="bk-mini-fill" id="bk-bar-upd" style="background:var(--orange);width:0%"></div></div></td>
+        <td class="bk-count" style="color:var(--orange)" id="bk-upd">—</td>
+      </tr>
+      <tr>
+        <td><div class="bk-lbl"><span class="bk-dot" style="background:#94a3b8"></span>Pending</div></td>
+        <td class="bk-bar-cell"><div class="bk-mini-track"><div class="bk-mini-fill" id="bk-bar-pend" style="background:#94a3b8;width:0%"></div></div></td>
+        <td class="bk-count" style="color:var(--muted)" id="bk-pend">—</td>
+      </tr>
+      <tr>
+        <td><div class="bk-lbl"><span class="bk-dot" style="background:var(--yellow)"></span>Working</div></td>
+        <td class="bk-bar-cell"><div class="bk-mini-track"><div class="bk-mini-fill" id="bk-bar-work" style="background:var(--yellow);width:0%"></div></div></td>
+        <td class="bk-count" style="color:var(--yellow)" id="bk-work">—</td>
+      </tr>
+      <tr>
+        <td><div class="bk-lbl"><span class="bk-dot" style="background:var(--red)"></span>Errors</div></td>
+        <td class="bk-bar-cell"><div class="bk-mini-track"><div class="bk-mini-fill" id="bk-bar-err" style="background:var(--red);width:0%"></div></div></td>
+        <td class="bk-count" style="color:var(--red)" id="bk-err">—</td>
+      </tr>
+      <tr class="bk-total-row">
+        <td class="bk-lbl" colspan="2">Effective Total</td>
+        <td class="bk-count" id="bk-total">—</td>
+      </tr>
+    </tbody>
+  </table>
 </div>
 
 <div class="info-row">
@@ -540,6 +608,25 @@ async function fetchSummary() {
         g('oldest-date').textContent = c.oldest_update || '—';
         g('latest-date').textContent = c.latest_update || '—';
         g('today-val').textContent   = d.today;
+
+        // ── Status breakdown table ─────────────────────────
+        const ef     = Math.max(d.effective_total || 1, 1); // avoid /0
+        const bkDone = d.up_to_date   !== undefined ? +d.up_to_date   : +(c.up_to_date   || 0);
+        const bkUpd  = d.needs_update !== undefined ? +d.needs_update : +(c.needs_update  || 0);
+        const bkPend = +(c.pending    || 0);
+        const bkWork = +(c.working    || 0);
+        const bkErr  = +(c.errors     || 0);
+
+        const setBk  = (id, val) => { const el = g('bk-'+id);     if (el) el.textContent   = fmt(val); };
+        const setBar = (id, val) => { const el = g('bk-bar-'+id); if (el) el.style.width   = Math.min(100, Math.round((val / ef) * 100)) + '%'; };
+
+        setBk('done',  bkDone);  setBar('done',  bkDone);
+        setBk('upd',   bkUpd);   setBar('upd',   bkUpd);
+        setBk('pend',  bkPend);  setBar('pend',  bkPend);
+        setBk('work',  bkWork);  setBar('work',  bkWork);
+        setBk('err',   bkErr);   setBar('err',   bkErr);
+        const bkTotEl = g('bk-total');
+        if (bkTotEl) bkTotEl.textContent = fmt(ef);
         // update last-refresh indicator
         const lr = g('last-refresh');
         if (lr) { const n=new Date(); lr.textContent='↻ '+pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds()); }

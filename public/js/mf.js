@@ -161,6 +161,9 @@ async function loadHoldings() {
 
     applyHoldingsFilter();
     load1DayChange(); // fetch 1D NAV change after holdings render
+
+    // t71 + t73: Render analytics after data is loaded
+    renderMfAnalytics();
   } catch (err) {
     body.innerHTML = `<tr><td colspan="11" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
   }
@@ -390,8 +393,23 @@ function renderHoldings() {
       <td class="text-center" data-1d-fund="${fundId}">${render1DCell(fundId)}</td>
       <td style="white-space:nowrap;text-align:center;padding:6px 4px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-          ${h.active_sip_count > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:default;' title='SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString("en-IN") : "?"} / ${h.active_sip_frequency||"monthly"}'>🔄 SIP</span>` : ''}
-          ${(h.active_swp_count||0) > 0 ? `<span style='display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:default;' title='SWP Active'>💸 SWP</span>` : ''}
+          <!-- Line 1: SIP + SWP badges side by side (only if exist) -->
+          ${(h.active_sip_count > 0 || (h.active_swp_count||0) > 0) ? `
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center;">
+            ${h.active_sip_count > 0 ? `<span
+              onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
+              style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:pointer;transition:all .15s;"
+              onmouseover="this.style.background='#bbf7d0'"
+              onmouseout="this.style.background='#dcfce7'"
+              title="SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString('en-IN') : '?'} / ${h.active_sip_frequency||'monthly'}">🔄 SIP</span>` : ''}
+            ${(h.active_swp_count||0) > 0 ? `<span
+              onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
+              style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:pointer;transition:all .15s;"
+              onmouseover="this.style.background='#fecaca'"
+              onmouseout="this.style.background='#fee2e2'"
+              title="SWP ₹${h.active_swp_amount ? Number(h.active_swp_amount).toLocaleString('en-IN') : '?'} / month">💸 SWP</span>` : ''}
+          </div>` : ''}
+          <!-- Line 2: Transactions -->
           <button onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions"
             style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:500;transition:all .15s;"
             onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';this.style.background='rgba(37,99,235,.06)'"
@@ -399,6 +417,7 @@ function renderHoldings() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
             Txns
           </button>
+          <!-- Line 3: Delete -->
           <button onclick="openDeleteFundModal(${fundId},'${escAttr(h.scheme_name)}',${h.total_invested||0})" title="Delete this fund"
             style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.06);cursor:pointer;font-size:11px;color:#dc2626;font-weight:600;transition:all .15s;"
             onmouseover="this.style.background='rgba(239,68,68,.15)';this.style.borderColor='#dc2626'"
@@ -2412,6 +2431,7 @@ async function _saveQuickSip() {
         fund_id: fundId, sip_amount: amount, frequency,
         sip_day: sipDay, start_date: startDate, end_date: endDate,
         platform, folio_number: '', notes: _qsCurrentType === 'SWP' ? 'SWP' : '',
+        schedule_type: _qsCurrentType,
         csrf_token: csrf,
       }),
     });
@@ -2458,4 +2478,244 @@ async function _saveQuickSip() {
     btn.disabled = false;
     btn.textContent = `Save ${_qsCurrentType}`;
   }
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   t71 + t73 — MF ANALYTICS: Asset Allocation Donut + Portfolio XIRR
+═══════════════════════════════════════════════════════════════════════════ */
+
+let _allocChartInst = null;
+let _allocMode      = 'value'; // 'value' | 'invested'
+
+// Broad category mapping (same logic as screener)
+function _broadCat(cat) {
+  if (!cat) return 'Other';
+  const c = cat.toLowerCase();
+  if (c.includes('elss') || c.includes('tax sav')) return 'ELSS';
+  if (c.includes('liquid') || c.includes('overnight') || c.includes('money market')) return 'Liquid/Cash';
+  if (c.includes('debt') || c.includes('gilt') || c.includes('credit') ||
+      c.includes('duration') || c.includes('floater') || c.includes('corporate bond') ||
+      c.includes('banking and psu')) return 'Debt';
+  if (c.includes('gold') || c.includes('silver') || c.includes('commodit')) return 'Commodity';
+  if (c.includes('fund of fund') || c.includes('overseas') || c.includes('international') ||
+      c.includes('fof')) return 'Intl/FoF';
+  if (c.includes('hybrid') || c.includes('arbitrage') || c.includes('balanced') ||
+      c.includes('multi asset')) return 'Hybrid';
+  if (c.includes('index') || c.includes('etf') || c.includes('nifty') ||
+      c.includes('sensex') || c.includes('passiv')) return 'Index/ETF';
+  if (c.includes('equity') || c.includes('large cap') || c.includes('mid cap') ||
+      c.includes('small cap') || c.includes('flexi') || c.includes('multi cap') ||
+      c.includes('thematic') || c.includes('sectoral') || c.includes('focused') ||
+      c.includes('value') || c.includes('contra') || c.includes('dividend yield')) return 'Equity';
+  return 'Other';
+}
+
+const _allocColors = {
+  'Equity':     { bg: '#3b82f6', light: 'rgba(59,130,246,.12)' },
+  'Index/ETF':  { bg: '#06b6d4', light: 'rgba(6,182,212,.12)'  },
+  'Hybrid':     { bg: '#8b5cf6', light: 'rgba(139,92,246,.12)' },
+  'Debt':       { bg: '#f59e0b', light: 'rgba(245,158,11,.12)' },
+  'ELSS':       { bg: '#10b981', light: 'rgba(16,185,129,.12)' },
+  'Liquid/Cash':{ bg: '#6b7280', light: 'rgba(107,114,128,.12)'},
+  'Commodity':  { bg: '#f97316', light: 'rgba(249,115,22,.12)' },
+  'Intl/FoF':   { bg: '#ec4899', light: 'rgba(236,72,153,.12)' },
+  'Other':      { bg: '#94a3b8', light: 'rgba(148,163,184,.12)'},
+};
+
+function renderMfAnalytics() {
+  const section = document.getElementById('mfAnalyticsSection');
+  if (!section) return;
+  const holdings = MF.data || [];
+  if (!holdings.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  renderAllocChart(_allocMode);
+  renderPortfolioReturns();
+}
+
+function renderAllocChart(mode) {
+  _allocMode = mode;
+
+  // Update toggle button styles
+  document.getElementById('allocByValue')?.classList.toggle('active', mode === 'value');
+  document.getElementById('allocByInvest')?.classList.toggle('active', mode === 'invested');
+
+  const holdings = MF.data || [];
+  const key = mode === 'value' ? 'value_now' : 'total_invested';
+
+  // Group by broad category
+  const groups = {};
+  let grandTotal = 0;
+  holdings.forEach(h => {
+    const cat = _broadCat(h.category || '');
+    const val = parseFloat(h[key]) || 0;
+    groups[cat] = (groups[cat] || 0) + val;
+    grandTotal += val;
+  });
+
+  // Sort by value desc
+  const sorted = Object.entries(groups)
+    .filter(([,v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (!sorted.length) return;
+
+  const labels  = sorted.map(([k]) => k);
+  const values  = sorted.map(([,v]) => v);
+  const colors  = labels.map(l => (_allocColors[l] || _allocColors['Other']).bg);
+  const pcts    = values.map(v => grandTotal > 0 ? (v / grandTotal * 100).toFixed(1) : '0');
+
+  // Destroy previous chart
+  if (_allocChartInst) { _allocChartInst.destroy(); _allocChartInst = null; }
+
+  const canvas = document.getElementById('allocChartCanvas');
+  if (!canvas) return;
+
+  _allocChartInst = new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: 'var(--bg-card, #fff)',
+        hoverBorderWidth: 0,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '68%',
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = grandTotal > 0 ? (ctx.raw / grandTotal * 100).toFixed(1) : '0';
+              return `${ctx.label}: ${pct}% (${fmtFull(ctx.raw)})`;
+            }
+          }
+        }
+      },
+      onHover: (evt, elements) => {
+        const ctrPct   = document.getElementById('allocCenterPct');
+        const ctrLabel = document.getElementById('allocCenterLabel');
+        if (elements.length && ctrPct && ctrLabel) {
+          const idx = elements[0].index;
+          ctrPct.textContent   = pcts[idx] + '%';
+          ctrPct.style.color   = colors[idx];
+          ctrLabel.textContent = labels[idx];
+        } else if (ctrPct) {
+          ctrPct.textContent   = '—';
+          ctrPct.style.color   = 'var(--text-primary)';
+          if (ctrLabel) ctrLabel.textContent = 'Hover a segment';
+        }
+      }
+    }
+  });
+
+  // Render legend
+  const legend = document.getElementById('allocLegend');
+  if (legend) {
+    legend.innerHTML = sorted.map(([cat, val], i) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:default;transition:background .1s;"
+           onmouseover="this.style.background='var(--bg-secondary)'"
+           onmouseout="this.style.background=''">
+        <div style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cat}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${fmtFull(val)}</div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:${colors[i]};">${pcts[i]}%</div>
+      </div>`).join('');
+  }
+}
+
+function renderPortfolioReturns() {
+  const holdings = MF.data || [];
+  if (!holdings.length) return;
+
+  // ── Weighted average XIRR ──────────────────────────────────────
+  // Portfolio XIRR = weighted avg of individual fund XIRRs (by invested amount)
+  let totalInvested = 0, weightedXirr = 0, xirrFunds = 0;
+  let totalValue    = 0;
+  let earliestDate  = null;
+
+  holdings.forEach(h => {
+    const inv = parseFloat(h.total_invested) || 0;
+    const val = parseFloat(h.value_now)      || 0;
+    totalInvested += inv;
+    totalValue    += val;
+
+    if (h.cagr !== null && h.cagr !== undefined && inv > 0) {
+      weightedXirr += h.cagr * inv;
+      xirrFunds++;
+    }
+
+    if (h.first_purchase_date) {
+      const d = new Date(h.first_purchase_date);
+      if (!earliestDate || d < earliestDate) earliestDate = d;
+    }
+  });
+
+  // Portfolio XIRR (weighted by invested amount)
+  const portXirr = totalInvested > 0 && xirrFunds > 0
+    ? weightedXirr / totalInvested
+    : null;
+
+  // Simple CAGR: (current/invested)^(1/years) - 1
+  let portCagr = null;
+  if (earliestDate && totalInvested > 0 && totalValue > 0) {
+    const years = (Date.now() - earliestDate.getTime()) / (365.25 * 24 * 3600 * 1000);
+    if (years > 0.1) {
+      portCagr = (Math.pow(totalValue / totalInvested, 1 / years) - 1) * 100;
+    }
+  }
+
+  // Display portfolio-level numbers
+  function fmtRet(v) {
+    if (v === null || v === undefined) return '<span style="color:var(--text-muted);">—</span>';
+    const color = v >= 15 ? '#15803d' : v >= 10 ? '#16a34a' : v >= 0 ? '#d97706' : '#dc2626';
+    const sign  = v > 0 ? '+' : '';
+    return `<span style="color:${color};">${sign}${v.toFixed(2)}%</span>`;
+  }
+
+  const xirrEl = document.getElementById('portfolioXirr');
+  const cagrEl = document.getElementById('portfolioCagr');
+  if (xirrEl) xirrEl.innerHTML = fmtRet(portXirr);
+  if (cagrEl) cagrEl.innerHTML = fmtRet(portCagr);
+
+  // ── Per-fund XIRR list ─────────────────────────────────────────
+  const listEl = document.getElementById('fundXirrList');
+  if (!listEl) return;
+
+  // Sort by XIRR desc, show top funds
+  const withXirr = holdings
+    .filter(h => h.cagr !== null && h.cagr !== undefined)
+    .sort((a, b) => (b.cagr || 0) - (a.cagr || 0));
+
+  if (!withXirr.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px;">No XIRR data available. Add transactions to calculate returns.</div>';
+    return;
+  }
+
+  listEl.innerHTML = withXirr.map(h => {
+    const xirr  = h.cagr;
+    const color = xirr >= 15 ? '#15803d' : xirr >= 10 ? '#16a34a' : xirr >= 0 ? '#d97706' : '#dc2626';
+    const sign  = xirr > 0 ? '+' : '';
+    const barW  = Math.min(100, Math.abs(xirr) * 3); // scale: 33% = 100% bar
+    const name  = h.scheme_name || h.fund_name || '—';
+    const shortName = name.length > 36 ? name.slice(0, 35) + '…' : name;
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border-color,#e2e8f0);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:11px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(name)}">${escHtml(shortName)}</div>
+          <div style="height:3px;background:var(--bg-secondary,#f1f5f9);border-radius:99px;margin-top:3px;">
+            <div style="height:100%;width:${barW}%;background:${color};border-radius:99px;transition:width .4s;"></div>
+          </div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:${color};min-width:52px;text-align:right;">${sign}${xirr.toFixed(2)}%</div>
+      </div>`;
+  }).join('');
 }
