@@ -567,3 +567,221 @@ document.addEventListener('click', (e) => {
   const modal = document.getElementById('modalConfirm');
   if (modal && e.target === modal) closeConfirmModal();
 });
+/* ═══════════════════════════════════════════════════════════════════════════
+   t88 — CTRL+K GLOBAL SEARCH
+═══════════════════════════════════════════════════════════════════════════ */
+(function initGlobalSearch() {
+  // Inject search modal HTML once
+  function injectSearchModal() {
+    if (document.getElementById('globalSearchModal')) return;
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div id="globalSearchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding-top:80px;">
+        <div style="background:var(--bg-surface);border-radius:14px;width:560px;max-width:95vw;box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;opacity:.5;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="gsInput" type="search" placeholder="Search funds, FDs, stocks, pages…" autocomplete="off"
+              style="flex:1;border:none;outline:none;font-size:15px;background:transparent;color:var(--text-primary);">
+            <kbd style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-surface-2);color:var(--text-muted);border:1px solid var(--border);">ESC</kbd>
+          </div>
+          <div id="gsResults" style="max-height:380px;overflow-y:auto;padding:6px 0;"></div>
+          <div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
+            <span>↑↓ Navigate</span><span>↵ Open</span><span>ESC Close</span>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(div.firstElementChild);
+
+    // Wire input
+    document.getElementById('gsInput').addEventListener('input', function() {
+      gsSearch(this.value.trim());
+    });
+    document.getElementById('globalSearchModal').addEventListener('click', function(e) {
+      if (e.target === this) closeGlobalSearch();
+    });
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openGlobalSearch(); }
+      if (e.key === 'Escape') closeGlobalSearch();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') gsNavigate(e.key === 'ArrowDown' ? 1 : -1);
+      if (e.key === 'Enter') gsActivate();
+    });
+  }
+
+  let _gsIndex = -1;
+  let _gsItems = [];
+
+  const GS_PAGES = [
+    { label:'MF Holdings', url:'/templates/pages/mf_holdings.php', icon:'💼', cat:'Pages' },
+    { label:'MF Screener', url:'/templates/pages/mf_screener.php', icon:'🔍', cat:'Pages' },
+    { label:'SIP / SWP',   url:'/templates/pages/report_sip.php',  icon:'🔄', cat:'Pages' },
+    { label:'FD & Deposits',url:'/templates/pages/fd.php',          icon:'🏦', cat:'Pages' },
+    { label:'Post Office',  url:'/templates/pages/post_office.php', icon:'📮', cat:'Pages' },
+    { label:'Stocks',       url:'/templates/pages/stocks.php',      icon:'📈', cat:'Pages' },
+    { label:'NPS',          url:'/templates/pages/nps.php',         icon:'🏛️', cat:'Pages' },
+    { label:'Market Indexes',url:'/templates/pages/market_indexes.php',icon:'📊',cat:'Pages'},
+    { label:'FY Gains Report',url:'/templates/pages/report_fy.php', icon:'🧾', cat:'Reports' },
+    { label:'Tax Planning', url:'/templates/pages/report_tax.php',  icon:'💰', cat:'Reports' },
+    { label:'Net Worth',    url:'/templates/pages/report_networth.php',icon:'💎',cat:'Reports'},
+    { label:'Dashboard',    url:'/templates/pages/dashboard.php',   icon:'🏠', cat:'Pages' },
+  ];
+
+  function gsSearch(q) {
+    const res    = document.getElementById('gsResults');
+    _gsIndex = -1;
+    if (!q) { res.innerHTML = gsQuickLinks(); return; }
+    const ql = q.toLowerCase();
+    const matched = GS_PAGES.filter(p => p.label.toLowerCase().includes(ql) || p.cat.toLowerCase().includes(ql));
+    if (!matched.length) {
+      res.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No results for "${q}"</div>`;
+      return;
+    }
+    _gsItems = matched;
+    res.innerHTML = `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Results</div>` +
+      matched.map((p,i) => `
+        <a href="${(window.APP_URL||'')}${p.url}" class="gs-item" data-idx="${i}"
+          style="display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;text-decoration:none;color:var(--text-primary);transition:background .1s;"
+          onmouseover="this.style.background='var(--hover-bg)'" onmouseout="this.style.background=''">
+          <span style="font-size:18px;flex-shrink:0;">${p.icon}</span>
+          <div><div style="font-size:13px;font-weight:600;">${p.label}</div><div style="font-size:11px;color:var(--text-muted);">${p.cat}</div></div>
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-left:auto;opacity:.3;"><path d="M9 18l6-6-6-6"/></svg>
+        </a>`).join('');
+  }
+
+  function gsQuickLinks() {
+    _gsItems = GS_PAGES.slice(0,6);
+    return `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Quick Links</div>` +
+      GS_PAGES.slice(0,6).map((p,i) => `
+        <a href="${(window.APP_URL||'')}${p.url}" class="gs-item" data-idx="${i}"
+          style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;text-decoration:none;color:var(--text-primary);"
+          onmouseover="this.style.background='var(--hover-bg)'" onmouseout="this.style.background=''">
+          <span style="font-size:16px;">${p.icon}</span>
+          <span style="font-size:13px;font-weight:600;">${p.label}</span>
+        </a>`).join('');
+  }
+
+  function gsNavigate(dir) {
+    const items = document.querySelectorAll('.gs-item');
+    if (!items.length) return;
+    _gsIndex = Math.max(0, Math.min(items.length-1, _gsIndex + dir));
+    items.forEach((el,i) => { el.style.background = i===_gsIndex ? 'var(--hover-bg)' : ''; });
+    items[_gsIndex]?.scrollIntoView({block:'nearest'});
+  }
+
+  function gsActivate() {
+    const items = document.querySelectorAll('.gs-item');
+    if (_gsIndex >= 0 && items[_gsIndex]) { items[_gsIndex].click(); closeGlobalSearch(); }
+  }
+
+  window.openGlobalSearch = function() {
+    injectSearchModal();
+    const modal = document.getElementById('globalSearchModal');
+    modal.style.display = 'flex';
+    const inp = document.getElementById('gsInput');
+    inp.value = '';
+    document.getElementById('gsResults').innerHTML = gsQuickLinks();
+    setTimeout(() => inp.focus(), 50);
+  };
+
+  window.closeGlobalSearch = function() {
+    const modal = document.getElementById('globalSearchModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  // Inject Ctrl+K listener on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectSearchModal);
+  } else {
+    injectSearchModal();
+  }
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t85 — NEW VS OLD TAX REGIME CALCULATOR (standalone widget)
+═══════════════════════════════════════════════════════════════════════════ */
+function renderTaxRegimeCalc(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Gross Annual Salary (₹)</div>
+        <input type="number" id="trcSalary" placeholder="1200000" oninput="calcTaxRegime()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">HRA Exemption (₹)</div>
+        <input type="number" id="trcHra" placeholder="0" oninput="calcTaxRegime()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">80C Investments (₹)</div>
+        <input type="number" id="trc80c" placeholder="150000" oninput="calcTaxRegime()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Other Deductions (₹)</div>
+        <input type="number" id="trcOther" placeholder="0" oninput="calcTaxRegime()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;">
+      </div>
+    </div>
+    <div id="trcResult" style="display:none;"></div>`;
+}
+
+window.calcTaxRegime = function() {
+  const salary = parseFloat(document.getElementById('trcSalary')?.value)  || 0;
+  const hra    = parseFloat(document.getElementById('trcHra')?.value)     || 0;
+  const c80    = Math.min(150000, parseFloat(document.getElementById('trc80c')?.value) || 0);
+  const other  = parseFloat(document.getElementById('trcOther')?.value)   || 0;
+  const res    = document.getElementById('trcResult');
+  if (!res || !salary) { if(res) res.style.display='none'; return; }
+
+  function slabTax(inc, regime) {
+    if (regime === 'new') {
+      if (inc <= 300000)  return 0;
+      if (inc <= 600000)  return (inc-300000)*0.05;
+      if (inc <= 900000)  return 15000+(inc-600000)*0.10;
+      if (inc <= 1200000) return 45000+(inc-900000)*0.15;
+      if (inc <= 1500000) return 90000+(inc-1200000)*0.20;
+      return 150000+(inc-1500000)*0.30;
+    }
+    if (inc <= 250000)  return 0;
+    if (inc <= 500000)  return (inc-250000)*0.05;
+    if (inc <= 1000000) return 12500+(inc-500000)*0.20;
+    return 112500+(inc-1000000)*0.30;
+  }
+
+  // New regime: flat 75k standard deduction, no other deductions
+  const newTaxable = Math.max(0, salary - 75000);
+  const newTax     = slabTax(newTaxable, 'new') * 1.04; // +4% cess
+
+  // Old regime: standard deduction 50k + HRA + 80C + other
+  const oldTaxable = Math.max(0, salary - 50000 - hra - c80 - other);
+  const oldTax     = slabTax(oldTaxable, 'old') * 1.04;
+
+  const better    = newTax <= oldTax ? 'new' : 'old';
+  const savings   = Math.abs(newTax - oldTax);
+
+  function fmtI(v) {
+    v = Math.abs(v);
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="background:${better==='new'?'rgba(22,163,74,.08)':'var(--bg-secondary)'};border-radius:10px;padding:14px;border:${better==='new'?'2px solid #86efac':'1.5px solid var(--border)'};">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">New Regime</div>
+        <div style="font-size:11px;color:var(--text-muted);">Taxable: ${fmtI(newTaxable)} (std. ded. ₹75K)</div>
+        <div style="font-size:20px;font-weight:800;margin-top:4px;">Tax: ${fmtI(newTax)}</div>
+        ${better==='new'?'<div style="font-size:11px;color:#16a34a;font-weight:700;margin-top:4px;">✅ Recommended</div>':''}
+      </div>
+      <div style="background:${better==='old'?'rgba(22,163,74,.08)':'var(--bg-secondary)'};border-radius:10px;padding:14px;border:${better==='old'?'2px solid #86efac':'1.5px solid var(--border)'};">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Old Regime</div>
+        <div style="font-size:11px;color:var(--text-muted);">Taxable: ${fmtI(oldTaxable)} (after all ded.)</div>
+        <div style="font-size:20px;font-weight:800;margin-top:4px;">Tax: ${fmtI(oldTax)}</div>
+        ${better==='old'?'<div style="font-size:11px;color:#16a34a;font-weight:700;margin-top:4px;">✅ Recommended</div>':''}
+      </div>
+    </div>
+    <div style="background:${better==='new'?'rgba(59,130,246,.07)':'rgba(22,163,74,.07)'};border-radius:8px;padding:10px;font-size:12px;color:var(--text-muted);">
+      💰 <strong>${better==='new'?'New':'Old'} Regime saves ${fmtI(savings)}/year</strong> for your income profile.
+      ${better==='old'?'Your deductions (HRA + 80C) are high enough to benefit from old regime.':'Your deductions are not high enough — new regime is better.'}
+    </div>`;
+};

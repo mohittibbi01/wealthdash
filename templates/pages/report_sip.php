@@ -84,6 +84,107 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 </script>
 
+<!-- t144: SIP Step-Up Nudge — shown in April (new FY) -->
+<?php
+$month = (int)date('n');
+$isApril = ($month === 4);
+$stepUpKey = 'sip_stepup_' . date('Y');
+$stepUpKey2 = 'sip_stepup_shown_' . date('Y');
+if ($isApril):
+?>
+<div id="sipStepUpNudge" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1.5px solid #fcd34d;border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px;">
+  <span style="font-size:24px;flex-shrink:0;">🎯</span>
+  <div style="flex:1;">
+    <div style="font-weight:700;color:#b45309;font-size:14px;margin-bottom:4px;">New Financial Year — Time to Step Up Your SIPs!</div>
+    <div style="font-size:12px;color:#92400e;line-height:1.6;">
+      It's April — salary revision time! A 10% salary hike deserves a 10% SIP hike. 
+      <strong>₹1,000 extra/month = ₹8.2L extra at retirement</strong> (at 12% CAGR over 20 years).
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button onclick="openStepUpCalculator()" style="padding:6px 14px;border-radius:6px;background:#f59e0b;color:#fff;border:none;font-weight:700;font-size:12px;cursor:pointer;">🧮 Step-Up Calculator</button>
+      <button onclick="document.getElementById('sipStepUpNudge').style.display='none'" style="padding:6px 14px;border-radius:6px;background:none;border:1.5px solid #fcd34d;color:#b45309;font-weight:600;font-size:12px;cursor:pointer;">Remind Later</button>
+    </div>
+  </div>
+</div>
+<!-- Step-Up Calculator Modal -->
+<div id="stepUpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1200;align-items:center;justify-content:center;">
+  <div style="background:var(--bg-card);border-radius:12px;width:420px;max-width:95vw;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-size:14px;font-weight:800;">🎯 SIP Step-Up Calculator</span>
+      <button onclick="document.getElementById('stepUpModal').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Current Monthly SIP (₹)</div>
+        <input type="number" id="suCurrentSip" placeholder="10000" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcStepUp()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Step-Up %</div>
+        <select id="suStepPct" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);" onchange="calcStepUp()">
+          <option value="5">5% (Conservative)</option>
+          <option value="10" selected>10% (Recommended)</option>
+          <option value="15">15% (Aggressive)</option>
+          <option value="20">20%</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Expected Return (%)</div>
+        <input type="number" id="suReturn" value="12" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcStepUp()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Duration (years)</div>
+        <select id="suYears" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);" onchange="calcStepUp()">
+          <option value="10">10</option><option value="15">15</option><option value="20" selected>20</option><option value="25">25</option><option value="30">30</option>
+        </select>
+      </div>
+    </div>
+    <div id="stepUpResult" style="background:var(--bg-secondary);border-radius:8px;padding:12px;font-size:13px;min-height:60px;"></div>
+    <div style="margin-top:12px;font-size:11px;color:var(--text-muted);">
+      💡 Step-up SIP increases your investment by the chosen % every April.
+    </div>
+  </div>
+</div>
+<script>
+function openStepUpCalculator() {
+  document.getElementById('stepUpModal').style.display = 'flex';
+  calcStepUp();
+}
+function calcStepUp() {
+  const P    = parseFloat(document.getElementById('suCurrentSip')?.value) || 0;
+  const step = parseFloat(document.getElementById('suStepPct')?.value) / 100 || 0.10;
+  const r    = (parseFloat(document.getElementById('suReturn')?.value) || 12) / 100 / 12;
+  const n    = (parseInt(document.getElementById('suYears')?.value) || 20) * 12;
+  const res  = document.getElementById('stepUpResult');
+  if (!P || !res) return;
+
+  // Step-up SIP formula: FV = P × [(1+r)^n - (1+g)^n] / (r - g) where g = annual step-up/12
+  const g = step / 12;
+  let fvStepUp = 0;
+  if (Math.abs(r - g) > 0.0001) {
+    fvStepUp = P * (Math.pow(1+r, n) - Math.pow(1+g, n)) / (r - g);
+  } else {
+    fvStepUp = P * n * Math.pow(1+r, n);
+  }
+
+  // Normal SIP (no step-up)
+  const fvNormal = r > 0 ? P * ((Math.pow(1+r, n) - 1) / r) * (1+r) : P * n;
+
+  const extra = fvStepUp - fvNormal;
+  function fmtCr(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+    return '₹' + (v/1e5).toFixed(1) + 'L';
+  }
+
+  res.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+    <div><div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Normal SIP</div><div style="font-size:15px;font-weight:800;color:var(--accent);">${fmtCr(fvNormal)}</div></div>
+    <div><div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Step-Up SIP</div><div style="font-size:15px;font-weight:800;color:#16a34a;">${fmtCr(fvStepUp)}</div></div>
+    <div><div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Extra Corpus</div><div style="font-size:15px;font-weight:800;color:#d97706;">+${fmtCr(extra)}</div></div>
+  </div>`;
+}
+</script>
+<?php endif; ?>
+
 <!-- Summary Cards -->
 <div class="cards-grid cards-grid-4 mb-4" id="sipSummaryCards">
   <div class="stat-card"><div class="stat-label">Active SIPs</div><div class="stat-value" id="cardActiveSips">—</div></div>
@@ -166,11 +267,11 @@ window.addEventListener('unhandledrejection', function(e) {
         <tr>
           <th>Fund</th><th>Category</th><th>Amount</th><th>Frequency</th>
           <th>SIP Day</th><th>Start Date</th><th>Next Date</th>
-          <th>Total Invested</th><th>XIRR</th><th>Status</th><th>Actions</th>
+          <th>Total Invested</th><th>Actual XIRR</th><th>vs 12% Target</th><th>Status</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="sipBody">
-        <tr><td colspan="11" class="text-center text-secondary">Loading...</td></tr>
+        <tr><td colspan="12" class="text-center text-secondary">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -429,6 +530,7 @@ async function loadSipList() {
           + '<td>' + (s.next_date ? formatDate(s.next_date) : '<span class="text-secondary">—</span>') + '</td>'
           + '<td class="text-right">' + formatINR(s.total_invested) + '</td>'
           + '<td class="text-right sip-xirr"><span style="color:var(--text-muted);font-size:12px;cursor:pointer" onclick="loadSipXirr(' + s.id + ')" title="Click to calculate XIRR">📊 Calc</span></td>'
+          + '<td class="text-right sip-vs-target" data-sipid="' + s.id + '"><span style="color:var(--text-muted);font-size:11px;">—</span></td>'
           + '<td><span class="badge ' + (s.is_active==1 ? 'badge-success' : 'badge-secondary') + '">' + (s.is_active==1?'Active':'Stopped') + '</span></td>'
           + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-xs" onclick="editSip(' + s.id + ')">Edit</button> '
           + stopBtn
@@ -740,6 +842,17 @@ async function loadSipXirr(sipId) {
         const pct   = xdata.xirr;
         const color = pct >= 0 ? 'var(--gain,#16a34a)' : 'var(--loss,#dc2626)';
         xirrEl.innerHTML = `<span style="color:${color};font-weight:600;">${pct > 0 ? '+' : ''}${pct}%</span>`;
+
+        // t72: vs 12% target
+        const targetEl = row.querySelector('.sip-vs-target');
+        if (targetEl) {
+          const TARGET = 12;
+          const diff   = pct - TARGET;
+          const sign   = diff >= 0 ? '+' : '';
+          const diffColor = diff >= 2 ? '#15803d' : diff >= 0 ? '#16a34a' : diff >= -3 ? '#d97706' : '#dc2626';
+          const icon   = diff >= 0 ? '▲' : '▼';
+          targetEl.innerHTML = `<span style="font-size:11px;font-weight:700;color:${diffColor};">${icon} ${sign}${diff.toFixed(1)}%</span><div style="font-size:10px;color:var(--text-muted);">vs 12% goal</div>`;
+        }
       }
     }
   } catch(e) {

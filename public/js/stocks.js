@@ -7,11 +7,41 @@ const STOCKS = {
   gainFilter:      '',
   portfolioFilter: '',
   search:          '',
+  sectorFilter:    '',
+  sortCol:         '',
+  sortDir:         'desc',
   txnTypeFilter:   '',
   txnFyFilter:     '',
   txnSearch:       '',
   searchTimer:     null,
   pendingDeleteId: null,
+  // t20: Pagination
+  page: 1, perPage: 10, _allRows: [],
+  _renderPag(total, pages, startIdx) {
+    const wrap = document.getElementById('stocksPagWrap');
+    if (!wrap) return;
+    if (pages <= 1 && total <= 10) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;">
+      <select onchange="STOCKS.setPerPage(+this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+        ${[10,25,50,999].map(n=>`<option value="${n}" ${n===this.perPage?'selected':''}>${n===999?'All':n}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);">${Math.min(startIdx+1,total)}–${Math.min(startIdx+this.perPage,total)} of ${total}</span>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button onclick="STOCKS.goPage(${this.page-1})" ${this.page<=1?'disabled':''} class="btn btn-ghost btn-sm">‹</button>
+        ${Array.from({length:Math.min(5,pages)},(_,i)=>{const p=Math.max(1,Math.min(this.page-2,pages-4))+i;return `<button onclick="STOCKS.goPage(${p})" class="btn btn-sm ${p===this.page?'btn-primary':'btn-ghost'}">${p}</button>`;}).join('')}
+        <button onclick="STOCKS.goPage(${this.page+1})" ${this.page>=pages?'disabled':''} class="btn btn-ghost btn-sm">›</button>
+      </div>
+    </div>`;
+  },
+  goPage(p)     { this.page=p; this.loadHoldings(); },
+  setPerPage(n) { this.perPage=n; this.page=1; this.loadHoldings(); },
+  sortBy(col) {
+    if (this.sortCol === col) { this.sortDir = this.sortDir==='desc'?'asc':'desc'; }
+    else { this.sortCol=col; this.sortDir='desc'; }
+    document.getElementById('sortGainArr').textContent = this.sortCol==='gain'?(this.sortDir==='desc'?'↓':'↑'):'↕';
+    document.getElementById('sortCagrArr').textContent = this.sortCol==='cagr'?(this.sortDir==='desc'?'↓':'↑'):'↕';
+    this.loadHoldings();
+  },
 
   init() {
     // Holdings filters
@@ -71,14 +101,32 @@ const STOCKS = {
       if (!data.success) throw new Error(data.message);
 
       let rows = data.data || [];
-      if (STOCKS.search) rows = rows.filter(r => r.symbol.toLowerCase().includes(STOCKS.search) || (r.company_name||'').toLowerCase().includes(STOCKS.search));
-
+      if (STOCKS.search)       rows = rows.filter(r => r.symbol.toLowerCase().includes(STOCKS.search) || (r.company_name||'').toLowerCase().includes(STOCKS.search));
+      if (STOCKS.sectorFilter) rows = rows.filter(r => (r.sector||'') === STOCKS.sectorFilter);
+      if (STOCKS.sortCol === 'gain') {
+        rows = [...rows].sort((a,b) => STOCKS.sortDir==='desc' ? (parseFloat(b.gain_pct)||0)-(parseFloat(a.gain_pct)||0) : (parseFloat(a.gain_pct)||0)-(parseFloat(b.gain_pct)||0));
+      } else if (STOCKS.sortCol === 'cagr') {
+        rows = [...rows].sort((a,b) => STOCKS.sortDir==='desc' ? (parseFloat(b.cagr)||0)-(parseFloat(a.cagr)||0) : (parseFloat(a.cagr)||0)-(parseFloat(b.cagr)||0));
+      }
+      // t20: Pagination
+      STOCKS._allRows = rows;
+      const _total = rows.length;
+      const _pages = STOCKS.perPage >= 999 ? 1 : Math.ceil(_total / STOCKS.perPage);
+      if (STOCKS.page > _pages) STOCKS.page = 1;
+      const _start = (STOCKS.page-1)*(STOCKS.perPage>=999?_total:STOCKS.perPage);
+      const paged  = STOCKS.perPage >= 999 ? rows : rows.slice(_start, _start + STOCKS.perPage);
+      STOCKS._renderPag(_total, _pages, _start);
+      // Populate sector dropdown
+      const sectors = [...new Set(data.data.map(r => r.sector).filter(Boolean))].sort();
+      const secSel = document.getElementById('filterSector');
+      if (secSel && secSel.options.length <= 1) {
+        sectors.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=s; secSel.appendChild(o); });
+      }
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="11" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">📈</div><p>No stock holdings yet.<br>Add your first BUY transaction.</p></td></tr>';
         return;
       }
-
-      body.innerHTML = rows.map(h => {
+      body.innerHTML = paged.map(h => {
         const gl    = parseFloat(h.gain_loss)    || 0;
         const glPct = parseFloat(h.gain_pct)     || 0;
         const cagr  = parseFloat(h.cagr)         || 0;

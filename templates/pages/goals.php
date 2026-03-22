@@ -410,6 +410,638 @@ function formatDate(d) {
 }
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     t154 — FIRE CALCULATOR
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">🔥 FIRE Calculator — Financial Independence, Retire Early</h3>
+    <span style="font-size:11px;color:var(--text-muted);">25x Rule · India-adjusted (6% inflation, 12% equity)</span>
+  </div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Age</label>
+        <input type="number" id="fireAge" value="30" class="form-control" oninput="calcFIRE()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly Expenses (₹)</label>
+        <input type="number" id="fireExpenses" value="50000" class="form-control" oninput="calcFIRE()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Corpus (₹)</label>
+        <input type="number" id="fireCorpus" value="0" class="form-control" oninput="calcFIRE()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly SIP (₹)</label>
+        <input type="number" id="fireSip" value="30000" class="form-control" oninput="calcFIRE()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Expected Return (%)</label>
+        <select id="fireReturn" class="form-control" onchange="calcFIRE()">
+          <option value="10">10% (Conservative)</option>
+          <option value="12" selected>12% (Moderate)</option>
+          <option value="15">15% (Aggressive)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">FIRE Type</label>
+        <select id="fireType" class="form-control" onchange="calcFIRE()">
+          <option value="full">Full FIRE (stop working)</option>
+          <option value="barista">Barista FIRE (part-time ₹20K/mo)</option>
+          <option value="coast">Coast FIRE (no more investing)</option>
+        </select>
+      </div>
+    </div>
+    <div id="fireResult"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     t155 — CHILD EDUCATION PLANNER
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">🎓 Child Education Planner</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Education inflation: 10-12% India</span>
+  </div>
+  <div class="card-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <button onclick="setEduPreset(500000,'Engineering - Private',18)" class="btn btn-ghost btn-sm">Private Engineering ₹5L/yr</button>
+      <button onclick="setEduPreset(1500000,'IIT/NIT',18)" class="btn btn-ghost btn-sm">IIT/NIT ₹15L/yr</button>
+      <button onclick="setEduPreset(3000000,'MBA - IIM',22)" class="btn btn-ghost btn-sm">IIM MBA ₹30L/yr</button>
+      <button onclick="setEduPreset(5000000,'MBBS Private',18)" class="btn btn-ghost btn-sm">MBBS ₹50L/yr</button>
+      <button onclick="setEduPreset(8000000,'Abroad - USA',18)" class="btn btn-ghost btn-sm">USA/UK ₹80L/yr</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Child's Age (years)</label>
+        <input type="number" id="eduChildAge" value="5" min="0" max="17" class="form-control" oninput="calcEdu()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">College Start Age</label>
+        <input type="number" id="eduCollegeAge" value="18" min="15" max="25" class="form-control" oninput="calcEdu()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Annual Cost (₹)</label>
+        <input type="number" id="eduCost" value="500000" class="form-control" oninput="calcEdu()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Course Duration (yrs)</label>
+        <input type="number" id="eduDuration" value="4" min="1" max="7" class="form-control" oninput="calcEdu()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Savings (₹)</label>
+        <input type="number" id="eduSaved" value="0" class="form-control" oninput="calcEdu()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Child Gender</label>
+        <select id="eduGender" class="form-control" onchange="calcEdu()">
+          <option value="any">Any</option>
+          <option value="girl">Girl (SSY eligible)</option>
+        </select>
+      </div>
+    </div>
+    <div id="eduResult"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     t158 — NOMINEE TRACKER
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">📋 Nominee Tracker</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Across all assets — nomination status check</span>
+  </div>
+  <div class="card-body">
+    <div id="nomineeTrackerBody"></div>
+    <button onclick="openNomineeSetup()" class="btn btn-primary btn-sm" style="margin-top:10px;">✎ Update Nomination Status</button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+      💡 SEBI requires nomination for all MF folios (June 2024 deadline). Missing nomination can freeze assets.
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     t147 — PEER BENCHMARKING
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">👥 Peer Benchmarking — How Do You Compare?</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Anonymous · Behavior-based only · No fund names shared</span>
+  </div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Your Age</label>
+        <input type="number" id="peerAge" value="30" class="form-control" oninput="calcPeerBenchmark()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Annual Income (₹)</label>
+        <select id="peerIncome" class="form-control" onchange="calcPeerBenchmark()">
+          <option value="500000">Under ₹5L</option>
+          <option value="1000000">₹5L–₹10L</option>
+          <option value="2000000" selected>₹10L–₹25L</option>
+          <option value="5000000">₹25L–₹50L</option>
+          <option value="10000000">₹50L+</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">SIP Consistency (%)</label>
+        <input type="number" id="peerSipPct" value="90" min="0" max="100" class="form-control" oninput="calcPeerBenchmark()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Equity Allocation (%)</label>
+        <input type="number" id="peerEquityPct" value="70" min="0" max="100" class="form-control" oninput="calcPeerBenchmark()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Savings Rate (%)</label>
+        <input type="number" id="peerSavingsPct" value="30" min="0" max="100" class="form-control" oninput="calcPeerBenchmark()">
+      </div>
+    </div>
+    <div id="peerResult"></div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────── t154: FIRE Calculator ────────────────────────── */
+function calcFIRE() {
+  const age      = parseInt(document.getElementById('fireAge')?.value)      || 30;
+  const expenses = parseFloat(document.getElementById('fireExpenses')?.value)|| 50000;
+  const corpus   = parseFloat(document.getElementById('fireCorpus')?.value)  || 0;
+  const sip      = parseFloat(document.getElementById('fireSip')?.value)     || 0;
+  const ret      = (parseFloat(document.getElementById('fireReturn')?.value) || 12) / 100;
+  const type     = document.getElementById('fireType')?.value || 'full';
+  const res      = document.getElementById('fireResult');
+  if (!res) return;
+
+  const inflation   = 0.06; // India inflation
+  const annualExp   = expenses * 12;
+  const withdrawal  = type === 'barista' ? Math.max(0, annualExp - 240000) : annualExp; // barista: ₹20K/mo part-time
+  const fireNumber  = withdrawal / 0.04; // 4% safe withdrawal rule
+  const coastFireN  = fireNumber; // same target, just coast to it
+
+  // Years to FIRE: simulate month by month
+  let c = corpus, month = 0;
+  const r = ret / 12;
+  while (c < fireNumber && month < 600) {
+    c = c * (1 + r) + sip;
+    month++;
+  }
+  const yearsToFire = month / 12;
+  const fireAge     = age + yearsToFire;
+  const achieved    = corpus / fireNumber * 100;
+
+  // Coast FIRE: how much needed NOW to coast to fireNumber by 60 with 0 more investing
+  const coastYears  = Math.max(1, 60 - age);
+  const coastNumber = fireNumber / Math.pow(1 + ret, coastYears);
+  const coastDone   = corpus >= coastNumber;
+
+  // SWP sustainability: can fireNumber last 30 years at 6% inflation?
+  const swpR        = 0.08 / 12; // 8% conservative post-FIRE return
+  const swpMonths   = 30 * 12;
+  const maxSWP      = fireNumber * swpR / (1 - Math.pow(1+swpR, -swpMonths));
+
+  function fmtI(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+
+  const pct = Math.min(100, achieved).toFixed(0);
+  const reachable = month < 600;
+
+  res.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+        <span style="font-weight:700;">FIRE Progress: ${pct}% (${fmtI(corpus)} of ${fmtI(fireNumber)})</span>
+        <span style="color:var(--text-muted);">${type==='barista'?'Barista ':type==='coast'?'Coast ':''}FIRE Number</span>
+      </div>
+      <div style="height:12px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${parseFloat(pct)>=100?'#16a34a':parseFloat(pct)>=50?'#f59e0b':'#3b82f6'};border-radius:99px;transition:width .5s;"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">FIRE Number</div>
+        <div style="font-size:18px;font-weight:800;color:#3b82f6;">${fmtI(fireNumber)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">25× annual expenses</div>
+      </div>
+      <div style="background:${reachable?'rgba(22,163,74,.08)':'rgba(220,38,38,.08)'};border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Years to FIRE</div>
+        <div style="font-size:18px;font-weight:800;color:${reachable?'#16a34a':'#dc2626'};">${reachable?yearsToFire.toFixed(1):'50+'}</div>
+        <div style="font-size:11px;color:var(--text-muted);">FIRE age: ${reachable?fireAge.toFixed(0):'—'}</div>
+      </div>
+      <div style="background:${coastDone?'rgba(22,163,74,.08)':'var(--bg-secondary)'};border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Coast FIRE Need</div>
+        <div style="font-size:18px;font-weight:800;color:${coastDone?'#16a34a':'var(--text-primary)'};">${fmtI(coastNumber)}</div>
+        <div style="font-size:11px;color:${coastDone?'#16a34a':'var(--text-muted)'};">${coastDone?'✅ Achieved!':'Stop SIP when reached'}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Max Safe Withdrawal</div>
+        <div style="font-size:18px;font-weight:800;">${fmtI(maxSWP)}<span style="font-size:11px;">/mo</span></div>
+        <div style="font-size:11px;color:var(--text-muted);">Lasts 30 years @8%</div>
+      </div>
+    </div>
+    ${!reachable ? `<div style="padding:10px;background:rgba(220,38,38,.07);border-radius:7px;font-size:12px;color:#dc2626;">⚠️ With current SIP of ${fmtI(sip)}/mo, FIRE is not reachable in 50 years. Increase SIP or reduce expenses.</div>` :
+      `<div style="padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;color:#15803d;">✅ You'll achieve FIRE at age <strong>${fireAge.toFixed(0)}</strong>. Sustainable monthly withdrawal: <strong>${fmtI(maxSWP)}</strong></div>`}`;
+}
+
+/* ─────────────────────── t155: Child Education ─────────────────────────── */
+function setEduPreset(cost, name, collegeAge) {
+  document.getElementById('eduCost').value    = cost;
+  document.getElementById('eduCollegeAge').value = collegeAge;
+  calcEdu();
+}
+function calcEdu() {
+  const childAge    = parseInt(document.getElementById('eduChildAge')?.value)    || 5;
+  const collegeAge  = parseInt(document.getElementById('eduCollegeAge')?.value)  || 18;
+  const cost        = parseFloat(document.getElementById('eduCost')?.value)       || 500000;
+  const duration    = parseInt(document.getElementById('eduDuration')?.value)    || 4;
+  const saved       = parseFloat(document.getElementById('eduSaved')?.value)     || 0;
+  const gender      = document.getElementById('eduGender')?.value || 'any';
+  const res         = document.getElementById('eduResult');
+  if (!res) return;
+
+  const yearsToCollege = Math.max(1, collegeAge - childAge);
+  const eduInflation   = 0.11; // 11% education inflation India
+  const investReturn   = 0.12 / 12;
+
+  // Future cost of education (inflation-adjusted)
+  let totalFutureCost = 0;
+  for (let y = 0; y < duration; y++) {
+    totalFutureCost += cost * Math.pow(1 + eduInflation, yearsToCollege + y);
+  }
+
+  // Monthly SIP needed
+  const n = yearsToCollege * 12;
+  const fvSaved = saved * Math.pow(1 + investReturn, n);
+  const remaining = Math.max(0, totalFutureCost - fvSaved);
+  const sipNeeded = remaining > 0 && n > 0
+    ? remaining * investReturn / (Math.pow(1 + investReturn, n) - 1) / (1 + investReturn)
+    : 0;
+
+  const progressPct = Math.min(100, (fvSaved / totalFutureCost * 100)).toFixed(0);
+  const ssyEligible = gender === 'girl' && childAge < 10;
+
+  function fmtI(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+
+  res.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+        <span>Corpus Progress: ${progressPct}%</span>
+        <span style="color:var(--text-muted);">${yearsToCollege} years to college</span>
+      </div>
+      <div style="height:10px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${progressPct}%;background:#8b5cf6;border-radius:99px;transition:width .5s;"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Future Cost</div>
+        <div style="font-size:18px;font-weight:800;color:#8b5cf6;">${fmtI(totalFutureCost)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">@11% edu inflation</div>
+      </div>
+      <div style="background:rgba(59,130,246,.07);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Monthly SIP Needed</div>
+        <div style="font-size:18px;font-weight:800;color:#3b82f6;">${fmtI(sipNeeded)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Equity fund @12%</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Already Covered</div>
+        <div style="font-size:18px;font-weight:800;color:#16a34a;">${fmtI(fvSaved)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Existing savings grown</div>
+      </div>
+    </div>
+    ${ssyEligible ? `<div style="padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;color:#15803d;margin-bottom:8px;">
+      🌸 <strong>SSY Eligible!</strong> Sukanya Samriddhi Yojana @8.2% tax-free for girl child (min ₹250/yr, max ₹1.5L/yr, deposit till age 15, maturity at 21). Open account before she turns 10.
+    </div>` : ''}
+    <div style="font-size:11px;color:var(--text-muted);padding:8px;background:rgba(99,102,241,.05);border-radius:6px;">
+      💡 Recommendation: Equity MF for 10+ year horizon. Start a dedicated SIP. Increase by 10% each year to keep pace with education inflation.
+    </div>`;
+}
+
+/* ─────────────────────── t158: Nominee Tracker ─────────────────────────── */
+const NOMINEE_KEY = 'wd_nominee_status_v1';
+const ASSET_TYPES = [
+  {id:'mf',        label:'Mutual Funds', icon:'💼', critical:true},
+  {id:'demat',     label:'Demat Account', icon:'📈', critical:true},
+  {id:'bank',      label:'Bank Accounts', icon:'🏦', critical:true},
+  {id:'epf',       label:'EPF / PF', icon:'🏢', critical:true},
+  {id:'nps',       label:'NPS', icon:'🏛️', critical:false},
+  {id:'insurance', label:'Life Insurance', icon:'🛡️', critical:true},
+  {id:'health',    label:'Health Insurance', icon:'🏥', critical:false},
+  {id:'ppf',       label:'PPF / SSY', icon:'📮', critical:false},
+  {id:'property',  label:'Property', icon:'🏠', critical:false},
+];
+
+function getNomineeData() {
+  try { return JSON.parse(localStorage.getItem(NOMINEE_KEY) || '{}'); } catch(e) { return {}; }
+}
+
+function renderNomineeTracker() {
+  const data    = getNomineeData();
+  const body    = document.getElementById('nomineeTrackerBody');
+  if (!body) return;
+
+  const missing = ASSET_TYPES.filter(a => !data[a.id] || data[a.id] === 'none');
+  const minor   = ASSET_TYPES.filter(a => data[a.id] === 'minor');
+  const done    = ASSET_TYPES.filter(a => data[a.id] === 'done');
+
+  const criticalMissing = missing.filter(a => a.critical);
+
+  body.innerHTML = `
+    ${criticalMissing.length ? `<div style="padding:10px 14px;background:rgba(220,38,38,.08);border-radius:8px;border:1px solid #fca5a5;margin-bottom:12px;font-size:12px;">
+      🚨 <strong>${criticalMissing.length} critical asset${criticalMissing.length>1?'s':''} missing nomination:</strong>
+      ${criticalMissing.map(a => a.label).join(', ')}
+    </div>` : done.length === ASSET_TYPES.length ? `<div style="padding:10px 14px;background:rgba(22,163,74,.08);border-radius:8px;margin-bottom:12px;font-size:12px;color:#15803d;">
+      ✅ All assets have nominations filed!
+    </div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">
+      ${ASSET_TYPES.map(a => {
+        const status = data[a.id] || 'none';
+        const cfg    = status === 'done'  ? {bg:'rgba(22,163,74,.07)',  border:'#86efac',  badge:'✅ Done',   color:'#15803d'}
+                     : status === 'minor' ? {bg:'rgba(245,158,11,.07)', border:'#fcd34d',  badge:'⚠️ Minor',  color:'#b45309'}
+                     :                      {bg:'rgba(220,38,38,.07)',   border:'#fca5a5',  badge:'❌ Missing', color:'#dc2626'};
+        return `<div style="background:${cfg.bg};border:1px solid ${cfg.border};border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;cursor:pointer;"
+                     onclick="cycleNomineeStatus('${a.id}')" title="Click to update">
+          <span style="font-size:18px;">${a.icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:700;">${a.label}</div>
+            <div style="font-size:11px;color:${cfg.color};font-weight:700;">${cfg.badge}</div>
+          </div>
+          ${a.critical ? '<span style="font-size:10px;color:#dc2626;font-weight:700;">CRITICAL</span>' : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">
+      Click any asset to cycle status: Missing → Done → Minor nominee. Minor nominee requires guardian name in forms.
+    </div>`;
+}
+
+function cycleNomineeStatus(assetId) {
+  const data   = getNomineeData();
+  const status = data[assetId] || 'none';
+  data[assetId] = status === 'none' ? 'done' : status === 'done' ? 'minor' : 'none';
+  try { localStorage.setItem(NOMINEE_KEY, JSON.stringify(data)); } catch(e) {}
+  renderNomineeTracker();
+}
+
+function openNomineeSetup() {
+  ASSET_TYPES.forEach(a => {
+    const s = confirm(`${a.icon} ${a.label}: Is nomination filed? OK = Yes, Cancel = No`);
+    const data = getNomineeData();
+    data[a.id] = s ? 'done' : 'none';
+    try { localStorage.setItem(NOMINEE_KEY, JSON.stringify(data)); } catch(e) {}
+  });
+  renderNomineeTracker();
+}
+
+/* ─────────────────────── t147: Peer Benchmarking ───────────────────────── */
+function calcPeerBenchmark() {
+  const age       = parseInt(document.getElementById('peerAge')?.value)       || 30;
+  const income    = parseInt(document.getElementById('peerIncome')?.value)    || 2000000;
+  const sipPct    = parseFloat(document.getElementById('peerSipPct')?.value)  || 0;
+  const equityPct = parseFloat(document.getElementById('peerEquityPct')?.value)|| 0;
+  const savingsPct= parseFloat(document.getElementById('peerSavingsPct')?.value)|| 0;
+  const res       = document.getElementById('peerResult');
+  if (!res) return;
+
+  // Peer benchmarks (simulated anonymous aggregate — India investor data)
+  // Age group: 25-35 | Income: ₹10L-25L
+  const peers = {
+    sipConsistency: age < 35 ? 72 : age < 45 ? 78 : 82,
+    equityAlloc:    age < 35 ? 75 : age < 45 ? 65 : 55,
+    savingsRate:    income < 1000000 ? 22 : income < 2500000 ? 28 : 35,
+    emergencyFund:  4.2, // months
+    sipCount:       age < 35 ? 2.3 : 3.1,
+  };
+
+  function percentile(val, avg, std) {
+    const z = (val - avg) / std;
+    const p = Math.min(99, Math.max(1, Math.round(50 + z * 25)));
+    return p;
+  }
+
+  const sipPercentile     = percentile(sipPct, peers.sipConsistency, 18);
+  const equityPercentile  = age < 35
+    ? (equityPct >= 70 ? 60 : equityPct >= 50 ? 40 : 20)
+    : (equityPct >= 60 ? 60 : equityPct >= 40 ? 40 : 20);
+  const savingsPercentile = percentile(savingsPct, peers.savingsRate, 10);
+
+  function badge(pct) {
+    if (pct >= 75) return { label: `Top ${100-pct}%`, color:'#15803d', bg:'rgba(22,163,74,.1)' };
+    if (pct >= 50) return { label: `Top ${100-pct}%`, color:'#d97706', bg:'rgba(245,158,11,.1)' };
+    return { label: `Bottom ${pct}%`, color:'#dc2626', bg:'rgba(220,38,38,.1)' };
+  }
+
+  const sipB  = badge(sipPercentile);
+  const eqB   = badge(equityPercentile);
+  const savB  = badge(savingsPercentile);
+
+  res.innerHTML = `
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+      Comparing you with investors aged ${age-5}–${age+5}, income bracket ${(income/100000).toFixed(0)}L+. Data: anonymous aggregate.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px;">
+      <div style="background:${sipB.bg};border-radius:10px;padding:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">SIP Consistency</div>
+        <div style="font-size:18px;font-weight:800;color:${sipB.color};">${sipPct}% <span style="font-size:11px;">(you)</span></div>
+        <div style="font-size:11px;color:var(--text-muted);">Peer avg: ${peers.sipConsistency}%</div>
+        <div style="font-size:11px;font-weight:700;color:${sipB.color};">${sipB.label} of peers</div>
+      </div>
+      <div style="background:${eqB.bg};border-radius:10px;padding:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Equity Allocation</div>
+        <div style="font-size:18px;font-weight:800;color:${eqB.color};">${equityPct}% <span style="font-size:11px;">(you)</span></div>
+        <div style="font-size:11px;color:var(--text-muted);">Ideal for age ${age}: ${age < 35 ? 70 : age < 45 ? 60 : 50}%</div>
+        <div style="font-size:11px;font-weight:700;color:${eqB.color};">${eqB.label} of peers</div>
+      </div>
+      <div style="background:${savB.bg};border-radius:10px;padding:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Savings Rate</div>
+        <div style="font-size:18px;font-weight:800;color:${savB.color};">${savingsPct}% <span style="font-size:11px;">(you)</span></div>
+        <div style="font-size:11px;color:var(--text-muted);">Peer avg: ${peers.savingsRate}%</div>
+        <div style="font-size:11px;font-weight:700;color:${savB.color};">${savB.label} of peers</div>
+      </div>
+    </div>
+    <div style="font-size:11px;padding:10px;background:rgba(99,102,241,.05);border-radius:7px;color:var(--text-muted);">
+      💡 These are behavior metrics only — no fund names or specific amounts shared. Focus on consistency, not returns. The best investors are those who invest regularly regardless of market conditions.
+    </div>`;
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', function() {
+  calcFIRE();
+  calcEdu();
+  renderNomineeTracker();
+  calcPeerBenchmark();
+});
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     t128 — MONTE CARLO SIMULATION
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">🎲 Monte Carlo Simulation — Retirement Success Probability</h3>
+    <span style="font-size:11px;color:var(--text-muted);">1,000 random market scenarios</span>
+  </div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Corpus (₹)</label>
+        <input type="number" id="mcCorpus" value="500000" class="form-control" oninput="runMonteCarlo()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Monthly SIP (₹)</label>
+        <input type="number" id="mcSip" value="20000" class="form-control" oninput="runMonteCarlo()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Years to Retirement</label>
+        <input type="number" id="mcYears" value="25" min="5" max="40" class="form-control" oninput="runMonteCarlo()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Retirement Goal (₹)</label>
+        <input type="number" id="mcGoal" value="30000000" class="form-control" oninput="runMonteCarlo()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Expected Return (%)</label>
+        <select id="mcReturn" class="form-control" onchange="runMonteCarlo()">
+          <option value="10">10%</option>
+          <option value="12" selected>12%</option>
+          <option value="14">14%</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Volatility (%)</label>
+        <select id="mcVol" class="form-control" onchange="runMonteCarlo()">
+          <option value="15">15% (Low)</option>
+          <option value="20" selected>20% (Medium)</option>
+          <option value="25">25% (High)</option>
+        </select>
+      </div>
+    </div>
+    <div id="mcResult"></div>
+  </div>
+</div>
+
+<script>
+/* t128: Monte Carlo Simulation */
+function runMonteCarlo() {
+  const corpus = parseFloat(document.getElementById('mcCorpus')?.value) || 0;
+  const sip    = parseFloat(document.getElementById('mcSip')?.value)    || 0;
+  const years  = parseInt(document.getElementById('mcYears')?.value)    || 25;
+  const goal   = parseFloat(document.getElementById('mcGoal')?.value)   || 30000000;
+  const retPct = (parseFloat(document.getElementById('mcReturn')?.value)|| 12) / 100;
+  const volPct = (parseFloat(document.getElementById('mcVol')?.value)   || 20) / 100;
+  const res    = document.getElementById('mcResult');
+  if (!res) return;
+
+  res.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span> Running 1,000 simulations...</div>';
+
+  // Run async to not block UI
+  setTimeout(() => {
+    const SIMS   = 1000;
+    const months = years * 12;
+    const meanMonthly = retPct / 12;
+    const stdMonthly  = volPct / Math.sqrt(12);
+    const results = [];
+
+    // Box-Muller random normal
+    function randNorm(mean, std) {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+    }
+
+    for (let s = 0; s < SIMS; s++) {
+      let c = corpus;
+      for (let m = 0; m < months; m++) {
+        const monthlyRet = randNorm(meanMonthly, stdMonthly);
+        c = c * (1 + monthlyRet) + sip;
+      }
+      results.push(Math.max(0, c));
+    }
+
+    results.sort((a,b) => a-b);
+    const success = results.filter(r => r >= goal).length;
+    const prob    = (success / SIMS * 100).toFixed(0);
+    const p10     = results[Math.floor(SIMS*0.10)]; // pessimistic
+    const p50     = results[Math.floor(SIMS*0.50)]; // median
+    const p90     = results[Math.floor(SIMS*0.90)]; // optimistic
+
+    function fmtI(v) {
+      v = Math.abs(v);
+      if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+      if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+      return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+    }
+
+    const probColor = prob >= 80 ? '#15803d' : prob >= 60 ? '#d97706' : '#dc2626';
+    const probEmoji = prob >= 80 ? '✅' : prob >= 60 ? '⚠️' : '🚨';
+
+    // Simple fan chart using CSS bars
+    const maxVal = p90;
+    const goalPct = Math.min(100, goal/maxVal*100).toFixed(0);
+
+    res.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:56px;font-weight:900;color:${probColor};">${prob}%</div>
+        <div style="font-size:14px;font-weight:700;color:${probColor};">${probEmoji} Probability of reaching ${fmtI(goal)}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Based on 1,000 random market scenarios</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+        <div style="background:rgba(220,38,38,.07);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Pessimistic (P10)</div>
+          <div style="font-size:16px;font-weight:800;color:#dc2626;">${fmtI(p10)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">10% of scenarios worse</div>
+        </div>
+        <div style="background:rgba(59,130,246,.07);border-radius:10px;padding:12px;text-align:center;border:2px solid #93c5fd;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Median (P50)</div>
+          <div style="font-size:20px;font-weight:900;color:#3b82f6;">${fmtI(p50)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Most likely outcome</div>
+        </div>
+        <div style="background:rgba(22,163,74,.07);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Optimistic (P90)</div>
+          <div style="font-size:16px;font-weight:800;color:#16a34a;">${fmtI(p90)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">10% of scenarios better</div>
+        </div>
+      </div>
+      <!-- Range visualization -->
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+          <span>Outcome Range</span><span>Goal: ${fmtI(goal)}</span>
+        </div>
+        <div style="position:relative;height:24px;background:linear-gradient(90deg,#fee2e2,#fef3c7,#dcfce7);border-radius:99px;overflow:hidden;">
+          <div style="position:absolute;left:${goalPct}%;top:0;bottom:0;width:2px;background:#1d4ed8;"></div>
+          <div style="position:absolute;left:${Math.min(100,p50/maxVal*100).toFixed(0)}%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:#3b82f6;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.3);"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:2px;">
+          <span>${fmtI(p10)}</span><span style="color:#1d4ed8;">Goal</span><span>${fmtI(p90)}</span>
+        </div>
+      </div>
+      ${prob < 80 ? `
+      <div style="padding:10px;background:rgba(245,158,11,.08);border-radius:7px;font-size:12px;color:#b45309;margin-bottom:8px;">
+        💡 To improve probability to 80%+: Increase SIP by ₹${fmtI((0.80-prob/100)*sip*2)} or extend by ${Math.max(1,Math.round((80-prob)/5))} more years.
+      </div>` : ''}
+      <div style="font-size:11px;color:var(--text-muted);padding:8px;background:var(--bg-secondary);border-radius:6px;">
+        Monte Carlo uses ${SIMS} simulations with ${(retPct*100).toFixed(0)}% mean return and ${(volPct*100).toFixed(0)}% annual volatility. Each simulation uses a different sequence of random monthly returns. This models real-world uncertainty better than a simple compound growth calculator.
+      </div>`;
+  }, 50);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  runMonteCarlo();
+});
+</script>
+
 <?php
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';

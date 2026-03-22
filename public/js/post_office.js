@@ -736,3 +736,106 @@ const PO = (() => {
   // Public API
   return { load, filterTable, calcPreview, selectScheme, selectTdTenure, openEdit, confirmDelete, closeScheme, goPage, changePerPage };
 })();
+/* ═══════════════════════════════════════════════════════════════════════════
+   t17 — PPF & SSY YEARLY DEPOSIT TRACKER
+   localStorage-based FY-wise deposit log with 80C limit check
+═══════════════════════════════════════════════════════════════════════════ */
+const PPF_TRACKER_KEY = 'wd_ppf_ffy_v1';
+
+function getPpfDeposits() {
+  try { return JSON.parse(localStorage.getItem(PPF_TRACKER_KEY) || '{}'); } catch(e) { return {}; }
+}
+function savePpfDeposits(d) {
+  try { localStorage.setItem(PPF_TRACKER_KEY, JSON.stringify(d)); } catch(e) {}
+}
+
+function currentFY() {
+  const now = new Date();
+  const y   = now.getFullYear();
+  const m   = now.getMonth() + 1;
+  return m >= 4 ? `${y}-${String(y+1).slice(-2)}` : `${y-1}-${String(y).slice(-2)}`;
+}
+
+function renderPpfTracker(containerId, schemeType) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const PPF_LIMIT = 150000; // ₹1.5L per year
+  const SSY_LIMIT = 150000;
+  const LIMIT     = PPF_LIMIT;
+  const deposits  = getPpfDeposits();
+  const fy        = currentFY();
+  const fyData    = deposits[`${schemeType}_${fy}`] || { entries: [], total: 0 };
+  const total     = fyData.entries ? fyData.entries.reduce((s,e) => s + e.amt, 0) : (fyData.total || 0);
+  const remaining = Math.max(0, LIMIT - total);
+  const pct       = Math.min(100, (total / LIMIT) * 100).toFixed(0);
+
+  function fmtI(v) {
+    return '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+
+  container.innerHTML = `
+    <div style="margin-top:12px;padding:12px;background:rgba(29,78,216,.06);border-radius:9px;border:1px solid rgba(29,78,216,.2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:700;color:#1d4ed8;">📊 FY ${fy} Deposits — ${schemeType.toUpperCase()}</span>
+        <button onclick="addPpfDeposit('${containerId}','${schemeType}')"
+          style="font-size:11px;padding:3px 10px;border-radius:5px;background:#1d4ed8;color:#fff;border:none;cursor:pointer;font-weight:700;">+ Log</button>
+      </div>
+      <div style="height:8px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;margin-bottom:6px;">
+        <div style="height:100%;width:${pct}%;background:${parseInt(pct)>=90?'#dc2626':'#1d4ed8'};border-radius:99px;transition:width .4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
+        <span>Deposited: <strong style="color:var(--text-primary);">${fmtI(total)}</strong></span>
+        <span>${parseInt(pct)}% of ₹1.5L limit</span>
+        <span>Remaining: <strong style="color:${remaining>0?'#16a34a':'#dc2626'};">${fmtI(remaining)}</strong></span>
+      </div>
+      ${parseInt(pct) >= 100 ? '<div style="margin-top:6px;font-size:11px;color:#dc2626;font-weight:700;">⚠️ ₹1.5L limit reached! Additional deposits not 80C eligible.</div>' : ''}
+      ${fyData.entries?.length ? `
+      <div style="margin-top:8px;max-height:100px;overflow-y:auto;font-size:11px;">
+        ${fyData.entries.slice(-5).reverse().map(e =>
+          `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--border);">
+            <span>${e.date}</span>
+            <span style="font-weight:700;">${fmtI(e.amt)}</span>
+          </div>`
+        ).join('')}
+      </div>` : ''}
+    </div>`;
+}
+
+function addPpfDeposit(containerId, schemeType) {
+  const amt = parseFloat(prompt('Enter deposit amount (₹):') || '0');
+  if (!amt || amt <= 0) return;
+  const deposits = getPpfDeposits();
+  const fy       = currentFY();
+  const key      = `${schemeType}_${fy}`;
+  if (!deposits[key]) deposits[key] = { entries: [] };
+  deposits[key].entries = deposits[key].entries || [];
+  deposits[key].entries.push({ amt, date: new Date().toLocaleDateString('en-IN') });
+  savePpfDeposits(deposits);
+  renderPpfTracker(containerId, schemeType);
+  // Check limit
+  const total = deposits[key].entries.reduce((s,e) => s + e.amt, 0);
+  if (total > 150000 && typeof showToast === 'function') {
+    showToast('⚠️ PPF deposit exceeded ₹1.5L limit — excess not 80C eligible!', 'warning');
+  } else if (typeof showToast === 'function') {
+    showToast(`✅ ₹${amt.toLocaleString('en-IN')} logged for ${schemeType.toUpperCase()} FY ${fy}`, 'success');
+  }
+}
+
+// Hook into onSelectScheme to show PPF tracker
+const _origOnSelectScheme = typeof onSelectScheme !== 'undefined' ? onSelectScheme : null;
+function onSelectSchemeHooked(type) {
+  if (_origOnSelectScheme) _origOnSelectScheme(type);
+  if (type === 'ppf' || type === 'ssy') {
+    setTimeout(() => {
+      const bannerId = 'ppfTrackerInline';
+      const banner   = document.getElementById('poSchemeBanner');
+      if (banner && !document.getElementById(bannerId)) {
+        const div = document.createElement('div');
+        div.id    = bannerId;
+        banner.parentNode.insertBefore(div, banner.nextSibling);
+      }
+      renderPpfTracker(bannerId, type);
+    }, 100);
+  }
+}

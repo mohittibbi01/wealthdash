@@ -10,6 +10,26 @@ const NPS = {
   txnTierFilter: '',
   txnTypeFilter: '',
   pendingDeleteId: null,
+  // t20: Pagination
+  page: 1, perPage: 10, _allRows: [],
+  _renderPag(total, pages, startIdx) {
+    const wrap = document.getElementById('npsPagWrap');
+    if (!wrap) return;
+    if (pages <= 1 && total <= 10) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;">
+      <select onchange="NPS.setPerPage(+this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+        ${[10,25,50,999].map(n=>`<option value="${n}" ${n===this.perPage?'selected':''}>${n===999?'All':n}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);">${Math.min(startIdx+1,total)}–${Math.min(startIdx+this.perPage,total)} of ${total}</span>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button onclick="NPS.goPage(${this.page-1})" ${this.page<=1?'disabled':''} class="btn btn-ghost btn-sm">‹</button>
+        ${Array.from({length:Math.min(5,pages)},(_,i)=>{const p=Math.max(1,Math.min(this.page-2,pages-4))+i;return `<button onclick="NPS.goPage(${p})" class="btn btn-sm ${p===this.page?'btn-primary':'btn-ghost'}">${p}</button>`;}).join('')}
+        <button onclick="NPS.goPage(${this.page+1})" ${this.page>=pages?'disabled':''} class="btn btn-ghost btn-sm">›</button>
+      </div>
+    </div>`;
+  },
+  goPage(p)     { this.page=p; this.loadHoldings(); },
+  setPerPage(n) { this.perPage=n; this.page=1; this.loadHoldings(); },
 
   /* ── INIT ── */
   init() {
@@ -131,10 +151,20 @@ const NPS = {
       const rows = data.data || [];
       if (!rows.length) {
         body.innerHTML = '<tr><td colspan="10" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">🏛️</div><p>No NPS holdings yet.<br>Add your first contribution to get started.</p></td></tr>';
+        NPS._renderPag(0,1,0);
         return;
       }
 
-      body.innerHTML = rows.map(h => {
+      // t20: Pagination
+      NPS._allRows = rows;
+      const total  = rows.length;
+      const pages  = NPS.perPage >= 999 ? 1 : Math.ceil(total / NPS.perPage);
+      if (NPS.page > pages) NPS.page = 1;
+      const start  = (NPS.page-1) * (NPS.perPage >= 999 ? total : NPS.perPage);
+      const paged  = NPS.perPage >= 999 ? rows : rows.slice(start, start + NPS.perPage);
+      NPS._renderPag(total, pages, start);
+
+      body.innerHTML = paged.map(h => {
         const gl     = parseFloat(h.gain_loss) || 0;
         const glPct  = parseFloat(h.gain_pct)  || 0;
         const cagr   = parseFloat(h.cagr)      || 0;

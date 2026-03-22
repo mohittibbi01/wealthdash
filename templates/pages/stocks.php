@@ -87,6 +87,9 @@ ob_start();
     </div>
     <div style="display:flex;gap:8px">
       <input type="text" class="form-input" id="searchStock" placeholder="Search symbol..." style="width:180px">
+      <select class="form-select" id="filterSector" style="width:140px" onchange="STOCKS.loadHoldings()">
+        <option value="">All Sectors</option>
+      </select>
       <select class="form-select" id="filterPortfolio" style="width:160px">
         <option value="">All Portfolios</option>
         <?php foreach ($portfolios as $p): ?>
@@ -96,18 +99,18 @@ ob_start();
     </div>
   </div>
   <div class="table-responsive">
-    <table class="table">
+    <table class="table stocks-table">
       <thead>
         <tr>
           <th>Symbol / Company</th>
-          <th>Exchange</th>
+          <th>Sector</th>
           <th class="text-right">Qty</th>
           <th class="text-right">Avg Buy (₹)</th>
           <th class="text-right">CMP (₹)</th>
           <th class="text-right">Invested</th>
           <th class="text-right">Current Value</th>
-          <th class="text-right">Gain / Loss</th>
-          <th class="text-right">CAGR</th>
+          <th class="text-right" style="cursor:pointer;user-select:none" onclick="STOCKS.sortBy('gain')">Gain / Loss <span id="sortGainArr">↕</span></th>
+          <th class="text-right" style="cursor:pointer;user-select:none" onclick="STOCKS.sortBy('cagr')">CAGR <span id="sortCagrArr">↕</span></th>
           <th>Gain Type</th>
           <th class="text-center">Actions</th>
         </tr>
@@ -116,6 +119,22 @@ ob_start();
         <tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted)"><span class="spinner"></span> Loading...</td></tr>
       </tbody>
     </table>
+  </div>
+  <div id="stocksPagWrap" style="padding:0 16px;"></div>
+</div>
+
+<!-- t145: Stock Picker Reality Check -->
+<div class="card" style="margin-top:20px;margin-bottom:20px;">
+  <div class="card-header">
+    <h3 class="card-title">🎯 Stock Picker Reality Check</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Your returns vs Nifty 50 (same money, same time)</span>
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div id="stockPickerCheck">
+      <div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">
+        <span class="spinner"></span> Loading analysis...
+      </div>
+    </div>
   </div>
 </div>
 
@@ -283,6 +302,30 @@ ob_start();
 </div>
 
 <script src="<?= APP_URL ?>/public/js/stocks.js?v=<?= ASSET_VERSION ?>"></script>
+<script src="<?= APP_URL ?>/public/js/behavioral_analytics.js?v=<?= ASSET_VERSION ?>"></script>
+<script>
+// t145: Run stock picker check after holdings load
+const _origLoadHoldings = STOCKS.loadHoldings.bind(STOCKS);
+STOCKS.loadHoldings = async function() {
+  await _origLoadHoldings();
+  // Get rendered rows data for reality check
+  setTimeout(() => {
+    const rows = [];
+    document.querySelectorAll('#stocksBody tr').forEach(tr => {
+      const cells = tr.querySelectorAll('td');
+      if (cells.length >= 7) {
+        rows.push({
+          total_invested: parseFloat(cells[5]?.textContent?.replace(/[₹,L]/g,'').trim()) * (cells[5]?.textContent?.includes('L') ? 100000 : 1) || 0,
+          current_value:  parseFloat(cells[6]?.textContent?.replace(/[₹,L]/g,'').trim()) * (cells[6]?.textContent?.includes('L') ? 100000 : 1) || 0,
+        });
+      }
+    });
+    if (typeof renderStockPickerCheck === 'function') {
+      renderStockPickerCheck('stockPickerCheck', rows);
+    }
+  }, 300);
+};
+</script>
 <?php
 $pageContent = ob_get_clean();
 include APP_ROOT . '/templates/layout.php';

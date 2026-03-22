@@ -86,8 +86,16 @@ if (document.getElementById('fySummaryBody')) {
                 `<tr><td colspan="10" class="text-center text-secondary">Please select a portfolio to view FY Gains.</td></tr>`;
             return;
         }
+        // t132 + t133: Read controls
+        const lotMethod    = document.getElementById('lotMethodSelect')?.value || 'FIFO';
+        const applyGf      = document.getElementById('applyGrandfathering')?.checked ? 1 : 0;
+
         try {
-            const res = await window.apiPost({ action: 'report_fy_gains', portfolio_id: pid, fy });
+            const res = await window.apiPost({
+                action: 'report_fy_gains', portfolio_id: pid, fy,
+                lot_method: lotMethod,
+                apply_grandfathering: applyGf,
+            });
             if (!res.success) { window.showToast(res.message, 'error'); return; }
             reportData = res.data;
             renderFyFilters(reportData.fy_list);
@@ -98,6 +106,8 @@ if (document.getElementById('fySummaryBody')) {
             renderStockGains(reportData.stock_gains_detail);
             renderMfDivs(reportData.mf_dividends);
             renderStDivs(reportData.stock_dividends);
+            renderLossCF(reportData.loss_carry_forward || []);       // t135
+            renderGrandfathering(reportData.total_gf_tax_savings || 0, lotMethod); // t132
         } catch (e) {
             console.error(e);
             window.showToast('Failed to load FY Gains report', 'error');
@@ -228,35 +238,8 @@ if (document.getElementById('fySummaryBody')) {
         go(key, page)    { this.state[key].page = page; this.render(key); },
         changePerPage(key, val) { this.state[key].perPage = parseInt(val); this.state[key].page = 1; this.render(key); },
         set(key, data)   { this.state[key].data = data || []; this.state[key].page = 1; this.render(key); },
-    }; // end fyPagination
 
-    // T32: MF Gains search filter ─────────────────────────────────────────
-    let _allMfGains = []; // full unfiltered data cache
-
-    window.filterMfGains = function(q) {
-        q = (q || '').trim().toLowerCase();
-        const filtered = q
-            ? _allMfGains.filter(g => (g.name || '').toLowerCase().includes(q) || (g.category || '').toLowerCase().includes(q))
-            : _allMfGains;
-        // Update count badge
-        const countEl = document.getElementById('mfGainsCount');
-        if (countEl) countEl.textContent = q ? `${filtered.length} of ${_allMfGains.length} matches` : `${_allMfGains.length} records`;
-        fyPagination.set('mfGains', filtered);
-    };
-
-    function renderMfGains(gains) {
-        _allMfGains = gains || [];
-        // Reset search input
-        const inp = document.getElementById('mfGainsSearch');
-        if (inp) inp.value = '';
-        // Update count
-        const countEl = document.getElementById('mfGainsCount');
-        if (countEl) countEl.textContent = _allMfGains.length ? `${_allMfGains.length} records` : '';
-        fyPagination.set('mfGains', _allMfGains);
-    }
-
-    // Add row renderers to fyPagination after definition
-    fyPagination._rowMfGain = g => `<tr>
+        _rowMfGain: g => `<tr>
             <td>${g.fy}</td>
             <td class="text-nowrap" title="${g.name}">${truncate(g.name,35)}</td>
             <td><small>${g.category}</small></td>
@@ -269,8 +252,9 @@ if (document.getElementById('fySummaryBody')) {
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
             <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):g.tax_rate!=null?g.tax_rate+'%':'Slab'}</td>
-        </tr>`;
-    fyPagination._rowStGain = g => `<tr>
+        </tr>`,
+
+        _rowStGain: g => `<tr>
             <td>${g.fy}</td>
             <td><strong>${g.symbol}</strong></td>
             <td>${truncate(g.name,25)}</td>
@@ -282,14 +266,17 @@ if (document.getElementById('fySummaryBody')) {
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
             <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):'-'}</td>
-        </tr>`;
-    fyPagination._rowMfDiv = d => `<tr><td>${d.fy}</td><td>${truncate(d.name,40)}</td><td>${d.fund_house}</td>
-            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`;
-    fyPagination._rowStDiv = d => `<tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
-            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`;
+        </tr>`,
 
+        _rowMfDiv: d => `<tr><td>${d.fy}</td><td>${truncate(d.name,40)}</td><td>${d.fund_house}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
+
+        _rowStDiv: d => `<tr><td>${d.fy}</td><td><strong>${d.symbol}</strong></td><td>${d.name}</td>
+            <td>${d.date}</td><td class="text-right text-primary fw-600">${inrFmt(d.amount)}</td></tr>`,
+    };
     window.fyPagination = fyPagination; // expose globally for onchange handlers
 
+    function renderMfGains(gains)   { fyPagination.set('mfGains', gains); }
     function renderStockGains(gains){ fyPagination.set('stGains', gains); }
     function renderMfDivs(divs)     { fyPagination.set('mfDiv',   divs);  }
     function renderStDivs(divs)     { fyPagination.set('stDiv',   divs);  }
@@ -309,6 +296,14 @@ if (document.getElementById('fySummaryBody')) {
         fyFilterEl.addEventListener('change', () => loadFyReport(fyFilterEl.value));
     }
 
+    // t133: Lot method change → reload
+    const lotSel = document.getElementById('lotMethodSelect');
+    if (lotSel) lotSel.addEventListener('change', () => loadFyReport(fyFilterEl?.value || ''));
+
+    // t132: Grandfathering toggle → reload
+    const gfChk = document.getElementById('applyGrandfathering');
+    if (gfChk) gfChk.addEventListener('change', () => loadFyReport(fyFilterEl?.value || ''));
+
     const exportTaxBtn = document.getElementById('exportTaxBtn');
     if (exportTaxBtn) {
         exportTaxBtn.addEventListener('click', () => {
@@ -321,6 +316,46 @@ if (document.getElementById('fySummaryBody')) {
                 <input name="_csrf" value="${window.WD?.csrf || ''}">`;
             document.body.appendChild(f); f.submit(); document.body.removeChild(f);
         });
+    }
+
+    // t135: Render Loss Carry Forward table
+    function renderLossCF(losses) {
+        const card = document.getElementById('lossCFCard');
+        const body = document.getElementById('lossCFBody');
+        if (!card || !body) return;
+        if (!losses.length) { card.style.display = 'none'; return; }
+        card.style.display = '';
+        const curFy = currentFyStr();
+        body.innerHTML = losses.map(l => {
+            const isExpiringSoon = l.expiry_fy === curFy;
+            const expColor = isExpiringSoon ? '#dc2626' : 'var(--text-muted)';
+            const badge = isExpiringSoon
+                ? `<span class="badge badge-danger">⚠️ Expiring this FY!</span>`
+                : `<span class="badge badge-info">Active</span>`;
+            const taxSaving = l.type === 'LTCG'
+                ? inrFmt(l.loss_amount * 0.125)
+                : inrFmt(l.loss_amount * 0.20);
+            return `<tr>
+                <td><strong>${l.fy}</strong></td>
+                <td><span class="badge ${l.type==='LTCG'?'badge-warning':'badge-info'}">${l.type}</span></td>
+                <td class="text-right fw-600 text-danger">-${inrFmt(l.loss_amount)}</td>
+                <td style="font-size:12px;">${l.can_set_off}</td>
+                <td style="color:${expColor};font-weight:600;">${l.expiry_fy}</td>
+                <td>${badge}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // t132: Render Grandfathering savings
+    function renderGrandfathering(savings, lotMethod) {
+        const card = document.getElementById('gfCard');
+        const badge = document.getElementById('gfBadge');
+        const savEl = document.getElementById('gfTaxSavings');
+        if (!card) return;
+        const taxSaved = savings * 0.125; // 12.5% LTCG rate
+        card.style.display = savings > 0 ? '' : 'none';
+        if (badge) badge.textContent = `${lotMethod} method`;
+        if (savEl) savEl.textContent = inrFmt(taxSaved);
     }
 
     // Always attempt load — portId fallback handles missing WD object
@@ -373,7 +408,7 @@ if (document.getElementById('harvestBody')) {
             <div class="stat-value text-primary">${d.harvest_suggestions?.length || 0} <small>funds/stocks</small></div>
         </div>`;
 
-        // Update progress bar
+        // Update LTCG progress bar
         const fyBadge = document.getElementById('taxFyBadge');
         if (fyBadge) fyBadge.textContent = d.fy;
         const bar = document.getElementById('taxProgressBar');
@@ -384,7 +419,7 @@ if (document.getElementById('harvestBody')) {
         const msgEl = document.getElementById('ltcgHarvestMsg');
         if (msgEl) {
             if (d.ltcg_exemption_remaining > 0) {
-                msgEl.textContent = `You can book ₹${Number(d.ltcg_exemption_remaining).toLocaleString('en-IN')} more in LTCG gains tax-free this FY.`;
+                msgEl.textContent = `You can book ${inrFmt(d.ltcg_exemption_remaining)} more in LTCG gains tax-free this FY.`;
             } else {
                 msgEl.textContent = '⚠️ LTCG exemption exhausted. Further LTCG gains will be taxed @ 12.5%.';
                 msgEl.className = 'text-sm text-warning mt-2';
@@ -395,6 +430,79 @@ if (document.getElementById('harvestBody')) {
             const el2 = document.getElementById(id);
             if (el2) el2.textContent = inrFmt(map[id]);
         });
+
+        // t82: 80C Dashboard
+        render80C(d);
+
+        // t83: March deadline countdown
+        renderDeadline(d);
+    }
+
+    // t82: 80C Dashboard renderer
+    function render80C(d) {
+        const c80  = d['80c_total']     || 0;
+        const lim  = d['80c_limit']     || 150000;
+        const rem  = d['80c_remaining'] || lim;
+        const nps1b= d['80ccd1b_nps']   || 0;
+        const lim1b= d['80ccd1b_limit'] || 50000;
+        const pct  = Math.min(100, (c80 / lim) * 100).toFixed(1);
+        const pct1b= Math.min(100, (nps1b / lim1b) * 100).toFixed(1);
+
+        const fmt = v => inrFmt(v);
+        const setT = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+        const setW = (id, w, color) => { const e = document.getElementById(id); if (e) { e.style.width = w + '%'; if (color) e.style.background = color; } };
+
+        setT('amt80C',     fmt(c80));
+        setT('rem80C',     fmt(rem));
+        setT('amt80cElss', fmt(d['80c_elss'] || 0));
+        setT('amt80cPpf',  fmt(d['80c_ppf']  || 0));
+        setT('amt80cNps',  fmt(d['80c_nps']  || 0));
+        setT('amt80ccd1b', fmt(nps1b));
+
+        const barColor = pct >= 100 ? '#16a34a' : pct >= 75 ? '#d97706' : '#3b82f6';
+        setW('bar80C', pct, barColor);
+        setW('bar80ccd1b', pct1b);
+
+        const msgEl = document.getElementById('msg80C');
+        if (msgEl) {
+            if (rem <= 0) {
+                msgEl.textContent = '✅ 80C limit fully utilised! Maximum tax saving achieved.';
+                msgEl.style.cssText = 'font-size:12px;margin-top:10px;padding:8px 12px;border-radius:6px;background:rgba(22,163,74,.1);color:#16a34a;';
+            } else {
+                msgEl.textContent = `💡 Invest ${fmt(rem)} more in ELSS/PPF/NPS to maximise 80C deduction.`;
+                msgEl.style.cssText = 'font-size:12px;margin-top:10px;padding:8px 12px;border-radius:6px;background:rgba(59,130,246,.08);color:var(--text-primary);';
+            }
+        }
+        const msg1b = document.getElementById('msg80ccd1b');
+        if (msg1b) {
+            msg1b.textContent = nps1b > 0
+                ? `+${fmt(Math.min(lim1b - nps1b, lim1b))} more NPS contribution can save extra tax under 80CCD(1B).`
+                : 'Invest up to ₹50,000 in NPS Tier 1 for additional deduction under 80CCD(1B).';
+        }
+    }
+
+    // t83: FY deadline countdown
+    function renderDeadline(d) {
+        const el = document.getElementById('deadlineCountdown');
+        if (!el) return;
+        const days = d.days_to_fy_end || 0;
+        if (days <= 0) {
+            el.textContent = '🔒 FY Closed';
+            el.style.background = 'rgba(107,114,128,.1)';
+            el.style.color = 'var(--text-muted)';
+        } else if (days <= 7) {
+            el.textContent = `🚨 ${days} days left!`;
+            el.style.background = 'rgba(220,38,38,.12)';
+            el.style.color = '#dc2626';
+        } else if (days <= 30) {
+            el.textContent = `⚠️ ${days} days to Mar 31`;
+            el.style.background = 'rgba(245,158,11,.12)';
+            el.style.color = '#d97706';
+        } else {
+            el.textContent = `📅 ${days} days to Mar 31`;
+            el.style.background = 'rgba(59,130,246,.08)';
+            el.style.color = 'var(--accent)';
+        }
     }
 
     function renderHarvestTable(d) {

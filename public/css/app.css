@@ -1712,3 +1712,91 @@ html, body { overflow-x: hidden; }
   animation: none !important;
   transition: none !important;
 }
+
+/* ============================================================
+   t87 — MOBILE RESPONSIVE: Holdings table
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Holdings table — show only Fund + Value + Gain% on mobile */
+  .mf-holdings-table th:nth-child(3),  /* Folio */
+  .mf-holdings-table td:nth-child(3),
+  .mf-holdings-table th:nth-child(5),  /* 1D Change */
+  .mf-holdings-table td:nth-child(5),
+  .mf-holdings-table th:nth-child(6),  /* Units */
+  .mf-holdings-table td:nth-child(6),
+  .mf-holdings-table th:nth-child(7),  /* NAV */
+  .mf-holdings-table td:nth-child(7),
+  .mf-holdings-table th:nth-child(9),  /* Peak NAV */
+  .mf-holdings-table td:nth-child(9),
+  .mf-holdings-table th:nth-child(10), /* Drawdown */
+  .mf-holdings-table td:nth-child(10) { display: none; }
+
+  /* Stocks table — hide less important columns */
+  .stocks-table th:nth-child(4),   /* Avg Buy */
+  .stocks-table td:nth-child(4),
+  .stocks-table th:nth-child(6),   /* Invested */
+  .stocks-table td:nth-child(6),
+  .stocks-table th:nth-child(10),  /* Gain Type */
+  .stocks-table td:nth-child(10)   { display: none; }
+
+  /* Page header stacks on mobile */
+  .page-header-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .page-header-actions .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  /* Stats grid — 2 columns on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Filter bar wraps */
+  .mf-filter-bar {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Touch targets — minimum 44px */
+  .btn, button, select, input[type="checkbox"] {
+    min-height: 36px;
+  }
+
+  /* Screener table — show fewer columns */
+  .sc-table th:nth-child(4),  /* 1D Change */
+  .sc-table td:nth-child(4),
+  .sc-table th:nth-child(5),  /* Peak NAV */
+  .sc-table td:nth-child(5),
+  .sc-table th:nth-child(8),  /* Expense */
+  .sc-table td:nth-child(8),
+  .sc-table th:nth-child(9),  /* 1Y */
+  .sc-table td:nth-child(9),
+  .sc-table th:nth-child(10), /* 3Y */
+  .sc-table td:nth-child(10)  { display: none; }
+
+  /* Drawer full screen on mobile */
+  .sc-dr {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens — more aggressive hiding */
+  .mf-holdings-table th:nth-child(8),  /* XIRR */
+  .mf-holdings-table td:nth-child(8)   { display: none; }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px;
+  }
+  .stat-card {
+    padding: 12px;
+  }
+  .stat-value {
+    font-size: 1.2rem;
+  }
+}

@@ -21,7 +21,8 @@ $portWhere = $isAdmin && !$portfolioId
 if ($type === 'holdings') {
     $tierCond = $tier ? "AND h.tier = " . DB::pdo()->quote($tier) : '';
     $rows = DB::fetchAll(
-        "SELECT h.*, s.scheme_name, s.pfm_name, s.tier AS scheme_tier, s.latest_nav, s.latest_nav_date,
+        "SELECT h.*, s.scheme_name, s.pfm_name, s.tier AS scheme_tier,
+                s.latest_nav, s.latest_nav_date, s.asset_class,
                 p.name AS portfolio_name
          FROM nps_holdings h
          JOIN nps_schemes s  ON s.id = h.scheme_id
@@ -29,6 +30,27 @@ if ($type === 'holdings') {
          WHERE 1=1 {$portWhere} {$tierCond}
          ORDER BY s.pfm_name, s.tier, s.scheme_name"
     );
+
+    // t102: Recalculate CAGR properly for each holding
+    foreach ($rows as &$h) {
+        $invested   = (float)$h['total_invested'];
+        $value      = (float)$h['latest_value'];
+        $firstDate  = $h['first_contribution_date'] ?? null;
+
+        // Simple CAGR: (current/invested)^(1/years) - 1
+        $cagr = null;
+        if ($invested > 0 && $value > 0 && $firstDate) {
+            $days  = (int)(new DateTime())->diff(new DateTime($firstDate))->days;
+            $years = $days / 365.25;
+            if ($years >= 0.1) {
+                $cagr = round((pow($value / $invested, 1 / $years) - 1) * 100, 2);
+            }
+        }
+        $h['cagr']     = $cagr;
+        $h['gain_pct'] = $invested > 0 ? round(($value - $invested) / $invested * 100, 2) : 0;
+    }
+    unset($h);
+
     json_response(true, '', $rows);
 }
 
@@ -52,4 +74,3 @@ if ($type === 'transactions') {
 }
 
 json_response(false, 'Invalid type parameter.');
-

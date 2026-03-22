@@ -40,6 +40,19 @@ ob_start();
             </div>
         </div>
 
+        <!-- t133: Lot Method Selector -->
+        <select id="lotMethodSelect" class="btn btn-outline" style="font-size:12px;padding:6px 10px;" title="Lot selection method for cost basis">
+          <option value="FIFO">FIFO (Default)</option>
+          <option value="HIFO">HIFO (Tax-optimal)</option>
+          <option value="LIFO">LIFO</option>
+        </select>
+
+        <!-- t132: Grandfathering toggle -->
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="applyGrandfathering" checked style="cursor:pointer;">
+          Grandfathering (Jan 31 '18)
+        </label>
+
         <button class="btn btn-outline" id="exportTaxBtn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -305,6 +318,59 @@ ob_start();
           <div id="stDivPagInfo" style="font-size:12px;color:var(--text-muted);"></div>
           <div id="stDivPag" style="display:flex;gap:4px;"></div>
         </div>
+    </div>
+</div>
+
+<!-- t132: Grandfathering Info Card -->
+<div class="card mb-4" id="gfCard" style="display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📅 Grandfathering — Jan 31, 2018 Cost Basis</h3>
+        <span class="badge badge-info" id="gfBadge"></span>
+    </div>
+    <div class="card-body">
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;">
+            <div style="flex:1;min-width:200px;">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
+                    For equity MFs purchased before Jan 31 2018, cost of acquisition =
+                    <strong>max(actual purchase NAV, Jan 31 2018 NAV)</strong>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                    This reduces your taxable LTCG gain (Budget 2018 grandfathering provision).
+                </div>
+            </div>
+            <div style="text-align:center;padding:12px 20px;background:rgba(22,163,74,.08);border-radius:10px;border:1px solid #86efac;">
+                <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Tax Saved via Grandfathering</div>
+                <div style="font-size:22px;font-weight:800;color:#16a34a;" id="gfTaxSavings">₹0</div>
+                <div style="font-size:11px;color:var(--text-muted);">@12.5% LTCG rate</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- t135: Loss Carry Forward Panel -->
+<div class="card mb-4" id="lossCFCard" style="display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📉 Loss Set-off & Carry Forward (8-Year Rule)</h3>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Loss FY</th>
+                    <th>Type</th>
+                    <th class="text-right">Loss Amount</th>
+                    <th>Can Set Off Against</th>
+                    <th>Expires in FY</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="lossCFBody">
+                <tr><td colspan="6" class="text-center text-secondary">No capital losses found</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div style="padding:10px 16px;font-size:12px;color:var(--text-muted);background:rgba(99,102,241,.05);border-top:1px solid var(--border);">
+        💡 Capital losses must be reported in ITR even if no gain to set-off. File on time to preserve carry-forward rights.
     </div>
 </div>
 

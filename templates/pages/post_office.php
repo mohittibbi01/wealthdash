@@ -28,7 +28,7 @@ DB::run(
 
 // Fetch user's single portfolio
 $portfolio = DB::fetchOne(
-    "SELECT id, name, color FROM portfolios WHERE user_id=? ORDER BY id ASC LIMIT 1",
+    "SELECT id, name FROM portfolios WHERE user_id=? ORDER BY id ASC LIMIT 1",
     [$currentUser['id']]
 );
 $portfolioId = (int)($portfolio['id'] ?? 0);
@@ -334,11 +334,13 @@ ob_start();
         <div id="poPreview" style="display:none;background:var(--bg-secondary,#f8fafc);border-radius:8px;padding:12px;margin:8px 0 16px">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:13px">
             <div><span style="color:var(--text-muted)">Tenure</span><br><strong id="prevTenure">—</strong></div>
-            <div><span style="color:var(--text-muted)">Maturity Amount</span><br>
+            <div><span style="color:var(--text-muted)" id="prevMatLabel">Maturity Amount</span><br>
               <strong id="prevMat" style="color:#16a34a">—</strong></div>
-            <div><span style="color:var(--text-muted)">Total Interest</span><br>
+            <div><span style="color:var(--text-muted)" id="prevIntLabel">Total Interest</span><br>
               <strong id="prevInt" style="color:#16a34a">—</strong></div>
           </div>
+          <!-- t16: KVP tenure hint -->
+          <div id="kvpTenureHint" style="display:none;margin-top:8px;font-size:11px;color:#15803d;font-weight:600;"></div>
         </div>
 
         <div class="form-row">

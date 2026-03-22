@@ -249,6 +249,58 @@ $savings80tta = DB::fetchVal(
 $savingsInterest = round((float)$savings80tta, 2);
 $tta80Exemption  = min($savingsInterest, SAVINGS_80TTA_LIMIT);
 
+/* ─── 80C Dashboard (t82) ────────────────────────────────────────────────── */
+const LIMIT_80C     = 150000;
+const LIMIT_80CCD1B = 50000;  // NPS extra
+
+// ELSS invested this FY (from mf_transactions WHERE category LIKE '%ELSS%' AND txn_type=BUY)
+$elssStmt = $db->prepare("
+    SELECT COALESCE(SUM(t.value_at_cost), 0) AS elss_invested
+    FROM mf_transactions t
+    JOIN funds f ON f.id = t.fund_id
+    WHERE t.portfolio_id = ?
+      AND t.transaction_type = 'BUY'
+      AND t.txn_date BETWEEN ? AND ?
+      AND (LOWER(f.category) LIKE '%elss%' OR LOWER(f.category) LIKE '%tax sav%')
+");
+$elssStmt->execute([$portfolioId, $fyStart, $fyEnd]);
+$elssInvested = (float)$elssStmt->fetchColumn();
+
+// NPS Tier1 SELF contribution this FY (80C eligible up to 1.5L combined, 80CCD1B extra 50K)
+$npsStmt = $db->prepare("
+    SELECT COALESCE(SUM(amount), 0) AS nps_invested
+    FROM nps_transactions
+    WHERE portfolio_id = ?
+      AND tier = 'tier1'
+      AND contribution_type = 'SELF'
+      AND txn_date BETWEEN ? AND ?
+");
+$npsStmt->execute([$portfolioId, $fyStart, $fyEnd]);
+$npsInvested = (float)$npsStmt->fetchColumn();
+
+// PPF: check post_office_investments table (if exists)
+$ppfInvested = 0;
+try {
+    $ppfStmt = $db->prepare("
+        SELECT COALESCE(SUM(amount), 0) FROM post_office_investments
+        WHERE portfolio_id = ? AND scheme_type = 'PPF'
+          AND investment_date BETWEEN ? AND ?
+    ");
+    $ppfStmt->execute([$portfolioId, $fyStart, $fyEnd]);
+    $ppfInvested = (float)$ppfStmt->fetchColumn();
+} catch (\Exception $e) { /* table may not exist */ }
+
+// Total 80C = ELSS + NPS (80C portion capped at 1.5L) + PPF
+// NPS: first 1.5L combined, anything extra goes to 80CCD1B (50K more)
+$total80C      = min(LIMIT_80C, $elssInvested + $ppfInvested + min($npsInvested, LIMIT_80C));
+$nps80ccd1b    = max(0, $npsInvested - $total80C); // extra NPS beyond 80C
+$remaining80C  = max(0, LIMIT_80C - $total80C);
+
+// Days until FY end (March 31)
+$fyEndDate     = new \DateTime($fyEnd);
+$today         = new \DateTime(date('Y-m-d'));
+$daysToFyEnd   = max(0, (int)$today->diff($fyEndDate)->days);
+
 json_response(true, 'Tax planning data loaded.', [
     'fy'                   => $fy,
     'ltcg_exemption_limit' => LTCG_EXEMPTION_LIMIT,
@@ -262,5 +314,16 @@ json_response(true, 'Tax planning data loaded.', [
     'savings_interest_fy'  => $savingsInterest,
     'savings_80tta_benefit'=> round($tta80Exemption, 2),
     'savings_80tta_limit'  => SAVINGS_80TTA_LIMIT,
+    // t82: 80C Dashboard
+    '80c_elss'             => round($elssInvested, 2),
+    '80c_nps'              => round(min($npsInvested, LIMIT_80C), 2),
+    '80c_ppf'              => round($ppfInvested, 2),
+    '80c_total'            => round($total80C, 2),
+    '80c_limit'            => LIMIT_80C,
+    '80c_remaining'        => round($remaining80C, 2),
+    '80ccd1b_nps'          => round(min($nps80ccd1b, LIMIT_80CCD1B), 2),
+    '80ccd1b_limit'        => LIMIT_80CCD1B,
+    'days_to_fy_end'       => $daysToFyEnd,
+    'fy_end_date'          => $fyEnd,
 ]);
 

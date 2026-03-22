@@ -604,6 +604,7 @@ ob_start();
 <div class="sc-view-tabs">
   <div class="sc-view-tab active" id="vtab_all" onclick="switchView('all')">📋 All Funds</div>
   <div class="sc-view-tab" id="vtab_top" onclick="switchView('top')">🏆 Top Performers</div>
+  <div class="sc-view-tab" id="vtab_wl" onclick="switchView('watchlist')">⭐ Watchlist <span id="wlCount" style="font-size:10px;background:rgba(245,158,11,.15);color:#d97706;padding:1px 6px;border-radius:99px;margin-left:3px;"></span></div>
 </div>
 
 <!-- Search + results bar -->
@@ -633,6 +634,14 @@ ob_start();
     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     Export CSV
   </button>
+  <!-- t110: Saved Searches -->
+  <button onclick="openSavedSearches()"
+    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;"
+    onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+    onmouseout="this.style.borderColor='var(--border-color)';this.style.color='var(--text-muted)'"
+    title="Saved searches / custom screens">
+    🔖 Saved <span id="savedSearchCount" style="display:none;background:var(--accent);color:#fff;border-radius:99px;font-size:10px;padding:0 5px;margin-left:2px;"></span>
+  </button>
 </div>
 
 <!-- Active chips -->
@@ -657,6 +666,33 @@ ob_start();
 <div class="sc-results-wrap" id="scTopWrap" style="display:none;">
   <div class="tp-wrap" id="scTopBody">
     <div style="display:flex;align-items:center;justify-content:center;padding:60px;"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- t110: Saved Searches Modal -->
+<div style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1200;align-items:center;justify-content:center;" id="savedSearchOv" onclick="if(event.target===this)closeSavedSearches()">
+  <div style="background:var(--bg-card);border-radius:12px;width:480px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <span style="font-size:14px;font-weight:800;">🔖 Saved Searches</span>
+      <button onclick="closeSavedSearches()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;" id="savedSearchList"></div>
+    <div style="padding:12px 16px;border-top:1px solid var(--border-color);display:flex;gap:8px;flex-shrink:0;">
+      <input type="text" id="saveSearchName" placeholder="Name this search…"
+        style="flex:1;padding:7px 10px;border:1.5px solid var(--border-color);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);outline:none;">
+      <button onclick="saveCurrentSearch()" style="padding:7px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;">💾 Save Current</button>
+    </div>
+  </div>
+</div>
+
+<!-- Watchlist panel (t68) -->
+<div class="sc-results-wrap" id="scWlWrap" style="display:none;">
+  <div style="padding:16px;overflow-y:auto;flex:1;" id="scWlBody">
+    <div style="text-align:center;padding:40px;color:var(--text-muted);">
+      <div style="font-size:36px;margin-bottom:10px;">⭐</div>
+      <div style="font-size:14px;font-weight:600;">No funds in watchlist</div>
+      <div style="font-size:12px;margin-top:6px;">Star any fund in the screener to add it here</div>
+    </div>
   </div>
 </div>
 
@@ -1079,6 +1115,50 @@ function renderTable(funds,total){
     const sign  = v > 0 ? '+' : '';
     return `<span style="font-size:12px;font-weight:700;color:${color};">${sign}${v.toFixed(1)}%</span>`;
   }
+
+  // t111: WD Star Rating — calculated from returns + expense + drawdown
+  function _calcWdRating(f) {
+    let score = 0;
+    // Returns score (0-3 pts)
+    const ret = f.returns_3y ?? f.returns_1y ?? null;
+    if (ret !== null) {
+      if (ret >= 20) score += 3;
+      else if (ret >= 15) score += 2.5;
+      else if (ret >= 10) score += 2;
+      else if (ret >= 5)  score += 1;
+    }
+    // Expense ratio score (0-1 pt)
+    const exp = f.expense_ratio;
+    if (exp !== null && exp !== undefined) {
+      if (exp < 0.5) score += 1;
+      else if (exp < 1) score += 0.75;
+      else if (exp < 1.5) score += 0.5;
+    } else { score += 0.5; } // no data = neutral
+    // Drawdown score (0-1 pt)
+    if (f.drawdown_pct !== null && f.drawdown_pct !== undefined) {
+      if (f.drawdown_pct <= 0) score += 1;
+      else if (f.drawdown_pct < 10) score += 0.75;
+      else if (f.drawdown_pct < 20) score += 0.5;
+    }
+    // Direct plan bonus
+    if (f.plan_type === 'direct') score += 0.2;
+    // Normalise to 1-5
+    const stars = Math.min(5, Math.max(1, Math.round(score)));
+    return stars;
+  }
+  function _ratingCell(f) {
+    // Check if user has manually set rating
+    const manualKey = 'wd_ratings_v1';
+    let manual = null;
+    try { const m = JSON.parse(localStorage.getItem(manualKey)||'{}'); manual = m[f.id] ?? null; } catch(e) {}
+    const stars = manual !== null ? manual : _calcWdRating(f);
+    const colors = {1:'#dc2626',2:'#d97706',3:'#ca8a04',4:'#16a34a',5:'#15803d'};
+    const starsHtml = Array.from({length:5},(_,i) =>
+      `<span style="color:${i < stars ? colors[stars] : '#d1d5db'};font-size:11px;cursor:pointer;"
+             onclick="setFundRating(${f.id},${i+1},this)">★</span>`
+    ).join('');
+    return `<div style="display:flex;gap:1px;justify-content:center;" title="WD Rating: ${stars}/5 — Click to rate">${starsHtml}</div>`;
+  }
   const rows=funds.map((f,i)=>{
     const bc=bm[f.broad_type]||'ot';
     const ltcg=f.min_ltcg_days===365?'1yr':f.min_ltcg_days===730?'2yr':f.min_ltcg_days===1095?'3yr':f.min_ltcg_days===1825?'5yr':f.min_ltcg_days+'d';
@@ -1153,6 +1233,7 @@ function renderTable(funds,total){
       <td style="width:70px;text-align:center;">${_retCell(f.returns_1y)}</td>
       <td style="width:70px;text-align:center;">${_retCell(f.returns_3y)}</td>
       <td style="width:70px;text-align:center;">${_retCell(f.returns_5y)}</td>
+      <td style="width:52px;text-align:center;">${_ratingCell(f)}</td>
       <td style="width:60px;text-align:center;padding:6px 4px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
         <button onclick="scAdd(${f.id},'${safeName}','${safeFh}');"
@@ -1175,6 +1256,14 @@ function renderTable(funds,total){
           onmouseout="resetCmpBtnStyle(${f.id})">
           ⚖ Cmp
         </button>
+        <button onclick="toggleWatchlist(${f.id},'${safeName}')" id="wlBtn_${f.id}"
+          style="display:inline-flex;align-items:center;justify-content:center;
+                 width:48px;height:22px;font-size:13px;
+                 border:1.5px solid var(--border-color);border-radius:6px;
+                 background:var(--bg-secondary);cursor:pointer;transition:all .15s;"
+          title="Add to watchlist">
+          ${isWatchlisted(f.id) ? '⭐' : '☆'}
+        </button>
         </div>
       </td>
     </tr>`;
@@ -1193,6 +1282,7 @@ function renderTable(funds,total){
       <th onclick="scSort('ret1y_desc')" id="sh_r1" style="cursor:pointer;user-select:none;text-align:center;">1Y <span class="sh-arr" id="sa_r1"></span></th>
       <th onclick="scSort('ret3y_desc')" id="sh_r3" style="cursor:pointer;user-select:none;text-align:center;">3Y <span class="sh-arr" id="sa_r3"></span></th>
       <th onclick="scSort('ret5y_desc')" id="sh_r5" style="cursor:pointer;user-select:none;text-align:center;">5Y <span class="sh-arr" id="sa_r5"></span></th>
+      <th style="cursor:default;text-align:center;width:52px;">⭐ WD</th>
       <th></th>
     </tr></thead>
     <tbody>${rows}</tbody></table>`;
@@ -1885,11 +1975,370 @@ function scExportCSV() {
 
 // Init — window.WD is defined AFTER pageContent in layout.php,
 // so always wait for DOMContentLoaded to ensure WD is available.
+
+/* ══════════════════════════════════════════════════
+   t68 — WATCHLIST (localStorage)
+══════════════════════════════════════════════════ */
+const WL_KEY = 'wd_mf_watchlist_v1';
+
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem(WL_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveWatchlist(wl) {
+  try { localStorage.setItem(WL_KEY, JSON.stringify(wl)); } catch(e) {}
+}
+function isWatchlisted(id) {
+  return getWatchlist().some(f => f.id === id);
+}
+function toggleWatchlist(id, name) {
+  let wl = getWatchlist();
+  const idx = wl.findIndex(f => f.id === id);
+  if (idx >= 0) {
+    wl.splice(idx, 1);
+  } else {
+    wl.push({ id, name, added: new Date().toISOString() });
+  }
+  saveWatchlist(wl);
+
+  // Update star button
+  const btn = document.getElementById('wlBtn_' + id);
+  if (btn) btn.textContent = isWatchlisted(id) ? '⭐' : '☆';
+
+  // Update count badge
+  updWlCount();
+
+  // If watchlist view is active, re-render
+  if (document.getElementById('scWlWrap')?.style.display !== 'none') {
+    renderWatchlistView();
+  }
+}
+function updWlCount() {
+  const cnt = document.getElementById('wlCount');
+  const n   = getWatchlist().length;
+  if (cnt) { cnt.textContent = n || ''; cnt.style.display = n ? '' : 'none'; }
+}
+
+function renderWatchlistView() {
+  const body = document.getElementById('scWlBody');
+  if (!body) return;
+  const wl = getWatchlist();
+  if (!wl.length) {
+    body.innerHTML = `<div style="text-align:center;padding:60px;color:var(--text-muted);">
+      <div style="font-size:40px;margin-bottom:10px;">⭐</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">No funds in watchlist</div>
+      <div style="font-size:12px;">Star any fund in the screener to track it here</div>
+    </div>`;
+    return;
+  }
+
+  // Find fund data from _scFunds cache
+  const fundMap = {};
+  (window._scFunds || []).forEach(f => { fundMap[f.id] = f; });
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;">${wl.length} Watchlisted Fund${wl.length>1?'s':''}</div>
+      <button onclick="clearWatchlist()" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;">✕ Clear All</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+    ${wl.map(w => {
+      const f = fundMap[w.id];
+      if (!f) return `<div style="padding:12px;background:var(--bg-secondary);border-radius:8px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:13px;font-weight:600;">${w.name}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Data not in current view — search to load</div>
+        </div>
+        <button onclick="toggleWatchlist(${w.id},'${w.name.replace(/'/g,"\\'")}')" style="background:none;border:none;font-size:16px;cursor:pointer;">⭐</button>
+      </div>`;
+
+      const nav     = f.latest_nav ? `₹${Number(f.latest_nav).toFixed(4)}` : '—';
+      const ret1y   = f.returns_1y !== null ? `<span style="color:${f.returns_1y>=0?'#16a34a':'#dc2626'};font-weight:700;">${f.returns_1y>0?'+':''}${f.returns_1y?.toFixed(1)}%</span>` : '—';
+      const ret3y   = f.returns_3y !== null ? `<span style="color:${f.returns_3y>=0?'#16a34a':'#dc2626'};font-weight:700;">${f.returns_3y>0?'+':''}${f.returns_3y?.toFixed(1)}%</span>` : '—';
+      const dd      = f.drawdown_pct > 0 ? `<span style="color:#dc2626;">▼${f.drawdown_pct}%</span>` : `<span style="color:#16a34a;">ATH</span>`;
+
+      return `<div style="padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border-color);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;cursor:pointer;" onclick="drOpenFund(${JSON.stringify(f).replace(/"/g,'&quot;')})">${f.scheme_name}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${f.fund_house||''} · ${f.category_short||f.category||''}</div>
+          </div>
+          <button onclick="toggleWatchlist(${w.id},'${(w.name||'').replace(/'/g,"\\'")}')" style="background:none;border:none;font-size:18px;cursor:pointer;flex-shrink:0;" title="Remove from watchlist">⭐</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;">
+          <div style="background:var(--bg-card);border-radius:6px;padding:6px;">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600;">NAV</div>
+            <div style="font-size:12px;font-weight:700;">${nav}</div>
+          </div>
+          <div style="background:var(--bg-card);border-radius:6px;padding:6px;">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600;">1Y</div>
+            <div style="font-size:12px;">${ret1y}</div>
+          </div>
+          <div style="background:var(--bg-card);border-radius:6px;padding:6px;">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600;">3Y CAGR</div>
+            <div style="font-size:12px;">${ret3y}</div>
+          </div>
+          <div style="background:var(--bg-card);border-radius:6px;padding:6px;">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600;">Drawdown</div>
+            <div style="font-size:12px;">${dd}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+function clearWatchlist() {
+  if (!confirm('Remove all funds from watchlist?')) return;
+  saveWatchlist([]);
+  updWlCount();
+  renderWatchlistView();
+  // Reset all star buttons
+  document.querySelectorAll('[id^="wlBtn_"]').forEach(btn => btn.textContent = '☆');
+}
+
+/* ══════════════════════════════════════════════════
+   switchView — update for watchlist
+══════════════════════════════════════════════════ */
+const _origSwitchView = switchView;
+function switchView(v) {
+  const isWl  = v === 'watchlist';
+  const isTop = v === 'top';
+  const isAll = v === 'all';
+
+  document.getElementById('vtab_all').classList.toggle('active', isAll);
+  document.getElementById('vtab_top').classList.toggle('active', isTop);
+  const wlTab = document.getElementById('vtab_wl');
+  if (wlTab) wlTab.classList.toggle('active', isWl);
+
+  document.getElementById('scSearchBar').style.display   = isWl || isTop ? 'none' : '';
+  document.getElementById('scChips').style.display       = isWl || isTop ? 'none' : '';
+  document.getElementById('scResultsWrap').style.display = isAll ? '' : 'none';
+  document.getElementById('scTopWrap').style.display     = isTop ? 'flex' : 'none';
+  const wlWrap = document.getElementById('scWlWrap');
+  if (wlWrap) wlWrap.style.display = isWl ? 'flex' : 'none';
+
+  if (isTop) loadTopPerformers(_tpPeriod);
+  if (isWl)  renderWatchlistView();
+}
+
+/* ══════════════════════════════════════════════════
+   t95 — MF vs BENCHMARK (Nifty 50 overlay)
+   Injected into drLoadChart
+══════════════════════════════════════════════════ */
+// Nifty 50 proxy data via Yahoo Finance (free, no key needed)
+async function fetchBenchmarkData(period, fromDate, toDate) {
+  // Use stooq.com free API (no CORS issues for GET requests via proxy)
+  // Fallback: use a simple index proxy endpoint
+  const appBase = window._SCBASE || window.WD?.appUrl || window.APP_URL || '';
+
+  // Call our own proxy endpoint to avoid CORS
+  try {
+    const url = `${appBase}/api/mutual_funds/benchmark_proxy.php?symbol=^NSEI&from=${fromDate}&to=${toDate}`;
+    const res  = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    const json = await res.json();
+    if (json.success && json.data?.length) return json.data;
+  } catch(e) { /* proxy not available */ }
+  return null;
+}
+
+// Patch drLoadChart to add benchmark toggle button in drawer
+const _origDrLoadChart = drLoadChart;
+async function drLoadChart(fundId, period, btn) {
+  await _origDrLoadChart(fundId, period, btn);
+
+  // After chart loads, add benchmark toggle if not already present
+  const infoEl = document.getElementById('drChartInfo');
+  if (!infoEl) return;
+
+  let benchRow = document.getElementById('drBenchmarkRow');
+  if (!benchRow) {
+    benchRow = document.createElement('div');
+    benchRow.id = 'drBenchmarkRow';
+    benchRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:8px;';
+    benchRow.innerHTML = `
+      <button id="drBenchBtn" onclick="toggleBenchmark(${fundId})"
+        style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;
+               border:1.5px solid var(--border-color);background:var(--bg-secondary);
+               color:var(--text-muted);cursor:pointer;transition:all .15s;">
+        📊 vs Nifty 50
+      </button>
+      <span id="drBenchInfo" style="font-size:11px;color:var(--text-muted);"></span>`;
+    infoEl.parentNode.insertBefore(benchRow, infoEl.nextSibling);
+  }
+}
+
+let _benchActive    = false;
+let _benchChartInst = null;
+
+async function toggleBenchmark(fundId) {
+  _benchActive = !_benchActive;
+  const btn      = document.getElementById('drBenchBtn');
+  const infoEl   = document.getElementById('drBenchInfo');
+  const chart    = _drChartInst;
+
+  if (!_benchActive || !chart) {
+    // Remove benchmark dataset
+    if (chart && chart.data.datasets.length > 1) {
+      chart.data.datasets.splice(1, 1);
+      chart.update();
+    }
+    if (btn) { btn.style.background = 'var(--bg-secondary)'; btn.style.color = 'var(--text-muted)'; btn.style.borderColor = 'var(--border-color)'; }
+    if (infoEl) infoEl.textContent = '';
+    return;
+  }
+
+  if (btn) { btn.style.background = '#fef3c7'; btn.style.color = '#d97706'; btn.style.borderColor = '#fcd34d'; btn.textContent = '⏳ Loading...'; }
+
+  try {
+    // Get current chart date range from labels
+    const labels = chart.data.labels;
+    if (!labels?.length) throw new Error('No chart data');
+    const fromDate = labels[0];
+    const toDate   = labels[labels.length - 1];
+
+    const benchData = await fetchBenchmarkData(null, fromDate, toDate);
+
+    if (!benchData || benchData.length < 2) {
+      if (infoEl) infoEl.textContent = 'Benchmark data unavailable (requires benchmark_proxy.php)';
+      if (btn)    btn.textContent = '📊 vs Nifty 50';
+      _benchActive = false;
+      return;
+    }
+
+    // Normalise benchmark to same base as fund (indexed to 100 on first date)
+    const fundFirst  = chart.data.datasets[0].data[0];
+    const benchFirst = benchData[0].close;
+    const benchLabels= benchData.map(d => d.date);
+    const benchVals  = benchData.map(d => (d.close / benchFirst) * fundFirst);
+
+    // Add as second dataset
+    if (chart.data.datasets.length > 1) chart.data.datasets.splice(1, 1);
+    chart.data.datasets.push({
+      label: 'Nifty 50',
+      data: benchVals,
+      borderColor: '#f59e0b',
+      backgroundColor: 'rgba(245,158,11,0.04)',
+      borderWidth: 1.5,
+      borderDash: [4, 3],
+      pointRadius: 0,
+      fill: false,
+      tension: 0.3,
+    });
+    chart.update();
+
+    // Show alpha
+    const fundLast  = chart.data.datasets[0].data[chart.data.datasets[0].data.length - 1];
+    const benchLast = benchVals[benchVals.length - 1];
+    const fundRet   = ((fundLast - fundFirst) / fundFirst * 100).toFixed(1);
+    const benchRet  = ((benchLast - fundFirst) / fundFirst * 100).toFixed(1);
+    const alpha     = (parseFloat(fundRet) - parseFloat(benchRet)).toFixed(1);
+    const alphaColor= alpha >= 0 ? '#16a34a' : '#dc2626';
+
+    if (infoEl) infoEl.innerHTML = `Fund: <strong>${fundRet}%</strong> · Nifty: <strong>${benchRet}%</strong> · Alpha: <span style="color:${alphaColor};font-weight:700;">${alpha >= 0 ? '+' : ''}${alpha}%</span>`;
+    if (btn)    btn.innerHTML    = '📊 vs Nifty 50 ✓';
+    if (btn)    btn.style.background = '#fef3c7';
+  } catch(e) {
+    _benchActive = false;
+    if (infoEl) infoEl.textContent = 'Could not load benchmark: ' + e.message;
+    if (btn)    btn.textContent = '📊 vs Nifty 50';
+  }
+}
+
+
+/* ══════════════════════════════════════════════════
+   t111 — FUND RATING (manual override via localStorage)
+══════════════════════════════════════════════════ */
+const RATING_KEY = 'wd_ratings_v1';
+function setFundRating(fundId, stars, el) {
+  try {
+    const ratings = JSON.parse(localStorage.getItem(RATING_KEY) || '{}');
+    ratings[fundId] = stars;
+    localStorage.setItem(RATING_KEY, JSON.stringify(ratings));
+    const row = el?.closest('tr');
+    if (row) {
+      const ratingCell = row.querySelector('td:nth-last-child(2)');
+      if (ratingCell) {
+        const colors = {1:'#dc2626',2:'#d97706',3:'#ca8a04',4:'#16a34a',5:'#15803d'};
+        ratingCell.innerHTML = `<div style="display:flex;gap:1px;justify-content:center;" title="WD Rating: ${stars}/5">
+          ${Array.from({length:5},(_,i)=>`<span style="color:${i<stars?colors[stars]:'#d1d5db'};font-size:11px;cursor:pointer;" onclick="setFundRating(${fundId},${i+1},this)">★</span>`).join('')}
+        </div>`;
+      }
+    }
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════
+   t110 — SAVED SEARCHES / CUSTOM SCREENS
+══════════════════════════════════════════════════ */
+const SS_KEY = 'wd_saved_searches_v1';
+function getSavedSearches() { try { return JSON.parse(localStorage.getItem(SS_KEY)||'[]'); } catch(e){return[];} }
+function openSavedSearches() { renderSavedSearchList(); document.getElementById('savedSearchOv').style.display='flex'; updSavedSearchCount(); }
+function closeSavedSearches() { document.getElementById('savedSearchOv').style.display='none'; }
+function updSavedSearchCount() {
+  const el=document.getElementById('savedSearchCount'); const n=getSavedSearches().length;
+  if(el){el.textContent=n||''; el.style.display=n?'':'none';}
+}
+function saveCurrentSearch() {
+  const name=document.getElementById('saveSearchName')?.value?.trim();
+  if(!name){document.getElementById('saveSearchName').style.borderColor='#dc2626'; return;}
+  const searches=getSavedSearches(); const idx=searches.findIndex(s=>s.name===name);
+  if(idx>=0){if(!confirm(`Overwrite "${name}"?`))return; searches.splice(idx,1);}
+  searches.unshift({name, state:JSON.parse(JSON.stringify(SC.state)), saved:new Date().toISOString(), count:document.getElementById('scPill')?.textContent||''});
+  if(searches.length>20) searches.pop();
+  localStorage.setItem(SS_KEY,JSON.stringify(searches));
+  document.getElementById('saveSearchName').value='';
+  renderSavedSearchList(); updSavedSearchCount();
+  if(typeof showToast==='function') showToast(`✅ Saved: "${name}"`, 'success');
+}
+function loadSavedSearch(idx) {
+  const s=getSavedSearches()[idx]; if(!s)return;
+  SC.state={...SC.state,...s.state};
+  const scQ=document.getElementById('scQ'); if(scQ) scQ.value=SC.state.q||'';
+  const scSort=document.getElementById('scSort'); if(scSort&&SC.state.sort) scSort.value=SC.state.sort;
+  document.querySelectorAll('#fpAmcGrid input').forEach(cb=>{cb.checked=SC.state.fundHouses.includes(cb.dataset.fh);});
+  if(typeof updCatChecks==='function') updCatChecks();
+  if(typeof updTabBadge==='function')  updTabBadge();
+  closeSavedSearches(); SC.trigger();
+  if(typeof showToast==='function') showToast(`📂 Loaded: "${s.name}"`, 'success');
+}
+function deleteSavedSearch(idx) {
+  const searches=getSavedSearches(); searches.splice(idx,1);
+  localStorage.setItem(SS_KEY,JSON.stringify(searches));
+  renderSavedSearchList(); updSavedSearchCount();
+}
+function renderSavedSearchList() {
+  const el=document.getElementById('savedSearchList'); if(!el)return;
+  const searches=getSavedSearches();
+  if(!searches.length){el.innerHTML=`<div style="padding:30px;text-align:center;color:var(--text-muted);"><div style="font-size:28px;margin-bottom:8px;">🔖</div><div style="font-size:13px;font-weight:600;margin-bottom:4px;">No saved searches yet</div><div style="font-size:12px;">Apply filters, then click "Save Current"</div></div>`;return;}
+  el.innerHTML=searches.map((s,i)=>{
+    const st=s.state||{}, tags=[];
+    if(st.q) tags.push(`"${st.q}"`);
+    if(st.categories?.length) tags.push(`${st.categories.length} cat`);
+    if(st.fundHouses?.length) tags.push(`${st.fundHouses.length} AMC`);
+    if(st.planType!=='all') tags.push(st.planType);
+    if(st.aumMin||st.aumMax) tags.push(`AUM filter`);
+    if(st.retMin1y||st.retMin3y) tags.push(`Returns filter`);
+    if((st.riskLevels||[]).length) tags.push(`Risk filter`);
+    const saved=new Date(s.saved).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    return `<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background .1s;"
+      onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''" onclick="loadSavedSearch(${i})">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;">${s.name}</div>
+        <div style="font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${tags.length?tags.join(' · '):'No filters'}${s.count?' · '+s.count:''}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${saved}</div>
+      <button onclick="event.stopPropagation();deleteSavedSearch(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 6px;">✕</button>
+    </div>`;
+  }).join('');
+}
+
 function _scInit() {
   var metaUrl = document.querySelector('meta[name="app-url"]');
   window._SCBASE = (metaUrl ? metaUrl.getAttribute('content') : '') || '';
   SC.fetch();
   updSortHeaders('name');
+  updWlCount();           // t68: watchlist badge
+  updSavedSearchCount();  // t110: saved searches badge
 }
 
 document.addEventListener('DOMContentLoaded', _scInit);

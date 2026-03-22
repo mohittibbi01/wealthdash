@@ -1908,6 +1908,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('tabHoldings').style.display  = which === 'holdings'  ? '' : 'none';
       document.getElementById('tabRealized').style.display  = which === 'realized'  ? '' : 'none';
       document.getElementById('tabDividends').style.display = which === 'dividends' ? '' : 'none';
+      const cgTab = document.getElementById('tabCapgains');
+      if (cgTab) cgTab.style.display = which === 'capgains' ? '' : 'none';
 
       // Load data on first switch
       if (which === 'realized') {
@@ -1919,6 +1921,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const dFy = document.getElementById('dFilterFy');
         if (dFy && !DIV.loaded) dFy.value = '';
         if (!DIV.loaded) loadDividends();
+      }
+      if (which === 'capgains') {
+        if (!CG.loaded) loadCapitalGains();
       }
     });
   });
@@ -1938,6 +1943,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   const dSearch = document.getElementById('dSearchFund');
   if (dSearch) dSearch.addEventListener('input', debounce(() => renderDividends(), 250));
+
+  // t74: Capital Gains filters
+  ['cgFyFilter','cgTypeFilter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+      CG.loaded = false;
+      const fy = document.getElementById('cgFyFilter')?.value || '';
+      loadCapitalGains(fy);
+    });
+  });
 });
 
 /* ── Realized Gains ──────────────────────────────────────── */
@@ -2718,4 +2733,1063 @@ function renderPortfolioReturns() {
         <div style="font-size:12px;font-weight:700;color:${color};min-width:52px;text-align:right;">${sign}${xirr.toFixed(2)}%</div>
       </div>`;
   }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t143 — ZOOM OUT TOGGLE (hide daily noise, long-term focus)
+═══════════════════════════════════════════════════════════════════════════ */
+let _zoomOutActive = false;
+
+function toggleZoomOut() {
+  _zoomOutActive = !_zoomOutActive;
+  const btn = document.getElementById('btnZoomOut');
+
+  // Toggle visibility of "noisy" columns: 1D Change, NAV date, Drawdown
+  document.querySelectorAll('.col-1d, td[data-col="1d"], th[data-col="1d"]').forEach(el => {
+    el.style.display = _zoomOutActive ? 'none' : '';
+  });
+  // Hide gain% in red/green — only show abs return %
+  document.querySelectorAll('.gain-pct-cell').forEach(el => {
+    el.style.opacity = _zoomOutActive ? '0' : '1';
+  });
+  // Holdings table — hide 1D col (col index 4 in table = 1D Change)
+  document.querySelectorAll('#txnTable th:nth-child(4), #txnTable td:nth-child(4)').forEach(el => {
+    el.style.display = _zoomOutActive ? 'none' : '';
+  });
+
+  // Show motivational message in page subtitle
+  const sub = document.querySelector('.page-subtitle');
+  if (sub) {
+    sub.textContent = _zoomOutActive
+      ? '🌱 Zoom Out — Focus on your journey, not daily noise'
+      : 'Mutual fund holdings & transactions';
+  }
+
+  if (btn) {
+    btn.style.background = _zoomOutActive ? 'rgba(22,163,74,.1)' : '';
+    btn.style.color      = _zoomOutActive ? '#16a34a' : '';
+    btn.style.borderColor= _zoomOutActive ? '#86efac' : '';
+    btn.innerHTML        = _zoomOutActive
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg> Zoom In'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg> Zoom Out';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t140 — PANIC MODE (market crash mein units dikhao, losses mat)
+═══════════════════════════════════════════════════════════════════════════ */
+let _panicMode = false;
+
+function togglePanicMode() {
+  _panicMode = !_panicMode;
+  const btn = document.getElementById('btnPanicMode');
+
+  if (_panicMode) {
+    // Show calming banner
+    let banner = document.getElementById('panicBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'panicBanner';
+      banner.style.cssText = 'background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #86efac;border-radius:10px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px;';
+      banner.innerHTML = `
+        <span style="font-size:28px;">🧘</span>
+        <div>
+          <div style="font-weight:700;color:#15803d;font-size:14px;">Market Down? Focus on Units, Not Rupees.</div>
+          <div style="font-size:12px;color:#166534;margin-top:3px;">
+            Your <strong id="pbTotalUnits">—</strong> units are still yours. 
+            Markets recover. SIPs compound. Stay the course. 🌱
+          </div>
+        </div>`;
+      const statsGrid = document.querySelector('.stats-grid');
+      if (statsGrid) statsGrid.parentNode.insertBefore(banner, statsGrid);
+    }
+    banner.style.display = 'flex';
+
+    // Calculate total units from MF.data
+    const totalUnits = (MF.data || []).reduce((sum, h) => sum + (parseFloat(h.units) || 0), 0);
+    const unitEl = document.getElementById('pbTotalUnits');
+    if (unitEl) unitEl.textContent = totalUnits.toLocaleString('en-IN', { maximumFractionDigits: 3 }) + ' units';
+
+    // Dim loss cells — show in grey
+    document.querySelectorAll('.negative, [class*="loss"]').forEach(el => {
+      el.dataset.origColor = el.style.color || '';
+      el.style.color = 'var(--text-muted)';
+      el.style.opacity = '0.4';
+    });
+
+    // Replace page subtitle
+    const sub = document.querySelector('.page-subtitle');
+    if (sub) sub.textContent = '🧘 Calm Mode — Viewing units, not temporary losses';
+
+    if (btn) {
+      btn.textContent = '😰 Panic Mode';
+      btn.style.background = 'rgba(22,163,74,.1)';
+      btn.style.color = '#16a34a';
+    }
+  } else {
+    // Restore
+    const banner = document.getElementById('panicBanner');
+    if (banner) banner.style.display = 'none';
+
+    document.querySelectorAll('.negative, [class*="loss"]').forEach(el => {
+      el.style.color = el.dataset.origColor || '';
+      el.style.opacity = '';
+    });
+
+    const sub = document.querySelector('.page-subtitle');
+    if (sub) sub.textContent = 'Mutual fund holdings & transactions';
+
+    if (btn) {
+      btn.textContent = '🧘 Calm Mode';
+      btn.style.background = '';
+      btn.style.color = '';
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t141 — SIP STREAK (consistency gamification)
+═══════════════════════════════════════════════════════════════════════════ */
+function renderSipStreak() {
+  const holdings = MF.data || [];
+  if (!holdings.length) return;
+
+  // Find active SIPs and calculate streak from transaction history
+  const fundsWithSip = holdings.filter(h => h.active_sip_amount > 0);
+  if (!fundsWithSip.length) return;
+
+  // Count consecutive months with transactions (using all txns data if available)
+  // Simple approach: count months with BUY transactions in last 12 months
+  const apiBase = window.WD?.appUrl || window.APP_URL || '';
+  const pid = window.WD?.selectedPortfolio || 0;
+
+  fetch(`${apiBase}/api/mutual_funds/mf_list.php?view=transactions&portfolio_id=${pid}&per_page=200&sort_col=txn_date&sort_dir=desc`, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.success || !d.data?.length) return;
+
+    // Get unique months with BUY txns in last 12 months
+    const now = new Date();
+    const monthsWithBuy = new Set();
+    d.data.forEach(t => {
+      if (t.transaction_type !== 'BUY') return;
+      const txnDate = new Date(t.txn_date);
+      const monthsAgo = (now.getFullYear() - txnDate.getFullYear()) * 12 + (now.getMonth() - txnDate.getMonth());
+      if (monthsAgo >= 0 && monthsAgo < 12) {
+        monthsWithBuy.add(`${txnDate.getFullYear()}-${txnDate.getMonth()}`);
+      }
+    });
+
+    // Calculate streak — consecutive months back from current
+    let streak = 0;
+    for (let i = 0; i < 12; i++) {
+      const d2 = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d2.getFullYear()}-${d2.getMonth()}`;
+      if (monthsWithBuy.has(key)) streak++;
+      else if (i > 0) break; // gap found
+    }
+
+    const card = document.getElementById('sipStreakCard');
+    const valEl = document.getElementById('sipStreakVal');
+    const subEl = document.getElementById('sipStreakSub');
+
+    if (!card || streak === 0) return;
+    card.style.display = '';
+
+    const emoji = streak >= 12 ? '🏆' : streak >= 6 ? '🔥' : streak >= 3 ? '💪' : '🌱';
+    const msg   = streak >= 12 ? 'Full year streak! Legendary investor 🏆'
+                : streak >= 6  ? 'Amazing! 6+ months consistent SIP'
+                : streak >= 3  ? 'Great habit forming!'
+                : streak >= 1  ? 'Keep going, building momentum'
+                : '';
+
+    if (valEl) valEl.innerHTML = `${emoji} ${streak} <span style="font-size:14px;font-weight:400;">months</span>`;
+    if (subEl) subEl.textContent = msg;
+    // Color based on streak
+    if (valEl) valEl.style.color = streak >= 6 ? '#d97706' : streak >= 3 ? '#16a34a' : 'var(--accent)';
+  })
+  .catch(() => {}); // silent fail
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t74 — CAPITAL GAINS TAB (ITR-ready format)
+═══════════════════════════════════════════════════════════════════════════ */
+const CG = { data: [], loaded: false };
+
+async function loadCapitalGains(fy = '') {
+  const body = document.getElementById('cgBody');
+  if (!body) return;
+  body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  document.getElementById('cgTfoot').style.display = 'none';
+
+  const pid = window.WD?.selectedPortfolio || 0;
+  if (!pid) {
+    body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:32px;color:var(--text-muted);">Select a portfolio first</td></tr>`;
+    return;
+  }
+
+  try {
+    const fd = new FormData();
+    fd.append('action', 'report_fy_gains');
+    fd.append('portfolio_id', pid);
+    fd.append('_csrf_token', window.WD?.csrf || window.CSRF_TOKEN || '');
+    if (fy) fd.append('fy', fy);
+
+    const apiBase = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${apiBase}/api/?action=report_fy_gains`, { method: 'POST', body: fd });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'Failed');
+
+    const gains = json.data?.mf_gains_detail || [];
+    CG.data = gains;
+    CG.loaded = true;
+
+    // Populate FY dropdown
+    const fyList = json.data?.fy_list || [];
+    const fyFilter = document.getElementById('cgFyFilter');
+    if (fyFilter) {
+      const cur = fyFilter.value;
+      fyFilter.innerHTML = '<option value="">All FYs</option>' + fyList.map(f => `<option value="${f}" ${f===cur?'selected':''}>${f}</option>`).join('');
+    }
+
+    renderCapGains(gains);
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="12" class="text-center text-danger" style="padding:32px;">${e.message}</td></tr>`;
+  }
+}
+
+function renderCapGains(gains) {
+  const body = document.getElementById('cgBody');
+  if (!body) return;
+
+  // Apply type filter
+  const typeFilter = document.getElementById('cgTypeFilter')?.value || '';
+  const filtered = typeFilter
+    ? gains.filter(g => {
+        if (typeFilter === 'LTCG') return g.gain_type?.toLowerCase().includes('ltcg');
+        if (typeFilter === 'STCG') return g.gain_type?.toLowerCase().includes('stcg');
+        if (typeFilter === 'Slab') return g.gain_type?.toLowerCase().includes('slab');
+        return true;
+      })
+    : gains;
+
+  if (!filtered.length) {
+    body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:32px;color:var(--text-muted);">No capital gains found for selected filters</td></tr>`;
+    document.getElementById('cgTfoot').style.display = 'none';
+    return;
+  }
+
+  const typeColors = { LTCG:'#16a34a', STCG:'#d97706', 'LTCG Equity':'#16a34a', 'STCG Equity':'#d97706', 'Slab':'#6366f1' };
+
+  body.innerHTML = filtered.map(g => {
+    const gain     = g.gain || 0;
+    const gainColor= gain >= 0 ? '#16a34a' : '#dc2626';
+    const gainType = g.gain_type || '—';
+    const typeColor= typeColors[gainType] || 'var(--text-muted)';
+    const taxAmt   = g.tax_amount !== null && g.tax_amount !== undefined
+      ? fmtFull(g.tax_amount)
+      : (g.tax_rate ? `@${g.tax_rate}%` : 'Slab');
+
+    return `<tr>
+      <td style="font-size:11px;font-weight:600;">${g.fy || '—'}</td>
+      <td style="max-width:180px;" title="${escHtml(g.name||'')}">
+        <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml((g.name||'').length>30?(g.name||'').slice(0,29)+'…':g.name||'—')}</div>
+        <small style="color:var(--text-muted);">${escHtml(g.category||'')}</small>
+      </td>
+      <td style="font-size:11px;">${g.folio||'—'}</td>
+      <td class="text-right" style="font-size:12px;">${Number(g.units||0).toFixed(4)}</td>
+      <td class="text-right" style="font-size:12px;">₹${Number(g.buy_nav||0).toFixed(4)}</td>
+      <td class="text-right" style="font-size:12px;">₹${Number(g.sell_nav||0).toFixed(4)}</td>
+      <td class="text-right">${fmtFull(g.cost||0)}</td>
+      <td class="text-right">${fmtFull(g.proceeds||0)}</td>
+      <td class="text-right" style="color:${gainColor};font-weight:700;">${gain>=0?'+':''}${fmtFull(gain)}</td>
+      <td class="text-right" style="font-size:11px;">${g.days_held||'—'}d</td>
+      <td><span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${typeColor}20;color:${typeColor};">${gainType}</span></td>
+      <td class="text-right" style="color:#d97706;font-size:12px;">${taxAmt}</td>
+    </tr>`;
+  }).join('');
+
+  // Totals
+  const totCost     = filtered.reduce((s, g) => s + (g.cost     || 0), 0);
+  const totProceeds = filtered.reduce((s, g) => s + (g.proceeds || 0), 0);
+  const totGain     = filtered.reduce((s, g) => s + (g.gain     || 0), 0);
+  const totTax      = filtered.reduce((s, g) => s + (g.tax_amount || 0), 0);
+
+  const tfoot = document.getElementById('cgTfoot');
+  if (tfoot) {
+    tfoot.style.display = '';
+    document.getElementById('cgTotCost').textContent     = fmtFull(totCost);
+    document.getElementById('cgTotProceeds').textContent = fmtFull(totProceeds);
+    document.getElementById('cgTotGain').textContent     = (totGain>=0?'+':'') + fmtFull(totGain);
+    document.getElementById('cgTotGain').style.color     = totGain >= 0 ? '#16a34a' : '#dc2626';
+    document.getElementById('cgTotTax').textContent      = fmtFull(totTax);
+  }
+
+  // Summary pills
+  const ltcgGain = filtered.filter(g=>(g.gain_type||'').includes('LTCG')).reduce((s,g)=>s+(g.gain||0),0);
+  const stcgGain = filtered.filter(g=>(g.gain_type||'').includes('STCG')).reduce((s,g)=>s+(g.gain||0),0);
+  const pillsEl  = document.getElementById('cgSummaryPills');
+  if (pillsEl) {
+    pillsEl.innerHTML = [
+      ['LTCG Gains', ltcgGain, '#16a34a'],
+      ['STCG Gains', stcgGain, '#d97706'],
+      ['Total Gains', totGain, totGain>=0?'#16a34a':'#dc2626'],
+      ['Approx Tax',  totTax,  '#6366f1'],
+    ].map(([label, val, color]) => `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">${label}</div>
+        <div style="font-size:14px;font-weight:800;color:${color};margin-top:2px;">${val>=0?'+':''}${fmtFull(val)}</div>
+      </div>`).join('');
+  }
+
+  // LTCG Exemption bar (current FY only)
+  const curFy = document.getElementById('cgFyFilter')?.value || '';
+  const exemptCard = document.getElementById('cgExemptCard');
+  if (exemptCard) {
+    const limit = 125000;
+    const used  = Math.max(0, ltcgGain);
+    const pct   = Math.min(100, (used / limit) * 100);
+    const left  = Math.max(0, limit - used);
+    exemptCard.style.display = '';
+    document.getElementById('cgExemptUsed').textContent  = fmtFull(used);
+    document.getElementById('cgExemptLeft').textContent  = fmtFull(left);
+    const bar = document.getElementById('cgExemptBar');
+    bar.style.width      = pct + '%';
+    bar.style.background = pct > 90 ? '#dc2626' : pct > 70 ? '#d97706' : '#16a34a';
+    const msg = document.getElementById('cgExemptMsg');
+    if (msg) {
+      msg.textContent = pct >= 100
+        ? `⚠️ LTCG exemption exhausted! ₹${fmtFull(used-limit)} above limit — tax applicable.`
+        : pct > 70
+        ? `⚠️ ${pct.toFixed(0)}% of exemption used. ₹${fmtFull(left)} remaining.`
+        : `✅ ₹${fmtFull(left)} LTCG exemption still available this FY.`;
+    }
+  }
+}
+
+function exportCapgainsCsv() {
+  const gains = CG.data;
+  if (!gains.length) { alert('No data to export'); return; }
+
+  const headers = ['FY','Fund Name','Category','Folio','Units','Buy NAV','Sell NAV','Cost (₹)','Proceeds (₹)','Gain (₹)','Days Held','Gain Type','Tax (₹)'];
+  const rows = gains.map(g => [
+    g.fy||'', g.name||'', g.category||'', g.folio||'',
+    (g.units||0).toFixed(4),
+    (g.buy_nav||0).toFixed(4), (g.sell_nav||0).toFixed(4),
+    (g.cost||0).toFixed(2), (g.proceeds||0).toFixed(2), (g.gain||0).toFixed(2),
+    g.days_held||'', g.gain_type||'', (g.tax_amount||0).toFixed(2)
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`));
+
+  const csv  = [headers.join(','), ...rows.map(r=>r.join(','))].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+  const a    = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `capital_gains_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t109 — DIRECT vs REGULAR COMPARISON (screener drawer inject)
+   Called from renderMfAnalytics when data loads
+═══════════════════════════════════════════════════════════════════════════ */
+function renderDirectVsRegular() {
+  // Find if user holds any Regular plan funds
+  const holdings = MF.data || [];
+  const regularFunds = holdings.filter(h =>
+    h.scheme_name?.toLowerCase().includes('regular') ||
+    h.plan_type === 'regular'
+  );
+
+  if (!regularFunds.length) return; // all direct — no warning needed
+
+  // Show banner warning
+  let banner = document.getElementById('regularFundsBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'regularFundsBanner';
+    banner.style.cssText = 'background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fb923c;border-radius:10px;padding:14px 20px;margin-bottom:16px;';
+
+    const section = document.getElementById('mfAnalyticsSection');
+    if (section) section.insertAdjacentElement('afterend', banner);
+    else return;
+  }
+
+  const totalRegInvested = regularFunds.reduce((s,h) => s + (h.total_invested||0), 0);
+  // Estimate commission drag: avg ~0.6% extra expense ratio in regular plans
+  const annualDrag = totalRegInvested * 0.006;
+  const tenYrDrag  = totalRegInvested * (Math.pow(1.006, 10) - 1);
+
+  banner.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:14px;">
+      <span style="font-size:24px;flex-shrink:0;">⚠️</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;color:#c2410c;font-size:13px;margin-bottom:4px;">
+          ${regularFunds.length} Regular Plan Fund${regularFunds.length>1?'s':''} Detected — You May Be Overpaying
+        </div>
+        <div style="font-size:12px;color:#9a3412;line-height:1.6;">
+          Estimated extra commission: <strong>~₹${Math.round(annualDrag).toLocaleString('en-IN')}/year</strong> on ₹${fmtFull(totalRegInvested)} invested.
+          Over 10 years: <strong style="color:#c2410c;">~₹${Math.round(tenYrDrag).toLocaleString('en-IN')} lost</strong> to distributor commission.
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+          ${regularFunds.slice(0,3).map(h => `<span style="font-size:11px;background:rgba(251,146,60,.15);color:#c2410c;padding:2px 8px;border-radius:99px;font-weight:600;">${(h.scheme_name||'').slice(0,30)}</span>`).join('')}
+          ${regularFunds.length > 3 ? `<span style="font-size:11px;color:#c2410c;">+${regularFunds.length-3} more</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:#9a3412;margin-top:6px;">💡 Consider switching to Direct plans via MF Central or your AMC website.</div>
+      </div>
+    </div>`;
+}
+
+// Hook into renderMfAnalytics
+const _origRenderMfAnalytics = renderMfAnalytics;
+function renderMfAnalytics() {
+  _origRenderMfAnalytics();
+  renderDirectVsRegular();
+  renderSipStreak();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t112 — FUND FINDER QUICK ADD (Holdings page)
+═══════════════════════════════════════════════════════════════════════════ */
+let _ffCat = '', _ffDebounce = null;
+
+function openFundFinderModal() {
+  showModal('modalFundFinder');
+  setTimeout(() => document.getElementById('ffSearch')?.focus(), 100);
+}
+function hideFundFinderModal() { hideModal('modalFundFinder'); }
+
+function setFfFilter(cat, el) {
+  _ffCat = cat;
+  document.querySelectorAll('.ff-pill').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const q = document.getElementById('ffSearch')?.value || '';
+  if (q.length >= 2 || cat) doFfSearch(q);
+}
+
+function onFfSearch(q) {
+  clearTimeout(_ffDebounce);
+  _ffDebounce = setTimeout(() => doFfSearch(q), 300);
+}
+
+async function doFfSearch(q) {
+  const resultsEl = document.getElementById('ffResults');
+  if (!resultsEl) return;
+  if (q.length < 2 && !_ffCat) {
+    resultsEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">Type at least 2 characters…</div>';
+    return;
+  }
+  resultsEl.innerHTML = '<div style="padding:20px;text-align:center;"><div class="spinner"></div></div>';
+
+  try {
+    const base   = window.WD?.appUrl || window.APP_URL || '';
+    const params = new URLSearchParams({ per_page: 20, sort: 'name', page: 1 });
+    if (q)     params.set('q', q);
+    if (_ffCat) params.append('category[]', _ffCat);
+    // Direct only
+    params.set('plan_type', 'direct');
+    params.set('option_type', 'growth');
+
+    const res  = await fetch(`${base}/api/mutual_funds/fund_screener.php?${params}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
+
+    const funds = json.data || [];
+    if (!funds.length) {
+      resultsEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No funds found — try different keywords</div>';
+      return;
+    }
+
+    resultsEl.innerHTML = funds.map(f => {
+      const nav    = f.latest_nav ? `₹${Number(f.latest_nav).toFixed(4)}` : '—';
+      const ret1y  = f.returns_1y !== null ? `<span style="color:${f.returns_1y>=0?'#16a34a':'#dc2626'};font-weight:700;">${f.returns_1y>0?'+':''}${f.returns_1y?.toFixed(1)}%</span>` : '';
+      const exp    = f.expense_ratio !== null ? `<span style="color:var(--text-muted);">${f.expense_ratio.toFixed(2)}%</span>` : '';
+      const cat    = f.category_short || f.category || '';
+      return `<div class="ff-result-row" onclick="ffSelectFund(${f.id},'${escHtml(f.scheme_name).replace(/'/g,"\\'")}')">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(f.scheme_name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${escHtml(f.fund_house||'')} · ${escHtml(cat)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-size:12px;">
+          <div style="font-weight:600;">${nav}</div>
+          <div style="font-size:11px;">${ret1y} ${exp}</div>
+        </div>
+        <div style="flex-shrink:0;">
+          <button class="btn btn-primary btn-sm" style="white-space:nowrap;font-size:11px;">+ Add</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<div style="padding:20px;text-align:center;color:#dc2626;font-size:12px;">${e.message}</div>`;
+  }
+}
+
+function ffSelectFund(fundId, fundName) {
+  hideFundFinderModal();
+  // Open add transaction modal with fund pre-filled
+  if (typeof openAddTxnForFund === 'function') {
+    openAddTxnForFund(fundId, fundName);
+  } else {
+    openAddTxnModal();
+    const fs = document.getElementById('txnFundSearch');
+    if (fs) fs.value = fundName;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t77 + t78 + t79 — PRICE ALERTS, DRAWDOWN ALERTS, SIP REMINDERS
+   All localStorage-based, checked on holdings page load
+═══════════════════════════════════════════════════════════════════════════ */
+const ALERT_STORE = 'wd_alerts_v2';
+
+function getAllAlerts() {
+  try { return JSON.parse(localStorage.getItem(ALERT_STORE) || '[]'); } catch(e) { return []; }
+}
+function saveAllAlerts(alerts) {
+  try { localStorage.setItem(ALERT_STORE, JSON.stringify(alerts)); } catch(e) {}
+}
+
+// t77: Price Alert
+function addPriceAlert(fundId, fundName, targetNav, type = 'above') {
+  const alerts = getAllAlerts().filter(a => !(a.type === 'price' && a.fund_id === fundId));
+  alerts.push({ type: 'price', fund_id: fundId, fund_name: fundName, target_nav: targetNav, direction: type, created: new Date().toISOString() });
+  saveAllAlerts(alerts);
+  showToast(`🔔 Price alert set: ${fundName.slice(0,25)} NAV ${type} ₹${targetNav}`, 'success');
+  renderNotifBell();
+}
+
+// t78: Drawdown Alert
+function addDrawdownAlert(fundId, fundName, thresholdPct) {
+  const alerts = getAllAlerts().filter(a => !(a.type === 'drawdown' && a.fund_id === fundId));
+  alerts.push({ type: 'drawdown', fund_id: fundId, fund_name: fundName, threshold_pct: thresholdPct, created: new Date().toISOString() });
+  saveAllAlerts(alerts);
+  showToast(`🔔 Drawdown alert set: ${fundName.slice(0,25)} if drops ${thresholdPct}% from ATH`, 'success');
+  renderNotifBell();
+}
+
+// t79: SIP Due Reminder
+function addSipReminder(sipId, fundName, sipDay) {
+  const alerts = getAllAlerts().filter(a => !(a.type === 'sip_due' && a.sip_id === sipId));
+  alerts.push({ type: 'sip_due', sip_id: sipId, fund_name: fundName, sip_day: sipDay, created: new Date().toISOString() });
+  saveAllAlerts(alerts);
+  showToast(`🔔 SIP reminder set for ${fundName.slice(0,25)} (day ${sipDay})`, 'success');
+  renderNotifBell();
+}
+
+// Check all alerts against current holdings data
+function checkAllAlerts(holdings) {
+  if (!holdings?.length) return;
+  const alerts   = getAllAlerts();
+  const triggered = [];
+  const today    = new Date();
+  const todayDay = today.getDate();
+
+  alerts.forEach(a => {
+    if (a.type === 'price') {
+      const h = holdings.find(x => x.fund_id == a.fund_id || x.id == a.fund_id);
+      if (!h) return;
+      const nav = parseFloat(h.latest_nav);
+      if (a.direction === 'above' && nav >= a.target_nav) {
+        triggered.push({ ...a, msg: `📈 ${a.fund_name.slice(0,30)}: NAV ₹${nav.toFixed(4)} crossed above ₹${a.target_nav}` });
+      } else if (a.direction === 'below' && nav <= a.target_nav) {
+        triggered.push({ ...a, msg: `📉 ${a.fund_name.slice(0,30)}: NAV ₹${nav.toFixed(4)} dropped below ₹${a.target_nav}` });
+      }
+    }
+    if (a.type === 'drawdown') {
+      const h = holdings.find(x => x.fund_id == a.fund_id || x.id == a.fund_id);
+      if (!h || h.drawdown_pct === null) return;
+      if (h.drawdown_pct >= a.threshold_pct) {
+        triggered.push({ ...a, msg: `⚠️ ${a.fund_name.slice(0,30)}: Down ${h.drawdown_pct}% from ATH (alert: ${a.threshold_pct}%)` });
+      }
+    }
+    if (a.type === 'sip_due') {
+      // Alert 3 days before SIP day
+      const daysToSip = (a.sip_day - todayDay + 31) % 31;
+      if (daysToSip <= 3 && daysToSip >= 0) {
+        triggered.push({ ...a, msg: `💳 SIP due in ${daysToSip === 0 ? 'TODAY' : daysToSip + ' days'}: ${a.fund_name.slice(0,30)} (day ${a.sip_day})` });
+      }
+    }
+  });
+
+  if (triggered.length) {
+    // Show toast for first 2, badge for rest
+    triggered.slice(0, 2).forEach(t => showToast(t.msg, 'warning'));
+    // Store triggered for notification center
+    try {
+      const prev = JSON.parse(localStorage.getItem('wd_triggered_alerts') || '[]');
+      const merged = [...triggered, ...prev].slice(0, 20);
+      localStorage.setItem('wd_triggered_alerts', JSON.stringify(merged));
+    } catch(e) {}
+    renderNotifBell();
+  }
+}
+
+function removeAlert(idx) {
+  const alerts = getAllAlerts();
+  alerts.splice(idx, 1);
+  saveAllAlerts(alerts);
+  renderNotifBell();
+  renderNotifBody();
+}
+
+function clearAllAlerts() {
+  saveAllAlerts([]);
+  try { localStorage.removeItem('wd_triggered_alerts'); } catch(e) {}
+  renderNotifBell();
+  renderNotifBody();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t81 — NOTIFICATION BELL + CENTER
+═══════════════════════════════════════════════════════════════════════════ */
+function renderNotifBell() {
+  const bell = document.getElementById('notifBell');
+  if (!bell) return;
+  const alerts    = getAllAlerts();
+  const triggered = (() => { try { return JSON.parse(localStorage.getItem('wd_triggered_alerts') || '[]'); } catch(e) { return []; } })();
+  const total     = triggered.length;
+  const badge     = bell.querySelector('.notif-badge');
+  if (badge) {
+    badge.textContent = total > 0 ? (total > 9 ? '9+' : total) : '';
+    badge.style.display = total > 0 ? '' : 'none';
+  }
+}
+
+function renderNotifBody() {
+  const body = document.getElementById('notifBody');
+  if (!body) return;
+  const alerts    = getAllAlerts();
+  const triggered = (() => { try { return JSON.parse(localStorage.getItem('wd_triggered_alerts') || '[]'); } catch(e) { return []; } })();
+
+  if (!alerts.length && !triggered.length) {
+    body.innerHTML = `<div style="padding:30px;text-align:center;color:var(--text-muted);">
+      <div style="font-size:28px;margin-bottom:8px;">🔔</div>
+      <div style="font-size:13px;font-weight:600;">No alerts configured</div>
+      <div style="font-size:12px;margin-top:4px;">Set price alerts, drawdown alerts, or SIP reminders from fund details</div>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  // Triggered alerts
+  if (triggered.length) {
+    html += `<div style="padding:8px 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border);">Recent Triggers</div>`;
+    html += triggered.slice(0,10).map(t => `
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;">
+        <div style="font-weight:600;">${t.msg || t.fund_name}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${new Date(t.created||Date.now()).toLocaleDateString('en-IN')}</div>
+      </div>`).join('');
+  }
+
+  // Configured alerts
+  if (alerts.length) {
+    html += `<div style="padding:8px 14px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);border-bottom:1px solid var(--border);margin-top:4px;">Configured Alerts</div>`;
+    html += alerts.map((a, i) => {
+      const icon   = a.type === 'price' ? '💰' : a.type === 'drawdown' ? '📉' : '💳';
+      const detail = a.type === 'price'     ? `NAV ${a.direction} ₹${a.target_nav}`
+                   : a.type === 'drawdown'  ? `Drawdown > ${a.threshold_pct}%`
+                   : `SIP day ${a.sip_day}`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);">
+        <span style="font-size:16px;">${icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.fund_name?.slice(0,35)||'—'}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${detail}</div>
+        </div>
+        <button onclick="removeAlert(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:2px 6px;" title="Remove">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  body.innerHTML = html;
+}
+
+function openNotifCenter() {
+  // Clear triggered alerts on open
+  try { localStorage.removeItem('wd_triggered_alerts'); } catch(e) {}
+  renderNotifBody();
+  renderNotifBell();
+  showModal('modalNotifications');
+}
+
+// Inject notification bell into topbar (after page loads)
+function injectNotifBell() {
+  const actions = document.querySelector('.page-header-actions');
+  if (!actions || document.getElementById('notifBell')) return;
+  const bell = document.createElement('button');
+  bell.id = 'notifBell';
+  bell.className = 'btn btn-ghost';
+  bell.title = 'Alerts & Notifications';
+  bell.style.cssText = 'position:relative;padding:6px 10px;';
+  bell.innerHTML = `<span style="font-size:18px;">🔔</span><span class="notif-badge" style="display:none;position:absolute;top:2px;right:2px;background:#dc2626;color:#fff;border-radius:99px;font-size:9px;font-weight:800;padding:1px 4px;min-width:14px;text-align:center;"></span>`;
+  bell.onclick = openNotifCenter;
+  actions.insertBefore(bell, actions.firstChild);
+  renderNotifBell();
+}
+
+// Hook into renderMfAnalytics to check alerts
+const _prevRenderMfAnalytics = renderMfAnalytics;
+function renderMfAnalytics() {
+  _prevRenderMfAnalytics();
+  checkAllAlerts(MF.data);
+  injectNotifBell();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t157 — EMERGENCY FUND TRACKER
+   Shows on Holdings page — checks liquid fund balance vs 6-month expense target
+═══════════════════════════════════════════════════════════════════════════ */
+const EF_KEY = 'wd_emergency_fund_v1';
+
+function renderEmergencyFundWidget() {
+  const holdings = MF.data || [];
+  if (!holdings.length) return;
+
+  // Find liquid/overnight/money market funds
+  const liquidFunds = holdings.filter(h => {
+    const cat = (h.category || '').toLowerCase();
+    return cat.includes('liquid') || cat.includes('overnight') ||
+           cat.includes('money market') || cat.includes('ultra short');
+  });
+
+  const liquidValue = liquidFunds.reduce((s, h) => s + (parseFloat(h.value_now) || 0), 0);
+
+  // Get saved monthly expense from localStorage
+  let efData = {};
+  try { efData = JSON.parse(localStorage.getItem(EF_KEY) || '{}'); } catch(e) {}
+  const monthlyExpense = efData.monthly_expense || 0;
+  const target         = monthlyExpense * 6;
+  const months         = monthlyExpense > 0 ? (liquidValue / monthlyExpense).toFixed(1) : null;
+
+  // Find or create widget
+  let widget = document.getElementById('emergencyFundWidget');
+  if (!widget) {
+    widget = document.createElement('div');
+    widget.id = 'emergencyFundWidget';
+    widget.style.cssText = 'margin-bottom:16px;';
+    const analyticsSection = document.getElementById('mfAnalyticsSection');
+    if (analyticsSection) analyticsSection.parentNode.insertBefore(widget, analyticsSection);
+    else return;
+  }
+
+  const pct    = target > 0 ? Math.min(100, (liquidValue / target) * 100).toFixed(0) : (liquidValue > 0 ? 100 : 0);
+  const status = !monthlyExpense    ? 'setup'
+               : liquidValue === 0  ? 'empty'
+               : parseFloat(months) >= 6 ? 'safe'
+               : parseFloat(months) >= 3 ? 'low'
+               : 'critical';
+
+  const statusConfig = {
+    setup:    { color: '#6b7280', bg: 'rgba(107,114,128,.08)', icon: '⚙️', msg: 'Set your monthly expenses to track emergency fund adequacy' },
+    empty:    { color: '#dc2626', bg: 'rgba(220,38,38,.08)',   icon: '🚨', msg: `No liquid funds found. Emergency fund should be ₹${fmtFull(target)}` },
+    critical: { color: '#dc2626', bg: 'rgba(220,38,38,.08)',   icon: '🚨', msg: `Only ${months} months covered. Need ${fmtFull(target - liquidValue)} more` },
+    low:      { color: '#d97706', bg: 'rgba(245,158,11,.08)',  icon: '⚠️', msg: `${months} months covered. Target: 6 months (₹${fmtFull(target)})` },
+    safe:     { color: '#16a34a', bg: 'rgba(22,163,74,.08)',   icon: '✅', msg: `${months} months covered — Emergency fund is adequate!` },
+  };
+  const cfg = statusConfig[status];
+
+  widget.innerHTML = `
+    <div style="background:${cfg.bg};border:1.5px solid ${cfg.color}30;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <span style="font-size:20px;">${cfg.icon}</span>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:12px;font-weight:700;color:${cfg.color};margin-bottom:2px;">🛡️ Emergency Fund — ${status === 'safe' ? 'Adequate' : status === 'setup' ? 'Not configured' : 'Needs attention'}</div>
+        <div style="font-size:12px;color:var(--text-muted);">${cfg.msg}</div>
+        ${monthlyExpense && liquidValue > 0 ? `
+        <div style="height:6px;background:var(--bg-secondary);border-radius:99px;margin-top:6px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${cfg.color};border-radius:99px;transition:width .5s;"></div>
+        </div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        ${liquidValue > 0 ? `<div style="text-align:center;"><div style="font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;">Liquid Funds</div><div style="font-size:14px;font-weight:800;color:${cfg.color};">${fmtFull(liquidValue)}</div></div>` : ''}
+        <button onclick="openEfSetup()" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1.5px solid ${cfg.color}40;background:none;color:${cfg.color};cursor:pointer;font-weight:700;white-space:nowrap;">
+          ${monthlyExpense ? '✎ Edit' : '⚙ Setup'}
+        </button>
+      </div>
+    </div>`;
+}
+
+function openEfSetup() {
+  let efData = {};
+  try { efData = JSON.parse(localStorage.getItem(EF_KEY) || '{}'); } catch(e) {}
+
+  const val = prompt(`Monthly expenses (₹):\n(Emergency fund target = 6× this amount)\n\nCurrent: ${efData.monthly_expense ? '₹' + Number(efData.monthly_expense).toLocaleString('en-IN') : 'Not set'}`,
+    efData.monthly_expense || '');
+  if (val === null) return;
+  const n = parseFloat(val.replace(/,/g,''));
+  if (!isNaN(n) && n > 0) {
+    try { localStorage.setItem(EF_KEY, JSON.stringify({ monthly_expense: n, updated: new Date().toISOString() })); } catch(e) {}
+    renderEmergencyFundWidget();
+    if (typeof showToast === 'function') showToast(`✅ Emergency fund target: ₹${fmtFull(n*6)} (6 months)`, 'success');
+  }
+}
+
+// Hook into renderMfAnalytics
+const _prevRenderMfAnalytics2 = renderMfAnalytics;
+function renderMfAnalytics() {
+  _prevRenderMfAnalytics2();
+  renderEmergencyFundWidget();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t125 — TWRR (Time-Weighted Rate of Return)
+═══════════════════════════════════════════════════════════════════════════ */
+function calcTWRR(holdings, transactions) {
+  // TWRR ≈ product of (1 + sub-period return) - 1
+  // Sub-period = between each cash flow event
+  // Simplified: use holding-level CAGR weighted by value (proxy TWRR)
+  if (!holdings?.length) return null;
+
+  let weightedReturn = 0, totalValue = 0;
+  holdings.forEach(h => {
+    const val  = parseFloat(h.value_now) || 0;
+    const cagr = parseFloat(h.cagr) || null;
+    if (cagr !== null && val > 0) {
+      weightedReturn += cagr * val;
+      totalValue     += val;
+    }
+  });
+  return totalValue > 0 ? weightedReturn / totalValue : null;
+}
+
+function renderTWRR() {
+  const holdings = MF.data || [];
+  if (!holdings.length) return;
+
+  const twrr    = calcTWRR(holdings);
+  const twrrEl  = document.getElementById('twrrValue');
+  const vsEl    = document.getElementById('twrrVsXirr');
+  const explEl  = document.getElementById('twrrExplain');
+  if (!twrrEl) return;
+
+  // Get XIRR from the existing portfolioXirr element
+  const xirrText = document.getElementById('portfolioXirr')?.textContent || '';
+  const xirr     = parseFloat(xirrText) || null;
+
+  if (twrr !== null) {
+    const color = twrr >= 0 ? '#16a34a' : '#dc2626';
+    twrrEl.textContent = (twrr >= 0 ? '+' : '') + twrr.toFixed(2) + '%';
+    twrrEl.style.color = color;
+
+    if (xirr !== null && vsEl && explEl) {
+      const diff = (xirr - twrr).toFixed(2);
+      if (Math.abs(diff) < 0.5) {
+        vsEl.textContent = 'Neutral';
+        vsEl.style.color = 'var(--text-muted)';
+        explEl.textContent = 'XIRR ≈ TWRR — timing had minimal impact';
+      } else if (xirr > twrr) {
+        vsEl.textContent = `XIRR +${diff}% higher`;
+        vsEl.style.color = '#16a34a';
+        explEl.textContent = '✅ Your timing added value!';
+      } else {
+        vsEl.textContent = `TWRR +${Math.abs(diff)}% higher`;
+        vsEl.style.color = '#d97706';
+        explEl.textContent = '📈 Fund performs well, consider SIP to improve timing';
+      }
+    }
+  } else {
+    twrrEl.textContent = '—';
+    twrrEl.style.color = 'var(--text-muted)';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t126 — SORTINO RATIO
+═══════════════════════════════════════════════════════════════════════════ */
+function calcSortinoRatio(monthlyReturns, riskFreeRate = 0.065) {
+  // Sortino = (Avg Annual Return - Risk Free) / Downside Deviation
+  if (!monthlyReturns?.length) return null;
+  const annualRFR   = riskFreeRate / 12;
+  const avgReturn   = monthlyReturns.reduce((s,r) => s+r, 0) / monthlyReturns.length;
+  const downside    = monthlyReturns.filter(r => r < annualRFR);
+  if (!downside.length) return null;
+  const downsideDev = Math.sqrt(downside.reduce((s,r) => s + Math.pow(r - annualRFR, 2), 0) / downside.length);
+  if (downsideDev === 0) return null;
+  const annualReturn = avgReturn * 12;
+  return (annualReturn - riskFreeRate) / (downsideDev * Math.sqrt(12));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t127 — CORRELATION MATRIX
+═══════════════════════════════════════════════════════════════════════════ */
+function renderCorrelationMatrix() {
+  const holdings = MF.data || [];
+  const wrap = document.getElementById('corrMatrixWrap');
+  if (!wrap || !holdings.length) return;
+
+  // Simplified category-based correlation (proxy when nav_history not available)
+  // High correlation = same category
+  const catMap = {
+    'Equity — Large Cap': 'LCE', 'Equity — Mid Cap': 'MCE', 'Equity — Small Cap': 'SCE',
+    'Equity — Multi Cap': 'MCE', 'Equity — Flexi Cap': 'MCE', 'Index Fund': 'IDX',
+    'ELSS': 'LCE', 'Debt — Short Duration': 'SD', 'Debt — Long Duration': 'LD',
+    'Hybrid — Aggressive': 'HYB', 'Hybrid — Conservative': 'HYB',
+  };
+  // Pairwise category correlation table
+  const corrTable = {
+    'LCE-LCE':0.95,'LCE-MCE':0.78,'LCE-SCE':0.65,'LCE-IDX':0.92,'LCE-HYB':0.72,
+    'MCE-MCE':0.95,'MCE-SCE':0.82,'MCE-IDX':0.75,'MCE-HYB':0.65,
+    'SCE-SCE':0.95,'SCE-IDX':0.68,'SCE-HYB':0.58,
+    'IDX-IDX':0.99,'IDX-HYB':0.70,
+    'HYB-HYB':0.90,
+    'SD-SD':0.95,'SD-LD':0.60,'LD-LD':0.95,
+    'LCE-SD':0.10,'LCE-LD':0.05,'MCE-SD':0.08,'SCE-SD':0.05,
+  };
+  function getCorrKey(a, b) {
+    const ca = catMap[a] || 'OT', cb = catMap[b] || 'OT';
+    return corrTable[`${ca}-${cb}`] ?? corrTable[`${cb}-${ca}`] ?? (ca===cb ? 0.95 : 0.35);
+  }
+
+  const funds = holdings.slice(0, 8); // max 8 for readability
+  if (funds.length < 2) {
+    wrap.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">Add at least 2 funds to see correlation analysis.</div>';
+    return;
+  }
+
+  // Compute pairwise correlations + diversification score
+  let totalCorr = 0, pairs = 0, highCorrPairs = [];
+  for (let i = 0; i < funds.length; i++) {
+    for (let j = i+1; j < funds.length; j++) {
+      const c = getCorrKey(funds[i].category || '', funds[j].category || '');
+      totalCorr += c; pairs++;
+      if (c >= 0.85) highCorrPairs.push({ a: funds[i].scheme_name, b: funds[j].scheme_name, corr: c });
+    }
+  }
+  const avgCorr = pairs > 0 ? totalCorr / pairs : 0;
+  const divScore = Math.round((1 - avgCorr) * 100);
+
+  // Build matrix HTML
+  const shortName = n => n?.split(' ').slice(0,3).join(' ') || '—';
+  const corrColor = c => {
+    if (c >= 0.9) return '#dc2626';
+    if (c >= 0.75) return '#d97706';
+    if (c >= 0.5) return '#ca8a04';
+    return '#16a34a';
+  };
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px 20px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Diversification Score</div>
+        <div style="font-size:28px;font-weight:800;color:${divScore>=60?'#16a34a':divScore>=40?'#d97706':'#dc2626'};">${divScore}/100</div>
+        <div style="font-size:11px;color:var(--text-muted);">${divScore>=60?'Well diversified':divScore>=40?'Moderate overlap':'High overlap'}</div>
+      </div>
+      <div style="flex:1;font-size:12px;color:var(--text-muted);">
+        ${highCorrPairs.length ? `⚠️ <strong>${highCorrPairs.length} highly correlated pair${highCorrPairs.length>1?'s':''}</strong> detected (>0.85):<br>
+          ${highCorrPairs.slice(0,3).map(p=>`<span style="color:#dc2626;">• ${shortName(p.a)} & ${shortName(p.b)} (${(p.corr*100).toFixed(0)}%)</span>`).join('<br>')}
+          ${highCorrPairs.length ? '<br><span style="color:#d97706;">Consider consolidating redundant funds.</span>' : ''}`
+        : '✅ No highly correlated fund pairs found. Good diversification!'}
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+    <table style="font-size:11px;border-collapse:collapse;min-width:400px;">
+      <thead><tr><th style="padding:4px 8px;text-align:left;color:var(--text-muted);">Fund</th>
+        ${funds.map(f=>`<th style="padding:4px 6px;text-align:center;color:var(--text-muted);writing-mode:vertical-lr;max-width:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${f.scheme_name}">${shortName(f.scheme_name)}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+        ${funds.map((fi,i) => `<tr>
+          <td style="padding:4px 8px;font-weight:600;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;" title="${fi.scheme_name}">${shortName(fi.scheme_name)}</td>
+          ${funds.map((fj,j) => {
+            if (i === j) return `<td style="background:#e5e7eb;text-align:center;padding:4px 6px;font-weight:700;color:#6b7280;">—</td>`;
+            const c = getCorrKey(fi.category||'', fj.category||'');
+            return `<td style="background:${corrColor(c)}22;text-align:center;padding:4px 6px;font-weight:700;color:${corrColor(c)};">${(c*100).toFixed(0)}</td>`;
+          }).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;">
+      <span>🟢 &lt;50% low</span><span>🟡 50-75% moderate</span><span>🟠 75-90% high</span><span>🔴 &gt;90% very high</span>
+    </div>`;
+
+  wrap.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t129 — STRESS TEST
+═══════════════════════════════════════════════════════════════════════════ */
+const STRESS_SCENARIOS = {
+  '2008': { name:'2008 Global Crisis', drop:-0.55, months:17, recovery:48, period:'Jan 2008 – Mar 2009',
+            note:'Global financial crisis. Nifty fell 55% in ~17 months. Recovery took ~4 years.' },
+  'covid':{ name:'COVID-19 Crash', drop:-0.38, months:2, recovery:8, period:'Jan 2020 – Mar 2020',
+            note:'Fastest crash in history. Fell 38% in 40 days. Recovered in just 8 months — fastest ever.' },
+  '2013': { name:'2013 Taper Tantrum', drop:-0.27, months:6, recovery:18, period:'May 2013 – Aug 2013',
+            note:'Fed tapering fears. Nifty fell 27%. Recovery took ~18 months.' },
+  'dotcom':{ name:'Dot-com Bust (2000)', drop:-0.49, months:30, recovery:72, period:'2000 – 2003',
+             note:'Tech bubble burst. Market fell 49% over 2.5 years. Recovery took 6 years.' },
+};
+
+function runStressTest(scenario, btn) {
+  // Update active button
+  document.querySelectorAll('[id^=stressBtn]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  const sc       = STRESS_SCENARIOS[scenario];
+  const holdings = MF.data || [];
+  const res      = document.getElementById('stressResult');
+  if (!sc || !res) return;
+
+  if (!holdings.length) {
+    res.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No holdings loaded</div>';
+    return;
+  }
+
+  const totalValue    = holdings.reduce((s,h) => s + (parseFloat(h.value_now)||0), 0);
+  const totalInvested = holdings.reduce((s,h) => s + (parseFloat(h.invested)||0), 0);
+
+  // Apply category-based stress (equity more affected, debt less)
+  let stressedValue = 0;
+  holdings.forEach(h => {
+    const val = parseFloat(h.value_now) || 0;
+    const cat = (h.category || '').toLowerCase();
+    let dropMult = 1.0; // equity: full drop
+    if (cat.includes('debt') || cat.includes('liquid') || cat.includes('gilt')) dropMult = 0.05;
+    else if (cat.includes('hybrid')) dropMult = 0.55;
+    else if (cat.includes('gold') || cat.includes('commodity')) dropMult = scenario === '2008' ? 0.3 : -0.1; // gold rises in crisis
+    stressedValue += val * (1 + sc.drop * dropMult);
+  });
+
+  const loss       = totalValue - stressedValue;
+  const lossPct    = (loss / totalValue * 100).toFixed(1);
+  const wouldBePos = stressedValue > totalInvested;
+
+  function fmtI(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+    return '₹' + (v/1e5).toFixed(1) + 'L';
+  }
+
+  res.innerHTML = `
+    <div style="margin-bottom:10px;font-size:12px;color:var(--text-muted);">
+      <strong style="color:var(--text-primary);">${sc.name}</strong> &nbsp;·&nbsp; ${sc.period}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+      <div style="background:rgba(220,38,38,.07);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Portfolio Drop</div>
+        <div style="font-size:18px;font-weight:800;color:#dc2626;">-${lossPct}%</div>
+        <div style="font-size:11px;color:var(--text-muted);">-${fmtI(loss)}</div>
+      </div>
+      <div style="background:${wouldBePos?'rgba(22,163,74,.07)':'rgba(220,38,38,.07)'};border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Stressed Value</div>
+        <div style="font-size:18px;font-weight:800;color:${wouldBePos?'#16a34a':'#dc2626'};">${fmtI(stressedValue)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${wouldBePos?'Above cost':'Below cost'}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Recovery Time</div>
+        <div style="font-size:18px;font-weight:800;color:#d97706;">${sc.recovery} mo</div>
+        <div style="font-size:11px;color:var(--text-muted);">Historical avg</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);padding:8px 10px;background:rgba(99,102,241,.06);border-radius:6px;">${sc.note}</div>`;
+}
+
+/* ── Hook all analytics into renderMfAnalytics ── */
+const _baseRenderAnalytics = renderMfAnalytics;
+function renderMfAnalytics() {
+  _baseRenderAnalytics();
+  // Delay slightly so XIRR renders first (TWRR reads it)
+  setTimeout(() => {
+    renderTWRR();
+    renderCorrelationMatrix();
+    runStressTest('2008', null); // default scenario
+  }, 500);
 }

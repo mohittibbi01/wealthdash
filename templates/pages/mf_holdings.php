@@ -41,6 +41,20 @@ ob_start();
     <p class="page-subtitle">Mutual fund holdings &amp; transactions</p>
   </div>
   <div class="page-header-actions">
+    <!-- t143: Zoom Out Toggle -->
+    <button class="btn btn-ghost" id="btnZoomOut" onclick="toggleZoomOut()" title="Zoom Out — Long-term view, hide daily noise">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      Zoom Out
+    </button>
+    <!-- t140: Panic Mode -->
+    <button class="btn btn-ghost" id="btnPanicMode" onclick="togglePanicMode()" title="Panic Mode — Market crash? Focus on units, not losses">
+      🧘 Calm Mode
+    </button>
+    <!-- t112: Fund Finder Quick Add -->
+    <button class="btn btn-ghost" id="btnFindFund" onclick="openFundFinderModal()" title="Search and add any MF fund">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      Find & Add Fund
+    </button>
     <button class="btn btn-ghost" id="btnImportCsv">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -157,6 +171,16 @@ ob_start();
     <div id="stat1dPct" style="font-size:13px;font-weight:500;margin-top:3px;color:var(--text-muted);"></div>
   </div>
 
+  <!-- t141: SIP Streak Card -->
+  <div class="stat-card" id="sipStreakCard" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-size:22px;">🔥</span>
+      <div class="stat-label" style="margin:0;">SIP Streak</div>
+    </div>
+    <div class="stat-value" id="sipStreakVal" style="font-size:1.5rem;">—</div>
+    <div id="sipStreakSub" style="font-size:12px;color:var(--text-muted);margin-top:3px;"></div>
+  </div>
+
 </div>
 
 <!-- ═══ PAGE TABS ═══ -->
@@ -169,6 +193,10 @@ ob_start();
   </button>
   <button class="mf-tab" data-tab="dividends" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
     💰 Dividends
+  </button>
+  <!-- t74: Capital Gains tab -->
+  <button class="mf-tab" data-tab="capgains" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🧾 Capital Gains
   </button>
 </div>
 
@@ -221,7 +249,7 @@ ob_start();
     </div>
   </div>
   <div class="table-wrapper">
-    <table class="table table-hover table-grid" id="holdingsTable" style="table-layout:fixed;width:100%;">
+    <table class="table table-hover table-grid mf-holdings-table" id="holdingsTable" style="table-layout:fixed;width:100%;">
       <colgroup>
         <col style="width:2.5%;"><!-- Checkbox -->
         <col style="width:20%;"><!-- Fund -->
@@ -337,6 +365,67 @@ ob_start();
     </div>
 
   </div>
+
+  <!-- t125: TWRR + t129: Stress Test row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+
+    <!-- t125: TWRR tile -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">⏱️ TWRR — Time Weighted Return</h3>
+        <span style="font-size:11px;color:var(--text-muted);">Cashflow-independent</span>
+      </div>
+      <div class="card-body" style="padding:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">TWRR (Portfolio)</div>
+            <div id="twrrValue" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
+            <div style="font-size:11px;color:var(--text-muted);">Annualised</div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">XIRR vs TWRR</div>
+            <div id="twrrVsXirr" style="font-size:14px;font-weight:700;color:var(--text-muted);">—</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" id="twrrExplain"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);padding:8px;background:rgba(99,102,241,.06);border-radius:6px;">
+          💡 <strong>TWRR &gt; XIRR</strong> = Fund performs well but your timing was average.<br>
+          <strong>XIRR &gt; TWRR</strong> = You invested at the right times! Good timing.
+        </div>
+      </div>
+    </div>
+
+    <!-- t129: Stress Test -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">💥 Stress Test — Market Crash Simulation</h3>
+      </div>
+      <div class="card-body" style="padding:16px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="btn btn-ghost btn-xs active" id="stressBtn2008" onclick="runStressTest('2008',this)">2008 Crisis (-55%)</button>
+          <button class="btn btn-ghost btn-xs" id="stressBtnCovid" onclick="runStressTest('covid',this)">COVID 2020 (-38%)</button>
+          <button class="btn btn-ghost btn-xs" id="stressBtn2013" onclick="runStressTest('2013',this)">2013 Taper (-27%)</button>
+          <button class="btn btn-ghost btn-xs" id="stressBtnDotcom" onclick="runStressTest('dotcom',this)">Dot-com (-49%)</button>
+        </div>
+        <div id="stressResult" style="font-size:13px;">
+          <div style="color:var(--text-muted);text-align:center;padding:20px;">Loading portfolio data...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- t127: Correlation Matrix -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🔗 Correlation Matrix — Diversification Score</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Based on category overlap</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="corrMatrixWrap"></div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══ TAB: REALIZED GAINS ═══ -->
@@ -497,6 +586,80 @@ ob_start();
   </div>
 </div>
 </div><!-- end tabDividends -->
+
+<!-- ═══ TAB: CAPITAL GAINS (t74) ═══ -->
+<div id="tabCapgains" style="display:none;">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <h3 class="card-title" style="margin:0;">🧾 Capital Gains — ITR Ready</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="cgFyFilter" class="filter-select" style="font-size:12px;">
+          <option value="">All FYs</option>
+        </select>
+        <select id="cgTypeFilter" class="filter-select" style="font-size:12px;">
+          <option value="">All Types</option>
+          <option value="LTCG">LTCG</option>
+          <option value="STCG">STCG</option>
+          <option value="Slab">Slab (Debt)</option>
+        </select>
+        <button onclick="exportCapgainsCsv()" class="btn btn-outline btn-sm">
+          ↓ ITR CSV
+        </button>
+      </div>
+    </div>
+    <!-- Summary pills -->
+    <div id="cgSummaryPills" style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary);"></div>
+    <div class="table-wrapper">
+      <table class="table table-hover" id="cgTable">
+        <thead>
+          <tr>
+            <th>FY</th>
+            <th>Fund</th>
+            <th>Folio</th>
+            <th class="text-right">Units</th>
+            <th class="text-right">Buy NAV</th>
+            <th class="text-right">Sell NAV</th>
+            <th class="text-right">Cost (₹)</th>
+            <th class="text-right">Proceeds (₹)</th>
+            <th class="text-right">Gain (₹)</th>
+            <th class="text-right">Days</th>
+            <th>Type</th>
+            <th class="text-right">Tax (₹)</th>
+          </tr>
+        </thead>
+        <tbody id="cgBody">
+          <tr><td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted);">Select a FY to load capital gains data</td></tr>
+        </tbody>
+        <tfoot id="cgTfoot" style="display:none;">
+          <tr style="font-weight:700;background:var(--bg-secondary);">
+            <td colspan="6">Total</td>
+            <td class="text-right" id="cgTotCost">—</td>
+            <td class="text-right" id="cgTotProceeds">—</td>
+            <td class="text-right" id="cgTotGain">—</td>
+            <td colspan="2"></td>
+            <td class="text-right" id="cgTotTax">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- LTCG Exemption tracker -->
+  <div class="card" id="cgExemptCard" style="display:none;">
+    <div class="card-header"><h3 class="card-title" style="margin:0;">LTCG Exemption — ₹1.25L Limit</h3></div>
+    <div class="card-body" style="padding:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+        <span>Used: <strong id="cgExemptUsed" class="text-danger">₹0</strong></span>
+        <span>Limit: <strong>₹1,25,000</strong></span>
+        <span>Remaining: <strong id="cgExemptLeft" class="text-success">₹1,25,000</strong></span>
+      </div>
+      <div style="height:8px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+        <div id="cgExemptBar" style="height:100%;width:0%;background:#16a34a;border-radius:99px;transition:width .5s;"></div>
+      </div>
+      <div id="cgExemptMsg" style="font-size:12px;color:var(--text-muted);margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ ADD/EDIT TRANSACTION MODAL ═══ -->
 <div class="modal-overlay" id="modalAddTxn" style="display:none;">
@@ -796,9 +959,66 @@ ob_start();
   </div>
 </div>
 
+<!-- t112: Fund Finder Quick Add Modal -->
+<div class="modal-overlay" id="modalFundFinder" style="display:none;">
+  <div class="modal" style="max-width:560px;width:95%;">
+    <div class="modal-header">
+      <h3 class="modal-title">🔍 Find & Add Fund</h3>
+      <button class="modal-close btn btn-ghost btn-sm" onclick="hideFundFinderModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="position:relative;margin-bottom:12px;">
+        <input type="search" id="ffSearch" class="form-control" placeholder="Type fund name, AMC, or scheme code…" autocomplete="off"
+          style="padding-left:36px;" oninput="onFfSearch(this.value)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+          style="position:absolute;left:11px;top:50%;transform:translateY(-50%);opacity:.4;pointer-events:none;">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <!-- Filter pills -->
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;" id="ffFilterPills">
+        <span class="ff-pill active" data-cat="" onclick="setFfFilter('',this)">All</span>
+        <span class="ff-pill" data-cat="Equity" onclick="setFfFilter('Equity',this)">Equity</span>
+        <span class="ff-pill" data-cat="Index" onclick="setFfFilter('Index',this)">Index</span>
+        <span class="ff-pill" data-cat="ELSS" onclick="setFfFilter('ELSS',this)">ELSS</span>
+        <span class="ff-pill" data-cat="Debt" onclick="setFfFilter('Debt',this)">Debt</span>
+        <span class="ff-pill" data-cat="Hybrid" onclick="setFfFilter('Hybrid',this)">Hybrid</span>
+      </div>
+      <div id="ffResults" style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+        <div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">Type to search funds…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- t81: Notification Center Modal -->
+<div class="modal-overlay" id="modalNotifications" style="display:none;">
+  <div class="modal" style="max-width:480px;width:95%;max-height:80vh;display:flex;flex-direction:column;">
+    <div class="modal-header" style="flex-shrink:0;">
+      <h3 class="modal-title">🔔 Alerts & Notifications</h3>
+      <button class="modal-close btn btn-ghost btn-sm" onclick="hideModal('modalNotifications')">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;" id="notifBody">
+      <div style="padding:30px;text-align:center;color:var(--text-muted);">No alerts configured</div>
+    </div>
+    <div class="modal-footer" style="flex-shrink:0;">
+      <button class="btn btn-ghost btn-sm" onclick="clearAllAlerts()">🗑 Clear All</button>
+      <button class="btn btn-ghost" onclick="hideModal('modalNotifications')">Close</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.ff-pill { padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--bg-secondary);color:var(--text-muted);transition:all .15s; }
+.ff-pill.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.ff-result-row { display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s; }
+.ff-result-row:hover { background:var(--bg-secondary); }
+.ff-result-row:last-child { border-bottom:none; }
+</style>
+
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>'
+$extraScripts = '<script src="' . APP_URL . '/public/js/charts.js?v=' . filemtime(APP_ROOT.'/public/js/charts.js') . '"></script>'
              . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>

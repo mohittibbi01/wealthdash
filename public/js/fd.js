@@ -41,6 +41,26 @@ const FD = (() => {
   }
 
   // ── Render table rows ────────────────────────────────────
+  // t20: Pagination state
+  let fdPage = 1, fdPerPage = 10, _fdAllRows = [];
+
+  function renderFdPagination(total, pages, startIdx) {
+    const wrap = document.getElementById('fdPagWrap');
+    if (!wrap) return;
+    if (pages <= 1 && total <= 10) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;">
+      <select onchange="FD.setFdPerPage(+this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+        ${[10,25,50,999].map(n=>`<option value="${n}" ${n===fdPerPage?'selected':''}>${n===999?'All':n}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);">${Math.min(startIdx+1,total)}–${Math.min(startIdx+fdPerPage,total)} of ${total}</span>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button onclick="FD.goFdPage(${fdPage-1})" ${fdPage<=1?'disabled':''} class="btn btn-ghost btn-sm">‹</button>
+        ${Array.from({length:Math.min(5,pages)},(_,i)=>{const p=Math.max(1,Math.min(fdPage-2,pages-4))+i;return `<button onclick="FD.goFdPage(${p})" class="btn btn-sm ${p===fdPage?'btn-primary':'btn-ghost'}">${p}</button>`;}).join('')}
+        <button onclick="FD.goFdPage(${fdPage+1})" ${fdPage>=pages?'disabled':''} class="btn btn-ghost btn-sm">›</button>
+      </div>
+    </div>`;
+  }
+
   function renderTable(rows) {
     const tbody = $('fdBody');
     if (!tbody) return;
@@ -62,7 +82,14 @@ const FD = (() => {
       return;
     }
 
-    tbody.innerHTML = filtered.map(fd => {
+    // paginate
+    const total=filtered.length;
+    const pages=fdPerPage>=999?1:Math.ceil(total/fdPerPage);
+    if(fdPage>pages)fdPage=1;
+    const startIdx=(fdPage-1)*(fdPerPage>=999?total:fdPerPage);
+    const paged=fdPerPage>=999?filtered:filtered.slice(startIdx,startIdx+fdPerPage);
+    renderFdPagination(total, pages, startIdx);
+    tbody.innerHTML = paged.map(fd => {
       const days      = daysDiff(fd.maturity_date);
       const isMatured = fd.status === 'matured' || days < 0;
       const statusBadge = isMatured
@@ -325,5 +352,8 @@ const FD = (() => {
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { loadFds, filterTable, calcMaturity, markMatured, deleteFd, openEdit };
+  function goFdPage(p) { fdPage = p; renderTable(_fdAllRows); }
+  function setFdPerPage(n) { fdPerPage = n; fdPage = 1; renderTable(_fdAllRows); }
+
+  return { loadFds, filterTable, calcMaturity, markMatured, deleteFd, openEdit, goFdPage, setFdPerPage };
 })();

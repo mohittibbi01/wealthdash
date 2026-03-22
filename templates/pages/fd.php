@@ -146,6 +146,7 @@ ob_start();
       </tbody>
     </table>
   </div>
+  <div id="fdPagWrap" style="padding:0 16px;"></div>
 </div>
 
 <!-- Add FD Modal -->

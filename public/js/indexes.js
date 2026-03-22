@@ -6,7 +6,7 @@
 
 (function () {
 
-    var REFRESH_SEC = 60;
+    var REFRESH_SEC = 30;
     var autoOn      = true;
     var countdown   = REFRESH_SEC;
     var cdTimer     = null;
