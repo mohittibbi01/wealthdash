@@ -117,3 +117,28 @@ $log[] = "[$date] Done.";
 $out = implode("\n", $log);
 echo $out . "\n";
 @file_put_contents(APP_ROOT . '/logs/nav_update_' . date('Y-m') . '.log', $out . "\n", FILE_APPEND | LOCK_EX);
+// t162: Trigger returns recalculation for funds updated today
+// Only recalculate 1Y returns (fast) — full calc runs weekly
+try {
+    $db->exec("
+        UPDATE funds f
+        INNER JOIN (
+            SELECT nh1.fund_id,
+                   nh1.nav AS nav_today,
+                   nh_1y.nav AS nav_1y_ago
+            FROM nav_history nh1
+            INNER JOIN nav_history nh_1y
+                ON nh_1y.fund_id = nh1.fund_id
+                AND nh_1y.nav_date BETWEEN DATE_SUB(nh1.nav_date, INTERVAL 370 DAY)
+                                      AND DATE_SUB(nh1.nav_date, INTERVAL 360 DAY)
+            WHERE nh1.nav_date = CURDATE()
+            GROUP BY nh1.fund_id, nh1.nav, nh_1y.nav
+        ) calc ON calc.fund_id = f.id
+        SET f.returns_1y = ROUND((calc.nav_today / calc.nav_1y_ago - 1) * 100, 4),
+            f.returns_updated_at = NOW()
+        WHERE calc.nav_1y_ago > 0
+    ");
+    $log[] = "[" . date('Y-m-d H:i:s') . "] 1Y returns recalculated.";
+} catch (Exception $e) {
+    $log[] = "[WARN] Returns calc failed: " . $e->getMessage();
+}
