@@ -279,7 +279,9 @@ function detect_csv_format(string $content): string {
     if (strpos($first, 'kfintech') !== false ||
         strpos($first, 'karvy') !== false) return 'kfintech';
     if (strpos($first, 'groww') !== false) return 'groww';
-    if (strpos($first, 'zerodha') !== false) return 'zerodha';
+    if (strpos($first, 'zerodha') !== false || strpos($first, 'coin') !== false) return 'zerodha';
+    if (strpos($first, 'kuvera') !== false) return 'kuvera';
+    if (strpos($first, 'mfcentral') !== false || strpos($first, 'paytm') !== false) return 'mfcentral';
     if (strpos($first, 'portfolio,fund_name') !== false ||
         strpos($first, 'scheme_code') !== false) return 'wealthdash';
     return 'wealthdash'; // default
@@ -292,6 +294,9 @@ function parse_csv(string $content, string $format): array {
         'cams'       => parse_cams($lines),
         'kfintech'   => parse_kfintech($lines),
         'groww'      => parse_groww($lines),
+        'zerodha'    => parse_zerodha($lines),    // t90
+        'kuvera'     => parse_kuvera($lines),     // t90
+        'mfcentral'  => parse_mfcentral($lines),  // t90
         'wealthdash' => parse_wealthdash($lines),
         default      => parse_wealthdash($lines),
     };
@@ -570,4 +575,102 @@ function build_annotated_csv(array $transactions, array $row_results, string $or
     }
 
     return "\xEF\xBB\xBF" . implode("\r\n", $output); // UTF-8 BOM for Excel
+}
+/* ═══════════════════════════════════════════════════════════════════════════
+   t90 — ZERODHA COIN + KUVERA PARSERS
+═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Zerodha Coin CSV format:
+ * trade_date, scheme_name, isin, transaction_type, amount, units, price, folio_no
+ */
+function parse_zerodha(array $lines): array {
+    $result = []; $header = null;
+    foreach ($lines as $line) {
+        if (empty(trim($line))) continue;
+        $cols = str_getcsv($line);
+        if (!$header) {
+            $header = array_map('strtolower', array_map('trim', $cols));
+            continue;
+        }
+        if (count($cols) < 3) continue;
+        $r = array_combine($header, array_pad($cols, count($header), ''));
+        $result[] = [
+            'fund_name' => trim($r['scheme_name'] ?? $r['scheme name'] ?? $r['fund_name'] ?? ''),
+            'txn_type'  => normalize_txn_type($r['transaction_type'] ?? $r['type'] ?? 'BUY'),
+            'txn_date'  => normalize_date($r['trade_date'] ?? $r['date'] ?? ''),
+            'units'     => (float)str_replace(',', '', $r['units'] ?? 0),
+            'nav'       => (float)str_replace(',', '', $r['price'] ?? $r['nav'] ?? 0),
+            'amount'    => (float)str_replace(',', '', $r['amount'] ?? 0),
+            'folio'     => trim($r['folio_no'] ?? $r['folio'] ?? ''),
+            'isin'      => trim($r['isin'] ?? ''),
+            'platform'  => 'Zerodha Coin',
+        ];
+    }
+    return $result;
+}
+
+/**
+ * Kuvera CSV format:
+ * Date, Fund, ISIN, Type, Units, NAV, Amount, Folio
+ */
+function parse_kuvera(array $lines): array {
+    $result = []; $header = null;
+    foreach ($lines as $line) {
+        if (empty(trim($line))) continue;
+        $cols = str_getcsv($line);
+        if (!$header) {
+            $header = array_map('strtolower', array_map('trim', $cols));
+            // Skip metadata lines before header
+            if (!in_array('fund', $header) && !in_array('scheme', $header)) {
+                $header = null; continue;
+            }
+            continue;
+        }
+        if (count($cols) < 3) continue;
+        $r = array_combine($header, array_pad($cols, count($header), ''));
+        $result[] = [
+            'fund_name' => trim($r['fund'] ?? $r['scheme'] ?? $r['fund name'] ?? ''),
+            'txn_type'  => normalize_txn_type($r['type'] ?? $r['transaction type'] ?? 'BUY'),
+            'txn_date'  => normalize_date($r['date'] ?? ''),
+            'units'     => (float)str_replace(',', '', $r['units'] ?? 0),
+            'nav'       => (float)str_replace(',', '', $r['nav'] ?? $r['price'] ?? 0),
+            'amount'    => (float)str_replace(',', '', $r['amount'] ?? 0),
+            'folio'     => trim($r['folio'] ?? $r['folio no'] ?? ''),
+            'isin'      => trim($r['isin'] ?? ''),
+            'platform'  => 'Kuvera',
+        ];
+    }
+    return $result;
+}
+
+/**
+ * MFCentral / Paytm Money format (generic)
+ */
+function parse_mfcentral(array $lines): array {
+    $result = []; $header = null;
+    foreach ($lines as $line) {
+        if (empty(trim($line))) continue;
+        $cols = str_getcsv($line);
+        if (!$header) {
+            $h = array_map('strtolower', array_map('trim', $cols));
+            if (count(array_intersect($h, ['scheme', 'fund', 'scheme name'])) > 0) {
+                $header = $h; continue;
+            }
+            continue;
+        }
+        if (count($cols) < 3) continue;
+        $r = array_combine($header, array_pad($cols, count($header), ''));
+        $result[] = [
+            'fund_name' => trim($r['scheme name'] ?? $r['scheme'] ?? $r['fund'] ?? ''),
+            'txn_type'  => normalize_txn_type($r['transaction type'] ?? $r['type'] ?? 'BUY'),
+            'txn_date'  => normalize_date($r['transaction date'] ?? $r['date'] ?? ''),
+            'units'     => (float)str_replace(',', '', $r['units'] ?? 0),
+            'nav'       => (float)str_replace(',', '', $r['nav'] ?? 0),
+            'amount'    => (float)str_replace(',', '', $r['amount'] ?? $r['net amount'] ?? 0),
+            'folio'     => trim($r['folio no'] ?? $r['folio'] ?? ''),
+            'platform'  => 'MFCentral',
+        ];
+    }
+    return $result;
 }

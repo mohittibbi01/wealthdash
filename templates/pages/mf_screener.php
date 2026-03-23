@@ -590,6 +590,42 @@ ob_start();
     </div>
   </div>
 
+  <!-- t67: Fund Manager Filter -->
+  <div id="fp_manager" style="display:none;">
+    <div class="fp-section-title">FUND MANAGER</div>
+    <div style="position:relative;margin-bottom:8px;">
+      <input type="text" id="fpManagerSearch" placeholder="Type manager name…"
+        style="width:100%;padding:7px 10px;font-size:12px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;"
+        oninput="SC.onManagerSearch(this.value)">
+    </div>
+    <div id="fpManagerResults" style="font-size:12px;color:var(--text-muted);max-height:120px;overflow-y:auto;"></div>
+    <div id="fpManagerSelected" style="margin-top:6px;font-size:12px;color:var(--accent);font-weight:700;"></div>
+  </div>
+
+  <!-- t98: Fund Age Filter -->
+  <div id="fp_age" style="display:none;">
+    <div class="fp-section-title">FUND AGE</div>
+    <div class="fp-radio-group" style="flex-direction:column;gap:6px;">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="fundAge" value="" onchange="SC.setFundAge('')" checked> Any age
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="fundAge" value="1" onchange="SC.setFundAge('1')">
+        <span style="background:#fef3c7;color:#b45309;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;">NEW</span> Under 1 year
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="fundAge" value="3" onchange="SC.setFundAge('3')"> 1–3 years
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="fundAge" value="5" onchange="SC.setFundAge('5')"> 3–5 years
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="fundAge" value="5+" onchange="SC.setFundAge('5+')">
+        <span style="background:#dcfce7;color:#15803d;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;">VETERAN</span> 5+ years
+      </label>
+    </div>
+  </div>
+
   <!-- Panel footer -->
   <div class="fp-footer">
     <div style="font-size:12px;color:var(--text-muted);" id="fpFilterSummary">No filters applied</div>
@@ -605,6 +641,31 @@ ob_start();
   <div class="sc-view-tab active" id="vtab_all" onclick="switchView('all')">📋 All Funds</div>
   <div class="sc-view-tab" id="vtab_top" onclick="switchView('top')">🏆 Top Performers</div>
   <div class="sc-view-tab" id="vtab_wl" onclick="switchView('watchlist')">⭐ Watchlist <span id="wlCount" style="font-size:10px;background:rgba(245,158,11,.15);color:#d97706;padding:1px 6px;border-radius:99px;margin-left:3px;"></span></div>
+  <div class="sc-view-tab" id="vtab_nfo" onclick="switchView('nfo')">🆕 NFO Tracker</div>
+</div>
+
+<!-- t108: Fund Finder v2 — Goal-Based Search + Smart Presets -->
+<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+  <div style="font-size:12px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🎯 Find by Goal</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('retirement')">🏖️ Retirement</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('taxsaving')">💰 Tax Saving (ELSS)</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('shortterm')">⚡ Short-term Parking</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('children')">👶 Child Education</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('wealth')">📈 Wealth Creation</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('gold')">🥇 Gold / Commodity</button>
+    <button class="fp-type-pill" onclick="SC.applyGoalPreset('lowrisk')">🛡️ Low Risk Debt</button>
+  </div>
+  <div style="font-size:12px;font-weight:800;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">⚡ Smart Filters</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('top_largecap')">🏆 Top Large Cap (3Y)</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('low_cost_index')">💲 Low Cost Index</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('high_alpha')">⭐ High Alpha</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('consistent')">🔄 Most Consistent</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('direct_only')">✅ Direct Plans Only</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('no_exitload')">🚪 No Exit Load</button>
+    <button class="fp-type-pill" onclick="SC.applySmartFilter('elss_direct')">💚 ELSS Direct</button>
+  </div>
 </div>
 
 <!-- Search + results bar -->
@@ -696,6 +757,13 @@ ob_start();
   </div>
 </div>
 
+<!-- t64: NFO Tracker panel -->
+<div class="sc-results-wrap" id="scNfoWrap" style="display:none;">
+  <div style="padding:16px;overflow-y:auto;flex:1;" id="scNfoBody">
+    <div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span></div>
+  </div>
+</div>
+
 <!-- Compare floating bar -->
 <div class="cmp-bar" id="cmpBar">
   <span style="font-size:13px;font-weight:700;white-space:nowrap;">Compare:</span>
@@ -775,7 +843,8 @@ ob_start();
    STATE
 ══════════════════════════════════════════════════ */
 const SC = {
-  state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null },
+  state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,manager:'',fundAge:'',
+    manager:'', fundAge:'' },  // t67 + t98
   facets:{ fund_houses:{},categories:[],ltcg_days:{} },
   _db:null, loading:false,
 
@@ -788,6 +857,34 @@ const SC = {
   setLtcg(v){ this.state.ltcgDays=+v; updTabBadge(); },
   setLockin(v){ this.state.hasLockin=+v; updTabBadge(); },
   goPage(p){ this.state.page=p; this.trigger(false); },
+
+  // t67: Fund Manager filter
+  onManagerSearch(q) {
+    const res = document.getElementById('fpManagerResults');
+    if (!res) return;
+    if (!q || q.length < 2) { res.innerHTML = '<span style="color:var(--text-muted)">Type at least 2 chars…</span>'; return; }
+    // Extract unique managers from loaded data (client-side search)
+    const all = window._SC_ALL_FUNDS || [];
+    const managers = [...new Set(all.map(f => f.fund_manager).filter(Boolean))];
+    const matched  = managers.filter(m => m.toLowerCase().includes(q.toLowerCase())).slice(0,8);
+    if (!matched.length) { res.innerHTML = '<span style="color:var(--text-muted)">No managers found</span>'; return; }
+    res.innerHTML = matched.map(m =>
+      `<div style="padding:4px 6px;cursor:pointer;border-radius:4px;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''"
+           onclick="SC.selectManager('${m.replace(/'/g,"\\'")}')">👤 ${m}</div>`
+    ).join('');
+  },
+  selectManager(name) {
+    this.state.manager = name;
+    const sel = document.getElementById('fpManagerSelected');
+    if (sel) sel.textContent = name ? '✅ ' + name : '';
+    const inp = document.getElementById('fpManagerSearch');
+    if (inp) inp.value = name;
+    document.getElementById('fpManagerResults').innerHTML = '';
+    updTabBadge(); this.trigger();
+  },
+
+  // t98: Fund Age filter
+  setFundAge(v) { this.state.fundAge = v; updTabBadge(); this.trigger(); },
 
   // t63: AUM filter
   setAum(){
@@ -819,6 +916,81 @@ const SC = {
     if(document.getElementById('fpRet3y')) document.getElementById('fpRet3y').value=r3;
     if(document.getElementById('fpRet5y')) document.getElementById('fpRet5y').value=r5;
     this.state.retMin1y=r1; this.state.retMin3y=r3; this.state.retMin5y=r5; updTabBadge();
+  },
+
+  // t98: Fund Age filter
+  setFundAge(val){
+    this.state.fundAge = val;
+    updTabBadge();
+  },
+
+  // t67: Fund Manager search
+  onManagerSearch(q){
+    const res = document.getElementById('fpManagerResults');
+    if(!res) return;
+    if(q.length < 2){ res.innerHTML='<span style="color:var(--text-muted);">Type at least 2 chars…</span>'; return; }
+    // Filter from loaded funds data (client-side)
+    const managers = [...new Set((SC._lastFunds||[]).map(f=>f.fund_manager).filter(m=>m&&m.toLowerCase().includes(q.toLowerCase())))].slice(0,8);
+    if(!managers.length){ res.innerHTML='<span style="color:var(--text-muted);">No managers found</span>'; return; }
+    res.innerHTML = managers.map(m=>`<div style="padding:4px 6px;cursor:pointer;border-radius:5px;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''" onclick="SC.setManager('${m.replace(/'/g,"\\'")}')">👤 ${m}</div>`).join('');
+  },
+  setManager(name){
+    this.state.manager = name;
+    const sel = document.getElementById('fpManagerSelected');
+    if(sel) sel.innerHTML = name ? `👤 <strong>${name}</strong> <span onclick="SC.setManager('')" style="cursor:pointer;color:var(--text-muted);">✕</span>` : '';
+    const inp = document.getElementById('fpManagerSearch');
+    if(inp) inp.value = name;
+    const res = document.getElementById('fpManagerResults');
+    if(res) res.innerHTML = '';
+    updTabBadge(); this.trigger();
+  },
+
+  // t108: Goal-based presets
+  applyGoalPreset(goal) {
+    this.reset();
+    const presets = {
+      retirement: { categories:['Equity — Large Cap','Index Fund','Equity — Flexi Cap'], retMin3y:10, planType:'direct' },
+      taxsaving:  { categories:['ELSS'], planType:'direct', hasLockin:1 },
+      shortterm:  { categories:['Debt — Liquid','Debt — Ultra Short Duration','Debt — Money Market'], ltcgDays:0 },
+      children:   { categories:['Equity — Mid Cap','Equity — Flexi Cap','Equity — Multi Cap'], retMin5y:10, planType:'direct' },
+      wealth:     { categories:['Equity — Mid Cap','Equity — Small Cap','Equity — Flexi Cap'], retMin3y:12 },
+      gold:       { categories:['Commodity'] },
+      lowrisk:    { categories:['Debt — Short Duration','Debt — Banking & PSU','Debt — Corporate Bond'], hasLockin:0 },
+    };
+    const p = presets[goal];
+    if (!p) return;
+    if (p.categories) { this.state.categories = p.categories; updCatChecks(); }
+    if (p.retMin3y)   this.state.retMin3y = p.retMin3y;
+    if (p.retMin5y)   this.state.retMin5y = p.retMin5y;
+    if (p.planType)   this.state.planType  = p.planType;
+    if (p.ltcgDays !== undefined) this.state.ltcgDays = p.ltcgDays;
+    if (p.hasLockin !== undefined) this.state.hasLockin = p.hasLockin;
+    updTabBadge(); this.trigger();
+    showToast(`🎯 Showing funds for: ${goal.charAt(0).toUpperCase()+goal.slice(1)} goal`, 'info');
+  },
+
+  // t108: Smart filter presets
+  applySmartFilter(filter) {
+    this.reset();
+    const filters = {
+      top_largecap:  { categories:['Equity — Large Cap'], sort:'ret3y_desc', retMin3y:12 },
+      low_cost_index:{ categories:['Index Fund'], sort:'exp_asc' },
+      high_alpha:    { sort:'ret3y_desc', retMin3y:15 },
+      consistent:    { sort:'ret3y_desc', retMin1y:8, retMin3y:10, retMin5y:10 },
+      direct_only:   { planType:'direct' },
+      no_exitload:   { hasLockin:0 },
+      elss_direct:   { categories:['ELSS'], planType:'direct', hasLockin:1 },
+    };
+    const f = filters[filter];
+    if (!f) return;
+    if (f.categories) { this.state.categories = f.categories; updCatChecks(); }
+    if (f.sort)       this.state.sort    = f.sort;
+    if (f.retMin1y)   this.state.retMin1y = f.retMin1y;
+    if (f.retMin3y)   this.state.retMin3y = f.retMin3y;
+    if (f.retMin5y)   this.state.retMin5y = f.retMin5y;
+    if (f.planType)   this.state.planType  = f.planType;
+    if (f.hasLockin !== undefined) this.state.hasLockin = f.hasLockin;
+    updTabBadge(); this.trigger();
   },
 
   setLtcgPill(v,el){
@@ -912,6 +1084,8 @@ const SC = {
     if(s.retMin1y!==null&&s.retMin1y!==undefined) p.set('ret_min_1y',s.retMin1y);
     if(s.retMin3y!==null&&s.retMin3y!==undefined) p.set('ret_min_3y',s.retMin3y);
     if(s.retMin5y!==null&&s.retMin5y!==undefined) p.set('ret_min_5y',s.retMin5y);
+    if(s.manager)   p.set('manager', s.manager);    // t67
+    if(s.fundAge)   p.set('fund_age', s.fundAge);   // t98
     p.set('sort',s.sort);p.set('page',s.page);p.set('per_page',s.perPage);
     Object.entries(extra).forEach(([k,v])=>p.set(k,v));
     return p.toString();
@@ -993,7 +1167,7 @@ const FP = {
 let _openTab = null;
 function toggleTab(name, el) {
   const panel = document.getElementById('scFilterPanel');
-  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns'];
+  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns','fp_manager','fp_age'];
   const tabs = document.querySelectorAll('.sc-filter-tab');
 
   if (_openTab === name) {
@@ -1108,6 +1282,7 @@ function renderTable(funds,total){
   if(!funds.length){el.innerHTML='<div style="padding:60px;text-align:center;"><div style="font-size:40px;margin-bottom:12px;">🔍</div><div style="font-size:14px;font-weight:600;margin-bottom:6px;">No funds found</div><div style="font-size:12px;color:var(--text-muted);">Try adjusting your filters</div></div>';return;}
   const bm={Equity:'eq',Debt:'dt',Commodity:'cm','FoF/Intl':'fo',Solution:'sl'};
   window._scFunds=funds;
+  SC._lastFunds = funds; // t67: store for manager typeahead
   // Returns cell renderer
   function _retCell(v) {
     if (v === null || v === undefined) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
@@ -1201,7 +1376,17 @@ function renderTable(funds,total){
     return `<tr>
       <td>
         <div style="font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;line-height:1.4;word-break:break-word;white-space:normal;" onclick="drOpen(${i})">${f.scheme_name||''}</div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${f.fund_house||''}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${f.fund_house||''}${f.fund_manager?` · 👤 ${f.fund_manager}`:''}</div>
+        ${(()=>{
+          // t98: Fund age badge from inception_date
+          if (!f.inception_date) return '';
+          const yrs = (Date.now() - new Date(f.inception_date)) / (365.25*86400000);
+          const badge = yrs < 1 ? '<span style="font-size:9px;font-weight:800;background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;margin-left:4px;">NEW</span>'
+                      : yrs < 3 ? ''
+                      : yrs < 5 ? ''
+                      : '<span style="font-size:9px;font-weight:800;background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:3px;margin-left:4px;">VETERAN</span>';
+          return badge;
+        })()}
       </td>
       <td style="width:150px;vertical-align:middle;padding:7px 8px;">
         <div style="display:flex;gap:3px;flex-wrap:nowrap;align-items:center;">
@@ -1309,6 +1494,8 @@ function renderChips(){
   if(s.hasLockin>=0) chips.push({l:s.hasLockin===1?'Lock-in':'No Lock-in',r:()=>{SC.state.hasLockin=-1;document.querySelector('input[name=liF]').checked=true;updTabBadge();SC.trigger();}});
   s.fundHouses.forEach(fh=>chips.push({l:fh,r:()=>{SC.state.fundHouses=SC.state.fundHouses.filter(h=>h!==fh);document.querySelectorAll('#fpAmcGrid input').forEach(cb=>{if(cb.dataset.fh===fh)cb.checked=false;});updTabBadge();SC.trigger();}}));
   if(s.categories.length) chips.push({l:`${s.categories.length} categor${s.categories.length>1?'ies':'y'}`,r:()=>{SC.state.categories=[];SC.state.quickType='';updCatChecks();updTabBadge();SC.trigger();}});
+  if(s.manager) chips.push({l:`👤 ${s.manager}`,r:()=>{SC.setManager('');SC.trigger();}});   // t67
+  if(s.fundAge) chips.push({l:`Age: ${s.fundAge==='1'?'<1yr':s.fundAge==='3'?'1-3yr':s.fundAge==='5'?'3-5yr':'5+yr'}`,r:()=>{SC.state.fundAge='';document.querySelectorAll('input[name=fundAge]')[0].checked=true;updTabBadge();SC.trigger();}});  // t98
   const bar=document.getElementById('scChips');SC._chips=chips;
   bar.innerHTML=chips.map((c,i)=>`<span class="sc-chip" onclick="SC._chips[${i}].r()">✕ ${c.l}</span>`).join('')+(chips.length?`<button class="sc-clear-all" onclick="SC.reset()">Clear all</button>`:'');
 }
@@ -1679,23 +1866,46 @@ function renderCompareTable() {
     const isBest = valid.length > 1 && v === Math.min(...valid);
     return isBest ? `<span class="cmp-best">${v.toFixed(2)}%</span>` : `${v.toFixed(2)}%`;
   }
+  // t96: Alpha/Beta proxy calculation
+  const mktRet = funds.filter(f=>!((f.category||'').toLowerCase().includes('debt'))).reduce((s,f,_,a)=>(s+(parseFloat(f.returns_3y)||12)/a.length),12);
+  const RISK_FREE = 6.5;
+  function calcAlpha(f) {
+    const r = parseFloat(f.returns_3y)||0;
+    const b = mktRet > 0 ? (r/mktRet).toFixed(2) : 1;
+    const a = (r - (RISK_FREE + parseFloat(b)*(mktRet-RISK_FREE))).toFixed(2);
+    return {alpha: parseFloat(a), beta: parseFloat(b)};
+  }
+  // Consistency: ratio of min to max across 1Y/3Y/5Y
+  function consistency(f) {
+    const vals = [f.returns_1y, f.returns_3y, f.returns_5y].filter(v => v !== null && v !== undefined).map(Number);
+    if (vals.length < 2) return null;
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    return mx > 0 ? Math.round(mn/mx*100) : null;
+  }
 
   const rows = [
-    {label:'Fund House', vals: funds.map(f => f.fund_house||'—')},
-    {label:'Category',   vals: funds.map(f => f.category_short||f.category||'—')},
-    {label:'Plan',       vals: funds.map(f => f.plan_type==='direct'?'<span style="color:#16a34a;font-weight:700;">✅ Direct</span>':'<span style="color:#d97706;">Regular</span>')},
-    {label:'Risk Level', vals: funds.map(f => f.risk_level||'—')},
-    {label:'Latest NAV', vals: funds.map(f => fmtNav(f.latest_nav))},
-    {label:'Peak NAV',   vals: funds.map(f => fmtNav(f.highest_nav))},
-    {label:'Drawdown',   vals: funds.map(f => f.drawdown_pct !== null ? `<span style="color:${f.drawdown_pct>20?'#dc2626':f.drawdown_pct>10?'#d97706':'#16a34a'};">▼${f.drawdown_pct}%</span>` : '—')},
-    {label:'1Y Return',  vals: funds.map(f => fmtRet(f.returns_1y, funds.map(x=>x.returns_1y))), isBest:true},
-    {label:'3Y CAGR',    vals: funds.map(f => fmtRet(f.returns_3y, funds.map(x=>x.returns_3y))), isBest:true},
-    {label:'5Y CAGR',    vals: funds.map(f => fmtRet(f.returns_5y, funds.map(x=>x.returns_5y))), isBest:true},
+    {label:'Fund House',    vals: funds.map(f => f.fund_house||'—')},
+    {label:'Category',      vals: funds.map(f => f.category_short||f.category||'—')},
+    {label:'Plan',          vals: funds.map(f => f.plan_type==='direct'?'<span style="color:#16a34a;font-weight:700;">✅ Direct</span>':'<span style="color:#d97706;">Regular</span>')},
+    {label:'Fund Manager',  vals: funds.map(f => f.fund_manager||'—')},  // t96
+    {label:'Risk Level',    vals: funds.map(f => f.risk_level||'—')},
+    {label:'Latest NAV',    vals: funds.map(f => fmtNav(f.latest_nav))},
+    {label:'Peak NAV',      vals: funds.map(f => fmtNav(f.highest_nav))},
+    {label:'Drawdown',      vals: funds.map(f => f.drawdown_pct !== null ? `<span style="color:${f.drawdown_pct>20?'#dc2626':f.drawdown_pct>10?'#d97706':'#16a34a'};">▼${f.drawdown_pct}%</span>` : '—')},
+    {label:'1Y Return',     vals: funds.map(f => fmtRet(f.returns_1y, funds.map(x=>x.returns_1y))), isBest:true},
+    {label:'3Y CAGR',       vals: funds.map(f => fmtRet(f.returns_3y, funds.map(x=>x.returns_3y))), isBest:true},
+    {label:'5Y CAGR',       vals: funds.map(f => fmtRet(f.returns_5y, funds.map(x=>x.returns_5y))), isBest:true},
+    // t96: Alpha & Beta
+    {label:'Alpha (α)',     vals: funds.map(f => { const {alpha}=calcAlpha(f); return alpha>=3?`<span style="color:#15803d;font-weight:800;">+${alpha}% 🌟</span>`:alpha>=0?`<span style="color:#16a34a;">+${alpha}%</span>`:`<span style="color:#dc2626;">${alpha}%</span>`; })},
+    {label:'Beta (β)',      vals: funds.map(f => { const {beta}=calcAlpha(f); return beta<0.8?`<span style="color:#3b82f6;">β ${beta}</span>`:beta<1.2?`<span style="color:#d97706;">β ${beta}</span>`:`<span style="color:#dc2626;">β ${beta}</span>`; })},
+    // t96: Consistency score
+    {label:'Consistency',   vals: funds.map(f => { const c=consistency(f); return c===null?'—':`<div style="display:inline-flex;align-items:center;gap:4px;"><div style="width:40px;height:5px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;"><div style="height:100%;width:${c}%;background:${c>=70?'#16a34a':c>=50?'#d97706':'#dc2626'};border-radius:99px;"></div></div> ${c}%</div>`; })},
     {label:'Expense Ratio', vals: funds.map(f => fmtExp(f.expense_ratio, funds.map(x=>x.expense_ratio)))},
-    {label:'Exit Load',  vals: funds.map(f => f.exit_load_pct > 0 ? `⚠ ${f.exit_load_pct}% / ${f.exit_load_days}d` : f.exit_load_pct===0 ? '✓ Nil' : '—')},
-    {label:'AUM',        vals: funds.map(f => f.aum_crore ? '₹'+Number(f.aum_crore).toLocaleString('en-IN',{maximumFractionDigits:0})+' Cr' : '—')},
-    {label:'LTCG Period',vals: funds.map(f => f.min_ltcg_days===365?'1 Year':f.min_ltcg_days===730?'2 Years':f.min_ltcg_days===1095?'3 Years':f.min_ltcg_days+' days')},
-    {label:'Lock-in',    vals: funds.map(f => f.lock_in_days>0?(f.lock_in_days===1095?'3yr (ELSS)':f.lock_in_days+'d'):'None')},
+    {label:'Exit Load',     vals: funds.map(f => f.exit_load_pct > 0 ? `⚠ ${f.exit_load_pct}% / ${f.exit_load_days}d` : f.exit_load_pct===0 ? '✓ Nil' : '—')},
+    {label:'AUM',           vals: funds.map(f => f.aum_crore ? '₹'+Number(f.aum_crore).toLocaleString('en-IN',{maximumFractionDigits:0})+' Cr' : '—')},
+    {label:'LTCG Period',   vals: funds.map(f => f.min_ltcg_days===365?'1 Year':f.min_ltcg_days===730?'2 Years':f.min_ltcg_days===1095?'3 Years':f.min_ltcg_days+' days')},
+    {label:'Lock-in',       vals: funds.map(f => f.lock_in_days>0?(f.lock_in_days===1095?'3yr (ELSS)':f.lock_in_days+'d'):'None')},
+    {label:'Fund Age',      vals: funds.map(f => { if(!f.inception_date)return'—'; const y=((Date.now()-new Date(f.inception_date))/(365.25*86400000)).toFixed(1); return y+'yr'; })}, // t96
   ];
 
   body.innerHTML = `
@@ -1707,7 +1917,10 @@ function renderCompareTable() {
       <tbody>
         ${rows.map(r=>`<tr><td class="cmp-row-label">${r.label}</td>${r.vals.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}
       </tbody>
-    </table>`;
+    </table>
+    <div style="font-size:11px;color:var(--text-muted);padding:8px;margin-top:8px;background:var(--bg-secondary);border-radius:6px;">
+      💡 <strong>Alpha</strong> = excess return over risk-adjusted benchmark · <strong>Beta</strong> = market sensitivity · <strong>Consistency</strong> = return stability across 1Y/3Y/5Y
+    </div>`;
 }
 
 /* ══════════════════════════════════════════════════
@@ -2104,21 +2317,27 @@ function switchView(v) {
   const isWl  = v === 'watchlist';
   const isTop = v === 'top';
   const isAll = v === 'all';
+  const isNfo = v === 'nfo';   // t64
 
   document.getElementById('vtab_all').classList.toggle('active', isAll);
   document.getElementById('vtab_top').classList.toggle('active', isTop);
   const wlTab = document.getElementById('vtab_wl');
   if (wlTab) wlTab.classList.toggle('active', isWl);
+  const nfoTab = document.getElementById('vtab_nfo');
+  if (nfoTab) nfoTab.classList.toggle('active', isNfo);
 
-  document.getElementById('scSearchBar').style.display   = isWl || isTop ? 'none' : '';
-  document.getElementById('scChips').style.display       = isWl || isTop ? 'none' : '';
+  document.getElementById('scSearchBar').style.display   = isWl || isTop || isNfo ? 'none' : '';
+  document.getElementById('scChips').style.display       = isWl || isTop || isNfo ? 'none' : '';
   document.getElementById('scResultsWrap').style.display = isAll ? '' : 'none';
   document.getElementById('scTopWrap').style.display     = isTop ? 'flex' : 'none';
   const wlWrap = document.getElementById('scWlWrap');
   if (wlWrap) wlWrap.style.display = isWl ? 'flex' : 'none';
+  const nfoWrap = document.getElementById('scNfoWrap');
+  if (nfoWrap) nfoWrap.style.display = isNfo ? 'flex' : 'none';
 
   if (isTop) loadTopPerformers(_tpPeriod);
   if (isWl)  renderWatchlistView();
+  if (isNfo && typeof loadNfoTracker === 'function') loadNfoTracker('scNfoBody');  // t64
 }
 
 /* ══════════════════════════════════════════════════

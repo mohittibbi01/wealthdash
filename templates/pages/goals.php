@@ -19,9 +19,26 @@ ob_start();
     <p class="page-subtitle">Define financial goals · Track progress · Know your SIP target</p>
   </div>
   <div class="page-actions">
+    <button class="btn btn-ghost btn-sm" onclick="openAddBucket()">+ Add Goal Bucket</button>
     <button class="btn btn-primary" id="btnAddGoal">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Goal
+    </button>
+  </div>
+</div>
+
+<!-- t139: Goal Buckets Section -->
+<div class="card mb-4" style="border:1.5px solid var(--accent);background:rgba(99,102,241,.03);">
+  <div class="card-header">
+    <h3 class="card-title">🪣 Goal Buckets — Tag Funds to Goals</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Link any MF holding or SIP to a life goal</span>
+  </div>
+  <div class="card-body" style="padding:14px;">
+    <div id="bucketGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:12px;">
+      <div style="text-align:center;color:var(--text-muted);padding:20px;"><span class="spinner"></span></div>
+    </div>
+    <button onclick="openAddBucket()" class="btn btn-ghost btn-sm" style="border:1.5px dashed var(--border);width:100%;padding:10px;">
+      + Create New Goal Bucket
     </button>
   </div>
 </div>
@@ -40,6 +57,216 @@ ob_start();
   <p class="text-secondary">No goals yet. Create your first investment goal!</p>
   <button class="btn btn-primary mt-2" onclick="openAddGoal()">+ Add Goal</button>
 </div>
+
+<!-- Add Bucket Modal -->
+<div class="modal-overlay" id="modalAddBucket" style="display:none;">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Create Goal Bucket</h3>
+      <button class="modal-close" onclick="hideModal('modalAddBucket')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Emoji</label>
+          <input type="text" id="bktEmoji" value="🎯" maxlength="2" class="form-input" style="width:50px;text-align:center;font-size:20px;padding:6px;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Goal Name *</label>
+          <input type="text" id="bktName" class="form-input" placeholder="e.g. Daughter Education">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Target Amount (₹)</label>
+          <input type="number" id="bktTarget" class="form-input" placeholder="e.g. 5000000">
+        </div>
+        <div class="form-group">
+          <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Target Date</label>
+          <input type="date" id="bktDate" class="form-input">
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Color</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <?php foreach(['#6366f1','#8b5cf6','#ec4899','#ef4444','#f59e0b','#10b981','#3b82f6','#14b8a6'] as $c): ?>
+          <div onclick="selectBktColor('<?= $c ?>')" data-color="<?= $c ?>"
+            style="width:28px;height:28px;border-radius:50%;background:<?= $c ?>;cursor:pointer;border:2px solid transparent;transition:border .15s;"
+            class="bkt-color-swatch"></div>
+          <?php endforeach; ?>
+        </div>
+        <input type="hidden" id="bktColor" value="#6366f1">
+      </div>
+      <div id="bktError" class="form-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="hideModal('modalAddBucket')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBucket()">Create Bucket</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link Fund to Goal Modal -->
+<div class="modal-overlay" id="modalLinkFund" style="display:none;">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="linkFundTitle">Link Fund to Goal</h3>
+      <button class="modal-close" onclick="hideModal('modalLinkFund')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Select goal to link this fund/SIP to:</div>
+      <div id="linkGoalList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* t139: Goal Buckets JS */
+const BUCKET_KEY = 'wd_goal_buckets_v1'; // localStorage fallback
+let _buckets = [];
+
+async function loadBuckets() {
+  try {
+    const res = await fetch(`${APP_URL}/api/router.php?action=goals_with_values`);
+    const d   = await res.json();
+    if (d.success) { _buckets = d.data || []; renderBuckets(); return; }
+  } catch(e) {}
+  // Fallback to localStorage
+  try { _buckets = JSON.parse(localStorage.getItem(BUCKET_KEY) || '[]'); } catch(e) { _buckets = []; }
+  renderBuckets();
+}
+
+function renderBuckets() {
+  const grid = document.getElementById('bucketGrid');
+  if (!grid) return;
+  if (!_buckets.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">
+      No goal buckets yet.<br>Create one to start tagging your investments to life goals.
+    </div>`;
+    return;
+  }
+  function fmtI(v) {
+    v = Math.abs(v||0);
+    if (v >= 1e7) return '₹'+(v/1e7).toFixed(1)+'Cr';
+    if (v >= 1e5) return '₹'+(v/1e5).toFixed(1)+'L';
+    return '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+  }
+  grid.innerHTML = _buckets.map(b => {
+    const target  = parseFloat(b.target_amount)||0;
+    const current = parseFloat(b.current_value)||0;
+    const pct     = target > 0 ? Math.min(100, (current/target*100)).toFixed(0) : 0;
+    const daysLeft= b.target_date ? Math.ceil((new Date(b.target_date)-Date.now())/86400000) : null;
+    const onTrack = daysLeft && current > 0 && target > 0;
+    return `<div style="background:var(--bg-surface);border:1.5px solid var(--border);border-radius:10px;padding:14px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${b.color||'#6366f1'};opacity:.7;"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:22px;">${b.emoji||'🎯'}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13px;">${b.name}</div>
+          ${b.target_date?`<div style="font-size:11px;color:var(--text-muted);">By ${new Date(b.target_date).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</div>`:''}
+        </div>
+        <button onclick="deleteBucket(${b.id})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;">✕</button>
+      </div>
+      ${target>0?`
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+          <span style="color:var(--text-muted);">${fmtI(current)} saved</span>
+          <span style="font-weight:700;color:${b.color||'#6366f1'};">${pct}%</span>
+        </div>
+        <div style="height:6px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${b.color||'#6366f1'};border-radius:99px;transition:width .5s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Target: ${fmtI(target)}</div>
+      </div>`:''}
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">
+        <span style="color:var(--text-muted);">${b.linked_count||0} fund${b.linked_count!=1?'s':''} linked</span>
+        <button onclick="openTagFunds(${b.id},'${b.name}')" style="font-size:11px;padding:3px 8px;border-radius:5px;background:${b.color||'#6366f1'};color:#fff;border:none;cursor:pointer;font-weight:700;">+ Tag Fund</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectBktColor(c) {
+  document.getElementById('bktColor').value = c;
+  document.querySelectorAll('.bkt-color-swatch').forEach(s => {
+    s.style.borderColor = s.dataset.color === c ? '#fff' : 'transparent';
+    s.style.transform   = s.dataset.color === c ? 'scale(1.2)' : 'scale(1)';
+  });
+}
+
+function openAddBucket() { showModal('modalAddBucket'); selectBktColor('#6366f1'); }
+
+async function saveBucket() {
+  const name   = document.getElementById('bktName').value.trim();
+  const emoji  = document.getElementById('bktEmoji').value.trim() || '🎯';
+  const color  = document.getElementById('bktColor').value || '#6366f1';
+  const target = parseFloat(document.getElementById('bktTarget').value)||0;
+  const date   = document.getElementById('bktDate').value || '';
+  if (!name) { document.getElementById('bktError').textContent='Name required'; document.getElementById('bktError').style.display=''; return; }
+
+  try {
+    const res = await apiPost({ action:'goals_add', name, emoji, color, target_amount:target, target_date:date });
+    if (res.success) {
+      hideModal('modalAddBucket');
+      showToast(`✅ Goal "${name}" created!`, 'success');
+      loadBuckets();
+    } else {
+      // Fallback: localStorage
+      _buckets.unshift({ id: Date.now(), name, emoji, color, target_amount:target, target_date:date, current_value:0, linked_count:0 });
+      try { localStorage.setItem(BUCKET_KEY, JSON.stringify(_buckets)); } catch(e){}
+      hideModal('modalAddBucket');
+      renderBuckets();
+      showToast(`✅ Goal "${name}" created (offline)`, 'success');
+    }
+  } catch(e) {
+    // offline fallback
+    _buckets.unshift({ id: Date.now(), name, emoji, color, target_amount:target, target_date:date, current_value:0, linked_count:0 });
+    try { localStorage.setItem(BUCKET_KEY, JSON.stringify(_buckets)); } catch(ex){}
+    hideModal('modalAddBucket');
+    renderBuckets();
+  }
+}
+
+async function deleteBucket(id) {
+  if (!confirm('Delete this goal bucket?')) return;
+  try { await apiPost({ action:'goals_delete', id }); } catch(e){}
+  _buckets = _buckets.filter(b => b.id !== id);
+  try { localStorage.setItem(BUCKET_KEY, JSON.stringify(_buckets)); } catch(e){}
+  renderBuckets();
+  showToast('Goal deleted.', 'info');
+}
+
+function openTagFunds(goalId, goalName) {
+  // Show holdings to tag — fetched from MF API
+  document.getElementById('linkFundTitle').textContent = `Tag Fund → ${goalName}`;
+  const list = document.getElementById('linkGoalList');
+  list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;">Enter fund name to tag:</div><input type="text" id="tagFundSearch" class="form-input" placeholder="Fund name…" style="margin-bottom:8px;"><div id="tagFundResults"></div>';
+  document.getElementById('tagFundSearch').oninput = function() {
+    const q = this.value.toLowerCase();
+    const results = (window._mfHoldings || []).filter(h => (h.scheme_name||'').toLowerCase().includes(q)).slice(0,6);
+    document.getElementById('tagFundResults').innerHTML = results.map(h =>
+      `<div style="padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12px;display:flex;justify-content:space-between;align-items:center;"
+            onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''"
+            onclick="tagFundToGoal(${goalId},${h.fund_id||h.id},'${(h.scheme_name||'').replace(/'/g,'\\'')}')">
+        <span>${h.scheme_name}</span>
+        <span style="font-size:11px;color:var(--text-muted);">${h.category||''}</span>
+      </div>`
+    ).join('') || '<div style="color:var(--text-muted);font-size:12px;padding:8px;">No holdings found — type fund name</div>';
+  };
+  showModal('modalLinkFund');
+}
+
+async function tagFundToGoal(goalId, fundId, fundName) {
+  try {
+    await apiPost({ action:'goals_link_fund', goal_id:goalId, fund_id:fundId });
+    hideModal('modalLinkFund');
+    showToast(`✅ ${fundName} tagged to goal!`, 'success');
+    loadBuckets();
+  } catch(e) { showToast('Could not tag fund', 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', loadBuckets);
+</script>
 
 <!-- Goal Calculator (standalone) -->
 <div class="card mt-4">
@@ -1046,4 +1273,3 @@ document.addEventListener('DOMContentLoaded', () => {
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';
 ?>
-

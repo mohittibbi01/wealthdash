@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WealthDash — Master Dev Dashboard v2.1</title>
+<title>WealthDash — Master Dev Dashboard</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -284,21 +284,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 </style>
 </head>
 <body>
-<!-- Error banner — auto shows if JS crashes -->
-<div id="errBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#dc2626;color:#fff;padding:10px 20px;font-family:monospace;font-size:13px;line-height:1.6;"></div>
-<script>
-window.onerror = function(msg, src, line, col, err) {
-  var b = document.getElementById('errBanner');
-  if (b) {
-    b.style.display = 'block';
-    b.innerHTML = '❌ JS Error: ' + msg + '<br>Line: ' + line + ' · ' + (src||'').split('/').pop();
-  }
-};
-</script>
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <div class="logo">⚡ WealthDash <span class="logo-sub">Dev Dashboard v2.1 · Phase 1✅ Phase 2✅ Phase 5✅</span></div>
+  <div class="logo">⚡ WealthDash <span class="logo-sub">Master Dev Dashboard</span></div>
   <div class="topbar-right">
     <span class="last-saved" id="lastSaved">—</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">↕ Collapse All</button>
@@ -355,12 +344,7 @@ window.onerror = function(msg, src, line, col, err) {
     </div>
   </div>
 
-  <div class="phases" id="phasesWrap">
-    <div id="jsLoadingMsg" style="padding:40px;text-align:center;color:#64748b;font-size:14px;">
-      ⏳ Loading tasks...
-      <div style="font-size:12px;margin-top:8px;color:#94a3b8;">Agar yeh message 3 seconds se zyada dikh raha hai, to browser Console (F12) mein error check karo.</div>
-    </div>
-  </div>
+  <div class="phases" id="phasesWrap"></div>
 </div>
 
 <!-- ========== TAB: ROADMAP ========== -->
@@ -471,7 +455,7 @@ window.onerror = function(msg, src, line, col, err) {
       </div>
       <iframe id="debugIframe" src="about:blank"
         style="width:100%;height:600px;border:none;display:block;"
-        onload="if(typeof onIframeLoad==='function')onIframeLoad(this)">
+        onload="onIframeLoad(this)">
       </iframe>
     </div>
 
@@ -1410,6 +1394,149 @@ Please:
 5. Dry-run mode (actual changes na karo, sirf dikhao)`},
 ];
 
+// ─── NEW PHASES: MF Advanced Features ───────────────────────────────────────
+
+const NEW_PHASES = [
+
+{id:'p_mf_data',ico:'📡',color:'#0891b2',title:'Phase 25 — MF Data Pipeline (NAV History + Returns)',tasks:[
+  {id:'t160',title:'NAV History Populate — MFAPI se historical data fetch karo',pr:'p0',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/populate_nav_history.php (NEW)'],
+   desc:'nav_history table already hai lekin data nahi. MFAPI.in se free mein sab funds ka full history fetch karo.',
+   sub:['Script: cron/populate_nav_history.php — MFAPI.in se fetch karo','URL: https://api.mfapi.in/mf/{scheme_code}','Sab active funds ke liye loop karo','Batch processing: 50 funds at a time (rate limit avoid)','nav_history table mein INSERT IGNORE karo','Progress log: kitne funds done, kitne failed','Estimated: 5000+ funds × 1000+ days = 5M+ rows','Run ek baar manually, phir daily cron maintain karega']},
+  {id:'t161',title:'Returns Calculator Cron — 1Y/3Y/5Y returns funds table mein update karo',pr:'p0',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/calculate_returns.php (NEW)'],
+   desc:'nav_history mein data aa gaya. Ab returns calculate karo aur funds.returns_1y/3y/5y update karo.',
+   sub:['Formula: 1Y = (NAV_today/NAV_365d_ago - 1)*100','3Y CAGR = (NAV_today/NAV_1095d_ago)^(1/3) - 1)*100','5Y CAGR = (NAV_today/NAV_1825d_ago)^(1/5) - 1)*100','funds table mein returns_1y, returns_3y, returns_5y columns update karo','Only funds with enough history calculate karo (1Y needs 365 days)','Daily cron mein add karo (after nav update)','Add returns_updated_at column to track freshness']},
+  {id:'t162',title:'NAV Update Cron Fix — Daily cron mein nav_history bhi update ho',pr:'p0',type:'fix',eff:'1-2 hr',
+   files:['cron/update_nav_daily.php'],
+   desc:'Existing daily cron sirf latest_nav update karta hai. nav_history table mein bhi insert karo.',
+   sub:['cron/update_nav_daily.php mein nav_history INSERT add karo','Duplicate avoid: INSERT IGNORE with unique key (fund_id, nav_date)','After nav update, returns_1y ko recalculate karo (1Y sirf)','Log: kitne NAVs updated, kitne failed']},
+  {id:'t163',title:'MFAPI Proxy — Local cache for MFAPI responses',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['api/mutual_funds/nav_proxy.php (NEW)'],
+   desc:'Screener drawer mein NAV chart ke liye MFAPI ko direct JS se call karte hain. Ye slow aur unreliable hai. Server-side proxy banao.',
+   sub:['PHP proxy: api/mutual_funds/nav_proxy.php','DB cache: agar nav_history mein data hai to seedha return karo','Fallback: MFAPI call karo agar cache miss','Cache TTL: 24 hours','Response format: same as MFAPI ({data:[{date,nav}]})','CORS headers add karo']},
+]},
+
+{id:'p_mf_screener3',ico:'🔍',color:'#7c3aed',title:'Phase 26 — MF Screener Level 3',tasks:[
+  {id:'t164',title:'Sharpe Ratio — Risk-adjusted return metric add karo',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/calculate_returns.php','api/mutual_funds/fund_screener.php','templates/pages/mf_screener.php'],
+   desc:'Sharpe = (Fund Return - Risk Free Rate) / Standard Deviation. Best risk-adjusted return indicator.',
+   sub:['DB: funds table mein sharpe_ratio column add karo','Calculate from nav_history: daily returns ka std dev','Risk-free rate: 6.5% (91-day T-bill)','Screener table mein Sharpe column add karo (sortable)','Sort by Sharpe as default for "Best Risk-Adjusted" preset','Drawer mein Sharpe explanation add karo','Filter: Sharpe > 1 = Good, > 2 = Excellent']},
+  {id:'t165',title:'Sortino Ratio — Downside-only volatility metric',pr:'p2',type:'feat',eff:'1-2 hr',db:true,
+   files:['cron/calculate_returns.php','api/mutual_funds/fund_screener.php'],
+   desc:'Better than Sharpe — only penalizes downside volatility, not upside.',
+   sub:['DB: sortino_ratio column in funds','Calculate: only negative daily returns ka std dev use karo','Show in screener drawer aur comparison modal','Tooltip: "Higher Sortino = fund protects better in downturns"']},
+  {id:'t166',title:'Maximum Drawdown — Worst loss from peak',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/calculate_returns.php','api/mutual_funds/fund_screener.php'],
+   desc:'Already drawdown_pct hai (ATH se current). Max Drawdown = worst historical drop alag hota hai.',
+   sub:['DB: max_drawdown_pct, max_drawdown_date columns','Calculate: nav_history se rolling maximum find karo, max drop calculate karo','Screener filter: Max Drawdown < 20% for conservative investors','Color: <15% green, 15-30% yellow, >30% red','Drawer mein show karo with date of worst drawdown']},
+  {id:'t167',title:'Category Average Comparison — Fund vs Peers',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/calculate_returns.php','api/mutual_funds/fund_screener.php','templates/pages/mf_screener.php'],
+   desc:'HDFC Mid Cap ka 3Y return 22% hai — but category average 18% hai, to ye 4% outperformer hai.',
+   sub:['DB: category_avg_1y, category_avg_3y, category_avg_5y in funds (denormalized for speed)','Cron: har category ke liye average calculate karo','Screener table: vs. Category column add karo (+4% green, -2% red)','Filter: "Category beaters only" — funds jo category average se upar hain','Drawer: "This fund ranks X out of Y in its category"']},
+  {id:'t168',title:'Fund House Rankings — AMC level performance',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/mf_screener.php','api/mutual_funds/fund_screener.php'],
+   desc:'Screener mein AMC filter hai. Ab AMC-level aggregate performance dikhao.',
+   sub:['AMC ke sabhi funds ka weighted average return','Top 5 AMCs by average 3Y return','AMC consistency score: kitne funds category beat karte hain','Screener mein "Sort by AMC performance" option']},
+  {id:'t169',title:'Expense Ratio Trend — Kya fund ka TER badh raha hai?',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
+   files:['database/migrations/026_expense_history.sql','cron/'],
+   sub:['DB: expense_ratio_history — fund_id, expense_ratio, recorded_date','Monthly snapshot store karo','Drawer mein trend line: TER last 12 months','Alert: "TER increased by 0.2% in last 6 months"','SEBI TER limits check: Large cap max 1.05%, Mid 1.20%']},
+]},
+
+{id:'p_mf_portfolio2',ico:'💼',color:'#059669',title:'Phase 27 — MF Portfolio Intelligence',tasks:[
+  {id:'t170',title:'SIP Return Analysis — Lump sum vs SIP comparison',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   desc:'Mera SIP better tha ya ek baar lump sum deta to better hota? Real data se answer.',
+   sub:['For each fund: recalculate as if same total amount invested as lump sum on first SIP date','Compare: SIP XIRR vs hypothetical Lump Sum XIRR','Holdings page mein "SIP vs Lump Sum" column','Insight: "Your SIP strategy gave 2.3% higher XIRR than lump sum in this fund"']},
+  {id:'t171',title:'Dividend History — IDCW payout track karo',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
+   files:['database/migrations/027_dividends.sql','api/mutual_funds/'],
+   sub:['DB: mf_dividends — fund_id, folio_id, dividend_date, nav_before, nav_after, rate_per_unit, amount_received','AMFI se dividend history fetch karo','Holdings page mein "Dividends Received" column','Tax: IDCW taxable as per slab, show in tax report','Total dividends received across all funds this FY']},
+  {id:'t172',title:'Folio Consolidation Alert — Multiple folios for same fund',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   desc:'Same fund ke 2 folios hona wasteful. CAMS/Kfintech se consolidate possible hai.',
+   sub:['Detect: same scheme_code + different folio_number in mf_transactions','Alert banner: "You have 2 folios for HDFC Mid Cap. Consolidate to simplify."','How to consolidate: link to CAMS/KFintech process','Tax impact: consolidation is not a redemption, no capital gains']},
+  {id:'t173',title:'Exit Strategy Planner — Kab redeem karna chahiye',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   desc:'Tax-optimal exit planning. Kaunsa lot redeem karo to minimum tax lage.',
+   sub:['LTCG eligibility: which units have crossed 1Y/3Y','HIFO vs FIFO comparison for exit','Tax harvesting: redeem units with highest gain below ₹1.25L exemption','SWP calculator: monthly withdrawal amount vs corpus depletion','"If you exit today" tax impact per fund']},
+  {id:'t174',title:'SIP Top-up Calculator — Step-up SIP optimal amount',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/report_sip.php'],
+   sub:['Current SIP amount + annual increment % input','Project corpus over 10/20/30 years with step-up','Compare: flat SIP vs step-up SIP corpus at retirement','Optimal step-up: "Increase SIP by 10% annually to reach goal 5 years early"']},
+  {id:'t175',title:'Rebalancing Alert — Asset allocation drift detect karo',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   desc:'Target allocation 60:40 hai but market movement se 70:30 ho gaya. Alert do.',
+   sub:['User sets target allocation: Equity %, Debt %, Gold %','Current allocation calculate karo from holdings','Alert: "Equity allocation drifted from 60% to 72%. Rebalance needed."','Rebalancing guide: kaise karo (redeem equity, buy debt)','Auto-rebalance suggestion: exact amounts to buy/sell']},
+]},
+
+{id:'p_mf_data2',ico:'📊',color:'#dc2626',title:'Phase 28 — MF Data Enrichment',tasks:[
+  {id:'t176',title:'Fund Overlap Matrix — All funds pairwise overlap',pr:'p2',type:'feat',eff:'3-4 hr',db:true,
+   files:['database/migrations/028_fund_holdings.sql','cron/fetch_fund_holdings.php (NEW)'],
+   desc:'AMFI monthly portfolio disclosure (CSV) se actual stock-level holdings fetch karo.',
+   sub:['DB: fund_stock_holdings — fund_id, stock_name, isin, weight_pct, month','Cron: monthly AMFI portfolio disclosure parse karo (CSV from amfiindia.com)','Exact overlap: jo stocks common hain + combined weight','Overlap matrix: all user holdings pairwise','Diversification Score v2: based on actual overlap not category proxy']},
+  {id:'t177',title:'Sector Allocation v2 — Actual AMFI data se',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+   files:['database/migrations/028_fund_holdings.sql'],
+   desc:'t97 mein category proxy use kiya. Ab actual AMFI data se accurate sector allocation.',
+   sub:['fund_stock_holdings se sector rollup karo','Screener drawer mein accurate sector pie chart','Portfolio-level: user ke sare funds ka combined sector exposure','Sector drift alert: IT allocation > 30% — concentrated risk']},
+  {id:'t178',title:'Top Holdings Disclosure — Fund ke top 10 stocks',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/mf_screener.php'],
+   desc:'Screener drawer mein top 10 holdings dikhao (AMFI data se).',
+   sub:['fund_stock_holdings se top 10 by weight','Screener drawer mein "Portfolio" tab add karo','Stock name, weight%, sector','"As of [month] disclosure"','Click on stock → all funds holding that stock dikhao']},
+  {id:'t179',title:'Style Box — Large/Mid/Small + Value/Blend/Growth',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
+   files:['cron/calculate_returns.php','templates/pages/mf_screener.php'],
+   desc:'Morningstar-style 3x3 style box. Fund actually kahan invest karta hai.',
+   sub:['DB: style_box ENUM in funds','Calculate from actual holdings: avg market cap, P/E ratio','3x3 grid: Large/Mid/Small × Value/Blend/Growth','Style drift: fund says Large Cap but 40% Mid Cap exposure','Filter: "Style Box = Mid Value"']},
+  {id:'t180',title:'Fund Manager Track Record — Manager wise historical performance',pr:'p2',type:'feat',eff:'3-4 hr',db:true,
+   files:['database/migrations/029_managers.sql'],
+   sub:['DB: fund_managers — name, fund_id, from_date, to_date','Manager switch history track karo','Performance attribution: pre vs post manager change','Top managers by 5Y alpha across all managed funds','Alert: "Fund manager changed 3 months ago — monitor performance"']},
+]},
+
+{id:'p_mf_ux',ico:'🎨',color:'#f59e0b',title:'Phase 29 — MF UX & Productivity',tasks:[
+  {id:'t181',title:'Quick Add SIP from Holdings — One click SIP add karo',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   sub:['Holdings row mein "+ SIP" quick button','Pre-fill fund name, folio — user sirf amount + date dale','Amount suggestions: ₹500, ₹1000, ₹2000, ₹5000 quick pills','SIP start from next 1st or 5th or 10th of month']},
+  {id:'t182',title:'Holdings Notes — Fund pe personal notes add karo',pr:'p3',type:'feat',eff:'1-2 hr',db:true,
+   files:['database/migrations/030_holdings_notes.sql'],
+   sub:['DB: mf_holding_notes — fund_id, folio, note, updated_at','Holdings row mein 📝 button','Modal: free text notes','Use case: "Bought on COVID dip", "Goal: retirement", "Review in Dec"']},
+  {id:'t183',title:'Portfolio Report Card — Monthly performance letter grade',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/mf_holdings.php','public/js/mf.js'],
+   desc:'Har mahine portfolio ka grade: A+ to F based on XIRR, consistency, costs.',
+   sub:['Grade components: XIRR vs benchmark (40%), SIP consistency (20%), Expense ratio (20%), Diversification (20%)','A+ = Excellent, A = Good, B = Average, C = Review needed, F = Poor','Monthly snapshot save karo (localStorage)','Trend: grade improving ya worsening?','Actionable feedback per component']},
+  {id:'t184',title:'Investment Calendar — Kab kaunsa event hai',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/mf_holdings.php'],
+   sub:['Monthly calendar view','Events: SIP deduction dates, LTCG completion dates, FD maturity, NFO closing, dividend ex-dates','Color coded: SIP (blue), LTCG (green), FD (orange), NFO (purple)','Upcoming 30 days focus view','iCal export']},
+  {id:'t185',title:'Screener Keyboard Shortcuts — Power user mode',pr:'p3',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/mf_screener.php'],
+   sub:['/ → focus search','F → open filter panel','C → clear all filters','D → toggle direct/regular','1/2/3 → switch tabs (Holdings/Screener/Compare)','? → show shortcuts help modal']},
+  {id:'t186',title:'Print / PDF Report — Holdings + Tax in printable format',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['public/css/app.css','templates/pages/mf_holdings.php'],
+   sub:['@media print CSS — clean layout','Page header: WealthDash Confidential + date + user name','Holdings table: all columns, no dropdowns','FY Gains: ITR-ready format','Page breaks between sections','PDF: use browser print → save as PDF']},
+]},
+
+{id:'p_mf_import2',ico:'📥',color:'#0369a1',title:'Phase 30 — MF Import & Sync',tasks:[
+  {id:'t187',title:'CAMS CAS Import — Auto-parse PDF statement',pr:'p1',type:'feat',eff:'3-4 days',
+   files:['api/mutual_funds/cas_import.php (NEW)'],
+   desc:'CAMS CAS PDF statement ko parse karo. All transactions automatically import ho.',
+   sub:['PDF text extract (pdfparser library ya external tool)','Parse: investor name, PAN, all folios, all transactions','Regex patterns for CAMS format','Duplicate detection before import','Preview: show parsed transactions before committing','Support password-protected PDFs (most CAS are password = PAN+DOB)']},
+  {id:'t188',title:'KFintech CAS Import — Karvy statement parser',pr:'p1',type:'feat',eff:'2-3 days',
+   files:['api/mutual_funds/cas_import.php'],
+   sub:['KFintech ka alag format — different column order','Same pipeline as CAMS','Common parser with format detection','Test: 5 real KFintech statements se validate']},
+  {id:'t189',title:'Groww CSV Import Fix — Handle new Groww format',pr:'p1',type:'fix',eff:'1-2 hr',
+   files:['api/mutual_funds/mf_import_csv.php'],
+   desc:'Groww ne CSV format change kiya. Headers aur column order update.',
+   sub:['New Groww headers: Scheme Name, Transaction Date, Transaction Type, Amount, Units, NAV, Folio No','Old format bhi support rakho','Auto-detect by checking column count','Test with sample Groww exports']},
+  {id:'t190',title:'Import History — Kaunsa file kab import hua',pr:'p2',type:'feat',eff:'1-2 hr',db:true,
+   files:['database/migrations/031_import_log.sql'],
+   sub:['DB: import_logs — user_id, filename, format, imported_count, failed_count, imported_at','Import page pe history tab add karo','Re-run option: agar import fail ho to retry','Rollback: last import ke changes undo karo']},
+]},
+
+];
+
+// Merge into main phases array
+NEW_PHASES.forEach(phase => {
+  window._allPhases = window._allPhases || [];
+  window._allPhases.push(phase);
+});
+
 // Checklist Data
 const CHECKLISTS=[
   {title:'🐛 Bug Fix Verification',items:[
@@ -1572,7 +1699,10 @@ function switchTab(id,el){
 // TASKS RENDER
 // =============================================
 let taskNumMap={};
-function buildTaskNums(){let n=0;PHASES.forEach(ph=>ph.tasks.forEach(t=>{taskNumMap[t.id]=++n}))}
+function buildTaskNums(phases){
+  phases = phases || [...PHASES,...NEW_PHASES];
+  let n=0;phases.forEach(ph=>ph.tasks.forEach(t=>{taskNumMap[t.id]=++n}))
+}
 
 function prioBadge(p){
   const m={p0:'🔴 Critical',p1:'🟠 High',p2:'🟡 Medium',p3:'🟢 Low'};
@@ -1623,13 +1753,15 @@ function renderTask(t,ph){
 }
 
 function renderAll(){
-  buildTaskNums();
+  // Merge NEW_PHASES into PHASES for rendering
+  const ALL_PHASES = [...PHASES, ...NEW_PHASES];
+  buildTaskNums(ALL_PHASES);
   const wrap=document.getElementById('phasesWrap');
   wrap.innerHTML='';
   // Fill phase select
   const sel=document.getElementById('newTaskPhase');
   sel.innerHTML='';
-  PHASES.forEach(ph=>{
+  ALL_PHASES.forEach(ph=>{
     const total=ph.tasks.length;
     const done=ph.tasks.filter(t=>S[t.id+'_m']).length;
     const pct=total?Math.round(done/total*100):0;
@@ -1695,17 +1827,18 @@ function updatePhaseHeader(pid){
 }
 
 function updateStats(){
+  const allPh=[...PHASES,...NEW_PHASES];
   let total=0,done=0,sub=0;
-  PHASES.forEach(ph=>ph.tasks.forEach(t=>{
+  allPh.forEach(ph=>ph.tasks.forEach(t=>{
     total++;if(S[t.id+'_m'])done++;
-    (t.sub||[]).forEach((_,i)=>{if(S[t.id+'_s'+i])sub++});
+    (t.sub||[]).forEach((_,i)=>{if(S[t.id+'_s'+i])sub++;});
   }));
   const pct=total?Math.round(done/total*100):0;
   document.getElementById('doneC').textContent=done;
   document.getElementById('subC').textContent=sub;
   document.getElementById('todoC').textContent=total-done;
   document.getElementById('totalC').textContent=total;
-  document.getElementById('phasesC').textContent=PHASES.length;
+  document.getElementById('phasesC').textContent=allPh.length;
   document.getElementById('masterPct').textContent=pct+'%';
   document.getElementById('masterBar').style.width=pct+'%';
 }
@@ -2104,30 +2237,32 @@ document.querySelectorAll('.modal-overlay').forEach(m=>{
 // =============================================
 load();
 
-// ── Force-mark completed tasks (hamesha set karo, override karo) ──
+// Seed completed tasks (pre-mark done tasks)
 const _completedTasks = [
-  // Phase 1 — Critical Bug Fixes ✅
   't01','t02','t03','t04','t05','t06',
-  // Phase 2 — MF Holdings & SIP/SWP ✅
   't07','t08','t09','t10','t11','t12','t13',
-  // Phase 5 — MF Screener ✅
-  't25','t26','t27','t28','t29','t30','t31','t32','t71','t73','t63','t65','t66','t69','t74','t109','t140','t141','t143','t82','t83','t72','t68','t95','t112','t110','t111','t77','t78','t79','t81','t21','t80','t132','t133','t135','t14','t15','t16','t36','t87','t157','t144','t18','t19','t47','t134','t102','t103','t104','t125','t126','t127','t129','t137','t136','t107','t114','t152','t138','t142','t145','t146','t17','t20','t85','t86','t88','t154','t155','t158','t147','t122','t123','t43','t46','t105','t128','t120','t23',
+  't14','t15','t16','t17','t18','t19','t20','t21',
+  't25','t26','t27','t28','t29','t30','t31','t32',
+  't35','t36','t37',
+  't43','t46','t47',
+  't63','t64','t65','t66','t67','t68','t69','t70','t71','t72','t73','t74',
+  't77','t78','t79','t80','t81','t82','t83','t85','t86','t87','t88',
+  't90','t91','t93','t94','t95','t96','t97','t98',
+  't102','t103','t104','t105','t107','t108','t109','t110','t111','t112','t114',
+  't120','t122','t123','t125','t126','t127','t128','t129',
+  't132','t133','t134','t135','t136','t137','t138','t139',
+  't140','t141','t142','t143','t144','t145','t146','t147',
+  't152','t154','t155','t157','t158',
+  't23',
 ];
-_completedTasks.forEach(tid => { S[tid+'_m'] = true; });
+_completedTasks.forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
 save();
 
-try { renderAll(); } catch(e) {
-  console.error('renderAll error:', e);
-  var pw = document.getElementById('phasesWrap');
-  if (pw) pw.innerHTML = '<div style="padding:40px;text-align:center;background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;margin:20px;">'
-    + '<div style="font-size:20px;margin-bottom:10px;">❌ JS Error</div>'
-    + '<div style="font-family:monospace;font-size:13px;color:#dc2626;">' + e.message + '</div>'
-    + '<div style="margin-top:12px;font-size:12px;color:#64748b;">F12 → Console mein full error dekho</div></div>';
-}
-try { renderRoadmap(); } catch(e) {}
-try { renderChecklist(); } catch(e) {}
-try { renderDebugGrid(); } catch(e) {}
-try { renderAiGrid(); } catch(e) {}
+renderAll();
+renderRoadmap();
+renderChecklist();
+renderDebugGrid();
+renderAiGrid();
 </script>
 </body>
 </html>

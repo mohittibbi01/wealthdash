@@ -236,11 +236,19 @@ ob_start();
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <!-- Bulk-delete bar — shown when ≥1 fund selected -->
-      <div id="bulkDeleteBar" style="display:none;align-items:center;gap:8px;padding:5px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;">
+      <div id="bulkDeleteBar" style="display:none;align-items:center;gap:8px;padding:5px 10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;flex-wrap:wrap;">
         <span id="bulkSelectedCount" style="font-size:13px;font-weight:600;color:#dc2626;"></span>
         <button class="btn btn-sm" onclick="openBulkDeleteModal()"
           style="background:#dc2626;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
           🗑 Delete Selected
+        </button>
+        <!-- t91: Bulk Export -->
+        <button class="btn btn-ghost btn-sm" onclick="bulkExportSelected()" style="font-size:12px;">
+          ⬇ Export CSV
+        </button>
+        <!-- t91: Combined P&L -->
+        <button class="btn btn-ghost btn-sm" onclick="showCombinedPL()" style="font-size:12px;">
+          📊 Combined P&L
         </button>
         <button class="btn btn-ghost btn-sm" onclick="clearFundSelection()" style="font-size:12px;">✕ Clear</button>
       </div>
@@ -423,6 +431,45 @@ ob_start();
     </div>
     <div class="card-body" style="padding:16px;">
       <div id="corrMatrixWrap"></div>
+    </div>
+  </div>
+
+  <!-- t93+t94: Alpha & Beta + Rolling Returns -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">⚡ Alpha & Beta — Risk-Adjusted Performance</h3>
+      <span style="font-size:11px;color:var(--text-muted);">+ Rolling Returns 1Y/3Y/5Y</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="alphaBetaCard">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Loading analytics…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- t97: Sector Allocation -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🏭 Sector Allocation</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Estimated from fund categories</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="sectorAllocWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- t70: Portfolio Overlap -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🔄 Portfolio Overlap Analyzer</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Common stocks between funds</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="overlapWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
     </div>
   </div>
 
@@ -770,22 +817,27 @@ ob_start();
 
 <!-- ═══ IMPORT CSV MODAL ═══ -->
 <div class="modal-overlay" id="modalImportCsv" style="display:none;">
-  <div class="modal" style="max-width:480px;width:95%;">
+  <div class="modal" style="max-width:560px;width:95%;">
     <div class="modal-header">
-      <h3 class="modal-title">Import CSV</h3>
+      <h3 class="modal-title">📥 Import CSV</h3>
       <button class="modal-close btn btn-ghost btn-sm" id="btnCloseImportModal">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Source Format</label>
-        <select id="importFormat" class="form-control">
-          <option value="auto">Auto-detect</option>
+        <select id="importFormat" class="form-control" onchange="onImportFormatChange()">
+          <option value="auto">🔍 Auto-detect</option>
           <option value="wealthdash">WealthDash Custom</option>
           <option value="cams">CAMS Statement</option>
           <option value="kfintech">KFintech / Karvy</option>
           <option value="groww">Groww Export</option>
+          <option value="zerodha">Zerodha Coin</option>
+          <option value="kuvera">Kuvera</option>
+          <option value="mfcentral">MFCentral / Paytm Money</option>
         </select>
       </div>
+      <!-- Format help -->
+      <div id="importFormatHint" style="font-size:11px;color:var(--text-muted);padding:6px 10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;display:none;"></div>
       <div class="form-group">
         <label class="form-label">CSV File</label>
         <label for="importFile" id="importFileLabel"
@@ -800,13 +852,17 @@ ob_start();
           </svg>
           <span id="importFileText">Choose CSV file…</span>
         </label>
-        <input type="file" id="importFile" accept=".csv,.txt" style="display:none;">
+        <input type="file" id="importFile" accept=".csv,.txt" style="display:none;" onchange="onImportFileChange(this)">
       </div>
-      <div class="import-template-hint">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <a href="<?= APP_URL ?>/public/downloads/wealthdash_mf_template.csv" download>Download sample CSV template</a>
+      <!-- t90: Preview rows -->
+      <div id="importPreviewWrap" style="display:none;margin-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Preview (first 5 rows)</div>
+        <div id="importPreview" style="overflow-x:auto;font-size:11px;background:var(--bg-secondary);border-radius:6px;padding:8px;max-height:160px;overflow-y:auto;"></div>
+      </div>
+      <div class="import-template-hint" style="margin-top:10px;">
+        <a href="<?= APP_URL ?>/public/downloads/wealthdash_mf_template.csv" download>⬇ Download template</a>
         &nbsp;|&nbsp;
-        <span style="color:var(--text-muted);">Supported: WealthDash, CAMS, KFintech, Groww</span>
+        <span style="color:var(--text-muted);">Supported: WealthDash · CAMS · KFintech · Groww · Zerodha · Kuvera · MFCentral</span>
       </div>
       <div id="importResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;font-size:13px;"></div>
     </div>
@@ -1019,6 +1075,7 @@ ob_start();
 <?php
 $pageContent = ob_get_clean();
 $extraScripts = '<script src="' . APP_URL . '/public/js/charts.js?v=' . filemtime(APP_ROOT.'/public/js/charts.js') . '"></script>'
-             . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>';
+             . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>'
+             . '<script src="' . APP_URL . '/public/js/mf_advanced_analytics.js?v=' . (file_exists(APP_ROOT.'/public/js/mf_advanced_analytics.js') ? filemtime(APP_ROOT.'/public/js/mf_advanced_analytics.js') : time()) . '"></script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>
