@@ -2254,6 +2254,29 @@ const _completedTasks = [
   't140','t141','t142','t143','t144','t145','t146','t147',
   't152','t154','t155','t157','t158',
   't23',
+,
+{id:'p_nav_history',ico:'📥',color:'#0e7490',title:'Phase 31 — Full NAV History Download (Since Inception)',tasks:[
+  {id:'t191',title:'nav_download_progress table — seed karo sab funds se',pr:'p0',type:'feat',eff:'30 min',db:true,
+   files:['peak_nav/setup.sql','database/migrations/'],
+   desc:'nav_download_progress table already hai schema mein. Isko properly seed karo.',
+   sub:['INSERT IGNORE INTO nav_download_progress (scheme_code, fund_id, status) SELECT scheme_code, id, \'pending\' FROM funds','Admin panel mein "Start Full NAV Download" button add karo','Setup SQL mein bhi include karo']},
+  {id:'t192',title:'nav_download/processor.php — Full NAV history downloader (Parallel)',pr:'p0',type:'feat',eff:'4-5 hr',
+   files:['nav_download/processor.php (NEW)','nav_download/api.php (NEW)'],
+   desc:'MFAPI.in se saare funds ki full NAV history fetch karo since inception. Peak NAV processor jaisi architecture.',
+   sub:['URL: https://api.mfapi.in/mf/{scheme_code}','Response: {data:[{date:DD-MM-YYYY, nav:X}]}','Date parse karo DD-MM-YYYY → YYYY-MM-DD','nav_history table mein INSERT IGNORE (fund_id, nav_date, nav)','Incremental: last_downloaded_date se aage ka hi fetch karo','Parallel curl_multi — 8-50 parallel (admin se set)','Stop/Resume: nav_download_progress.status use karo','Progress update: har fund pe status=completed, last_downloaded_date=today','Error handling: retry 1 baar, phir error mark']},
+  {id:'t193',title:'nav_download/status.php — Live Dashboard (Peak NAV jaisa)',pr:'p0',type:'feat',eff:'3-4 hr',
+   files:['nav_download/status.php (NEW)','nav_download/api.php (NEW)'],
+   desc:'Peak NAV tracker jaisa full dashboard — live stats, progress bar, fund-wise table, start/stop.',
+   sub:['Total Funds card','Downloaded card (completed)','In Progress card','Pending card','Errors card','Overall progress bar % = completed/total','Current fund being downloaded (live)','Per-fund stats: from_date → last_downloaded_date, records_saved','Start/Stop/Retry Errors/Full Reset buttons','Parallel size slider (1-50)','Admin-only page','Auto-refresh every 3 sec while running','Export CSV — all funds download status']},
+  {id:'t194',title:'Incremental update — daily cron mein new NAV auto-insert',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['api/nav/update_amfi.php','cron/update_nav_daily.php'],
+   desc:'AMFI daily update ke baad nav_history mein bhi insert ho — incremental, duplicate nahi.',
+   sub:['update_amfi.php already nav_history INSERT IGNORE karta hai — verify karo','nav_download_progress mein last_downloaded_date = today update karo','Status completed wale funds daily update mein bhi cover ho jaayein']},
+  {id:'t195',title:'Admin panel — NAV Download section add karo',pr:'p1',type:'feat',eff:'1 hr',
+   files:['templates/pages/admin.php'],
+   desc:'Admin panel mein dedicated section: Full NAV Download status + quick links.',
+   sub:['Card: Total NAV records in nav_history table','Card: Funds with full history vs partial','Link to nav_download/status.php','Quick stats: DB size estimate (rows × ~40 bytes)','Warning: ~5M+ rows expected, 200MB+ storage']},
+]}
 ];
 _completedTasks.forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
 save();
