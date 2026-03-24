@@ -4,8 +4,36 @@
 -- USAGE     : Import AFTER schema.sql in the same DB.
 -- ════════════════════════════════════════════════════════════════
 
+
+	INSERT INTO `app_settings` (`setting_key`, `setting_val`) VALUES
+('app_name', 'WealthDash'),
+('tax_year_start_month', '4'),
+('ltcg_exemption_limit', '125000'),
+('equity_ltcg_rate', '12.5'),
+('equity_stcg_rate', '20'),
+('debt_ltcg_rate', '20'),
+('fd_tds_rate', '10'),
+('fd_tds_senior_rate', '10'),
+('fd_tds_threshold', '40000'),
+('fd_tds_threshold_senior', '50000'),
+('savings_80tta_limit', '10000'),
+('savings_80ttb_limit', '50000'),
+('amfi_url', 'https://www.amfiindia.com/spages/NAVAll.txt'),
+('nav_last_updated', NULL),
+('registration_open', '1');
+
+
+
+
+
+
+
 -- WealthDash Seed Data — Fund Houses + NPS Schemes
 -- Run AFTER schema.sql
+
+
+
+
 
 -- ============================================================
 -- FUND HOUSES (Major AMCs in India)
