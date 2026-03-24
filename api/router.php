@@ -50,7 +50,7 @@ $isAdmin = is_admin();
 // Read-only actions don't need CSRF (no state change)
 $csrfExempt = [
     'admin_stats', 'admin_users',
-    'admin_settings_get', 'admin_audit_log', 'admin_db_list',
+    'admin_settings_get', 'admin_audit_log', 'admin_db_list', 'admin_db_status',
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
     'admin_import_exit_load',
@@ -313,6 +313,11 @@ try {
         case 'admin_db_truncate_all':
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/api/admin/db_manage.php'; exit;
+
+        // ── Admin — Setup Wizard (status only; downloads are direct) ─
+        case 'admin_db_status':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_setup_download.php'; exit;
 
         // ── Phase 5: Admin — Users ───────────────────────────
         case 'admin_users':

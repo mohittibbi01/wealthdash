@@ -86,16 +86,8 @@ if (document.getElementById('fySummaryBody')) {
                 `<tr><td colspan="10" class="text-center text-secondary">Please select a portfolio to view FY Gains.</td></tr>`;
             return;
         }
-        // t132 + t133: Read controls
-        const lotMethod    = document.getElementById('lotMethodSelect')?.value || 'FIFO';
-        const applyGf      = document.getElementById('applyGrandfathering')?.checked ? 1 : 0;
-
         try {
-            const res = await window.apiPost({
-                action: 'report_fy_gains', portfolio_id: pid, fy,
-                lot_method: lotMethod,
-                apply_grandfathering: applyGf,
-            });
+            const res = await window.apiPost({ action: 'report_fy_gains', portfolio_id: pid, fy });
             if (!res.success) { window.showToast(res.message, 'error'); return; }
             reportData = res.data;
             renderFyFilters(reportData.fy_list);
@@ -104,10 +96,9 @@ if (document.getElementById('fySummaryBody')) {
             renderLtcgBar(reportData.fy_summary);
             renderMfGains(reportData.mf_gains_detail);
             renderStockGains(reportData.stock_gains_detail);
+            renderStocksSummary(reportData.stock_summary || []);
             renderMfDivs(reportData.mf_dividends);
             renderStDivs(reportData.stock_dividends);
-            renderLossCF(reportData.loss_carry_forward || []);       // t135
-            renderGrandfathering(reportData.total_gf_tax_savings || 0, lotMethod); // t132
         } catch (e) {
             console.error(e);
             window.showToast('Failed to load FY Gains report', 'error');
@@ -211,7 +202,7 @@ if (document.getElementById('fySummaryBody')) {
             const bodyId  = { mfGains:'mfGainsBody', stGains:'stockGainsBody', mfDiv:'mfDivBody', stDiv:'stDivBody' }[key];
             const infoId  = key + 'PagInfo';
             const pagId   = key + 'Pag';
-            const colspans= { mfGains:12, stGains:11, mfDiv:5, stDiv:5 };
+            const colspans= { mfGains:12, stGains:13, mfDiv:5, stDiv:5 };
             const emptyMsg= { mfGains:'No MF sell transactions', stGains:'No stock sell transactions', mfDiv:'No MF dividends', stDiv:'No stock dividends' };
             const renderFn= { mfGains: this._rowMfGain, stGains: this._rowStGain, mfDiv: this._rowMfDiv, stDiv: this._rowStDiv };
 
@@ -257,12 +248,14 @@ if (document.getElementById('fySummaryBody')) {
         _rowStGain: g => `<tr>
             <td>${g.fy}</td>
             <td><strong>${g.symbol}</strong></td>
-            <td>${truncate(g.name,25)}</td>
+            <td>${truncate(g.name,22)}</td>
+            <td><span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--bg-secondary);font-weight:700;">${g.exchange||'—'}</span></td>
             <td class="text-right">${g.quantity}</td>
+            <td style="font-size:11px;color:var(--text-muted);">${g.buy_date||'—'}${g.grandfathered?'<span title="Grandfathered: Jan 31 2018 FMV applied" style="margin-left:4px;color:#d97706;">⚡</span>':''}</td>
             <td class="text-right">${inrFmt(g.sell_price)}</td>
             <td class="text-right">${inrFmt(g.proceeds)}</td>
             <td class="text-right">${inrFmt(g.cost)}</td>
-            <td class="text-right fw-600 ${gainCls(g.gain)}">${inrFmt(g.gain)}</td>
+            <td class="text-right fw-600 ${gainCls(g.adjusted_gain??g.gain)}">${inrFmt(g.adjusted_gain??g.gain)}</td>
             <td>${g.days_held}d</td>
             <td>${gainBadge(g.gain_type)}</td>
             <td class="text-right text-warning">${g.tax_amount!=null?inrFmt(g.tax_amount):'-'}</td>
@@ -277,7 +270,96 @@ if (document.getElementById('fySummaryBody')) {
     window.fyPagination = fyPagination; // expose globally for onchange handlers
 
     function renderMfGains(gains)   { fyPagination.set('mfGains', gains); }
-    function renderStockGains(gains){ fyPagination.set('stGains', gains); }
+    function renderStockGains(gains) {
+        window._allStockGains = gains || [];
+        filterStockGains();
+    }
+
+    // t39: Filter stock gains by exchange + gain type
+    window.filterStockGains = function() {
+        const exchFilter = document.getElementById('stExchangeFilter')?.value || '';
+        const typeFilter = document.getElementById('stGainTypeFilter')?.value || '';
+        let data = window._allStockGains || [];
+        if (exchFilter) data = data.filter(g => g.exchange === exchFilter);
+        if (typeFilter) data = data.filter(g => g.gain_type === typeFilter);
+        const countEl = document.getElementById('stGainsFilterCount');
+        if (countEl) countEl.textContent = `${data.length} transactions`;
+        fyPagination.set('stGains', data);
+    };
+
+    // t39: Render stocks LTCG/STCG dedicated summary
+    function renderStocksSummary(summary) {
+        const card = document.getElementById('stocksSummaryCard');
+        const body = document.getElementById('stocksSummaryBody');
+        if (!card || !body) return;
+        if (!summary || !summary.length) { card.style.display = 'none'; return; }
+        card.style.display = '';
+
+        function fmtI(v) {
+            v = Math.abs(v||0);
+            if (v >= 1e7) return '₹'+(v/1e7).toFixed(2)+'Cr';
+            if (v >= 1e5) return '₹'+(v/1e5).toFixed(1)+'L';
+            return '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+        }
+
+        const totalLtcg = summary.reduce((s,r) => s+(r.ltcg_gain||0), 0);
+        const totalStcg = summary.reduce((s,r) => s+(r.stcg_gain||0), 0);
+        const totalTax  = summary.reduce((s,r) => s+(r.total_tax||0), 0);
+        const ltcgExempt = Math.min(totalLtcg, 125000);
+        const ltcgTaxable= Math.max(0, totalLtcg - ltcgExempt);
+        const gfCount   = summary.reduce((s,r) => s+(r.grandfathered_count||0), 0);
+
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">LTCG Gain</div>
+              <div style="font-size:18px;font-weight:800;color:${totalLtcg>=0?'#16a34a':'#dc2626'};">${fmtI(totalLtcg)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">@12.5% tax</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">STCG Gain</div>
+              <div style="font-size:18px;font-weight:800;color:${totalStcg>=0?'#16a34a':'#dc2626'};">${fmtI(totalStcg)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">@20% tax</div>
+            </div>
+            <div style="background:rgba(22,163,74,.07);border-radius:8px;padding:12px;text-align:center;">
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">LTCG Exempt</div>
+              <div style="font-size:18px;font-weight:800;color:#16a34a;">${fmtI(ltcgExempt)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">₹1.25L limit</div>
+            </div>
+            <div style="background:rgba(220,38,38,.06);border-radius:8px;padding:12px;text-align:center;">
+              <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Est. Total Tax</div>
+              <div style="font-size:18px;font-weight:800;color:#dc2626;">${fmtI(totalTax)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">All FYs</div>
+            </div>
+          </div>
+          ${gfCount > 0 ? `<div style="padding:8px 12px;background:rgba(245,158,11,.08);border-radius:7px;font-size:12px;color:#b45309;margin-bottom:10px;">
+            ⚡ <strong>${gfCount} transactions</strong> may qualify for grandfathering (bought pre-Jan 31 2018). 
+            Effective cost = max(actual cost, Jan 31 2018 FMV). Enter FMV manually in NSE historical data.
+          </div>` : ''}
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="border-bottom:2px solid var(--border);">
+              <th style="padding:6px 8px;text-align:left;color:var(--text-muted);">FY</th>
+              <th style="padding:6px 8px;text-align:right;color:var(--text-muted);">LTCG</th>
+              <th style="padding:6px 8px;text-align:right;color:var(--text-muted);">STCG</th>
+              <th style="padding:6px 8px;text-align:right;color:var(--text-muted);">Total Gain</th>
+              <th style="padding:6px 8px;text-align:right;color:var(--text-muted);">Est. Tax</th>
+              <th style="padding:6px 8px;text-align:right;color:var(--text-muted);">Transactions</th>
+            </tr></thead>
+            <tbody>
+              ${summary.map(s => `<tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:6px 8px;font-weight:700;">${s.fy}</td>
+                <td style="padding:6px 8px;text-align:right;color:${s.ltcg_gain>=0?'#16a34a':'#dc2626'};font-weight:700;">${fmtI(s.ltcg_gain)} <span style="font-size:10px;color:var(--text-muted);">(${s.ltcg_count})</span></td>
+                <td style="padding:6px 8px;text-align:right;color:${s.stcg_gain>=0?'#16a34a':'#dc2626'};font-weight:700;">${fmtI(s.stcg_gain)} <span style="font-size:10px;color:var(--text-muted);">(${s.stcg_count})</span></td>
+                <td style="padding:6px 8px;text-align:right;font-weight:800;">${fmtI(s.total_gain)}</td>
+                <td style="padding:6px 8px;text-align:right;color:#dc2626;">${fmtI(s.total_tax)}</td>
+                <td style="padding:6px 8px;text-align:right;color:var(--text-muted);">${(s.ltcg_count||0)+(s.stcg_count||0)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;">
+            💡 <strong>ITR Schedule:</strong> LTCG → Schedule 112A | STCG → Schedule CG | ₹1.25L LTCG exemption per FY (Budget 2024)
+          </div>`;
+    }
     function renderMfDivs(divs)     { fyPagination.set('mfDiv',   divs);  }
     function renderStDivs(divs)     { fyPagination.set('stDiv',   divs);  }
 
@@ -296,14 +378,6 @@ if (document.getElementById('fySummaryBody')) {
         fyFilterEl.addEventListener('change', () => loadFyReport(fyFilterEl.value));
     }
 
-    // t133: Lot method change → reload
-    const lotSel = document.getElementById('lotMethodSelect');
-    if (lotSel) lotSel.addEventListener('change', () => loadFyReport(fyFilterEl?.value || ''));
-
-    // t132: Grandfathering toggle → reload
-    const gfChk = document.getElementById('applyGrandfathering');
-    if (gfChk) gfChk.addEventListener('change', () => loadFyReport(fyFilterEl?.value || ''));
-
     const exportTaxBtn = document.getElementById('exportTaxBtn');
     if (exportTaxBtn) {
         exportTaxBtn.addEventListener('click', () => {
@@ -316,46 +390,6 @@ if (document.getElementById('fySummaryBody')) {
                 <input name="_csrf" value="${window.WD?.csrf || ''}">`;
             document.body.appendChild(f); f.submit(); document.body.removeChild(f);
         });
-    }
-
-    // t135: Render Loss Carry Forward table
-    function renderLossCF(losses) {
-        const card = document.getElementById('lossCFCard');
-        const body = document.getElementById('lossCFBody');
-        if (!card || !body) return;
-        if (!losses.length) { card.style.display = 'none'; return; }
-        card.style.display = '';
-        const curFy = currentFyStr();
-        body.innerHTML = losses.map(l => {
-            const isExpiringSoon = l.expiry_fy === curFy;
-            const expColor = isExpiringSoon ? '#dc2626' : 'var(--text-muted)';
-            const badge = isExpiringSoon
-                ? `<span class="badge badge-danger">⚠️ Expiring this FY!</span>`
-                : `<span class="badge badge-info">Active</span>`;
-            const taxSaving = l.type === 'LTCG'
-                ? inrFmt(l.loss_amount * 0.125)
-                : inrFmt(l.loss_amount * 0.20);
-            return `<tr>
-                <td><strong>${l.fy}</strong></td>
-                <td><span class="badge ${l.type==='LTCG'?'badge-warning':'badge-info'}">${l.type}</span></td>
-                <td class="text-right fw-600 text-danger">-${inrFmt(l.loss_amount)}</td>
-                <td style="font-size:12px;">${l.can_set_off}</td>
-                <td style="color:${expColor};font-weight:600;">${l.expiry_fy}</td>
-                <td>${badge}</td>
-            </tr>`;
-        }).join('');
-    }
-
-    // t132: Render Grandfathering savings
-    function renderGrandfathering(savings, lotMethod) {
-        const card = document.getElementById('gfCard');
-        const badge = document.getElementById('gfBadge');
-        const savEl = document.getElementById('gfTaxSavings');
-        if (!card) return;
-        const taxSaved = savings * 0.125; // 12.5% LTCG rate
-        card.style.display = savings > 0 ? '' : 'none';
-        if (badge) badge.textContent = `${lotMethod} method`;
-        if (savEl) savEl.textContent = inrFmt(taxSaved);
     }
 
     // Always attempt load — portId fallback handles missing WD object
@@ -408,7 +442,7 @@ if (document.getElementById('harvestBody')) {
             <div class="stat-value text-primary">${d.harvest_suggestions?.length || 0} <small>funds/stocks</small></div>
         </div>`;
 
-        // Update LTCG progress bar
+        // Update progress bar
         const fyBadge = document.getElementById('taxFyBadge');
         if (fyBadge) fyBadge.textContent = d.fy;
         const bar = document.getElementById('taxProgressBar');
@@ -419,7 +453,7 @@ if (document.getElementById('harvestBody')) {
         const msgEl = document.getElementById('ltcgHarvestMsg');
         if (msgEl) {
             if (d.ltcg_exemption_remaining > 0) {
-                msgEl.textContent = `You can book ${inrFmt(d.ltcg_exemption_remaining)} more in LTCG gains tax-free this FY.`;
+                msgEl.textContent = `You can book ₹${Number(d.ltcg_exemption_remaining).toLocaleString('en-IN')} more in LTCG gains tax-free this FY.`;
             } else {
                 msgEl.textContent = '⚠️ LTCG exemption exhausted. Further LTCG gains will be taxed @ 12.5%.';
                 msgEl.className = 'text-sm text-warning mt-2';
@@ -430,79 +464,6 @@ if (document.getElementById('harvestBody')) {
             const el2 = document.getElementById(id);
             if (el2) el2.textContent = inrFmt(map[id]);
         });
-
-        // t82: 80C Dashboard
-        render80C(d);
-
-        // t83: March deadline countdown
-        renderDeadline(d);
-    }
-
-    // t82: 80C Dashboard renderer
-    function render80C(d) {
-        const c80  = d['80c_total']     || 0;
-        const lim  = d['80c_limit']     || 150000;
-        const rem  = d['80c_remaining'] || lim;
-        const nps1b= d['80ccd1b_nps']   || 0;
-        const lim1b= d['80ccd1b_limit'] || 50000;
-        const pct  = Math.min(100, (c80 / lim) * 100).toFixed(1);
-        const pct1b= Math.min(100, (nps1b / lim1b) * 100).toFixed(1);
-
-        const fmt = v => inrFmt(v);
-        const setT = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
-        const setW = (id, w, color) => { const e = document.getElementById(id); if (e) { e.style.width = w + '%'; if (color) e.style.background = color; } };
-
-        setT('amt80C',     fmt(c80));
-        setT('rem80C',     fmt(rem));
-        setT('amt80cElss', fmt(d['80c_elss'] || 0));
-        setT('amt80cPpf',  fmt(d['80c_ppf']  || 0));
-        setT('amt80cNps',  fmt(d['80c_nps']  || 0));
-        setT('amt80ccd1b', fmt(nps1b));
-
-        const barColor = pct >= 100 ? '#16a34a' : pct >= 75 ? '#d97706' : '#3b82f6';
-        setW('bar80C', pct, barColor);
-        setW('bar80ccd1b', pct1b);
-
-        const msgEl = document.getElementById('msg80C');
-        if (msgEl) {
-            if (rem <= 0) {
-                msgEl.textContent = '✅ 80C limit fully utilised! Maximum tax saving achieved.';
-                msgEl.style.cssText = 'font-size:12px;margin-top:10px;padding:8px 12px;border-radius:6px;background:rgba(22,163,74,.1);color:#16a34a;';
-            } else {
-                msgEl.textContent = `💡 Invest ${fmt(rem)} more in ELSS/PPF/NPS to maximise 80C deduction.`;
-                msgEl.style.cssText = 'font-size:12px;margin-top:10px;padding:8px 12px;border-radius:6px;background:rgba(59,130,246,.08);color:var(--text-primary);';
-            }
-        }
-        const msg1b = document.getElementById('msg80ccd1b');
-        if (msg1b) {
-            msg1b.textContent = nps1b > 0
-                ? `+${fmt(Math.min(lim1b - nps1b, lim1b))} more NPS contribution can save extra tax under 80CCD(1B).`
-                : 'Invest up to ₹50,000 in NPS Tier 1 for additional deduction under 80CCD(1B).';
-        }
-    }
-
-    // t83: FY deadline countdown
-    function renderDeadline(d) {
-        const el = document.getElementById('deadlineCountdown');
-        if (!el) return;
-        const days = d.days_to_fy_end || 0;
-        if (days <= 0) {
-            el.textContent = '🔒 FY Closed';
-            el.style.background = 'rgba(107,114,128,.1)';
-            el.style.color = 'var(--text-muted)';
-        } else if (days <= 7) {
-            el.textContent = `🚨 ${days} days left!`;
-            el.style.background = 'rgba(220,38,38,.12)';
-            el.style.color = '#dc2626';
-        } else if (days <= 30) {
-            el.textContent = `⚠️ ${days} days to Mar 31`;
-            el.style.background = 'rgba(245,158,11,.12)';
-            el.style.color = '#d97706';
-        } else {
-            el.textContent = `📅 ${days} days to Mar 31`;
-            el.style.background = 'rgba(59,130,246,.08)';
-            el.style.color = 'var(--accent)';
-        }
     }
 
     function renderHarvestTable(d) {

@@ -817,58 +817,108 @@ ob_start();
 
 <!-- ═══ IMPORT CSV MODAL ═══ -->
 <div class="modal-overlay" id="modalImportCsv" style="display:none;">
-  <div class="modal" style="max-width:560px;width:95%;">
+  <div class="modal" style="max-width:620px;width:95%;">
     <div class="modal-header">
-      <h3 class="modal-title">📥 Import CSV</h3>
+      <h3 class="modal-title">📥 Import Portfolio — CAS / CSV</h3>
       <button class="modal-close btn btn-ghost btn-sm" id="btnCloseImportModal">✕</button>
     </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Source Format</label>
-        <select id="importFormat" class="form-control" onchange="onImportFormatChange()">
-          <option value="auto">🔍 Auto-detect</option>
-          <option value="wealthdash">WealthDash Custom</option>
-          <option value="cams">CAMS Statement</option>
-          <option value="kfintech">KFintech / Karvy</option>
-          <option value="groww">Groww Export</option>
-          <option value="zerodha">Zerodha Coin</option>
-          <option value="kuvera">Kuvera</option>
-          <option value="mfcentral">MFCentral / Paytm Money</option>
-        </select>
+    <div class="modal-body" style="padding:0;">
+
+      <!-- Tabs: CAS Import vs CSV Import -->
+      <div style="display:flex;border-bottom:2px solid var(--border);">
+        <button class="cas-tab active" onclick="switchCasTab('cas',this)" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-weight:700;font-size:13px;border-bottom:2px solid var(--accent);color:var(--accent);">
+          🏦 CAS Auto-Import
+        </button>
+        <button class="cas-tab" onclick="switchCasTab('csv',this)" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-weight:600;font-size:13px;color:var(--text-muted);">
+          📄 CSV Manual Import
+        </button>
       </div>
-      <!-- Format help -->
-      <div id="importFormatHint" style="font-size:11px;color:var(--text-muted);padding:6px 10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;display:none;"></div>
-      <div class="form-group">
-        <label class="form-label">CSV File</label>
-        <label for="importFile" id="importFileLabel"
-          style="display:flex;align-items:center;gap:10px;padding:9px 14px;
-                 border:1.5px dashed var(--border);border-radius:8px;cursor:pointer;
-                 background:var(--card-bg);transition:border-color .2s,background .2s;
-                 font-size:13px;color:var(--text-muted);">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          <span id="importFileText">Choose CSV file…</span>
-        </label>
-        <input type="file" id="importFile" accept=".csv,.txt" style="display:none;" onchange="onImportFileChange(this)">
+
+      <!-- CAS Import Tab -->
+      <div id="casTabContent" style="padding:16px;">
+        <div style="padding:10px;background:rgba(99,102,241,.06);border-radius:8px;margin-bottom:14px;font-size:12px;">
+          <strong>CAMS + KFintech CAS</strong> — Upload your Consolidated Account Statement PDF or TXT.
+          <br>Get it: <a href="https://www.camsonline.com/InvestorServices/MFAccountSummary.aspx" target="_blank" style="color:var(--accent);">CAMS</a> |
+          <a href="https://mfs.kfintech.com/investor/General/Consent" target="_blank" style="color:var(--accent);">KFintech</a> |
+          <a href="https://www.mfuindia.com/" target="_blank" style="color:var(--accent);">MFU</a>
+          &nbsp;→ Request CAS by email → Save/upload here
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Portfolio *</label>
+          <select id="casPortfolioId" class="form-control">
+            <?php foreach ($portfolios as $p): ?>
+            <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">CAS File (PDF, TXT, or CSV)</label>
+          <label for="casFile" id="casFileLabel"
+            style="display:flex;align-items:center;gap:10px;padding:14px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;background:var(--bg-secondary);transition:.2s;">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div>
+              <div id="casFileName" style="font-weight:600;font-size:13px;">Click to select CAS file…</div>
+              <div style="font-size:11px;color:var(--text-muted);">PDF / TXT / CSV · Max 10MB · Password-protected PDF = save as text first</div>
+            </div>
+          </label>
+          <input type="file" id="casFile" accept=".pdf,.txt,.csv" style="display:none;" onchange="onCasFileSelect(this)">
+        </div>
+
+        <!-- Parse preview area -->
+        <div id="casParseResult" style="display:none;"></div>
+
+        <div id="casImportResult" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;"></div>
       </div>
-      <!-- t90: Preview rows -->
-      <div id="importPreviewWrap" style="display:none;margin-top:12px;">
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Preview (first 5 rows)</div>
-        <div id="importPreview" style="overflow-x:auto;font-size:11px;background:var(--bg-secondary);border-radius:6px;padding:8px;max-height:160px;overflow-y:auto;"></div>
+
+      <!-- CSV Import Tab (existing) -->
+      <div id="csvTabContent" style="padding:16px;display:none;">
+        <div class="form-group">
+          <label class="form-label">Source Format</label>
+          <select id="importFormat" class="form-control" onchange="onImportFormatChange()">
+            <option value="auto">🔍 Auto-detect</option>
+            <option value="wealthdash">WealthDash Custom</option>
+            <option value="cams">CAMS Statement</option>
+            <option value="kfintech">KFintech / Karvy</option>
+            <option value="groww">Groww Export</option>
+            <option value="zerodha">Zerodha Coin</option>
+            <option value="kuvera">Kuvera</option>
+            <option value="mfcentral">MFCentral / Paytm Money</option>
+          </select>
+        </div>
+        <div id="importFormatHint" style="font-size:11px;color:var(--text-muted);padding:6px 10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;display:none;"></div>
+        <div class="form-group">
+          <label class="form-label">CSV File</label>
+          <label for="importFile" id="importFileLabel"
+            style="display:flex;align-items:center;gap:10px;padding:9px 14px;border:1.5px dashed var(--border);border-radius:8px;cursor:pointer;background:var(--card-bg);font-size:13px;color:var(--text-muted);">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span id="importFileText">Choose CSV file…</span>
+          </label>
+          <input type="file" id="importFile" accept=".csv,.txt" style="display:none;" onchange="onImportFileChange(this)">
+        </div>
+        <div id="importPreviewWrap" style="display:none;margin-top:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px;">Preview (first 5 rows)</div>
+          <div id="importPreview" style="overflow-x:auto;font-size:11px;background:var(--bg-secondary);border-radius:6px;padding:8px;max-height:160px;overflow-y:auto;"></div>
+        </div>
+        <div class="import-template-hint" style="margin-top:10px;">
+          <a href="<?= APP_URL ?>/public/downloads/wealthdash_mf_template.csv" download>⬇ Download template</a>
+          &nbsp;|&nbsp;
+          <span style="color:var(--text-muted);">Supported: WealthDash · CAMS · KFintech · Groww · Zerodha · Kuvera</span>
+        </div>
+        <div id="importResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;font-size:13px;"></div>
       </div>
-      <div class="import-template-hint" style="margin-top:10px;">
-        <a href="<?= APP_URL ?>/public/downloads/wealthdash_mf_template.csv" download>⬇ Download template</a>
-        &nbsp;|&nbsp;
-        <span style="color:var(--text-muted);">Supported: WealthDash · CAMS · KFintech · Groww · Zerodha · Kuvera · MFCentral</span>
-      </div>
-      <div id="importResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;font-size:13px;"></div>
+
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="gap:8px;">
       <button class="btn btn-ghost" id="btnCancelImport">Cancel</button>
-      <button class="btn btn-primary" id="btnStartImport">
+      <!-- CAS buttons -->
+      <div id="casButtons">
+        <button class="btn btn-outline" id="btnCasParse" onclick="parseCasFile()" style="display:none;">🔍 Parse & Preview</button>
+        <button class="btn btn-primary" id="btnCasImport" onclick="commitCasImport()" style="display:none;">✅ Import Transactions</button>
+      </div>
+      <!-- CSV button -->
+      <button class="btn btn-primary" id="btnStartImport" style="display:none;">
         <span id="btnImportLabel">Import</span>
         <div class="spinner-sm" id="btnImportSpinner" style="display:none;"></div>
       </button>

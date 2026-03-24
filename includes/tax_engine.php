@@ -148,14 +148,50 @@ class TaxEngine {
     }
 
     /**
-     * Stock gain tax (same as equity MF)
+     * Stock gain tax (t39 — with grandfathering clause)
+     * Grandfathering: For stocks bought BEFORE Jan 31 2018,
+     * cost = MAX(actual cost, FMV on Jan 31 2018)
+     * This limits the pre-2018 gain that's taxable.
+     *
+     * @param float  $gainAmount       Actual gain (proceeds - cost)
+     * @param string $purchaseDate     YYYY-MM-DD first purchase
+     * @param string $sellDate         YYYY-MM-DD date of sale
+     * @param float  $proceedsAmount   Sell proceeds (needed to recalc gain with FMV)
+     * @param float  $fmvJan2018       FMV on Jan 31 2018 (optional, 0 = no grandfathering)
      */
     public static function stock_gain_tax(
         float  $gainAmount,
         string $purchaseDate,
-        string $sellDate
+        string $sellDate,
+        float  $proceedsAmount = 0,
+        float  $fmvJan2018     = 0
     ): array {
-        return self::mf_gain_tax($gainAmount, $purchaseDate, $sellDate, 'equity');
+        $GRANDFATHERING_DATE = '2018-02-01'; // Gains up to Jan 31 2018 exempt
+
+        // Apply grandfathering if:
+        // 1. Stock bought before Jan 31 2018
+        // 2. FMV provided
+        // 3. Proceeds > FMV (otherwise no grandfathering benefit)
+        $grandfathered = false;
+        $adjustedGain  = $gainAmount;
+
+        if ($fmvJan2018 > 0
+            && $purchaseDate < $GRANDFATHERING_DATE
+            && $proceedsAmount > 0
+        ) {
+            // Effective cost = max(actual cost, FMV on Jan 31 2018)
+            // But effective cost cannot exceed sell price
+            $actualCost    = $proceedsAmount - $gainAmount;
+            $effectiveCost = min($proceedsAmount, max($actualCost, $fmvJan2018));
+            $adjustedGain  = $proceedsAmount - $effectiveCost;
+            $grandfathered = ($effectiveCost > $actualCost);
+        }
+
+        $result = self::mf_gain_tax($adjustedGain, $purchaseDate, $sellDate, 'equity');
+        $result['grandfathered']    = $grandfathered;
+        $result['adjusted_gain']    = round($adjustedGain, 2);
+        $result['fmv_jan_2018']     = $fmvJan2018;
+        return $result;
     }
 
     /**

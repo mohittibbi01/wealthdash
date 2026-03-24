@@ -16,17 +16,6 @@ $portfolioId = (int)($_POST['portfolio_id'] ?? 0);
 if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)($currentUser['id'] ?? 0));
 $filterFy    = clean($_POST['fy'] ?? '');   // e.g. "2024-25" or "" for all
 
-// t133: Lot selection method — FIFO (default) | HIFO | LIFO
-// User can pass lot_method in POST, or we read from user settings
-$lotMethod = strtoupper(clean($_POST['lot_method'] ?? 'FIFO'));
-if (!in_array($lotMethod, ['FIFO','HIFO','LIFO'])) $lotMethod = 'FIFO';
-
-// t132: Grandfathering — Jan 31 2018 NAV as cost for pre-2018 equity MF lots
-// Applies to equity MFs purchased before Jan 31 2018
-// Cost = max(actual_purchase_nav, jan31_2018_nav)
-const GRANDFATHERING_DATE = '2018-01-31';
-$applyGrandfathering = (bool)($_POST['apply_grandfathering'] ?? true);
-
 if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
     json_response(false, 'Invalid or inaccessible portfolio.');
 }
@@ -89,112 +78,89 @@ foreach ($mfCombos as $combo) {
         );
     }
 
-    // t132+t133+t135: Lot queue — supports FIFO/HIFO/LIFO + Grandfathering
-    $queue = []; // ['units'=>float,'nav'=>float,'date'=>string,'gf_nav'=>float|null]
+    // Build FIFO queue from BUY transactions, process SELLs in order
+    $queue = []; // ['units' => float, 'nav' => float, 'date' => string]
 
     foreach ($allTxns as $t) {
         $type  = $t['transaction_type'];
-        $units = (float)$t['units'];
-        $nav   = (float)$t['nav'];
+        $units = (float) $t['units'];
+        $nav   = (float) $t['nav'];
         $date  = $t['txn_date'];
 
-        if (in_array($type, ['BUY','DIV_REINVEST','SWITCH_IN','STP_IN'])) {
-            // t132: Grandfathering for equity bought before Jan 31 2018
-            $gfNav = null;
-            $cat   = strtolower($t['category'] ?? '');
-            $isEq  = !(strpos($cat,'debt')!==false||strpos($cat,'liquid')!==false||
-                       strpos($cat,'money market')!==false||strpos($cat,'credit')!==false||strpos($cat,'gilt')!==false);
-            if ($applyGrandfathering && $isEq && $date <= GRANDFATHERING_DATE) {
-                $gfRow = DB::fetchOne(
-                    "SELECT nav FROM nav_history WHERE fund_id=? AND nav_date<=? AND nav>0 ORDER BY nav_date DESC LIMIT 1",
-                    [$fundId, GRANDFATHERING_DATE]
-                );
-                if ($gfRow && (float)$gfRow['nav'] > $nav) $gfNav = (float)$gfRow['nav'];
-            }
-            $queue[] = ['units'=>$units,'nav'=>$nav,'date'=>$date,'gf_nav'=>$gfNav];
+        if (in_array($type, ['BUY', 'DIV_REINVEST', 'SWITCH_IN', 'STP_IN'])) {
+            // Add to FIFO queue
+            $queue[] = ['units' => $units, 'nav' => $nav, 'date' => $date];
 
-        } elseif (in_array($type, ['SELL','SWITCH_OUT','SWP'])) {
+        } elseif (in_array($type, ['SELL', 'SWITCH_OUT', 'SWP'])) {
             $sellFy = get_fy($date);
             if ($filterFy && $sellFy !== $filterFy) {
-                // Consume FIFO for state even when filtered out
-                $rem2 = $units;
-                while ($rem2>0.0001 && !empty($queue)) {
-                    if ($queue[0]['units']<=$rem2){$rem2-=$queue[0]['units'];array_shift($queue);}
-                    else{$queue[0]['units']-=$rem2;$rem2=0;}
+                // Still consume from queue even if filtered out, to keep FIFO state correct
+                $remaining = $units;
+                while ($remaining > 0.0001 && !empty($queue)) {
+                    $lot = &$queue[0];
+                    if ($lot['units'] <= $remaining) {
+                        $remaining -= $lot['units'];
+                        array_shift($queue);
+                    } else {
+                        $lot['units'] -= $remaining;
+                        $remaining = 0;
+                    }
+                    unset($lot);
                 }
                 continue;
-            }
-
-            // t133: Apply lot method for this sell
-            $workQ = $queue;
-            if ($lotMethod==='HIFO') {
-                usort($workQ, fn($a,$b)=>($b['gf_nav']??$b['nav'])<=>($a['gf_nav']??$a['nav']));
-            } elseif ($lotMethod==='LIFO') {
-                $workQ = array_reverse($workQ);
             }
 
             $remaining  = $units;
             $totalCost  = 0.0;
             $proceeds   = round($units * $nav, 2);
-            $firstBuyDate = !empty($workQ) ? $workQ[0]['date'] : $date;
-            $grandfatheredSavings = 0.0;
+            $firstBuyDate = !empty($queue) ? $queue[0]['date'] : $date;
 
-            while ($remaining > 0.0001 && !empty($workQ)) {
-                $lot = &$workQ[0];
-                $effNav = $lot['gf_nav'] ?? $lot['nav'];
-                if ($lot['gf_nav']!==null) $grandfatheredSavings += min($lot['units'],$remaining)*($lot['gf_nav']-$lot['nav']);
-                if ($lot['units']<=$remaining) {
-                    $totalCost += $lot['units'] * $effNav;
+            // FIFO: consume from earliest lots
+            while ($remaining > 0.0001 && !empty($queue)) {
+                $lot = &$queue[0];
+                if ($lot['units'] <= $remaining) {
+                    $totalCost += $lot['units'] * $lot['nav'];
                     $remaining -= $lot['units'];
-                    array_shift($workQ);
+                    array_shift($queue);
                 } else {
-                    $totalCost    += $remaining * $effNav;
+                    $totalCost    += $remaining * $lot['nav'];
                     $lot['units'] -= $remaining;
                     $remaining     = 0;
                 }
                 unset($lot);
             }
 
-            // Sync canonical FIFO queue (consume units regardless of lot method)
-            $consumed = $units;
-            $newQ = [];
-            foreach ($queue as $ql) {
-                if ($consumed<=0.0001){$newQ[]=$ql;continue;}
-                if ($ql['units']<=$consumed){$consumed-=$ql['units'];}
-                else{$newQ[]=array_merge($ql,['units'=>$ql['units']-$consumed]);$consumed=0;}
-            }
-            $queue = $newQ;
-
             $gain     = round($proceeds - $totalCost, 2);
             $days     = (int)(new DateTime($date))->diff(new DateTime($firstBuyDate))->days;
 
             $cat      = strtolower($t['category'] ?? '');
-            $assetType = (strpos($cat,'debt')!==false||strpos($cat,'liquid')!==false||
-                          strpos($cat,'money market')!==false||strpos($cat,'credit')!==false)
-                         ? 'debt' : (strpos($cat,'elss')!==false?'elss':'equity');
+            // Detect asset type from category for debt-slab rule
+            $assetType = (strpos($cat, 'debt') !== false || strpos($cat, 'liquid') !== false
+                          || strpos($cat, 'money market') !== false || strpos($cat, 'credit') !== false)
+                         ? 'debt' : (strpos($cat, 'elss') !== false ? 'elss' : 'equity');
 
+            // Use fund-specific LTCG days from DB (set correctly by fetch_amfi_funds.php)
             $fundMinLtcgDays = (int)($t['min_ltcg_days'] ?? 0);
+
             $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuyDate, $date, $assetType, $fundMinLtcgDays);
 
             $mfGains[] = [
-                'asset_class'          => 'Mutual Fund',
-                'name'                 => $t['scheme_name'],
-                'fund_house'           => $t['fund_house'],
-                'category'             => $t['category'],
-                'folio'                => $combo['folio_number'],
-                'sell_date'            => format_date($date),
-                'units'                => $units,
-                'sell_nav'             => $nav,
-                'proceeds'             => $proceeds,
-                'cost'                 => round($totalCost, 2),
-                'gain'                 => $gain,
-                'days_held'            => $days,
-                'gain_type'            => $taxInfo['gain_type'],
-                'tax_rate'             => $taxInfo['tax_rate'],
-                'tax_amount'           => $taxInfo['tax_amount'],
-                'fy'                   => $sellFy,
-                'grandfathered_savings'=> round($grandfatheredSavings, 2), // t132
-                'lot_method'           => $lotMethod,                      // t133
+                'asset_class'  => 'Mutual Fund',
+                'name'         => $t['scheme_name'],
+                'fund_house'   => $t['fund_house'],
+                'category'     => $t['category'],
+                'folio'        => $combo['folio_number'],
+                'sell_date'    => format_date($date),
+                'units'        => $units,
+                'sell_nav'     => $nav,
+                'proceeds'     => $proceeds,
+                'cost'         => round($totalCost, 2),
+                'gain'         => $gain,
+                'days_held'    => $days,
+                'gain_type'    => $taxInfo['gain_type'],
+                'tax_rate'     => $taxInfo['tax_rate'],
+                'tax_amount'   => $taxInfo['tax_amount'],
+                'fy'           => $sellFy,
             ];
         }
     }
@@ -259,25 +225,32 @@ foreach ($stockTxnsByStock as $stockId => $txns) {
 
             $gain    = $proceeds - $totalCost - $charges;
             $days    = (int)(new DateTime($sellDate))->diff(new DateTime($firstBuyDate))->days;
-            $taxInfo = TaxEngine::stock_gain_tax($gain, $firstBuyDate, $sellDate);
+
+            // t39: Grandfathering — for stocks bought before Jan 31 2018
+            // FMV lookup not implemented (would need NSE historical data)
+            // Using 0 for now — user can manually override in UI
+            $taxInfo = TaxEngine::stock_gain_tax($gain, $firstBuyDate, $sellDate, $proceeds, 0);
 
             $stockGains[] = [
-                'asset_class' => 'Stock',
-                'name'        => $t['company_name'],
-                'symbol'      => $t['symbol'],
-                'exchange'    => $t['exchange'],
-                'sell_date'   => format_date($sellDate),
-                'quantity'    => $qty,
-                'sell_price'  => (float)$t['price'],
-                'proceeds'    => $proceeds,
-                'cost'        => round($totalCost, 2),
-                'charges'     => round($charges, 2),
-                'gain'        => round($gain, 2),
-                'days_held'   => $days,
-                'gain_type'   => $taxInfo['gain_type'],
-                'tax_rate'    => $taxInfo['tax_rate'],
-                'tax_amount'  => $taxInfo['tax_amount'],
-                'fy'          => $sellFy,
+                'asset_class'    => 'Stock',
+                'name'           => $t['company_name'],
+                'symbol'         => $t['symbol'],
+                'exchange'       => $t['exchange'],
+                'buy_date'       => $firstBuyDate,       // t39: for grandfathering display
+                'sell_date'      => format_date($sellDate),
+                'quantity'       => $qty,
+                'sell_price'     => (float)$t['price'],
+                'proceeds'       => $proceeds,
+                'cost'           => round($totalCost, 2),
+                'charges'        => round($charges, 2),
+                'gain'           => round($gain, 2),
+                'adjusted_gain'  => $taxInfo['adjusted_gain'] ?? round($gain, 2), // t39
+                'days_held'      => $days,
+                'gain_type'      => $taxInfo['gain_type'],
+                'tax_rate'       => $taxInfo['tax_rate'],
+                'tax_amount'     => $taxInfo['tax_amount'],
+                'grandfathered'  => $taxInfo['grandfathered'] ?? false, // t39
+                'fy'             => $sellFy,
             ];
         }
     }
@@ -404,70 +377,58 @@ foreach ($stockGains as $g) { $sellFySet[$g['fy']] = true; }
 krsort($sellFySet);
 $allFyList = array_keys($sellFySet);
 
-/* ─── t135: Loss Set-off & Carry Forward ─────────────────────────────────── */
-// Build FY-wise loss/gain summary for carry-forward analysis
-// Rules: STCG loss can be set off against STCG or LTCG gains
-//        LTCG loss can only be set off against LTCG gains
-//        Unabsorbed losses carry forward 8 assessment years
-$lossCF = [];
-$allGains = array_merge($mfGains, $stockGains);
-
-// Group net gains/losses by FY and type
-$fyNetMap = []; // fy => ['stcg'=>float, 'ltcg'=>float]
-foreach ($allGains as $g) {
+// t39: Build stock-specific LTCG/STCG summary per FY
+$stockSummary = [];
+foreach ($stockGains as $g) {
     $fy = $g['fy'];
-    if (!isset($fyNetMap[$fy])) $fyNetMap[$fy] = ['stcg'=>0.0,'ltcg'=>0.0,'total'=>0.0];
-    $gt = strtolower($g['gain_type']??'');
-    $gn = (float)$g['gain'];
-    if (strpos($gt,'stcg')!==false)      $fyNetMap[$fy]['stcg'] += $gn;
-    elseif (strpos($gt,'ltcg')!==false)  $fyNetMap[$fy]['ltcg'] += $gn;
-    $fyNetMap[$fy]['total'] += $gn;
-}
-
-// Identify loss FYs and compute carry-forward
-foreach ($fyNetMap as $fy => $nets) {
-    $fyParts = explode('-', $fy);
-    if (count($fyParts) === 2) {
-        $expiryYear = (int)('20'.$fyParts[1]) + 8;
-        $expiry = ($expiryYear-1).'-'.substr((string)$expiryYear,-2);
-    } else { $expiry = 'Unknown'; }
-
-    if ($nets['stcg'] < 0) {
-        $lossCF[] = [
+    if (!isset($stockSummary[$fy])) {
+        $stockSummary[$fy] = [
             'fy'          => $fy,
-            'type'        => 'STCG',
-            'loss_amount' => round(abs($nets['stcg']), 2),
-            'remaining'   => round(abs($nets['stcg']), 2),
-            'expiry_fy'   => $expiry,
-            'can_set_off' => 'STCG or LTCG gains',
+            'ltcg_gain'   => 0, 'ltcg_tax'   => 0, 'ltcg_count' => 0,
+            'stcg_gain'   => 0, 'stcg_tax'   => 0, 'stcg_count' => 0,
+            'total_gain'  => 0, 'total_tax'  => 0,
+            'grandfathered_count' => 0,
+            'exchanges'   => [],
         ];
     }
-    if ($nets['ltcg'] < 0) {
-        $lossCF[] = [
-            'fy'          => $fy,
-            'type'        => 'LTCG',
-            'loss_amount' => round(abs($nets['ltcg']), 2),
-            'remaining'   => round(abs($nets['ltcg']), 2),
-            'expiry_fy'   => $expiry,
-            'can_set_off' => 'LTCG gains only',
-        ];
+    $gt = $g['gain_type'];
+    $gain = (float)($g['adjusted_gain'] ?? $g['gain']);
+    $tax  = (float)($g['tax_amount'] ?? 0);
+    if ($gt === 'LTCG') {
+        $stockSummary[$fy]['ltcg_gain']  += $gain;
+        $stockSummary[$fy]['ltcg_tax']   += $tax;
+        $stockSummary[$fy]['ltcg_count'] ++;
+    } else {
+        $stockSummary[$fy]['stcg_gain']  += $gain;
+        $stockSummary[$fy]['stcg_tax']   += $tax;
+        $stockSummary[$fy]['stcg_count'] ++;
+    }
+    $stockSummary[$fy]['total_gain'] += $gain;
+    $stockSummary[$fy]['total_tax']  += $tax;
+    if (!empty($g['grandfathered'])) $stockSummary[$fy]['grandfathered_count']++;
+    if ($g['exchange'] && !in_array($g['exchange'], $stockSummary[$fy]['exchanges'])) {
+        $stockSummary[$fy]['exchanges'][] = $g['exchange'];
     }
 }
-
-// Total grandfathering tax savings this report
-$totalGfSavings = array_sum(array_column($mfGains, 'grandfathered_savings'));
+// Round all values
+foreach ($stockSummary as &$s) {
+    $s['ltcg_gain'] = round($s['ltcg_gain'], 2);
+    $s['stcg_gain'] = round($s['stcg_gain'], 2);
+    $s['total_gain']= round($s['total_gain'], 2);
+    $s['ltcg_tax']  = round($s['ltcg_tax'],  2);
+    $s['stcg_tax']  = round($s['stcg_tax'],  2);
+    $s['total_tax'] = round($s['total_tax'],  2);
+}
+unset($s);
 
 json_response(true, 'FY Gains report loaded.', [
-    'fy_summary'              => array_values($fyData),
-    'mf_gains_detail'         => $mfGains,
-    'stock_gains_detail'      => $stockGains,
-    'mf_dividends'            => $mfDividends,
-    'stock_dividends'         => $stockDividends,
-    'fy_list'                 => $allFyList,
-    'loss_carry_forward'      => $lossCF,              // t135
-    'lot_method'              => $lotMethod,            // t133
-    'grandfathering_applied'  => $applyGrandfathering, // t132
-    'total_gf_tax_savings'    => round($totalGfSavings, 2), // t132
+    'fy_summary'         => array_values($fyData),
+    'mf_gains_detail'    => $mfGains,
+    'stock_gains_detail' => $stockGains,
+    'stock_summary'      => array_values($stockSummary), // t39
+    'mf_dividends'       => $mfDividends,
+    'stock_dividends'    => $stockDividends,
+    'fy_list'            => $allFyList,
     'filter_fy'          => $filterFy,
     'ltcg_exemption'     => LTCG_EXEMPTION_LIMIT,
 ]);

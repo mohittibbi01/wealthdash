@@ -4279,3 +4279,148 @@ function renderMfAnalytics() {
     renderPortfolioSectors();
   }, 300);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t148 — CAS AUTO-IMPORT (CAMS + KFintech)
+═══════════════════════════════════════════════════════════════════════════ */
+
+let _casParseData = null; // stores parsed result for commit step
+
+function switchCasTab(tab, el) {
+  document.querySelectorAll('.cas-tab').forEach(b => {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = 'var(--text-muted)';
+    b.style.fontWeight = '600';
+  });
+  el.style.borderBottomColor = 'var(--accent)';
+  el.style.color = 'var(--accent)';
+  el.style.fontWeight = '700';
+
+  document.getElementById('casTabContent').style.display = tab === 'cas' ? '' : 'none';
+  document.getElementById('csvTabContent').style.display = tab === 'csv' ? '' : 'none';
+  document.getElementById('casButtons').style.display    = tab === 'cas' ? '' : 'none';
+  document.getElementById('btnStartImport').style.display= tab === 'csv' ? '' : 'none';
+}
+
+function onCasFileSelect(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  document.getElementById('casFileName').textContent = `📄 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+  document.getElementById('casFileLabel').style.borderColor = 'var(--accent)';
+  document.getElementById('casFileLabel').style.background = 'rgba(99,102,241,.04)';
+  document.getElementById('btnCasParse').style.display = '';
+  document.getElementById('btnCasImport').style.display = 'none';
+  document.getElementById('casParseResult').style.display = 'none';
+  _casParseData = null;
+}
+
+async function parseCasFile() {
+  const file = document.getElementById('casFile')?.files?.[0];
+  const portId = document.getElementById('casPortfolioId')?.value;
+  if (!file) { showToast('Select a file first', 'error'); return; }
+
+  const btn = document.getElementById('btnCasParse');
+  btn.disabled = true; btn.textContent = '⏳ Parsing…';
+
+  const form = new FormData();
+  form.append('action', 'cas_parse');
+  form.append('cas_file', file);
+  form.append('format', 'auto');
+  form.append('portfolio_id', portId);
+
+  try {
+    const res  = await fetch(`${APP_URL}/api/router.php`, { method:'POST', body:form });
+    const data = await res.json();
+
+    const resultEl = document.getElementById('casParseResult');
+    resultEl.style.display = '';
+
+    if (!data.success) {
+      resultEl.innerHTML = `<div style="padding:12px;background:rgba(220,38,38,.08);border-radius:8px;color:#dc2626;font-size:13px;">
+        ❌ ${data.message}</div>`;
+      return;
+    }
+
+    _casParseData = data.data;
+    const d = _casParseData;
+
+    // Fund mapping summary
+    const unmapped = (d.fund_map || []).filter(f => !f.matched);
+    const mapped   = (d.fund_map || []).filter(f => f.matched);
+
+    resultEl.innerHTML = `
+      <div style="padding:12px;background:rgba(22,163,74,.07);border-radius:8px;margin-bottom:12px;">
+        <div style="font-weight:700;margin-bottom:6px;">✅ Parse successful — ${data.data.format} format</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px;">
+          <div>Total transactions: <strong>${d.total}</strong></div>
+          <div style="color:#16a34a;">New: <strong>${d.new_count}</strong></div>
+          <div style="color:#d97706;">Duplicates: <strong>${d.duplicate_count}</strong></div>
+        </div>
+      </div>
+      ${unmapped.length ? `<div style="padding:10px;background:rgba(245,158,11,.08);border-radius:7px;font-size:12px;color:#b45309;margin-bottom:10px;">
+        ⚠️ <strong>${unmapped.length} funds not matched</strong> in WealthDash DB:
+        ${unmapped.slice(0,3).map(f=>`<br>• ${f.fund_name}`).join('')}
+        ${unmapped.length>3?`<br>• ...and ${unmapped.length-3} more`:''}
+      </div>` : `<div style="font-size:12px;color:#15803d;margin-bottom:8px;">✅ All ${mapped.length} funds matched in database</div>`}
+      <div style="font-size:12px;color:var(--text-muted);padding:8px;background:var(--bg-secondary);border-radius:6px;max-height:120px;overflow-y:auto;">
+        <strong>Preview (first 5 transactions):</strong><br>
+        ${(d.transactions||[]).slice(0,5).map(t =>
+          `${t.txn_date} | ${(t.fund_name||'').slice(0,30)} | ${t.txn_type} | ${t.units} units @₹${t.nav}`
+        ).join('<br>')}
+      </div>`;
+
+    if (d.new_count > 0) {
+      document.getElementById('btnCasImport').style.display = '';
+      document.getElementById('btnCasImport').textContent = `✅ Import ${d.new_count} New Transactions`;
+    } else {
+      resultEl.innerHTML += `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#16a34a;">All transactions already imported!</div>`;
+    }
+
+  } catch(e) {
+    document.getElementById('casParseResult').innerHTML = `<div style="padding:12px;background:rgba(220,38,38,.08);border-radius:8px;color:#dc2626;font-size:12px;">Error: ${e.message}</div>`;
+    document.getElementById('casParseResult').style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 Parse & Preview';
+  }
+}
+
+async function commitCasImport() {
+  if (!_casParseData) { showToast('Parse file first', 'warning'); return; }
+  const portId = document.getElementById('casPortfolioId')?.value;
+  const btn    = document.getElementById('btnCasImport');
+  btn.disabled = true; btn.textContent = '⏳ Importing…';
+
+  // Only send non-duplicate transactions
+  const toImport = (_casParseData.transactions || []).filter(t => !t.is_duplicate);
+
+  const form = new FormData();
+  form.append('action', 'cas_import');
+  form.append('portfolio_id', portId);
+  form.append('transactions', JSON.stringify(toImport));
+
+  try {
+    const res  = await fetch(`${APP_URL}/api/router.php`, { method:'POST', body:form });
+    const data = await res.json();
+    const resEl = document.getElementById('casImportResult');
+    resEl.style.display = '';
+
+    if (data.success) {
+      const d = data.data;
+      resEl.innerHTML = `<div style="padding:12px;background:rgba(22,163,74,.08);border-radius:8px;color:#15803d;">
+        <div style="font-weight:800;font-size:14px;margin-bottom:6px;">✅ Import Complete!</div>
+        <div style="font-size:12px;">Imported: <strong>${d.imported}</strong> · Duplicates skipped: <strong>${d.duplicates}</strong> · Failed: <strong>${d.failed}</strong></div>
+        ${d.errors?.length ? `<div style="margin-top:6px;font-size:11px;">Errors: ${d.errors.slice(0,3).join(', ')}</div>` : ''}
+      </div>`;
+      showToast(`✅ ${d.imported} transactions imported from CAS!`, 'success');
+      hideModal('modalImportCsv');
+      MF.loadHoldings();
+    } else {
+      resEl.innerHTML = `<div style="padding:12px;background:rgba(220,38,38,.08);border-radius:8px;color:#dc2626;">${data.message}</div>`;
+    }
+  } catch(e) {
+    document.getElementById('casImportResult').innerHTML = `<div style="padding:12px;background:rgba(220,38,38,.08);border-radius:8px;color:#dc2626;font-size:12px;">${e.message}</div>`;
+    document.getElementById('casImportResult').style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Import Transactions';
+  }
+}

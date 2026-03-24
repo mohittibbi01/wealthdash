@@ -31,6 +31,7 @@ ob_start();
   <button class="admin-tab" data-tab="fundrules" onclick="adminSwitchTab('fundrules',this)">⚙️ Fund Rules</button>
   <button class="admin-tab" data-tab="audit"    onclick="adminSwitchTab('audit',this)">Audit Log</button>
   <button class="admin-tab" data-tab="dbmgr" onclick="adminSwitchTab('dbmgr',this)">🗄️ DB Manager</button>
+  <button class="admin-tab" data-tab="setup" onclick="adminSwitchTab('setup',this)">🚀 Setup &amp; Backup</button>
 </div>
 
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
@@ -544,6 +545,295 @@ ob_start();
 </div>
 
 <!-- ═══════ TAB: DB MANAGER ═══════ -->
+<!-- ═══════ TAB: SETUP & BACKUP ═══════ -->
+<div id="tab-setup" class="admin-tab-content" style="display:none">
+
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+
+    <!-- ── LEFT: Setup Wizard ──────────────────────────────────── -->
+    <div>
+
+      <!-- Progress -->
+      <div class="card" style="margin-bottom:16px;padding:16px 20px;" id="setupProgressCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:13px;font-weight:700;color:var(--text-primary);">🚀 Setup Progress</span>
+          <span style="font-size:13px;font-weight:700;color:var(--accent);font-family:monospace;" id="setupPct">0%</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+          <div id="setupFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#7dd3fc);border-radius:99px;transition:width .5s ease;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;" id="setupSubtitle">Nayi machine pe ye steps follow karo — ek baar mein sab sahi chal jayega.</div>
+      </div>
+
+      <!-- Steps -->
+      <div style="display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;" id="setupStepsList">
+
+        <!-- Step 1 -->
+        <div class="setup-step-card" id="ss-1" data-step="1">
+          <div class="ss-num" id="ssnum-1">1</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              XAMPP Download &amp; Install karo
+              <span class="ss-badge ss-req">Required</span>
+            </div>
+            <p class="ss-desc">
+              XAMPP install karo aur <code>Apache</code> + <code>MySQL</code> dono services start karo.
+              PHP 8.0+ hona chahiye. phpMyAdmin accessible hoga: <code>localhost/phpmyadmin</code>
+            </p>
+            <div class="ss-actions">
+              <a class="btn btn-primary btn-sm" href="https://www.apachefriends.org/download.html" target="_blank" style="font-size:12px;">⬇ XAMPP Download</a>
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(1)">✓ Done</button>
+              <span id="sstag-1"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="setup-step-card ss-locked" id="ss-2" data-step="2">
+          <div class="ss-num" id="ssnum-2">2</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              Schema SQL Download &amp; Import karo
+              <span class="ss-badge ss-req">Required</span>
+            </div>
+            <p class="ss-desc">
+              Schema download karo. phpMyAdmin open karo → <code>New</code> →
+              Database name: <code>wealthdash</code> → Create → <code>Import</code> tab →
+              downloaded <code>.sql</code> select karo → Go.
+              Saari tables automatically ban jayengi.
+            </p>
+            <div class="ss-actions">
+              <button class="btn btn-primary btn-sm ss-dl" onclick="setupDownload('schema')" style="font-size:12px;">⬇ Schema Download</button>
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(2)">✓ Done</button>
+              <span id="sstag-2"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="setup-step-card ss-locked" id="ss-3" data-step="3">
+          <div class="ss-num" id="ssnum-3">3</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              Seed Data Import karo
+              <span class="ss-badge ss-opt">Optional</span>
+            </div>
+            <p class="ss-desc">
+              Fund houses (36 AMCs), NPS schemes, aur common stocks ka default data.
+              Schema import ke <em>baad</em> same database mein import karo.
+              Iske bina fund screener aur NPS kaam nahi karega.
+            </p>
+            <div class="ss-actions">
+              <button class="btn btn-primary btn-sm ss-dl" onclick="setupDownload('seed')" style="font-size:12px;">⬇ Seed Data Download</button>
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(3)">✓ Done</button>
+              <span id="sstag-3"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="setup-step-card ss-locked" id="ss-4" data-step="4">
+          <div class="ss-num" id="ssnum-4">4</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              .env File Configure karo
+              <span class="ss-badge ss-req">Required</span>
+            </div>
+            <p class="ss-desc">
+              Template download karo → copy karke <code>.env</code> naam do →
+              project root mein rakho → DB credentials set karo.
+              XAMPP default: <code>DB_HOST=localhost</code>, <code>DB_USER=root</code>, <code>DB_PASS=</code> (empty).
+              <code>APP_URL</code> apna localhost path set karo.
+            </p>
+            <div class="ss-actions">
+              <button class="btn btn-primary btn-sm ss-dl" onclick="setupDownload('env')" style="font-size:12px;">⬇ .env Template</button>
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(4)">✓ Done</button>
+              <span id="sstag-4"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="setup-step-card ss-locked" id="ss-5" data-step="5">
+          <div class="ss-num" id="ssnum-5">5</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              Project Files htdocs mein Copy karo
+              <span class="ss-badge ss-req">Required</span>
+            </div>
+            <p class="ss-desc">
+              WealthDash folder XAMPP ke <code>htdocs/</code> mein rakho.
+              Windows: <code>C:\xampp\htdocs\wealthdash\</code> &nbsp;|&nbsp;
+              Mac: <code>/Applications/XAMPP/htdocs/wealthdash/</code><br>
+              Files copy karne ke baad Apache restart karo.
+            </p>
+            <div class="ss-actions">
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(5)">✓ Done</button>
+              <span id="sstag-5"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 6 -->
+        <div class="setup-step-card ss-locked" id="ss-6" data-step="6">
+          <div class="ss-num" id="ssnum-6">6</div>
+          <div class="ss-body">
+            <div class="ss-title">
+              Connection Test &amp; First Login
+              <span class="ss-badge ss-auto">Verify</span>
+            </div>
+            <p class="ss-desc">
+              Browser mein <code>localhost/wealthdash</code> open karo.
+              DB status check karo → agar <span style="color:var(--gain,#22c55e);font-weight:600;">Connected</span> dikh raha hai
+              toh account register karo. Setup complete! 🎉
+            </p>
+            <div class="ss-actions">
+              <button class="btn btn-sm" style="background:rgba(79,142,247,.1);color:var(--accent);border:1px solid rgba(79,142,247,.3);font-size:12px;" onclick="refreshDbStatus()">🔌 DB Status Check</button>
+              <button class="btn btn-sm ss-mark" onclick="ssMarkDone(6)">✓ Complete!</button>
+              <span id="sstag-6"></span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /steps -->
+
+      <div style="text-align:right;margin-top:10px;">
+        <button onclick="ssResetAll()" style="background:none;border:none;color:var(--text-muted);font-size:11.5px;cursor:pointer;text-decoration:underline;">↺ Progress reset karo</button>
+      </div>
+    </div><!-- /left -->
+
+    <!-- ── RIGHT: Sidebar ─────────────────────────────────────────── -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- Quick Downloads -->
+      <div class="card" style="padding:16px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">⬇ Quick Downloads</div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="ss-dl-big" onclick="setupDownload('schema')">
+            <div class="ss-dl-icon" style="background:rgba(79,142,247,.12);">🗄️</div>
+            <div>
+              <div class="ss-dl-name">Schema Backup</div>
+              <div class="ss-dl-hint">CREATE TABLE · live DB se generate</div>
+            </div>
+          </button>
+          <button class="ss-dl-big" onclick="setupDownload('seed')">
+            <div class="ss-dl-icon" style="background:rgba(34,197,94,.1);">🌱</div>
+            <div>
+              <div class="ss-dl-name">Seed Data</div>
+              <div class="ss-dl-hint">Fund houses, NPS, Stocks · INSERT SQL</div>
+            </div>
+          </button>
+          <button class="ss-dl-big" onclick="setupDownload('env')">
+            <div class="ss-dl-icon" style="background:rgba(245,158,11,.1);">⚙️</div>
+            <div>
+              <div class="ss-dl-name">.env Template</div>
+              <div class="ss-dl-hint">DB config, App URL, credentials</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- DB Status -->
+      <div class="card" style="padding:16px 18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">🔌 DB Status</div>
+          <button onclick="refreshDbStatus()" id="dbRefreshBtn" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;" title="Refresh">↻</button>
+        </div>
+        <div id="dbStatusRows">
+          <div class="ss-status-row"><span>Connection</span><span id="dbs-conn" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Database</span><span id="dbs-name" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Tables</span><span id="dbs-tables" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Users</span><span id="dbs-users" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>MF Holdings</span><span id="dbs-mfh" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Transactions</span><span id="dbs-txn" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Seed: Fund Houses</span><span id="dbs-fh" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Seed: NPS Schemes</span><span id="dbs-nps" class="ss-status-val">—</span></div>
+          <div class="ss-status-row"><span>Seed: Stocks</span><span id="dbs-stocks" class="ss-status-val">—</span></div>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="card" style="padding:16px 18px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">💡 Important Tips</div>
+        <div class="ss-tip">Schema <strong>pehle</strong> import karo, seed <strong>baad mein</strong> — order matter karta hai.</div>
+        <div class="ss-tip">Import fail ho toh phpMyAdmin mein <code>max_allowed_packet</code> badao.</div>
+        <div class="ss-tip">MySQL default port <code>3306</code> — conflict ho toh <code>.env</code> mein <code>DB_PORT</code> change karo.</div>
+        <div class="ss-tip">Setup complete hone ke baad admin ka password zaroor change karo.</div>
+        <div class="ss-tip">Naya PC? Sirf <code>htdocs/wealthdash/</code> copy karo + schema + seed — bas.</div>
+      </div>
+
+    </div><!-- /right -->
+  </div>
+</div>
+
+<style>
+/* ── Setup Tab Styles ──────────────────────────────────────────── */
+.setup-step-card {
+  display: flex; gap: 14px; padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  transition: background .2s;
+}
+.setup-step-card:last-child { border-bottom: none; }
+.setup-step-card.ss-active { background: rgba(var(--accent-rgb,79,142,247),.04); }
+.setup-step-card.ss-done   { background: rgba(34,197,94,.035); }
+.setup-step-card.ss-locked { opacity: .45; pointer-events: none; }
+
+.ss-num {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; font-family: monospace;
+  background: var(--bg-surface-2); color: var(--text-muted);
+  border: 2px solid var(--border); transition: all .2s;
+}
+.ss-done .ss-num   { background:rgba(34,197,94,.12); border-color:#22c55e; color:#22c55e; }
+.ss-active .ss-num { background:rgba(79,142,247,.1);  border-color:var(--accent); color:var(--accent); }
+
+.ss-body { flex: 1; min-width: 0; }
+.ss-title {
+  font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 4px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.ss-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.ss-req  { background: rgba(239,68,68,.12); color: #ef4444; }
+.ss-opt  { background: rgba(107,114,128,.12); color: #9ca3af; }
+.ss-auto { background: rgba(79,142,247,.12); color: var(--accent); }
+.ss-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin: 0 0 10px; }
+.ss-desc code { background: var(--bg-surface-2); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; color: var(--accent); border: 1px solid var(--border); }
+.ss-actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.ss-mark { background: rgba(34,197,94,.1); color: #22c55e; border: 1px solid rgba(34,197,94,.25) !important; font-size: 12px !important; }
+.ss-mark:hover { background: rgba(34,197,94,.2) !important; }
+.ss-tag-done { font-size: 11px; font-weight: 600; color: #22c55e; background: rgba(34,197,94,.1); padding: 2px 8px; border-radius: 99px; }
+.ss-tag-pend { font-size: 11px; font-weight: 600; color: #d97706; background: rgba(245,158,11,.1); padding: 2px 8px; border-radius: 99px; }
+.ss-undo { background: none !important; border: 1px solid var(--border) !important; color: var(--text-muted) !important; font-size: 11px !important; padding: 3px 8px !important; }
+.ss-undo:hover { border-color: var(--danger) !important; color: var(--danger) !important; }
+
+/* Download buttons */
+.ss-dl-big {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 8px; cursor: pointer; border: 1px solid var(--border);
+  background: transparent; transition: all .2s; text-align: left; width: 100%;
+}
+.ss-dl-big:hover { border-color: var(--accent); background: rgba(79,142,247,.05); }
+.ss-dl-icon { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.ss-dl-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.ss-dl-hint { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* Status rows */
+.ss-status-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 12.5px; color: var(--text-secondary); }
+.ss-status-row:last-child { border-bottom: none; }
+.ss-status-val { font-weight: 600; font-family: monospace; font-size: 12px; color: var(--text-primary); }
+.ss-val-ok  { color: #22c55e !important; }
+.ss-val-err { color: var(--danger,#ef4444) !important; }
+.ss-val-warn{ color: #d97706 !important; }
+
+/* Tips */
+.ss-tip { font-size: 12px; color: var(--text-secondary); padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); line-height: 1.5; }
+.ss-tip:last-child { border-bottom: none; }
+.ss-tip code { background: var(--bg-surface-2); padding: 1px 4px; border-radius: 3px; font-size: 11px; color: var(--accent); }
+</style>
+
 <div id="tab-dbmgr" class="admin-tab-content" style="display:none">
   <div class="card">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
@@ -747,6 +1037,7 @@ function adminSwitchTab(name, btn) {
   if (name==='fundrules') { frLoadCategories(); }
   if (name==='audit') loadAuditLog();
   if (name==='dbmgr') loadDbTables();
+  if (name==='setup') { ssRenderAll(); refreshDbStatus(); }
 }
 
 async function loadStats() {
@@ -1899,6 +2190,151 @@ document.addEventListener('click', function(e) {
     btn.style.borderColor = 'var(--accent)';
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// SETUP & BACKUP TAB — Step Wizard + DB Status + Downloads
+// ═══════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
+
+  const TOTAL   = 6;
+  const SS_KEY  = 'wd_setup_v2';
+  let   _state  = {};
+
+  // ── Persist ────────────────────────────────────────────────────
+  function ssLoad() {
+    try { _state = JSON.parse(localStorage.getItem(SS_KEY) || '{}'); }
+    catch { _state = {}; }
+  }
+  function ssSave() {
+    try { localStorage.setItem(SS_KEY, JSON.stringify(_state)); } catch {}
+  }
+
+  // ── Render all steps ───────────────────────────────────────────
+  window.ssRenderAll = function () {
+    ssLoad();
+    let done = 0;
+    for (let i = 1; i <= TOTAL; i++) {
+      const card   = document.getElementById('ss-' + i);
+      const numEl  = document.getElementById('ssnum-' + i);
+      const tagEl  = document.getElementById('sstag-' + i);
+      if (!card) continue;
+
+      const isDone = !!_state[i];
+      const prevOk = i === 1 || !!_state[i - 1];
+      if (isDone) done++;
+
+      card.classList.remove('ss-active', 'ss-done', 'ss-locked');
+
+      if (isDone) {
+        card.classList.add('ss-done');
+        if (numEl) numEl.textContent = '✓';
+        if (tagEl) tagEl.innerHTML =
+          `<span class="ss-tag-done">✓ Done</span>
+           <button class="btn btn-sm ss-undo" onclick="ssUnmark(${i})">Undo</button>`;
+      } else if (prevOk) {
+        card.classList.add('ss-active');
+        if (numEl) numEl.textContent = i;
+        if (tagEl) tagEl.innerHTML = `<span class="ss-tag-pend">⏳ Pending</span>`;
+      } else {
+        card.classList.add('ss-locked');
+        if (numEl) numEl.textContent = i;
+        if (tagEl) tagEl.innerHTML = '';
+      }
+    }
+
+    // Progress bar
+    const pct  = Math.round((done / TOTAL) * 100);
+    const fill = document.getElementById('setupFill');
+    const pctEl = document.getElementById('setupPct');
+    const sub   = document.getElementById('setupSubtitle');
+    if (fill)  fill.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (pct === 100 && sub) {
+      sub.textContent = '🎉 Setup complete! App ready hai.';
+      if (fill) fill.style.background = 'linear-gradient(90deg,#22c55e,#86efac)';
+    } else if (sub) {
+      sub.textContent = 'Nayi machine pe ye steps follow karo — ek baar mein sab sahi chal jayega.';
+      if (fill) fill.style.background = 'linear-gradient(90deg,var(--accent),#7dd3fc)';
+    }
+  };
+
+  // ── Mark / unmark ──────────────────────────────────────────────
+  window.ssMarkDone = function (n) {
+    ssLoad();
+    _state[n] = true;
+    ssSave();
+    ssRenderAll();
+    showToast('Step ' + n + ' complete! ✓', 'success');
+  };
+  window.ssUnmark = function (n) {
+    ssLoad();
+    for (let i = n; i <= TOTAL; i++) delete _state[i];
+    ssSave();
+    ssRenderAll();
+    showToast('Step ' + n + ' reset.', 'warning');
+  };
+  window.ssResetAll = function () {
+    if (!confirm('Saara setup progress reset karna chahte ho?')) return;
+    _state = {};
+    ssSave();
+    ssRenderAll();
+    showToast('Progress reset ho gaya.', 'warning');
+  };
+
+  // ── Download trigger ───────────────────────────────────────────
+  window.setupDownload = function (type) {
+    showToast('Download shuru ho rahi hai…', 'success');
+    // Direct file download — not via router (router returns JSON only)
+    window.location.href = window.APP_URL + '/api/admin/db_setup_download.php?type=' + type;
+  };
+
+  // ── DB Status refresh ──────────────────────────────────────────
+  window.refreshDbStatus = async function () {
+    const btn = document.getElementById('dbRefreshBtn');
+    if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+    function setVal(id, text, cls) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent  = text;
+      el.className    = 'ss-status-val' + (cls ? ' ' + cls : '');
+    }
+
+    try {
+      // Direct endpoint — bypass router JSON envelope
+      const res  = await fetch(window.APP_URL + '/api/admin/db_setup_download.php?type=db_status');
+      const data = await res.json();
+
+      if (data.ok) {
+        setVal('dbs-conn',   '● Connected',                    'ss-val-ok');
+        setVal('dbs-name',   data.db_name  || '—',            '');
+        setVal('dbs-tables', (data.table_count || 0) + ' tables',
+               data.table_count > 0 ? 'ss-val-ok' : 'ss-val-warn');
+        setVal('dbs-users',  (data.row_counts?.users           ?? '—') + ' rows', '');
+        setVal('dbs-mfh',    (data.row_counts?.mf_holdings     ?? '—') + ' rows', '');
+        setVal('dbs-txn',    (data.row_counts?.mf_transactions ?? '—') + ' rows', '');
+
+        const ss = data.seed_status || {};
+        setVal('dbs-fh',     ss.fund_houses  ? '✓ Seeded' : '✗ Empty',
+               ss.fund_houses  ? 'ss-val-ok' : 'ss-val-warn');
+        setVal('dbs-nps',    ss.nps_schemes  ? '✓ Seeded' : '✗ Empty',
+               ss.nps_schemes  ? 'ss-val-ok' : 'ss-val-warn');
+        setVal('dbs-stocks', ss.stock_master ? '✓ Seeded' : '✗ Empty',
+               ss.stock_master ? 'ss-val-ok' : 'ss-val-warn');
+      } else {
+        setVal('dbs-conn', '✗ Error: ' + (data.error || '?'), 'ss-val-err');
+        ['dbs-name','dbs-tables','dbs-users','dbs-mfh','dbs-txn',
+         'dbs-fh','dbs-nps','dbs-stocks'].forEach(id => setVal(id, '—', ''));
+      }
+    } catch (e) {
+      setVal('dbs-conn', '✗ Network error', 'ss-val-err');
+    } finally {
+      if (btn) { btn.textContent = '↻'; btn.disabled = false; }
+    }
+  };
+
+})(); // end setup IIFE
 </script>
 
 <?php
