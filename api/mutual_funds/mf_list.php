@@ -66,6 +66,22 @@ try {
         $countStmt->execute(array_merge($portfolioParams, $fundParams));
         $total = (int)$countStmt->fetchColumn();
 
+        // t31: Dynamic sort — whitelist allowed columns
+        $sortColMap = [
+            'txn_date'         => 't.txn_date',
+            'scheme_name'      => 'f.scheme_name',
+            'transaction_type' => 't.transaction_type',
+            'units'            => 't.units',
+            'nav'              => 't.nav',
+            'value_at_cost'    => 't.value_at_cost',
+        ];
+        $rawSortCol  = $_GET['sort_col'] ?? 'txn_date';
+        $rawSortDir  = strtoupper($_GET['sort_dir'] ?? 'DESC');
+        $orderCol    = $sortColMap[$rawSortCol] ?? 't.txn_date';
+        $orderDir    = ($rawSortDir === 'ASC') ? 'ASC' : 'DESC';
+        // Secondary sort: always t.id DESC for stable pagination
+        $orderClause = "$orderCol $orderDir, t.id DESC";
+
         $stmt = $db->prepare("
             SELECT t.id, t.portfolio_id, t.fund_id, t.folio_number,
                    t.transaction_type, t.platform, t.txn_date,
@@ -80,7 +96,7 @@ try {
             JOIN portfolios port ON port.id = t.portfolio_id
             JOIN portfolios p ON p.id = t.portfolio_id
             WHERE $whereBase $fundFilter
-            ORDER BY t.txn_date DESC, t.id DESC
+            ORDER BY $orderClause
             LIMIT ? OFFSET ?
         ");
         $stmt->execute(array_merge($portfolioParams, $fundParams, [$per_page, $offset]));

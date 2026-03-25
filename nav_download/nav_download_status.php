@@ -137,27 +137,27 @@
     <div class="card c-total">
       <div class="num" id="c-total">—</div>
       <div class="lbl">Total Funds</div>
-      <div class="sub" id="c-recs">— records</div>
-    </div>
-    <div class="card c-done">
-      <div class="num" id="c-done">—</div>
-      <div class="lbl">Downloaded ✅</div>
-      <div class="sub" id="c-done-sub">—</div>
-    </div>
-    <div class="card c-work">
-      <div class="num" id="c-work">—</div>
-      <div class="lbl">In Progress ⚙️</div>
-      <div class="sub">Currently fetching</div>
+      <div class="sub" id="c-recs">— NAV records</div>
     </div>
     <div class="card c-pend">
       <div class="num" id="c-pend">—</div>
       <div class="lbl">Pending ⏳</div>
       <div class="sub">Waiting in queue</div>
     </div>
+    <div class="card c-work">
+      <div class="num" id="c-work">—</div>
+      <div class="lbl">In Progress ⚙️</div>
+      <div class="sub">Currently fetching</div>
+    </div>
     <div class="card c-err">
       <div class="num" id="c-err">—</div>
       <div class="lbl">⚠ Errors</div>
       <div class="sub">Click retry to fix</div>
+    </div>
+    <div class="card c-done">
+      <div class="num" id="c-done">—</div>
+      <div class="lbl">Downloaded ✅</div>
+      <div class="sub" id="c-done-sub">Latest: —</div>
     </div>
   </div>
 
@@ -224,8 +224,8 @@
     <div class="tabs" style="padding:0 16px;padding-top:12px">
       <div class="tab active" onclick="switchTab('pending')"   id="tab-pending">   ⏳ Pending   <span class="tc" id="tc-p">0</span></div>
       <div class="tab"        onclick="switchTab('working')"   id="tab-working">   ⚙️ Working   <span class="tc" id="tc-w">0</span></div>
-      <div class="tab"        onclick="switchTab('completed')" id="tab-completed"> ✅ Completed <span class="tc" id="tc-c">0</span></div>
       <div class="tab"        onclick="switchTab('errors')"    id="tab-errors">    ⚠ Errors    <span class="tc" id="tc-e">0</span></div>
+      <div class="tab"        onclick="switchTab('completed')" id="tab-completed"> ✅ Completed <span class="tc" id="tc-c">0</span></div>
     </div>
     <div class="tbl-wrap">
       <table>

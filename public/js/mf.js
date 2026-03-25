@@ -23,6 +23,8 @@ const MF = {
   perPage: 10,
   totalTxns: 0,
   txnFilters: {},
+  txnSortCol: 'txn_date',   // t31: transaction table sort
+  txnSortDir: 'desc',       // t31: asc | desc
   holdingsPage: 1,
   holdingsPerPage: 10,
   oneDayData: {},        // fund_id => {day_change_amt, day_change_pct}
@@ -583,6 +585,44 @@ function initTxnPage() {
   ['txnFilterType'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', loadTransactions);
   });
+
+  // t31: Sortable column headers
+  document.querySelectorAll('#txnTable th.sortable[data-col]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.style.userSelect = 'none';
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (MF.txnSortCol === col) {
+        MF.txnSortDir = MF.txnSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        MF.txnSortCol = col;
+        MF.txnSortDir = col === 'txn_date' ? 'desc' : 'asc';
+      }
+      _updateTxnSortHeaders();
+      loadTransactions(1);
+    });
+  });
+  _updateTxnSortHeaders();
+}
+
+// t31: Update sort arrow indicators on all sortable headers
+function _updateTxnSortHeaders() {
+  document.querySelectorAll('#txnTable th.sortable[data-col]').forEach(th => {
+    const col = th.dataset.col;
+    // Remove old indicators
+    const existing = th.querySelector('.txn-sort-arrow');
+    if (existing) existing.remove();
+
+    const isActive = MF.txnSortCol === col;
+    const arrow = document.createElement('span');
+    arrow.className = 'txn-sort-arrow';
+    arrow.style.cssText = 'margin-left:4px;font-size:10px;opacity:' + (isActive ? '1' : '0.3');
+    arrow.textContent = isActive ? (MF.txnSortDir === 'asc' ? ' ▲' : ' ▼') : ' ▼';
+    th.appendChild(arrow);
+
+    th.style.color = isActive ? 'var(--accent)' : '';
+    th.style.fontWeight = isActive ? '700' : '';
+  });
 }
 
 async function loadTransactions(page = 1) {
@@ -603,6 +643,9 @@ async function loadTransactions(page = 1) {
   if (from) params.set('from', from);
   if (to)   params.set('to', to);
   if (q)    params.set('q', q);
+  // t31: send sort params
+  params.set('sort_col', MF.txnSortCol || 'txn_date');
+  params.set('sort_dir', MF.txnSortDir || 'desc');
 
   try {
     const res = await API.get(`/api/mutual_funds/mf_list.php?${params}`);

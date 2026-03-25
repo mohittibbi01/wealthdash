@@ -277,7 +277,49 @@ ob_start();
       </div>
     </div>
 
-    <!-- 6. Holdings Recalc -->
+    <!-- 6. Full NAV History Download -->
+    <div class="nav-op-card" id="navOpCard_navdl">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">📥</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">Full NAV History Download — Since Inception</div>
+          <div class="nav-op-desc">MFAPI.in se <strong>saare 14,000+ funds ki complete NAV history</strong> fetch karta hai — since inception tak. <code>nav_history</code> table populate hoti hai jo Screener charts, XIRR, returns calculation ke liye use hoti hai. Incremental hai — ruk ke dobara shuru kar sakte ho.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">📅 Ek baar bulk download, phir daily auto-update</span>
+            <span class="nav-lastrun" id="lastrun_navdl">Last run: —</span>
+          </div>
+          <!-- Live tiles -->
+          <div id="ndTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;">
+            <div class="pn-tile pn-total">  <div class="pn-num" id="ndTotal">—</div>  <div class="pn-lbl">Total</div></div>
+            <div class="pn-tile pn-pending"><div class="pn-num" id="ndPending">—</div><div class="pn-lbl">Pending</div></div>
+            <div class="pn-tile pn-stale">  <div class="pn-num" id="ndWorking">—</div> <div class="pn-lbl">In Progress</div></div>
+            <div class="pn-tile pn-err">    <div class="pn-num" id="ndErrors">—</div> <div class="pn-lbl">Errors</div></div>
+            <div class="pn-tile pn-done">   <div class="pn-num" id="ndDone">—</div>   <div class="pn-lbl">Done</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <div style="flex:1;background:var(--border);border-radius:99px;height:6px;overflow:hidden;">
+              <div id="ndBar" style="height:100%;width:0%;background:#0891b2;border-radius:99px;transition:width .6s;"></div>
+            </div>
+            <span id="ndPct" style="font-size:11px;font-weight:700;color:#0891b2;min-width:32px;text-align:right;">0%</span>
+          </div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+            💾 <span id="ndRecs">—</span> NAV records downloaded &nbsp;|&nbsp;
+            ⚠️ ~5M+ rows expected (200MB+ storage)
+          </div>
+        </div>
+      </div>
+      <div class="nav-op-actions">
+        <button class="btn btn-primary btn-sm" id="btnRunNavDl" onclick="runNavDownload()" style="background:#0891b2;border-color:#0891b2;">
+          <span id="btnNavDlIcon">▶</span><span id="btnNavDlText"> Start Download</span>
+        </button>
+        <button class="btn btn-danger btn-sm" id="btnStopNavDl" onclick="stopNavDownload()" style="display:none;margin-top:6px;">
+          ⏹ Stop
+        </button>
+        <a href="<?= APP_URL ?>/nav_download/status.php" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;">↗ Full Dashboard</a>
+      </div>
+    </div>
+
+    <!-- 7. Holdings Recalc -->
     <div class="nav-op-card" id="navOpCard_recalc">
       <div class="nav-op-left">
         <div class="nav-op-icon">🔄</div>
@@ -2151,6 +2193,86 @@ async function loadPeakNavStatus() {
 // Initial load + idle poll every 10s
 loadPeakNavStatus();
 setInterval(() => { if (!pnRunning) loadPeakNavStatus(); }, 10000);
+
+// ── Full NAV History Download ─────────────────────────────────────────────
+let ndPollTimer  = null;
+let ndRunning    = false;
+let ndProcWin    = null;
+
+async function loadNavDlStatus() {
+  try {
+    const d = await fetch(window.APP_URL + '/nav_download/api.php?action=summary&_=' + Date.now(), {cache:'no-store'}).then(r=>r.json());
+    const fmt = n => (+n||0).toLocaleString('en-IN');
+    const el  = id => document.getElementById(id);
+    const pct = d.pct || 0;
+
+    if (el('ndTotal'))   el('ndTotal').textContent   = fmt(d.total);
+    if (el('ndPending')) el('ndPending').textContent = fmt(d.pending);
+    if (el('ndWorking')) el('ndWorking').textContent = fmt(d.working);
+    if (el('ndErrors'))  el('ndErrors').textContent  = fmt(d.errors);
+    if (el('ndDone'))    el('ndDone').textContent    = fmt(d.completed);
+    if (el('ndRecs'))    el('ndRecs').textContent    = fmt(d.total_records);
+    if (el('ndPct'))     el('ndPct').textContent     = pct + '%';
+    if (el('ndBar')) {
+      el('ndBar').style.width      = pct + '%';
+      el('ndBar').style.background = pct >= 100 ? 'var(--success)' : '#0891b2';
+    }
+
+    // Running state check
+    const running = d.working > 0 || (ndProcWin && !ndProcWin.closed);
+    if (running !== ndRunning) {
+      ndRunning = running;
+      const runBtn  = el('btnRunNavDl');
+      const stopBtn = el('btnStopNavDl');
+      const icon    = el('btnNavDlIcon');
+      const text    = el('btnNavDlText');
+      if (running) {
+        if (runBtn)  runBtn.style.display  = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-block';
+      } else {
+        if (runBtn)  runBtn.style.display  = 'inline-block';
+        if (stopBtn) stopBtn.style.display = 'none';
+        if (icon) icon.textContent = '▶';
+        if (text) text.textContent = ' Start Download';
+        if (ndPollTimer) { clearInterval(ndPollTimer); ndPollTimer = null; }
+      }
+    }
+
+    // Last run
+    if (el('lastrun_navdl') && d.counts?.latest_dl)
+      el('lastrun_navdl').textContent = 'Last run: ' + d.counts.latest_dl;
+
+  } catch(e) {}
+}
+
+async function runNavDownload() {
+  await fetch(window.APP_URL + '/nav_download/api.php?action=clear_stop', {method:'POST'}).catch(()=>{});
+
+  const icon = document.getElementById('btnNavDlIcon');
+  const text = document.getElementById('btnNavDlText');
+  if (icon) icon.textContent = '⏳';
+  if (text) text.textContent = ' Starting...';
+
+  ndProcWin = window.open(window.APP_URL + '/nav_download/processor.php?parallel=8', '_blank', 'width=900,height=500');
+
+  document.getElementById('btnRunNavDl').style.display  = 'none';
+  document.getElementById('btnStopNavDl').style.display = 'inline-block';
+  ndRunning = true;
+
+  if (ndPollTimer) clearInterval(ndPollTimer);
+  ndPollTimer = setInterval(loadNavDlStatus, 3000);
+
+  showToast('📥 NAV History Download started!', 'info');
+}
+
+async function stopNavDownload() {
+  const res = await fetch(window.APP_URL + '/nav_download/api.php?action=stop', {method:'POST'}).then(r=>r.json());
+  showToast(res.message || 'Stop requested.', 'warning');
+}
+
+// Initial load
+loadNavDlStatus();
+setInterval(() => { if (!ndRunning) loadNavDlStatus(); }, 15000);
 
 function formatDate(d) {
   if (!d) return '—';

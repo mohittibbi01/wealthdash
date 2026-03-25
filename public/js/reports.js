@@ -228,7 +228,50 @@ if (document.getElementById('fySummaryBody')) {
         },
         go(key, page)    { this.state[key].page = page; this.render(key); },
         changePerPage(key, val) { this.state[key].perPage = parseInt(val); this.state[key].page = 1; this.render(key); },
-        set(key, data)   { this.state[key].data = data || []; this.state[key].page = 1; this.render(key); },
+        set(key, data)   {
+            this.state[key].data = data || [];
+            this.state[key].page = 1;
+            // t32: When new data is loaded, reset MF gains search
+            if (key === 'mfGains') {
+                this.state[key]._allData    = data || [];
+                this.state[key]._filterQuery = '';
+                const inp = document.getElementById('mfGainsSearch');
+                const clr = document.getElementById('mfGainsClearSearch');
+                const inf = document.getElementById('mfGainsFilterInfo');
+                if (inp) inp.value = '';
+                if (clr) clr.style.display = 'none';
+                if (inf) inf.textContent = '';
+            }
+            this.render(key);
+        },
+
+        // t32: Client-side fund name filter for MF Gains
+        filterMfGains(query) {
+            const s   = this.state['mfGains'];
+            const clr = document.getElementById('mfGainsClearSearch');
+            const inf = document.getElementById('mfGainsFilterInfo');
+            const q   = (query || '').trim().toLowerCase();
+            s._filterQuery = q;
+            if (q) {
+                s.data = (s._allData || []).filter(g =>
+                    (g.name || '').toLowerCase().includes(q) ||
+                    (g.category || '').toLowerCase().includes(q)
+                );
+                if (clr) clr.style.display = '';
+                if (inf) inf.textContent = s.data.length + ' of ' + (s._allData||[]).length + ' results';
+            } else {
+                s.data = (s._allData || []).slice();
+                if (clr) clr.style.display = 'none';
+                if (inf) inf.textContent = '';
+            }
+            s.page = 1;
+            this.render('mfGains');
+        },
+        clearMfGainsSearch() {
+            const inp = document.getElementById('mfGainsSearch');
+            if (inp) inp.value = '';
+            this.filterMfGains('');
+        },
 
         _rowMfGain: g => `<tr>
             <td>${g.fy}</td>

@@ -56,14 +56,16 @@ ob_start();
       Find & Add Fund
     </button>
     <button class="btn btn-ghost" id="btnImportCsv">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-  <polyline points="17 8 12 3 7 8"/>
-  <line x1="12" y1="3" x2="12" y2="15"/>
-</svg>
+      <!-- t03: Upload / import icon → arrow pointing UP into tray -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
       Import CSV
     </button>
     <button class="btn btn-ghost" id="btnDownloadExcel" title="Download Excel">
+      <!-- t03: Excel download icon -->
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -243,8 +245,13 @@ ob_start();
           🗑 Delete Selected
         </button>
         <!-- t91: Bulk Export -->
-        <button class="btn btn-ghost btn-sm" onclick="bulkExportSelected()" style="font-size:12px;">
-          ⬇ Export CSV
+        <button class="btn btn-ghost btn-sm" onclick="bulkExportSelected()" style="font-size:12px;display:inline-flex;align-items:center;gap:5px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export CSV
         </button>
         <!-- t91: Combined P&L -->
         <button class="btn btn-ghost btn-sm" onclick="showCombinedPL()" style="font-size:12px;">

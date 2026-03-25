@@ -174,6 +174,21 @@ ob_start();
 
     <!-- MF Gains Tab -->
     <div id="mfGainsTab" class="tab-panel active">
+        <!-- t32: Fund name search filter -->
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-surface);">
+            <div style="position:relative;flex:1;max-width:320px;">
+                <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none;" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" id="mfGainsSearch"
+                    placeholder="Fund name search..."
+                    oninput="fyPagination.filterMfGains(this.value)"
+                    style="width:100%;padding:6px 10px 6px 30px;border:1px solid var(--border);border-radius:6px;background:var(--bg-surface-2);color:var(--text-primary);font-size:12.5px;outline:none;transition:border-color .15s;"
+                    onfocus="this.style.borderColor='var(--accent)'"
+                    onblur="this.style.borderColor='var(--border)'">
+            </div>
+            <span id="mfGainsFilterInfo" style="font-size:12px;color:var(--text-muted);white-space:nowrap;"></span>
+            <button id="mfGainsClearSearch" onclick="fyPagination.clearMfGainsSearch()" title="Clear search"
+                style="display:none;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;">✕ Clear</button>
+        </div>
         <div class="table-wrap">
             <table class="data-table">
                 <thead>
