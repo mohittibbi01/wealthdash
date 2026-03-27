@@ -178,7 +178,7 @@ tr:hover td{background:#f8fafc}
       <div class="date-group" style="margin-bottom:8px">
         <label>Set Download From Date</label>
         <div style="display:flex;gap:8px;align-items:center">
-          <input type="date" id="fromDateInput" class="date-input" value="2025-01-01">
+          <input type="date" id="fromDateInput" class="date-input" value="1995-01-01">
           <button class="btn b-run" onclick="setFromDate(false)" id="btnSetDate">
             ✓ Set & Reset All
           </button>
@@ -197,6 +197,7 @@ tr:hover td{background:#f8fafc}
         <button class="preset-btn" onclick="setPreset(365*5)">5 years</button>
         <button class="preset-btn" onclick="setPreset(365*10)">10 years</button>
         <button class="preset-btn" onclick="setPreset(365*25)">All (25yr)</button>
+        <button class="preset-btn" style="background:#dcfce7;color:#15803d;border-color:#86efac;font-weight:700;" onclick="setSinceInception()">🌱 Since Inception</button>
       </div>
       <p style="font-size:.7rem;color:var(--muted);margin-top:8px">
         ⚡ <b style="color:var(--yellow)">Set & Reset All</b> — sab funds dubara download honge us date se &nbsp;|&nbsp;
@@ -398,6 +399,24 @@ function tickTimers() {
 }
 
 // ── PRESET DATES ───────────────────────────────────
+async function fixInception() {
+    if (!confirm('This will:\n1. Set from_date to 1995-01-01\n2. Reset ALL funds to pending\n3. Re-download complete history since inception\n\nContinue?')) return;
+    try {
+        const r = await fetch('api.php?action=fix_inception', {method:'POST'});
+        const d = await r.json();
+        alert(d.message || 'Done!');
+        location.reload();
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+function setSinceInception() {
+    // Set date to 1995-01-01 — oldest Indian MF data available
+    document.getElementById('fromDateInput').value = '1995-01-01';
+    if (confirm('Set download from 1995-01-01 (since inception for all funds)? This will reset all funds to pending and download full history.')) {
+        setFromDate(false);
+    }
+}
+
 function setPreset(days) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -587,7 +606,7 @@ async function fetchSummary() {
     g('prog-latest').textContent  = c.latest_date || '—';
     g('currentFromDate').textContent = d.from_date || '—';
     g('last-run').textContent     = d.last_run || '—';
-    g('fromDateInput').value      = d.from_date || '2025-01-01';
+    g('fromDateInput').value      = d.from_date || '1995-01-01';
 
     // DB stats row — filtered by from_date (no old data confusion)
     g('db-rows').textContent   = fmtK(nh.total_rows||0);

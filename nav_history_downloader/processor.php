@@ -1,41 +1,16 @@
 <?php
 /**
- * WealthDash — NAV History Processor
- * Path: wealthdash/nav_history_downloader/processor.php
- *
- * Fetches historical NAV from mfapi.in for all funds
- * Saves to nav_history table
- * Called via XHR from status.php — runs in background
+ * WealthDash — NAV History Downloader API
+ * Path: wealthdash/nav_history_downloader/api.php
  */
 
-define('DB_HOST',     'localhost');
-define('DB_USER',     'root');
-define('DB_PASS',     '');
-define('DB_NAME',     'wealthdash');
-define('EXEC_LIMIT',  85);
-define('API_TIMEOUT', 25);
-define('MFAPI_BASE',  'https://api.mfapi.in/mf/');
+header('Content-Type: application/json; charset=utf-8');
 
-$PARALLEL_SIZE = isset($_GET['parallel']) ? (int)$_GET['parallel'] : 8;
-$PARALLEL_SIZE = max(1, min(50, $PARALLEL_SIZE));
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'wealthdash');
 
-set_time_limit(180);
-header('Content-Type: text/plain; charset=utf-8');
-if (ob_get_level()) ob_end_clean();
-
-$runStart = time();
-
-function lm(string $msg): void {
-    echo '[' . date('H:i:s') . '] ' . $msg . "\n";
-    flush();
-}
-
-function overtime(): bool {
-    global $runStart;
-    return (time() - $runStart) >= EXEC_LIMIT;
-}
-
-// ── DB ──────────────────────────────────────────────────────────
 try {
     $pdo = new PDO(
         'mysql:host='.DB_HOST.';dbname='.DB_NAME.';charset=utf8mb4',
@@ -43,247 +18,268 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
     );
 } catch (PDOException $e) {
-    die('[FATAL] DB: ' . $e->getMessage() . "\n");
+    echo json_encode(['error' => $e->getMessage()]); exit;
 }
 
-lm('=== WealthDash NAV History Processor ===');
-lm('Parallel: ' . $PARALLEL_SIZE);
+$action = $_GET['action'] ?? 'summary';
 
-// Get admin-set from_date
-$fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
-$fromDate = $fromDate ?: '2025-01-01';
-lm("Downloading NAV history from: {$fromDate}");
-
-// Mark running
-$pdo->prepare("UPDATE app_settings SET setting_val='running', setting_val=NOW() WHERE setting_key='nav_history_last_run'")->execute();
-$pdo->prepare("UPDATE app_settings SET setting_val='running' WHERE setting_key='nav_history_status'")->execute();
-$pdo->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='nav_history_last_run'")->execute([date('Y-m-d H:i:s')]);
-
-// Fetch pending schemes
-$schemes = $pdo->query("
-    SELECT scheme_code, fund_id, from_date
-    FROM nav_download_progress
-    WHERE status IN ('pending', 'error')
-    ORDER BY
-        CASE status WHEN 'pending' THEN 1 WHEN 'error' THEN 2 ELSE 3 END,
-        scheme_code
-")->fetchAll();
-
-$total = count($schemes);
-if ($total === 0) {
-    lm("All funds already downloaded.");
-    $pdo->prepare("UPDATE app_settings SET setting_val='idle' WHERE setting_key='nav_history_status'")->execute();
-    echo "ALL_COMPLETE\n";
+// ── FIX INCEPTION DATE (reset DB setting to 1995-01-01) ──────────────
+if ($action === 'fix_inception' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Fix the from_date in app_settings to 1995-01-01
+    $pdo->prepare("UPDATE app_settings SET setting_val='1995-01-01' WHERE setting_key='nav_history_from_date'")->execute();
+    // Reset all completed/error to pending so they re-download full history
+    $pdo->exec("UPDATE nav_download_progress SET status='pending', from_date='1995-01-01', last_downloaded_date=NULL, records_saved=0, error_message=NULL");
+    $n = $pdo->query("SELECT COUNT(*) FROM nav_download_progress")->fetchColumn();
+    echo json_encode(['success' => true, 'message' => "Fixed! {$n} funds reset to download since inception (1995-01-01). Click Start Download."]);
     exit;
 }
 
-lm("Funds to process: {$total}");
-$done = 0;
-$errs = 0;
-$records = 0;
-
-// ── PARALLEL FETCH ──────────────────────────────────────────────
-function parallelFetch(array $batch, int $timeout, int $parallelSize): array {
-    $mh = curl_multi_init();
-    curl_multi_setopt($mh, CURLMOPT_MAXCONNECTS, $parallelSize);
-    $handles = [];
-
-    foreach ($batch as $row) {
-        $ch = curl_init(MFAPI_BASE . $row['scheme_code']);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => $timeout,
-            CURLOPT_CONNECTTIMEOUT => 8,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_USERAGENT      => 'WealthDash-NavHistory/1.0',
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_ENCODING       => 'gzip',
-        ]);
-        curl_multi_add_handle($mh, $ch);
-        $handles[$row['scheme_code']] = $ch;
-    }
-
-    $running = null;
-    do {
-        $status = curl_multi_exec($mh, $running);
-        if ($running) curl_multi_select($mh, 1.0);
-    } while ($running > 0 && $status == CURLM_OK);
-
-    $results = [];
-    foreach ($handles as $sc => $ch) {
-        $body = curl_multi_getcontent($ch);
-        $err  = curl_error($ch);
-        $results[$sc] = ($err || !$body) ? null : $body;
-        curl_multi_remove_handle($mh, $ch);
-        curl_close($ch);
-    }
-    curl_multi_close($mh);
-    return $results;
+// ── STOP ───────────────────────────────────────────────────────
+if ($action === 'stop' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Set stop flag — processor checks this every batch
+    $pdo->prepare("UPDATE app_settings SET setting_val='stop_requested' WHERE setting_key='nav_history_status'")->execute();
+    $pdo->prepare("UPDATE app_settings SET setting_val='' WHERE setting_key='nav_history_current_batch'")->execute();
+    // Revert any in_progress back to pending so next run continues from where stopped
+    $pdo->exec("UPDATE nav_download_progress SET status='pending' WHERE status='in_progress'");
+    echo json_encode(['success' => true, 'message' => 'Stop requested. Current batch will finish then processor will stop.']);
+    exit;
 }
 
-// ── PROCESS ONE FUND ────────────────────────────────────────────
-function processOne(array $row, ?string $raw, PDO $pdo, string $globalFromDate): array {
-    $sc       = $row['scheme_code'];
-    $fundId   = $row['fund_id'];
-    // Use fund's specific from_date, fallback to global
-    $fromDate = $row['from_date'] ?: $globalFromDate;
+// ── SUMMARY ────────────────────────────────────────────────────
+if ($action === 'summary') {
+    $counts = $pdo->query("
+        SELECT
+            COUNT(*)                                    AS total,
+            SUM(status='pending')                       AS pending,
+            SUM(status='in_progress')                   AS working,
+            SUM(status='completed')                     AS completed,
+            SUM(status='error')                         AS errors,
+            SUM(records_saved)                          AS total_records,
+            MIN(last_downloaded_date)                   AS oldest_date,
+            MAX(last_downloaded_date)                   AS latest_date
+        FROM nav_download_progress
+    ")->fetch();
 
-    if ($raw === null) {
-        return ['success' => false, 'error' => 'API timeout / no response', 'records' => 0];
-    }
+    $fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
+    $status   = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_status'")->fetchColumn();
+    $lastRun  = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_last_run'")->fetchColumn();
+    $currBatch= $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_current_batch'")->fetchColumn();
 
-    $json = @json_decode($raw, true);
-    if (empty($json['data'])) {
-        // Fund has no data — mark completed with 0 records
-        $pdo->prepare("
-            UPDATE nav_download_progress
-            SET status='completed', last_downloaded_date=CURDATE(), records_saved=0, error_message=NULL
-            WHERE scheme_code=?
-        ")->execute([$sc]);
-        return ['success' => true, 'records' => 0];
-    }
+    $total     = (int)$counts['total'];
+    $completed = (int)$counts['completed'];
+    $pct       = $total > 0 ? round($completed / $total * 100, 1) : 0;
 
-    // Filter by from_date and insert into nav_history
-    $insStmt = $pdo->prepare("
-        INSERT IGNORE INTO nav_history (fund_id, nav_date, nav)
-        VALUES (?, ?, ?)
+    // Nav_history table stats — filter by from_date so old data doesn't confuse
+    $nhStats = $pdo->prepare("
+        SELECT COUNT(*) as total_rows,
+               MIN(nav_date) as oldest,
+               MAX(nav_date) as newest,
+               COUNT(DISTINCT fund_id) as funds_with_data
+        FROM nav_history
+        WHERE nav_date >= ?
     ");
+    $nhStats->execute([$fromDate ?: '2000-01-01']);
+    $nhStats = $nhStats->fetch();
 
-    $savedCount  = 0;
-    $latestDate  = null;
-    $earliestDate = null;
+    // In-progress funds detail — what's currently being downloaded
+    $inProgressFunds = $pdo->query("
+        SELECT p.scheme_code, f.scheme_name, p.from_date
+        FROM nav_download_progress p
+        LEFT JOIN funds f ON f.scheme_code = p.scheme_code
+        WHERE p.status = 'in_progress'
+        ORDER BY p.updated_at DESC
+        LIMIT 8
+    ")->fetchAll();
 
-    // mfapi returns newest first — process all
-    foreach ($json['data'] as $entry) {
-        // Parse date DD-MM-YYYY → YYYY-MM-DD
-        $parts = explode('-', $entry['date']);
-        if (count($parts) !== 3) continue;
-        $isoDate = "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+    echo json_encode([
+        'counts'          => $counts,
+        'pct'             => $pct,
+        'from_date'       => $fromDate ?: '1995-01-01',
+        'run_status'      => $status ?: 'idle',
+        'last_run'        => $lastRun ?: '—',
+        'current_batch'   => $currBatch ?: '',
+        'in_progress_funds' => $inProgressFunds,
+        'nav_history'     => $nhStats,
+        'today'           => date('Y-m-d'),
+        'timestamp'       => date('H:i:s'),
+    ]);
+    exit;
+}
 
-        // Skip dates before from_date
-        if ($isoDate < $fromDate) continue;
+// ── TABLE ──────────────────────────────────────────────────────
+if ($action === 'table') {
+    $tab    = $_GET['tab']  ?? 'pending';
+    $page   = max(1, (int)($_GET['page'] ?? 1));
+    $limit  = 50;
+    $offset = ($page - 1) * $limit;
 
-        $nav = (float)$entry['nav'];
-        if ($nav <= 0) continue;
+    $whereMap = [
+        'pending'   => "p.status = 'pending'",
+        'working'   => "p.status = 'in_progress'",
+        'completed' => "p.status = 'completed'",
+        'errors'    => "p.status = 'error'",
+    ];
+    $where = $whereMap[$tab] ?? "p.status='pending'";
 
-        if ($fundId) {
-            $insStmt->execute([$fundId, $isoDate, $nav]);
-            if ($pdo->lastInsertId()) $savedCount++;
-        }
+    $total = $pdo->query("SELECT COUNT(*) FROM nav_download_progress p WHERE {$where}")->fetchColumn();
+    $pages = max(1, (int)ceil($total / $limit));
 
-        if (!$latestDate  || $isoDate > $latestDate)  $latestDate  = $isoDate;
-        if (!$earliestDate || $isoDate < $earliestDate) $earliestDate = $isoDate;
+    $rows = $pdo->query("
+        SELECT
+            p.scheme_code,
+            p.status,
+            p.from_date,
+            p.last_downloaded_date,
+            p.records_saved,
+            p.error_message,
+            p.updated_at,
+            f.scheme_name
+        FROM nav_download_progress p
+        LEFT JOIN funds f ON f.scheme_code = p.scheme_code
+        WHERE {$where}
+        ORDER BY p.updated_at DESC
+        LIMIT {$limit} OFFSET {$offset}
+    ")->fetchAll();
+
+    echo json_encode([
+        'rows'       => $rows,
+        'page'       => (int)$page,
+        'pages'      => $pages,
+        'total_rows' => (int)$total,
+    ]);
+    exit;
+}
+
+// ── SET FROM DATE (Admin action) ───────────────────────────────
+if ($action === 'set_from_date' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input    = json_decode(file_get_contents('php://input'), true);
+    $fromDate = $input['from_date'] ?? '';
+
+    // Validate date
+    $d = DateTime::createFromFormat('Y-m-d', $fromDate);
+    if (!$d || $d->format('Y-m-d') !== $fromDate) {
+        echo json_encode(['success' => false, 'message' => 'Invalid date format. Use YYYY-MM-DD']); exit;
     }
 
-    // Update progress
+    $pdo->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='nav_history_from_date'")->execute([$fromDate]);
+    $pdo->prepare("UPDATE app_settings SET setting_val='' WHERE setting_key='nav_history_current_batch'")->execute();
+
+    // Reset ALL funds to pending with new from_date
     $pdo->prepare("
         UPDATE nav_download_progress
-        SET status='completed',
-            last_downloaded_date=?,
-            records_saved=records_saved+?,
-            error_message=NULL
-        WHERE scheme_code=?
-    ")->execute([$latestDate ?? date('Y-m-d'), $savedCount, $sc]);
+        SET status='pending', from_date=?, last_downloaded_date=NULL, records_saved=0, error_message=NULL
+    ")->execute([$fromDate]);
 
-    return ['success' => true, 'records' => $savedCount, 'from' => $earliestDate, 'to' => $latestDate];
+    echo json_encode(['success' => true, 'message' => "From date set to {$fromDate}. All funds reset to pending."]);
+    exit;
 }
 
-// ── MAIN LOOP ───────────────────────────────────────────────────
-$chunks   = array_chunk($schemes, $PARALLEL_SIZE);
-$updateCurrent = $pdo->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='nav_history_current_batch'");
-$checkStop = $pdo->prepare("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_status'");
+// ── EXTEND FROM DATE (admin extends further back) ──────────────
+if ($action === 'extend_from_date' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input    = json_decode(file_get_contents('php://input'), true);
+    $fromDate = $input['from_date'] ?? '';
 
-foreach ($chunks as $chunkIdx => $chunk) {
-
-    // ── Check stop flag ──────────────────────────────
-    $checkStop->execute();
-    $currentStatus = $checkStop->fetchColumn();
-    if ($currentStatus === 'stop_requested') {
-        $codes = array_column($chunk, 'scheme_code');
-        $ph = implode(',', array_fill(0, count($codes), '?'));
-        $pdo->prepare("UPDATE nav_download_progress SET status='pending' WHERE scheme_code IN ({$ph}) AND status='in_progress'")->execute($codes);
-        $updateCurrent->execute(['']);
-        lm("⛔ Stop requested by admin. Stopped at chunk #{$chunkIdx}. Progress saved — run again to continue.");
-        $pdo->prepare("UPDATE app_settings SET setting_val='idle' WHERE setting_key='nav_history_status'")->execute();
-        echo "STOPPED\n";
-        exit;
+    $d = DateTime::createFromFormat('Y-m-d', $fromDate);
+    if (!$d || $d->format('Y-m-d') !== $fromDate) {
+        echo json_encode(['success' => false, 'message' => 'Invalid date']); exit;
     }
 
-    if (overtime()) {
-        // Revert in_progress → pending
-        $codes = array_column($chunk, 'scheme_code');
-        $ph = implode(',', array_fill(0, count($codes), '?'));
-        $pdo->prepare("UPDATE nav_download_progress SET status='pending' WHERE scheme_code IN ({$ph}) AND status='in_progress'")->execute($codes);
-        lm("Time limit reached at chunk #{$chunkIdx}. Run again to continue.");
-        $updateCurrent->execute(['']);
-        break;
-    }
+    // Update setting
+    $pdo->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='nav_history_from_date'")->execute([$fromDate]);
 
-    // Mark as in_progress
-    $codes = array_column($chunk, 'scheme_code');
-    $ph = implode(',', array_fill(0, count($codes), '?'));
-    $pdo->prepare("UPDATE nav_download_progress SET status='in_progress' WHERE scheme_code IN ({$ph})")->execute($codes);
+    // Reset only completed funds — re-download from new earlier date
+    $pdo->prepare("
+        UPDATE nav_download_progress
+        SET status='pending', from_date=?, last_downloaded_date=NULL, records_saved=0, error_message=NULL
+        WHERE status = 'completed' OR status = 'error'
+    ")->execute([$fromDate]);
 
-    // Save currently processing batch info for live display
-    $batchInfo = implode(', ', array_slice($codes, 0, 3)) . (count($codes) > 3 ? '...' : '');
-    $updateCurrent->execute(["Batch #".($chunkIdx+1)." | {$batchInfo} | ".date('H:i:s')]);
+    // Also delete existing nav_history records before old from_date that are now needed
+    // (they don't exist, so nothing to delete — just mark for re-download)
 
-    // Parallel fetch
-    $results = parallelFetch($chunk, API_TIMEOUT, $PARALLEL_SIZE);
-
-    $failed = [];
-    foreach ($chunk as $row) {
-        $raw = $results[$row['scheme_code']] ?? null;
-        $res = processOne($row, $raw, $pdo, $fromDate);
-        if ($res['success']) {
-            $done++;
-            $records += $res['records'];
-        } else {
-            $failed[] = $row;
-        }
-    }
-
-    // Retry failed
-    if (!empty($failed)) {
-        usleep(500000);
-        $retryResults = parallelFetch($failed, API_TIMEOUT + 15, max(1, intdiv($PARALLEL_SIZE, 2)));
-        foreach ($failed as $row) {
-            $raw = $retryResults[$row['scheme_code']] ?? null;
-            $res = processOne($row, $raw, $pdo, $fromDate);
-            if ($res['success']) {
-                $done++;
-                $records += $res['records'];
-            } else {
-                $pdo->prepare("
-                    UPDATE nav_download_progress
-                    SET status='error', error_message='API timeout after retry'
-                    WHERE scheme_code=?
-                ")->execute([$row['scheme_code']]);
-                $errs++;
-            }
-        }
-    }
-
-    if (($chunkIdx + 1) % 5 === 0) {
-        $elapsed = time() - $runStart;
-        $speed   = $elapsed > 0 ? round($done / $elapsed, 1) : 0;
-        lm("Progress | Done: {$done} | Records: {$records} | Errors: {$errs} | {$speed}/s");
-    }
+    $affected = $pdo->rowCount();
+    echo json_encode(['success' => true, 'message' => "{$affected} funds queued for re-download from {$fromDate}."]);
+    exit;
 }
 
-$elapsed   = time() - $runStart;
-$remaining = $pdo->query("SELECT COUNT(*) FROM nav_download_progress WHERE status IN ('pending','error','in_progress')")->fetchColumn();
+// ── RESEED (add any new funds not yet in progress table) ───────
+if ($action === 'reseed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
 
-lm('---');
-lm("Done: {$done} | Records saved: {$records} | Errors: {$errs} | Time: {$elapsed}s");
-lm("Remaining: {$remaining}");
+    $pdo->prepare("
+        INSERT IGNORE INTO nav_download_progress (scheme_code, fund_id, status, from_date)
+        SELECT f.scheme_code, f.id, 'pending', ?
+        FROM funds f
+        WHERE f.is_active = 1
+    ")->execute([$fromDate ?: '1995-01-01']);
 
-$pdo->prepare("UPDATE app_settings SET setting_val='idle' WHERE setting_key='nav_history_status'")->execute();
-
-if ((int)$remaining === 0) {
-    echo "ALL_COMPLETE\n";
-} else {
-    echo "TIME_LIMIT\n";
+    $added = $pdo->rowCount();
+    echo json_encode(['success' => true, 'message' => "{$added} new funds added to download queue."]);
+    exit;
 }
 
-$pdo = null;
+// ── RETRY ERRORS ───────────────────────────────────────────────
+if ($action === 'retry_errors' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
+    $pdo->prepare("UPDATE nav_download_progress SET status='pending', from_date=?, error_message=NULL WHERE status='error'")
+        ->execute([$fromDate ?: '1995-01-01']);
+    $n = $pdo->rowCount();
+    echo json_encode(['success' => true, 'message' => "{$n} error funds reset to pending."]);
+    exit;
+}
+
+// ── RESET ALL ──────────────────────────────────────────────────
+if ($action === 'reset_all' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
+    $pdo->exec("UPDATE nav_download_progress SET status='pending', last_downloaded_date=NULL, records_saved=0, error_message=NULL");
+    echo json_encode(['success' => true, 'message' => 'All funds reset to pending. Ready to re-download.']);
+    exit;
+}
+
+// ── ERRORS LIST ────────────────────────────────────────────────
+if ($action === 'errors') {
+    $rows = $pdo->query("
+        SELECT p.scheme_code, f.scheme_name, p.error_message, p.updated_at
+        FROM nav_download_progress p
+        LEFT JOIN funds f ON f.scheme_code = p.scheme_code
+        WHERE p.status = 'error'
+        ORDER BY p.updated_at DESC
+        LIMIT 200
+    ")->fetchAll();
+    echo json_encode(['rows' => $rows]);
+    exit;
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────
+if ($action === 'export') {
+    $filter = $_GET['filter'] ?? 'all';
+    $where  = $filter === 'completed' ? "WHERE p.status='completed'" : '';
+
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="nav_download_' . date('Ymd_His') . '.csv"');
+
+    $rows = $pdo->query("
+        SELECT p.scheme_code, f.scheme_name, p.status, p.from_date,
+               p.last_downloaded_date, p.records_saved, p.error_message
+        FROM nav_download_progress p
+        LEFT JOIN funds f ON f.scheme_code = p.scheme_code
+        {$where}
+        ORDER BY p.status, p.scheme_code
+    ")->fetchAll();
+
+    echo "Scheme Code,Fund Name,Status,From Date,Last Downloaded,Records Saved,Error\n";
+    foreach ($rows as $r) {
+        echo implode(',', [
+            $r['scheme_code'],
+            '"'.str_replace('"','""',$r['scheme_name']??'').'"',
+            $r['status'],
+            $r['from_date']??'',
+            $r['last_downloaded_date']??'',
+            $r['records_saved']??0,
+            '"'.str_replace('"','""',$r['error_message']??'').'"',
+        ])."\n";
+    }
+    exit;
+}
+
+echo json_encode(['error' => 'Unknown action']);

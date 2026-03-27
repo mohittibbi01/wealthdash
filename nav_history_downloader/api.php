@@ -23,6 +23,17 @@ try {
 
 $action = $_GET['action'] ?? 'summary';
 
+// ── FIX INCEPTION DATE (reset DB setting to 1995-01-01) ──────────────
+if ($action === 'fix_inception' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Fix the from_date in app_settings to 1995-01-01
+    $pdo->prepare("UPDATE app_settings SET setting_val='1995-01-01' WHERE setting_key='nav_history_from_date'")->execute();
+    // Reset all completed/error to pending so they re-download full history
+    $pdo->exec("UPDATE nav_download_progress SET status='pending', from_date='1995-01-01', last_downloaded_date=NULL, records_saved=0, error_message=NULL");
+    $n = $pdo->query("SELECT COUNT(*) FROM nav_download_progress")->fetchColumn();
+    echo json_encode(['success' => true, 'message' => "Fixed! {$n} funds reset to download since inception (1995-01-01). Click Start Download."]);
+    exit;
+}
+
 // ── STOP ───────────────────────────────────────────────────────
 if ($action === 'stop' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // Set stop flag — processor checks this every batch
@@ -83,7 +94,7 @@ if ($action === 'summary') {
     echo json_encode([
         'counts'          => $counts,
         'pct'             => $pct,
-        'from_date'       => $fromDate ?: '2025-01-01',
+        'from_date'       => $fromDate ?: '1995-01-01',
         'run_status'      => $status ?: 'idle',
         'last_run'        => $lastRun ?: '—',
         'current_batch'   => $currBatch ?: '',
@@ -200,7 +211,7 @@ if ($action === 'reseed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         SELECT f.scheme_code, f.id, 'pending', ?
         FROM funds f
         WHERE f.is_active = 1
-    ")->execute([$fromDate ?: '2025-01-01']);
+    ")->execute([$fromDate ?: '1995-01-01']);
 
     $added = $pdo->rowCount();
     echo json_encode(['success' => true, 'message' => "{$added} new funds added to download queue."]);
@@ -211,7 +222,7 @@ if ($action === 'reseed' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'retry_errors' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $fromDate = $pdo->query("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_from_date'")->fetchColumn();
     $pdo->prepare("UPDATE nav_download_progress SET status='pending', from_date=?, error_message=NULL WHERE status='error'")
-        ->execute([$fromDate ?: '2025-01-01']);
+        ->execute([$fromDate ?: '1995-01-01']);
     $n = $pdo->rowCount();
     echo json_encode(['success' => true, 'message' => "{$n} error funds reset to pending."]);
     exit;

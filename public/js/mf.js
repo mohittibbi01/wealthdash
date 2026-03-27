@@ -4467,3 +4467,473 @@ async function commitCasImport() {
     btn.disabled = false; btn.textContent = '✅ Import Transactions';
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t90 — FUND NAV HISTORY CHART MODAL
+   Append this entire block to the end of public/js/mf.js
+═══════════════════════════════════════════════════════════════════════════ */
+
+// ── State ─────────────────────────────────────────────────────────────────
+const FC = {
+  fundId:    null,
+  fundName:  null,
+  holding:   null,
+  range:     '1Y',
+  navData:   [],      // [{date, nav}, ...]
+  txns:      [],      // all transactions for this fund
+  chartInst: null,
+  showTxns:  true,
+};
+
+// ── Open modal ────────────────────────────────────────────────────────────
+async function openFundChartModal(fundId) {
+  // Find holding data
+  const h = (MF.data || []).find(x => (x.fund_id || x.id) === fundId || String(x.fund_id || x.id) === String(fundId));
+  if (!h) { showToast('Holding data not found', 'error'); return; }
+
+  FC.fundId   = Number(fundId);
+  FC.fundName = h.scheme_name;
+  FC.holding  = h;
+  FC.range    = '1Y';
+  FC.navData  = [];
+  FC.txns     = [];
+
+  // Show modal
+  document.getElementById('modalFundChart').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  // Populate header
+  document.getElementById('fcFundName').textContent = h.scheme_name || '—';
+
+  // Meta badges
+  const meta = [];
+  if (h.fund_house_short || h.fund_house) meta.push(`<span style="background:rgba(37,99,235,.08);color:var(--accent);padding:1px 7px;border-radius:4px;font-weight:600;">${escHtml(h.fund_house_short||h.fund_house)}</span>`);
+  if (h.category) meta.push(`<span style="background:var(--bg-secondary);border:1px solid var(--border);padding:1px 7px;border-radius:4px;">${escHtml(h.category)}</span>`);
+  const isDirect = (h.scheme_name||'').toLowerCase().includes('direct');
+  meta.push(isDirect
+    ? `<span style="background:rgba(22,163,74,.1);color:#15803d;padding:1px 7px;border-radius:4px;font-weight:700;">Direct</span>`
+    : `<span style="background:rgba(234,179,8,.1);color:#b45309;padding:1px 7px;border-radius:4px;font-weight:700;">Regular</span>`);
+  if (h.folio_number) meta.push(`<span style="color:var(--text-muted);">Folio: ${escHtml(h.folio_number)}</span>`);
+  document.getElementById('fcFundMeta').innerHTML = meta.join('');
+
+  // Populate stats
+  _renderFcStats(h);
+
+  // Reset range buttons
+  document.querySelectorAll('.fc-range-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.range === '1Y');
+  });
+
+  // Reset canvas/spinner
+  _fcShowSpinner(true);
+  document.getElementById('fcNoData').style.display = 'none';
+
+  // Fetch transactions (once) + NAV data
+  await _fcFetchTxns();
+  await _fcFetchNavAndRender();
+}
+
+// ── Stats row ────────────────────────────────────────────────────────────
+function _renderFcStats(h) {
+  const gain    = h.gain_loss || 0;
+  const gainPct = h.gain_pct  || 0;
+  const cagr    = h.cagr;
+  const dd      = h.drawdown_pct;
+
+  function statCell(label, val, sub, valColor) {
+    return `<div class="fc-stat-cell">
+      <div class="fc-stat-label">${label}</div>
+      <div class="fc-stat-val" style="color:${valColor||'var(--text-primary)'};">${val}</div>
+      ${sub ? `<div class="fc-stat-sub">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  const gainColor = gain >= 0 ? '#16a34a' : '#dc2626';
+  const ddColor   = (!dd || dd <= 0) ? '#16a34a' : dd > 20 ? '#dc2626' : '#d97706';
+
+  document.getElementById('fcStats').innerHTML =
+    statCell('Invested',    fmtFull(h.total_invested || 0), '', '')  +
+    statCell('Current Val', fmtFull(h.value_now || 0), '', '') +
+    statCell('Gain/Loss',   (gain >= 0 ? '+' : '') + fmtFull(gain), gainPct.toFixed(2) + '%', gainColor) +
+    statCell('CAGR',        cagr !== null && cagr !== undefined ? (cagr >= 0 ? '+' : '') + cagr.toFixed(2) + '%' : '—', 'Annualised', cagr >= 0 ? '#16a34a' : '#dc2626') +
+    statCell('Units',       Number(h.total_units || 0).toFixed(4), 'Avg cost ₹' + Number(h.avg_cost_nav || 0).toFixed(2), '') +
+    statCell('Drawdown',    (!dd || dd <= 0) ? '🏆 ATH' : '-' + dd + '%', (!dd || dd <= 0) ? 'At all-time high' : 'From peak NAV', ddColor);
+}
+
+// ── Fetch transactions ────────────────────────────────────────────────────
+async function _fcFetchTxns() {
+  try {
+    const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&fund_id=${FC.fundId}&per_page=500`);
+    FC.txns = res?.data || res?.transactions || [];
+  } catch(e) {
+    FC.txns = [];
+  }
+}
+
+// ── Fetch NAV history for current range & render ──────────────────────────
+async function _fcFetchNavAndRender() {
+  _fcShowSpinner(true);
+  document.getElementById('fcDataStatus').textContent = '';
+
+  const { from, to } = _fcRangeDates(FC.range, FC.holding);
+
+  try {
+    const baseUrl = window.WD?.appUrl || window.APP_URL || '';
+    const url = `${baseUrl}/api/mutual_funds/mf_nav_history.php?fund_id=${FC.fundId}&from=${from}&to=${to}`;
+    const res = await fetch(url, { cache: 'default' });
+    const json = await res.json();
+
+    if (!json.success || !json.data || json.data.length === 0) {
+      _fcShowSpinner(false);
+      document.getElementById('fcNoData').style.display = 'flex';
+      document.getElementById('fcChartCanvas').style.display = 'none';
+      document.getElementById('fcTxnSection').style.display = 'none';
+      return;
+    }
+
+    FC.navData = json.data; // [{date, nav}, ...]
+    document.getElementById('fcNoData').style.display = 'none';
+    document.getElementById('fcChartCanvas').style.display = '';
+    document.getElementById('fcTxnSection').style.display = '';
+    document.getElementById('fcDataStatus').textContent = `${json.count.toLocaleString()} data points`;
+
+    _renderNavLineChart();
+    _renderFcTxnPills();
+  } catch(e) {
+    _fcShowSpinner(false);
+    document.getElementById('fcDataStatus').textContent = 'Failed to load NAV data';
+  }
+}
+
+// ── Date range calculator ─────────────────────────────────────────────────
+function _fcRangeDates(range, holding) {
+  const toDate  = new Date();
+  let   fromDate;
+
+  switch (range) {
+    case '1M':  fromDate = new Date(toDate); fromDate.setMonth(fromDate.getMonth() - 1); break;
+    case '3M':  fromDate = new Date(toDate); fromDate.setMonth(fromDate.getMonth() - 3); break;
+    case '6M':  fromDate = new Date(toDate); fromDate.setMonth(fromDate.getMonth() - 6); break;
+    case '1Y':  fromDate = new Date(toDate); fromDate.setFullYear(fromDate.getFullYear() - 1); break;
+    case '3Y':  fromDate = new Date(toDate); fromDate.setFullYear(fromDate.getFullYear() - 3); break;
+    case 'ALL':
+    default:
+      fromDate = holding?.first_purchase_date
+        ? new Date(holding.first_purchase_date)
+        : new Date('1995-01-01');
+      // Go back 3 months before first purchase for context
+      fromDate.setMonth(fromDate.getMonth() - 3);
+      break;
+  }
+
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { from: fmt(fromDate), to: fmt(toDate) };
+}
+
+// ── Render Chart.js line chart ────────────────────────────────────────────
+function _renderNavLineChart() {
+  const canvas = document.getElementById('fcChartCanvas');
+  if (!canvas) return;
+
+  // Destroy old chart
+  if (FC.chartInst) { FC.chartInst.destroy(); FC.chartInst = null; }
+
+  const ctx = canvas.getContext('2d');
+
+  // NAV line dataset
+  const labels  = FC.navData.map(d => d.date);
+  const navVals = FC.navData.map(d => d.nav);
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 280);
+  grad.addColorStop(0, 'rgba(37,99,235,0.18)');
+  grad.addColorStop(1, 'rgba(37,99,235,0.00)');
+
+  // Filter transactions within range
+  const { from, to } = _fcRangeDates(FC.range, FC.holding);
+  const inRange = FC.txns.filter(t => t.txn_date >= from && t.txn_date <= to);
+
+  // Build scatter datasets for transactions
+  const buyPoints  = [];
+  const sellPoints = [];
+
+  inRange.forEach(t => {
+    const navAtTxn = t.nav ? Number(t.nav) : _findNearestNav(t.txn_date);
+    if (navAtTxn === null) return;
+
+    const point = { x: t.txn_date, y: navAtTxn, txn: t };
+    const type = (t.transaction_type || '').toUpperCase();
+    if (['BUY','STP_IN','SWITCH_IN','DIV_REINVEST'].includes(type)) {
+      buyPoints.push(point);
+    } else if (['SELL','STP_OUT','SWITCH_OUT','SWP'].includes(type)) {
+      sellPoints.push(point);
+    }
+  });
+
+  // Avg cost line (horizontal)
+  const avgNav = FC.holding?.avg_cost_nav ? Number(FC.holding.avg_cost_nav) : null;
+
+  const datasets = [
+    // NAV line
+    {
+      label: 'NAV',
+      data: navVals,
+      borderColor: '#2563eb',
+      borderWidth: 1.8,
+      backgroundColor: grad,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHoverBackgroundColor: '#2563eb',
+      tension: 0.15,
+      order: 3,
+    }
+  ];
+
+  // Avg cost dashed line
+  if (avgNav) {
+    datasets.push({
+      label: 'Avg Cost ₹' + avgNav.toFixed(2),
+      data: labels.map(() => avgNav),
+      borderColor: 'rgba(234,179,8,0.65)',
+      borderWidth: 1.5,
+      borderDash: [5, 4],
+      fill: false,
+      pointRadius: 0,
+      tension: 0,
+      order: 2,
+    });
+  }
+
+  // Buy scatter points
+  if (FC.showTxns && buyPoints.length) {
+    datasets.push({
+      label: 'Buy',
+      type: 'scatter',
+      data: buyPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+      backgroundColor: 'rgba(22,163,74,0.9)',
+      borderColor: '#fff',
+      borderWidth: 1.5,
+      pointRadius: 7,
+      pointHoverRadius: 9,
+      pointStyle: 'triangle',
+      order: 1,
+    });
+  }
+
+  // Sell scatter points
+  if (FC.showTxns && sellPoints.length) {
+    datasets.push({
+      label: 'Sell',
+      type: 'scatter',
+      data: sellPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+      backgroundColor: 'rgba(220,38,38,0.9)',
+      borderColor: '#fff',
+      borderWidth: 1.5,
+      pointRadius: 7,
+      pointHoverRadius: 9,
+      pointStyle: 'rectRot',
+      order: 1,
+    });
+  }
+
+  FC.chartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: {
+            maxTicksLimit: 8,
+            color: 'var(--text-muted)',
+            font: { size: 10 },
+            callback(val, idx) {
+              const lbl = this.getLabelForValue(val);
+              return lbl ? lbl.slice(0, 7) : ''; // YYYY-MM
+            }
+          },
+          grid: { color: 'rgba(0,0,0,0.04)', drawTicks: false },
+        },
+        y: {
+          position: 'right',
+          ticks: {
+            color: 'var(--text-muted)',
+            font: { size: 10 },
+            callback: v => '₹' + Number(v).toFixed(v >= 100 ? 0 : 2),
+          },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'start',
+          labels: {
+            color: 'var(--text-muted)',
+            font: { size: 11 },
+            boxWidth: 12,
+            padding: 14,
+            filter: item => item.label !== 'NAV' || true,
+          }
+        },
+        tooltip: {
+          backgroundColor: 'var(--bg-card, #fff)',
+          borderColor: 'var(--border)',
+          borderWidth: 1,
+          titleColor: 'var(--text-primary)',
+          bodyColor: 'var(--text-muted)',
+          padding: 10,
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: item => {
+              if (item.dataset.label === 'NAV') return ` NAV: ₹${Number(item.raw).toFixed(4)}`;
+              if (item.dataset.label === 'Buy') {
+                const raw = item.raw?.raw?.txn;
+                return raw ? ` BUY — ${Number(raw.units||0).toFixed(4)} units @ ₹${Number(raw.nav||0).toFixed(2)}` : ' Buy';
+              }
+              if (item.dataset.label === 'Sell') {
+                const raw = item.raw?.raw?.txn;
+                return raw ? ` SELL — ${Number(raw.units||0).toFixed(4)} units @ ₹${Number(raw.nav||0).toFixed(2)}` : ' Sell';
+              }
+              return ` ${item.dataset.label}: ₹${Number(item.raw).toFixed(2)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  _fcShowSpinner(false);
+}
+
+// ── Find nearest NAV for a date ───────────────────────────────────────────
+function _findNearestNav(dateStr) {
+  if (!FC.navData.length) return null;
+  // Exact match first
+  const exact = FC.navData.find(d => d.date === dateStr);
+  if (exact) return exact.nav;
+  // Closest date
+  const target = new Date(dateStr).getTime();
+  let best = null, bestDiff = Infinity;
+  for (const d of FC.navData) {
+    const diff = Math.abs(new Date(d.date).getTime() - target);
+    if (diff < bestDiff) { bestDiff = diff; best = d.nav; }
+  }
+  return best;
+}
+
+// ── Transaction pills in footer ───────────────────────────────────────────
+function _renderFcTxnPills() {
+  const container = document.getElementById('fcTxnList');
+  if (!container) return;
+
+  if (!FC.txns.length) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">No transactions found</span>';
+    return;
+  }
+
+  const sorted = [...FC.txns].sort((a, b) => a.txn_date > b.txn_date ? -1 : 1);
+  const topN   = sorted.slice(0, 20);
+
+  const typeStyle = {
+    BUY:         'background:#dcfce7;color:#15803d;border-color:#86efac;',
+    SELL:        'background:#fee2e2;color:#dc2626;border-color:#fca5a5;',
+    SWITCH_IN:   'background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;',
+    SWITCH_OUT:  'background:#fef3c7;color:#b45309;border-color:#fcd34d;',
+    DIV_REINVEST:'background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;',
+    DIV_PAYOUT:  'background:#fce7f3;color:#be185d;border-color:#f9a8d4;',
+    STP_IN:      'background:#d1fae5;color:#065f46;border-color:#6ee7b7;',
+    STP_OUT:     'background:#ffedd5;color:#9a3412;border-color:#fdba74;',
+    SWP:         'background:#fef9c3;color:#713f12;border-color:#fde047;',
+  };
+
+  container.innerHTML = topN.map(t => {
+    const type  = (t.transaction_type || 'BUY').toUpperCase();
+    const style = typeStyle[type] || 'background:var(--bg-secondary);color:var(--text-muted);border-color:var(--border);';
+    const units = Number(t.units || 0).toFixed(4);
+    const nav   = Number(t.nav || 0).toFixed(2);
+    const amt   = fmtFull(t.value_at_cost || 0);
+    return `<div title="${type}: ${units} units @ ₹${nav} = ${amt}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;border:1px solid;${style}white-space:nowrap;cursor:default;">
+      <span>${type}</span>
+      <span style="font-weight:500;opacity:.8;">${t.txn_date?.slice(0,10)||''}</span>
+      <span>${amt}</span>
+    </div>`;
+  }).join('') + (sorted.length > 20 ? `<span style="color:var(--text-muted);font-size:10px;padding:4px;">+${sorted.length - 20} more…</span>` : '');
+}
+
+// ── Range button handler ──────────────────────────────────────────────────
+async function setFcRange(range, btn) {
+  FC.range = range;
+  document.querySelectorAll('.fc-range-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  await _fcFetchNavAndRender();
+}
+
+// ── Toggle buy/sell markers ───────────────────────────────────────────────
+function toggleFcTxnMarkers() {
+  FC.showTxns = document.getElementById('fcShowTxns')?.checked !== false;
+  if (FC.navData.length) _renderNavLineChart();
+}
+
+// ── Close modal ───────────────────────────────────────────────────────────
+function closeFundChartModal() {
+  document.getElementById('modalFundChart').style.display = 'none';
+  document.body.style.overflow = '';
+  if (FC.chartInst) { FC.chartInst.destroy(); FC.chartInst = null; }
+  FC.fundId = null;
+  FC.navData = [];
+  FC.txns = [];
+}
+
+// ── Spinner helper ────────────────────────────────────────────────────────
+function _fcShowSpinner(show) {
+  const el = document.getElementById('fcChartSpinner');
+  if (el) el.style.display = show ? 'flex' : 'none';
+}
+
+// ── Wire up fund-title click in holdings table ────────────────────────────
+// Called once after renderHoldingsTable() — patches .fund-title divs
+function _wireFundTitleClicks() {
+  document.querySelectorAll('#holdingsTable .fund-title').forEach(el => {
+    el.classList.add('fc-clickable');
+    const row = el.closest('tr[data-fund-id]');
+    if (!row) return;
+    const fundId = Number(row.dataset.fundId);
+    el.onclick = e => { e.stopPropagation(); openFundChartModal(fundId); };
+  });
+}
+
+// ── Hook into MF.loadHoldings post-render ────────────────────────────────
+// Patch the existing renderHoldingsTable to also wire clicks
+(function() {
+  // Wait for DOM ready, then observe holdingsTable mutations
+  const observe = () => {
+    const table = document.getElementById('holdingsTable');
+    if (!table) return setTimeout(observe, 500);
+
+    const observer = new MutationObserver(() => {
+      setTimeout(_wireFundTitleClicks, 50);
+    });
+    observer.observe(table.querySelector('tbody') || table, {
+      childList: true, subtree: false
+    });
+    // Also wire immediately on first paint
+    _wireFundTitleClicks();
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', observe);
+  } else {
+    observe();
+  }
+})();
+
+// ── Close on overlay click ────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  if (e.target.id === 'modalFundChart') closeFundChartModal();
+});

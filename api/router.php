@@ -195,6 +195,11 @@ try {
             require APP_ROOT . '/api/nps/nps_delete.php'; exit;
         case 'nps_nav_update':
             require APP_ROOT . '/api/nps/nps_nav_update.php'; exit;
+        case 'nps_statement':
+            require APP_ROOT . '/api/nps/nps_statement.php'; exit;
+        case 'admin_nps_nav_trigger':
+            if (!$isAdmin) json_response(false, 'Admin only.', [], 403);
+            require APP_ROOT . '/api/admin/nps_nav_trigger.php'; exit;
 
                 // ── Market Indexes ─────────────────────────────────
         case 'indexes_fetch':

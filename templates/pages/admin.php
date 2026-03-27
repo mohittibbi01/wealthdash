@@ -242,6 +242,59 @@ ob_start();
       </div>
     </div>
 
+    <!-- 5. NPS NAV Update (t99) -->
+    <div class="nav-op-card" id="navOpCard_nps">
+      <div class="nav-op-left">
+        <div class="nav-op-icon">🏛️</div>
+        <div class="nav-op-info">
+          <div class="nav-op-title">NPS NAV Update
+            <span id="npsNavStatus" class="nav-lastrun-badge nav-badge-idle">⏳ Loading...</span>
+          </div>
+          <div class="nav-op-desc">PFRDA / NPS Trust se aaj ke sabhi NPS schemes ki NAV fetch karta hai. <strong>CAGR aur returns</strong> yahi se calculate hote hain. <em>Backfill</em> se last 5 years ki history ek baar download hogi.</div>
+          <div class="nav-op-meta">
+            <span class="nav-op-freq">🔄 Roz chalao — shaam 9 PM ke baad</span>
+            <span class="nav-lastrun" id="lastrun_nps">Last run: —</span>
+          </div>
+          <!-- Manual NAV entry for a specific scheme -->
+          <div id="npsManualWrap" style="display:none;margin-top:10px;background:var(--bg-secondary);border-radius:8px;padding:10px;border:1px solid var(--border-color)">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:7px">Manual NAV Entry (agar auto-fetch fail ho)</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:3px">Scheme</div>
+                <select id="npsManualScheme" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);font-size:12px;min-width:200px">
+                  <option value="">Select scheme...</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:3px">NAV (₹)</div>
+                <input type="number" id="npsManualNav" step="0.0001" min="1" placeholder="e.g. 28.4512" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);font-size:12px;width:130px">
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:3px">Date</div>
+                <input type="date" id="npsManualDate" value="<?= date('Y-m-d') ?>" style="padding:6px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);font-size:12px">
+              </div>
+              <button onclick="npsManualSave()" style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">Save NAV</button>
+              <button onclick="document.getElementById('npsManualWrap').style.display='none'" style="padding:6px 10px;background:none;border:1px solid var(--border-color);border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-muted)">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-op-actions" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <button class="btn btn-primary btn-sm" id="btnNpsNavDaily" onclick="npsNavRun('daily')">
+          🔄 Daily Update
+        </button>
+        <button class="btn btn-outline btn-sm" id="btnNpsBackfill" onclick="npsNavRun('backfill')">
+          📥 Backfill 5Y History
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="npsNavRun('returns')">
+          📊 Recalc Returns
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('npsManualWrap').style.display='block';loadNpsSchemes()">
+          ✏️ Manual Entry
+        </button>
+      </div>
+    </div>
+
     <!-- 5. Peak NAV -->
     <div class="nav-op-card" id="navOpCard_peak">
       <div class="nav-op-left">
@@ -277,49 +330,7 @@ ob_start();
       </div>
     </div>
 
-    <!-- 6. Full NAV History Download -->
-    <div class="nav-op-card" id="navOpCard_navdl">
-      <div class="nav-op-left">
-        <div class="nav-op-icon">📥</div>
-        <div class="nav-op-info">
-          <div class="nav-op-title">Full NAV History Download — Since Inception</div>
-          <div class="nav-op-desc">MFAPI.in se <strong>saare 14,000+ funds ki complete NAV history</strong> fetch karta hai — since inception tak. <code>nav_history</code> table populate hoti hai jo Screener charts, XIRR, returns calculation ke liye use hoti hai. Incremental hai — ruk ke dobara shuru kar sakte ho.</div>
-          <div class="nav-op-meta">
-            <span class="nav-op-freq">📅 Ek baar bulk download, phir daily auto-update</span>
-            <span class="nav-lastrun" id="lastrun_navdl">Last run: —</span>
-          </div>
-          <!-- Live tiles -->
-          <div id="ndTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;">
-            <div class="pn-tile pn-total">  <div class="pn-num" id="ndTotal">—</div>  <div class="pn-lbl">Total</div></div>
-            <div class="pn-tile pn-pending"><div class="pn-num" id="ndPending">—</div><div class="pn-lbl">Pending</div></div>
-            <div class="pn-tile pn-stale">  <div class="pn-num" id="ndWorking">—</div> <div class="pn-lbl">In Progress</div></div>
-            <div class="pn-tile pn-err">    <div class="pn-num" id="ndErrors">—</div> <div class="pn-lbl">Errors</div></div>
-            <div class="pn-tile pn-done">   <div class="pn-num" id="ndDone">—</div>   <div class="pn-lbl">Done</div></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <div style="flex:1;background:var(--border);border-radius:99px;height:6px;overflow:hidden;">
-              <div id="ndBar" style="height:100%;width:0%;background:#0891b2;border-radius:99px;transition:width .6s;"></div>
-            </div>
-            <span id="ndPct" style="font-size:11px;font-weight:700;color:#0891b2;min-width:32px;text-align:right;">0%</span>
-          </div>
-          <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
-            💾 <span id="ndRecs">—</span> NAV records downloaded &nbsp;|&nbsp;
-            ⚠️ ~5M+ rows expected (200MB+ storage)
-          </div>
-        </div>
-      </div>
-      <div class="nav-op-actions">
-        <button class="btn btn-primary btn-sm" id="btnRunNavDl" onclick="runNavDownload()" style="background:#0891b2;border-color:#0891b2;">
-          <span id="btnNavDlIcon">▶</span><span id="btnNavDlText"> Start Download</span>
-        </button>
-        <button class="btn btn-danger btn-sm" id="btnStopNavDl" onclick="stopNavDownload()" style="display:none;margin-top:6px;">
-          ⏹ Stop
-        </button>
-        <a href="<?= APP_URL ?>/nav_download/status.php" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;">↗ Full Dashboard</a>
-      </div>
-    </div>
-
-    <!-- 7. Holdings Recalc -->
+    <!-- 6. Holdings Recalc -->
     <div class="nav-op-card" id="navOpCard_recalc">
       <div class="nav-op-left">
         <div class="nav-op-icon">🔄</div>
@@ -1047,6 +1058,8 @@ ob_start();
 .nav-badge-updating{ background:rgba(59,130,246,.1);color:var(--accent);border-color:rgba(59,130,246,.3); }
 .nav-badge-error   { background:rgba(239,68,68,.1);color:var(--danger);border-color:rgba(239,68,68,.25); }
 .nav-badge-warn    { background:rgba(234,179,8,.1);color:#92400e;border-color:rgba(234,179,8,.3); }
+.nav-badge-running { background:rgba(59,130,246,.12);color:#1d4ed8;border-color:rgba(59,130,246,.35); animation:pulse-badge 1.5s ease-in-out infinite; }
+@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.6} }
 </style>
 
 <script>
@@ -1065,6 +1078,7 @@ const AUDIT_LIMIT = 50;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadStats();
+  setTimeout(npsNavLoadStatus, 800);
 });
 
 function adminSwitchTab(name, btn) {
@@ -2079,6 +2093,148 @@ async function importExitLoad() {
   }
 }
 
+// ── NPS NAV — Admin Functions (t99) ────────────────────────
+async function npsNavRun(mode) {
+  const btnMap = { daily: 'btnNpsNavDaily', backfill: 'btnNpsBackfill' };
+  const btn = btnMap[mode] ? document.getElementById(btnMap[mode]) : null;
+  const origText = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Running...'; }
+
+  try {
+    const res  = await fetch(APP_URL + '/api/router.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_nps_nav_trigger', mode })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ ' + data.message, 'success');
+      document.getElementById('npsNavStatus').textContent = mode === 'backfill' ? '⏳ Backfilling...' : '⏳ Running...';
+      document.getElementById('npsNavStatus').className = 'nav-lastrun-badge nav-badge-running';
+      // Poll status after 3 sec
+      setTimeout(npsNavLoadStatus, 3000);
+      if (mode === 'backfill') setTimeout(npsNavLoadStatus, 15000); // check again after 15s
+    } else {
+      showToast('⚠️ ' + (data.message || 'Error'), 'error');
+    }
+  } catch (e) {
+    showToast('⚠️ ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+  }
+}
+
+async function npsNavLoadStatus() {
+  try {
+    const res  = await fetch(APP_URL + '/api/router.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_nps_nav_trigger', mode: 'status' })
+    });
+    const data = await res.json();
+    if (!data.success) return;
+    const d = data.data;
+
+    // Status badge
+    const badge = document.getElementById('npsNavStatus');
+    if (badge) {
+      const st = d.last_status || 'unknown';
+      if (st.startsWith('success')) {
+        badge.textContent = '✅ Up to date';
+        badge.className = 'nav-lastrun-badge nav-badge-ok';
+      } else if (st.startsWith('partial')) {
+        badge.textContent = '⚠️ Partial';
+        badge.className = 'nav-lastrun-badge nav-badge-warn';
+      } else if (st.startsWith('running') || st.startsWith('triggered')) {
+        badge.textContent = '⏳ Running...';
+        badge.className = 'nav-lastrun-badge nav-badge-running';
+        setTimeout(npsNavLoadStatus, 5000); // keep polling
+      } else if (st.startsWith('error') || st.startsWith('failed')) {
+        badge.textContent = '❌ Failed';
+        badge.className = 'nav-lastrun-badge nav-badge-error';
+      } else if (st === 'never_run' || st === 'no_schemes') {
+        badge.textContent = '⚪ Not run yet';
+        badge.className = 'nav-lastrun-badge nav-badge-idle';
+      } else {
+        badge.textContent = st.slice(0, 30);
+        badge.className = 'nav-lastrun-badge nav-badge-idle';
+      }
+    }
+
+    // Last run time
+    const lr = document.getElementById('lastrun_nps');
+    if (lr && d.last_run) {
+      const dt = new Date(d.last_run.replace(' ', 'T'));
+      lr.textContent = 'Last run: ' + dt.toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    }
+
+    // Stats line under the card
+    const schCard = document.getElementById('navOpCard_nps');
+    if (schCard && d.scheme_count !== undefined) {
+      let statsEl = schCard.querySelector('.nps-nav-stats');
+      if (!statsEl) {
+        statsEl = document.createElement('div');
+        statsEl.className = 'nps-nav-stats';
+        statsEl.style.cssText = 'font-size:11px;color:var(--text-muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap';
+        schCard.querySelector('.nav-op-meta').appendChild(statsEl);
+      }
+      const navOk = d.missing_today === 0;
+      statsEl.innerHTML = `
+        <span>📌 ${d.scheme_count} active schemes</span>
+        <span>📊 ${d.history_count.toLocaleString('en-IN')} NAV records</span>
+        <span style="color:${navOk ? '#16a34a' : '#dc2626'}">${navOk ? '✅ All NAVs today' : '⚠️ ' + d.missing_today + ' missing today'}</span>
+      `;
+    }
+  } catch (e) {
+    console.warn('NPS status check failed:', e.message);
+  }
+}
+
+async function loadNpsSchemes() {
+  const sel = document.getElementById('npsManualScheme');
+  if (!sel || sel.options.length > 1) return; // already loaded
+  try {
+    const res  = await fetch(APP_URL + '/api/nps/nps_screener.php?per_page=200&sort=name');
+    const data = await res.json();
+    if (!data.schemes) return;
+    data.schemes.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.pfm_name + ' — ' + s.scheme_name + ' (' + (s.tier === 'tier1' ? 'T1' : 'T2') + '/' + s.asset_class + ')';
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.warn('loadNpsSchemes:', e.message); }
+}
+
+async function npsManualSave() {
+  const schemeId  = document.getElementById('npsManualScheme')?.value;
+  const manualNav = document.getElementById('npsManualNav')?.value;
+  const navDate   = document.getElementById('npsManualDate')?.value;
+
+  if (!schemeId) { showToast('Scheme select karo', 'error'); return; }
+  if (!manualNav || parseFloat(manualNav) <= 0) { showToast('Valid NAV daalo', 'error'); return; }
+
+  try {
+    const res  = await fetch(APP_URL + '/api/router.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_nps_nav_trigger', mode: 'manual', scheme_id: parseInt(schemeId), manual_nav: parseFloat(manualNav), nav_date: navDate })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ ' + data.message, 'success');
+      document.getElementById('npsManualNav').value = '';
+      document.getElementById('npsManualWrap').style.display = 'none';
+      npsNavLoadStatus();
+    } else {
+      showToast('⚠️ ' + data.message, 'error');
+    }
+  } catch (e) {
+    showToast('⚠️ ' + e.message, 'error');
+  }
+}
+
+
 // ── Peak NAV — Background Processor ───────────────────────
 let pnRunning   = false;
 let pnStopped   = false;
@@ -2193,86 +2349,6 @@ async function loadPeakNavStatus() {
 // Initial load + idle poll every 10s
 loadPeakNavStatus();
 setInterval(() => { if (!pnRunning) loadPeakNavStatus(); }, 10000);
-
-// ── Full NAV History Download ─────────────────────────────────────────────
-let ndPollTimer  = null;
-let ndRunning    = false;
-let ndProcWin    = null;
-
-async function loadNavDlStatus() {
-  try {
-    const d = await fetch(window.APP_URL + '/nav_download/api.php?action=summary&_=' + Date.now(), {cache:'no-store'}).then(r=>r.json());
-    const fmt = n => (+n||0).toLocaleString('en-IN');
-    const el  = id => document.getElementById(id);
-    const pct = d.pct || 0;
-
-    if (el('ndTotal'))   el('ndTotal').textContent   = fmt(d.total);
-    if (el('ndPending')) el('ndPending').textContent = fmt(d.pending);
-    if (el('ndWorking')) el('ndWorking').textContent = fmt(d.working);
-    if (el('ndErrors'))  el('ndErrors').textContent  = fmt(d.errors);
-    if (el('ndDone'))    el('ndDone').textContent    = fmt(d.completed);
-    if (el('ndRecs'))    el('ndRecs').textContent    = fmt(d.total_records);
-    if (el('ndPct'))     el('ndPct').textContent     = pct + '%';
-    if (el('ndBar')) {
-      el('ndBar').style.width      = pct + '%';
-      el('ndBar').style.background = pct >= 100 ? 'var(--success)' : '#0891b2';
-    }
-
-    // Running state check
-    const running = d.working > 0 || (ndProcWin && !ndProcWin.closed);
-    if (running !== ndRunning) {
-      ndRunning = running;
-      const runBtn  = el('btnRunNavDl');
-      const stopBtn = el('btnStopNavDl');
-      const icon    = el('btnNavDlIcon');
-      const text    = el('btnNavDlText');
-      if (running) {
-        if (runBtn)  runBtn.style.display  = 'none';
-        if (stopBtn) stopBtn.style.display = 'inline-block';
-      } else {
-        if (runBtn)  runBtn.style.display  = 'inline-block';
-        if (stopBtn) stopBtn.style.display = 'none';
-        if (icon) icon.textContent = '▶';
-        if (text) text.textContent = ' Start Download';
-        if (ndPollTimer) { clearInterval(ndPollTimer); ndPollTimer = null; }
-      }
-    }
-
-    // Last run
-    if (el('lastrun_navdl') && d.counts?.latest_dl)
-      el('lastrun_navdl').textContent = 'Last run: ' + d.counts.latest_dl;
-
-  } catch(e) {}
-}
-
-async function runNavDownload() {
-  await fetch(window.APP_URL + '/nav_download/api.php?action=clear_stop', {method:'POST'}).catch(()=>{});
-
-  const icon = document.getElementById('btnNavDlIcon');
-  const text = document.getElementById('btnNavDlText');
-  if (icon) icon.textContent = '⏳';
-  if (text) text.textContent = ' Starting...';
-
-  ndProcWin = window.open(window.APP_URL + '/nav_download/processor.php?parallel=8', '_blank', 'width=900,height=500');
-
-  document.getElementById('btnRunNavDl').style.display  = 'none';
-  document.getElementById('btnStopNavDl').style.display = 'inline-block';
-  ndRunning = true;
-
-  if (ndPollTimer) clearInterval(ndPollTimer);
-  ndPollTimer = setInterval(loadNavDlStatus, 3000);
-
-  showToast('📥 NAV History Download started!', 'info');
-}
-
-async function stopNavDownload() {
-  const res = await fetch(window.APP_URL + '/nav_download/api.php?action=stop', {method:'POST'}).then(r=>r.json());
-  showToast(res.message || 'Stop requested.', 'warning');
-}
-
-// Initial load
-loadNavDlStatus();
-setInterval(() => { if (!ndRunning) loadNavDlStatus(); }, 15000);
 
 function formatDate(d) {
   if (!d) return '—';

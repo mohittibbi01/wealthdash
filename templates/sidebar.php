@@ -22,6 +22,9 @@ $navItems = [
     'nps' => [
         'label' => 'NPS',
         'href'  => APP_URL . '/templates/pages/nps.php',
+        'children' => [
+            'nps_screener' => ['label' => '🔍 Find NPS Scheme', 'href' => APP_URL . '/templates/pages/nps_screener.php'],
+        ],
         'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
     ],
     'stocks' => [

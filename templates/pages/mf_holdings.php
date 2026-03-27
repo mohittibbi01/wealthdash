@@ -1121,7 +1121,78 @@ ob_start();
   </div>
 </div>
 
+<!-- ═══ t90: Fund NAV History Chart Modal ═══ -->
+<div class="modal-overlay" id="modalFundChart" style="display:none;z-index:1100;">
+  <div class="modal" style="max-width:900px;width:97%;max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+
+    <!-- Header -->
+    <div class="modal-header" style="flex-shrink:0;padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <div style="min-width:0;">
+        <div id="fcFundName" style="font-size:15px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:720px;">—</div>
+        <div id="fcFundMeta" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="closeFundChartModal()" style="flex-shrink:0;font-size:16px;line-height:1;padding:6px 10px;">✕</button>
+    </div>
+
+    <!-- Stats row -->
+    <div id="fcStats" style="flex-shrink:0;display:grid;grid-template-columns:repeat(6,1fr);gap:0;border-bottom:1px solid var(--border);background:var(--bg-secondary);"></div>
+
+    <!-- Chart area -->
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+
+      <!-- Range + toggle controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;flex-shrink:0;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:4px;" id="fcRangeBtns">
+          <button class="fc-range-btn" data-range="1M" onclick="setFcRange('1M',this)">1M</button>
+          <button class="fc-range-btn" data-range="3M" onclick="setFcRange('3M',this)">3M</button>
+          <button class="fc-range-btn" data-range="6M" onclick="setFcRange('6M',this)">6M</button>
+          <button class="fc-range-btn active" data-range="1Y" onclick="setFcRange('1Y',this)">1Y</button>
+          <button class="fc-range-btn" data-range="3Y" onclick="setFcRange('3Y',this)">3Y</button>
+          <button class="fc-range-btn" data-range="ALL" onclick="setFcRange('ALL',this)">All</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-muted);">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="fcShowTxns" checked onchange="toggleFcTxnMarkers()" style="accent-color:var(--accent);"> Show transactions
+          </label>
+          <span id="fcDataStatus" style="color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <!-- Canvas wrapper -->
+      <div style="flex:1;min-height:280px;padding:8px 16px 0;position:relative;" id="fcCanvasWrap">
+        <div id="fcChartSpinner" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-card);z-index:5;">
+          <div class="spinner"></div>
+        </div>
+        <div id="fcNoData" style="display:none;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--text-muted);">
+          <div style="font-size:28px;">📉</div>
+          <div style="font-size:13px;font-weight:600;">NAV history not available</div>
+          <div style="font-size:12px;">Download history from Admin → NAV &amp; Data first</div>
+        </div>
+        <canvas id="fcChartCanvas" style="width:100%!important;height:100%!important;display:none;"></canvas>
+      </div>
+
+      <!-- Transactions pills -->
+      <div style="flex-shrink:0;padding:10px 16px 14px;border-top:1px solid var(--border);margin-top:8px;max-height:150px;overflow-y:auto;" id="fcTxnSection" style="display:none;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Transactions</div>
+        <div id="fcTxnList" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <style>
+.fc-range-btn{padding:4px 12px;border-radius:99px;border:1.5px solid var(--border);background:var(--bg-secondary);color:var(--text-muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;}
+.fc-range-btn:hover{border-color:var(--accent);color:var(--accent);}
+.fc-range-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.fc-stat-cell{padding:10px 12px;border-right:1px solid var(--border);text-align:center;}
+.fc-stat-cell:last-child{border-right:none;}
+.fc-stat-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;}
+.fc-stat-val{font-size:13px;font-weight:800;color:var(--text-primary);}
+.fc-stat-sub{font-size:10px;color:var(--text-muted);margin-top:2px;}
+.fund-title.fc-clickable{cursor:pointer;transition:color .15s;}
+.fund-title.fc-clickable:hover{color:var(--accent);text-decoration:underline;}
+
 .ff-pill { padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--bg-secondary);color:var(--text-muted);transition:all .15s; }
 .ff-pill.active { background:var(--accent);color:#fff;border-color:var(--accent); }
 .ff-result-row { display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s; }

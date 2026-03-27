@@ -45,6 +45,33 @@ ob_start();
     <p class="page-subtitle">Tier I &amp; Tier II holdings with PFRDA NAV</p>
   </div>
   <div class="page-header-actions">
+    <!-- Statement Download Dropdown (t101) -->
+    <div style="position:relative;display:inline-block" id="npsStmtDropWrap">
+      <button class="btn btn-ghost" id="btnNpsStmt" onclick="NPS.toggleStmtDrop()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Statement ▾
+      </button>
+      <div id="npsStmtDrop" style="display:none;position:absolute;top:100%;right:0;background:var(--bg-card);border:1.5px solid var(--border-color);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;min-width:200px;padding:6px 0;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);padding:4px 14px 6px;text-transform:uppercase;letter-spacing:.4px">Download Statement</div>
+        <a id="npsStmtCsv" href="#" onclick="NPS.downloadStatement('csv'); return false;" style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text-primary);text-decoration:none;transition:background .1s" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+          📊 Download CSV
+        </a>
+        <a id="npsStmtPdf" href="#" onclick="NPS.downloadStatement('pdf'); return false;" style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text-primary);text-decoration:none;transition:background .1s" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+          🖨️ Print / Save PDF
+        </a>
+        <a id="npsStmtHtml" href="#" onclick="NPS.downloadStatement('html'); return false;" style="display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text-primary);text-decoration:none;transition:background .1s" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+          📄 View HTML
+        </a>
+        <div style="border-top:1px solid var(--border-color);margin:6px 0;"></div>
+        <div style="padding:4px 14px 4px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Filter by FY</div>
+        <select id="npsStmtFy" style="margin:2px 10px 8px;padding:5px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:11px;width:calc(100% - 20px)">
+          <option value="">All Years</option>
+          <?php
+          $fyList = DB::fetchAll("SELECT DISTINCT investment_fy FROM nps_transactions WHERE investment_fy IS NOT NULL ORDER BY investment_fy DESC LIMIT 10");
+          foreach ($fyList as $fy): ?><option value="<?= e($fy['investment_fy']) ?>"><?= e($fy['investment_fy']) ?></option><?php endforeach; ?>
+        </select>
+      </div>
+    </div>
     <button class="btn btn-ghost" id="btnNavUpdate">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.12"/></svg>
       Refresh NAV

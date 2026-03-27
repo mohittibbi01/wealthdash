@@ -69,9 +69,18 @@ const NPS = {
     document.getElementById('cancelDelNps').addEventListener('click', () => NPS.closeDelModal());
     document.getElementById('confirmDelNps').addEventListener('click', () => NPS.deleteContribution());
 
+    // Statement dropdown — close on outside click
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('npsStmtDropWrap')?.contains(e.target)) {
+        const drop = document.getElementById('npsStmtDrop');
+        if (drop) drop.style.display = 'none';
+      }
+    });
+
     // Load data
     this.loadHoldings();
     this.loadTransactions();
+    this.loadSummary(); // t99: asset allocation + tax dashboard
   },
 
   /* ── SCHEME DROPDOWN FILTER BY TIER ── */
@@ -287,6 +296,136 @@ const NPS = {
   },
 
   /* ── NAV REFRESH ── */
+  /* ── STATEMENT DOWNLOAD (t101) ── */
+  toggleStmtDrop() {
+    const drop = document.getElementById('npsStmtDrop');
+    if (!drop) return;
+    drop.style.display = drop.style.display === 'none' ? 'block' : 'none';
+  },
+
+  downloadStatement(format) {
+    document.getElementById('npsStmtDrop').style.display = 'none';
+    const fy      = document.getElementById('npsStmtFy')?.value || '';
+    const portId  = NPS.portfolioFilter || '';
+    const tier    = NPS.tierFilter || '';
+    const params  = new URLSearchParams({ action: 'nps_statement', format });
+    if (fy)     params.set('fy', fy);
+    if (portId) params.set('portfolio_id', portId);
+    if (tier)   params.set('tier', tier);
+
+    const url = APP_URL + '/api/router.php?' + params;
+    if (format === 'csv') {
+      // Trigger file download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'NPS_Statement_' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      // Open in new tab (html/pdf)
+      window.open(url, '_blank');
+    }
+  },
+
+  /* ── SUMMARY: Asset Allocation + Tax Dashboard (t99 API new summary endpoint) ── */
+  async loadSummary() {
+    const params = new URLSearchParams({ action: 'nps_list', type: 'summary' });
+    if (NPS.portfolioFilter) params.set('portfolio_id', NPS.portfolioFilter);
+
+    try {
+      const res  = await fetch(APP_URL + '/api/router.php?' + params);
+      const data = await res.json();
+      if (!data.success) return;
+      const d = data.data;
+
+      // ── Asset allocation donut ──────────────────────────────────────────────
+      const alloc    = d.allocation || [];
+      const totalVal = alloc.reduce((s, r) => s + parseFloat(r.value || 0), 0);
+      const colors   = { E: '#16a34a', C: '#ea580c', G: '#2563eb', A: '#9333ea' };
+      const labels   = { E: 'Equity', C: 'Corporate Bond', G: 'Govt Bond', A: 'Alternative' };
+
+      if (alloc.length && typeof Chart !== 'undefined') {
+        const canvas = document.getElementById('npsAllocChart');
+        const center = document.getElementById('npsAllocCenter');
+        if (canvas && totalVal > 0) {
+          // Destroy existing
+          if (canvas._chartInstance) canvas._chartInstance.destroy();
+          const ctx = canvas.getContext('2d');
+          canvas._chartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: alloc.map(r => labels[r.asset_class] || r.asset_class),
+              datasets: [{ data: alloc.map(r => parseFloat(r.value||0)), backgroundColor: alloc.map(r => colors[r.asset_class]||'#94a3b8'), borderWidth: 2, borderColor: '#fff' }]
+            },
+            options: { cutout:'72%', plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${(ctx.parsed/totalVal*100).toFixed(1)}%` } } } }
+          });
+          if (center) center.innerHTML = `<div style="font-size:14px;font-weight:800;color:var(--text-primary)">${alloc.length}</div><div style="font-size:10px;color:var(--text-muted)">Classes</div>`;
+        }
+      }
+
+      // Legend
+      const legend = document.getElementById('npsAllocLegend');
+      if (legend) {
+        legend.innerHTML = alloc.map(r => {
+          const pct = totalVal > 0 ? (parseFloat(r.value||0)/totalVal*100).toFixed(1) : 0;
+          return `<div style="display:flex;align-items:center;gap:7px;">
+            <div style="width:10px;height:10px;border-radius:2px;background:${colors[r.asset_class]||'#94a3b8'};flex-shrink:0"></div>
+            <span style="color:var(--text-muted);font-size:11px">${labels[r.asset_class]||r.asset_class}</span>
+            <span style="margin-left:auto;font-weight:700;font-size:12px">${pct}%</span>
+          </div>`;
+        }).join('');
+      }
+
+      // ── Tax dashboard ───────────────────────────────────────────────────────
+      const fy   = d.current_fy || '';
+      const self = parseFloat(d.fy_totals?.self || 0);
+      const empl = parseFloat(d.fy_totals?.employer || 0);
+      const LIMIT_80C   = 150000;
+      const LIMIT_80CCD = 50000;
+
+      // 80C bar (employee contrib up to 1.5L combined)
+      const s80c = Math.min(self, LIMIT_80C);
+      document.getElementById('nps80cAmt')?.innerText  && (document.getElementById('nps80cAmt').innerText = '₹' + s80c.toLocaleString('en-IN'));
+      const bar80c = document.getElementById('nps80cBar');
+      if (bar80c) bar80c.style.width = Math.min(100, s80c/LIMIT_80C*100) + '%';
+
+      // 80CCD(1B) bar: extra ₹50K above 1.5L
+      const over80c = Math.max(0, self - LIMIT_80C);
+      const s80ccd  = Math.min(over80c, LIMIT_80CCD);
+      document.getElementById('nps80ccdAmt') && (document.getElementById('nps80ccdAmt').innerText = '₹' + s80ccd.toLocaleString('en-IN'));
+      const bar80ccd = document.getElementById('nps80ccdBar');
+      if (bar80ccd) bar80ccd.style.width = Math.min(100, s80ccd/LIMIT_80CCD*100) + '%';
+
+      // 80CCD(2): employer
+      const salEst  = empl * 10; // 10% of salary = employer contrib → reverse
+      const emplPct = salEst > 0 ? Math.min(100, empl/salEst*100) : 0;
+      document.getElementById('nps80ccd2Amt') && (document.getElementById('nps80ccd2Amt').innerText = '₹' + empl.toLocaleString('en-IN'));
+      const bar80ccd2 = document.getElementById('nps80ccd2Bar');
+      if (bar80ccd2) bar80ccd2.style.width = emplPct + '%';
+
+      // FY label
+      document.getElementById('npsTaxFy') && (document.getElementById('npsTaxFy').innerText = 'FY ' + fy);
+
+      // Tax message
+      const totalDeduction = s80c + s80ccd + empl;
+      const msg = document.getElementById('npsTaxMsg');
+      if (msg) {
+        const remaining80ccd = LIMIT_80CCD - s80ccd;
+        if (remaining80ccd > 0) {
+          msg.innerHTML = `💡 Extra ₹${remaining80ccd.toLocaleString('en-IN')} invest karo 80CCD(1B) mein — pure tax savings (30% slab mein ₹${Math.round(remaining80ccd*0.3).toLocaleString('en-IN')} bachenge)`;
+        } else {
+          msg.innerHTML = `✅ 80CCD(1B) fully utilized! Total NPS deductions this FY: ₹${totalDeduction.toLocaleString('en-IN')}`;
+          msg.style.background = 'rgba(22,163,74,.07)';
+          msg.style.color = '#15803d';
+        }
+      }
+
+    } catch (e) {
+      console.warn('NPS summary load failed:', e.message);
+    }
+  },
+
   async refreshNav() {
     const btn = document.getElementById('btnNavUpdate');
     btn.disabled = true;
