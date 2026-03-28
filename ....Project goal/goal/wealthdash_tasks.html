@@ -305,6 +305,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="mtab" onclick="switchTab('checklist',this)">✅ Micro Checklist</div>
   <div class="mtab" onclick="switchTab('debug',this)">🔧 Debug Center</div>
   <div class="mtab" onclick="switchTab('ai',this)">🤖 AI Prompt Center</div>
+  <div class="mtab" onclick="switchTab('health',this)">🩺 File Health Check</div>
 </div>
 
 <!-- ========== TAB: TASKS ========== -->
@@ -581,6 +582,328 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <button class="copy-btn" id="promptCopyBtn" onclick="copyPrompt()">📋 Copy Prompt</button>
   </div>
 </div>
+
+<!-- ========== TAB: FILE HEALTH CHECK ========== -->
+<div class="tab-pane" id="tab-health">
+  <div style="padding:20px 24px 48px">
+
+    <!-- Header -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px">🩺 WealthDash — File Health Check</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">Sab modules check karo ek saath — pages load ho rahi hain, APIs kaam kar rahe hain, DB tables sahi hain.<br>
+          <span style="color:var(--muted2);font-size:11px">Koi module fix karne ke baad wapas aao aur sirf us module ka re-check karo.</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="hcRunAll()" style="padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">▶ Run All Checks</button>
+          <button onclick="hcExport()" style="padding:8px 14px;background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">📄 Export for Claude</button>
+          <button onclick="hcReset()" style="padding:8px 14px;background:var(--red-bg);color:var(--red);border:1.5px solid var(--red-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✕ Reset</button>
+        </div>
+      </div>
+      <!-- Summary bar -->
+      <div id="hcSummaryBar" style="display:none;margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span id="hcPassCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)">✅ 0 Pass</span>
+        <span id="hcFailCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)">❌ 0 Fail</span>
+        <span id="hcWarnCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-border)">⚠️ 0 Warn</span>
+        <span id="hcPendCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--bg);color:var(--muted);border:1px solid var(--border)">⏳ 0 Pending</span>
+      </div>
+    </div>
+
+    <!-- Module filter bar -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <span style="font-size:11px;font-weight:700;color:var(--muted);margin-right:2px">Filter:</span>
+      <button class="hc-filter active" data-filter="all"   onclick="hcFilter('all',this)"   style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer">All</button>
+      <button class="hc-filter"        data-filter="fail"  onclick="hcFilter('fail',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">❌ Failed</button>
+      <button class="hc-filter"        data-filter="pass"  onclick="hcFilter('pass',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">✅ Passed</button>
+      <button class="hc-filter"        data-filter="warn"  onclick="hcFilter('warn',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">⚠️ Warning</button>
+    </div>
+
+    <!-- Health check grid — will be rendered by JS -->
+    <div id="hcGrid" style="display:flex;flex-direction:column;gap:12px"></div>
+
+    <!-- Iframe result panel (for XAMPP local checks) -->
+    <div id="hcIframeWrap" style="display:none;margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <span id="hcIframeTitle" style="font-size:12px;font-weight:700;color:var(--text)">📋 Module Check — Live Result</span>
+        <button onclick="document.getElementById('hcIframeWrap').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px">✕</button>
+      </div>
+      <iframe id="hcIframe" src="about:blank" style="width:100%;height:500px;border:none;display:block"></iframe>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// =============================================
+// HEALTH CHECK DATA
+// =============================================
+const HC_MODULES = [
+  {
+    id: 'hc_pages', icon: '🖥️', label: 'Pages & Templates', color: '#6366f1',
+    items: [
+      { id: 'pg_dashboard',   label: 'Dashboard',          url: '/wealthdash/templates/pages/dashboard.php',         type: 'page' },
+      { id: 'pg_mf',          label: 'MF Holdings',        url: '/wealthdash/templates/pages/mf_holdings.php',       type: 'page' },
+      { id: 'pg_mf_txn',      label: 'MF Transactions',    url: '/wealthdash/templates/pages/mf_transactions.php',   type: 'page' },
+      { id: 'pg_mf_scr',      label: 'MF Screener',        url: '/wealthdash/templates/pages/mf_screener.php',       type: 'page' },
+      { id: 'pg_nps',         label: 'NPS',                url: '/wealthdash/templates/pages/nps.php',               type: 'page' },
+      { id: 'pg_nps_scr',     label: 'NPS Screener',       url: '/wealthdash/templates/pages/nps_screener.php',      type: 'page' },
+      { id: 'pg_stocks',      label: 'Stocks',             url: '/wealthdash/templates/pages/stocks.php',            type: 'page' },
+      { id: 'pg_etf',         label: 'ETF Holdings',       url: '/wealthdash/templates/pages/etf.php',               type: 'page' },
+      { id: 'pg_nfo',         label: 'NFO Tracker',        url: '/wealthdash/templates/pages/nfo.php',               type: 'page' },
+      { id: 'pg_fd',          label: 'Fixed Deposits',     url: '/wealthdash/templates/pages/fd.php',                type: 'page' },
+      { id: 'pg_savings',     label: 'Savings',            url: '/wealthdash/templates/pages/savings.php',           type: 'page' },
+      { id: 'pg_po',          label: 'Post Office',        url: '/wealthdash/templates/pages/post_office.php',       type: 'page' },
+      { id: 'pg_goals',       label: 'Goals',              url: '/wealthdash/templates/pages/goals.php',             type: 'page' },
+      { id: 'pg_banks',       label: 'Bank Accounts',      url: '/wealthdash/templates/banks.php',                   type: 'page' },
+      { id: 'pg_loans',       label: 'Loans',              url: '/wealthdash/templates/loans.php',                   type: 'page' },
+      { id: 'pg_ins',         label: 'Insurance',          url: '/wealthdash/templates/insurance.php',               type: 'page' },
+      { id: 'pg_epf',         label: 'EPF',                url: '/wealthdash/templates/epf.php',                     type: 'page' },
+      { id: 'pg_indexes',     label: 'Market Indexes',     url: '/wealthdash/templates/pages/market_indexes.php',    type: 'page' },
+      { id: 'pg_rep_fy',      label: 'Report: FY Gains',   url: '/wealthdash/templates/pages/report_fy.php',         type: 'page' },
+      { id: 'pg_rep_tax',     label: 'Report: Tax',        url: '/wealthdash/templates/pages/report_tax.php',        type: 'page' },
+      { id: 'pg_rep_nw',      label: 'Report: Net Worth',  url: '/wealthdash/templates/pages/report_networth.php',   type: 'page' },
+      { id: 'pg_rep_reb',     label: 'Report: Rebalancing',url: '/wealthdash/templates/pages/report_rebalancing.php',type: 'page' },
+      { id: 'pg_rep_sip',     label: 'Report: MF SIP/SWP', url: '/wealthdash/templates/pages/report_sip.php',        type: 'page' },
+      { id: 'pg_admin',       label: 'Admin Panel',        url: '/wealthdash/templates/pages/admin.php',             type: 'page' },
+    ]
+  },
+  {
+    id: 'hc_api', icon: '⚡', label: 'API Endpoints', color: '#2563eb',
+    items: [
+      { id: 'api_mf_list',    label: 'mf_list',            url: '/wealthdash/api/router.php?action=mf_list&portfolio_id=1',           type: 'api' },
+      { id: 'api_mf_search',  label: 'mf_search',          url: '/wealthdash/api/router.php?action=mf_search&q=hdfc',                 type: 'api' },
+      { id: 'api_nps_list',   label: 'nps_list',           url: '/wealthdash/api/router.php?action=nps_list&portfolio_id=1',          type: 'api' },
+      { id: 'api_stocks',     label: 'stocks_list',        url: '/wealthdash/api/router.php?action=stocks_list&portfolio_id=1',       type: 'api' },
+      { id: 'api_fd',         label: 'fd_list',            url: '/wealthdash/api/router.php?action=fd_list&portfolio_id=1',           type: 'api' },
+      { id: 'api_savings',    label: 'savings_list',       url: '/wealthdash/api/router.php?action=savings_list&portfolio_id=1',      type: 'api' },
+      { id: 'api_po',         label: 'po_list',            url: '/wealthdash/api/router.php?action=po_list&portfolio_id=1',           type: 'api' },
+      { id: 'api_goals',      label: 'goals_list',         url: '/wealthdash/api/router.php?action=goals_list',                      type: 'api' },
+      { id: 'api_banks',      label: 'banks_list',         url: '/wealthdash/api/router.php?action=banks_list&portfolio_id=1',       type: 'api' },
+      { id: 'api_epf',        label: 'epf_list',           url: '/wealthdash/api/router.php?action=epf_list&portfolio_id=1',         type: 'api' },
+      { id: 'api_loans',      label: 'loans_list',         url: '/wealthdash/api/router.php?action=loans_list&portfolio_id=1',       type: 'api' },
+      { id: 'api_ins',        label: 'insurance_list',     url: '/wealthdash/api/router.php?action=insurance_list&portfolio_id=1',   type: 'api' },
+      { id: 'api_indexes',    label: 'indexes_fetch',      url: '/wealthdash/api/router.php?action=indexes_fetch',                   type: 'api' },
+      { id: 'api_sip_list',   label: 'sip_list',           url: '/wealthdash/api/router.php?action=sip_list&portfolio_id=1',         type: 'api' },
+      { id: 'api_networth',   label: 'report_net_worth',   url: '/wealthdash/api/router.php?action=report_net_worth&portfolio_id=1', type: 'api' },
+      { id: 'api_fy_gains',   label: 'report_fy_gains',    url: '/wealthdash/api/router.php?action=report_fy_gains&portfolio_id=1',  type: 'api' },
+    ]
+  },
+  {
+    id: 'hc_db', icon: '🗄️', label: 'DB Tables', color: '#9333ea',
+    note: 'Ye check sirf debug/runner.php se hota hai (XAMPP mein)',
+    items: [
+      { id: 'db_users',       label: 'users',               type: 'db' },
+      { id: 'db_portfolios',  label: 'portfolios',          type: 'db' },
+      { id: 'db_funds',       label: 'funds',               type: 'db' },
+      { id: 'db_nav_history', label: 'nav_history',         type: 'db' },
+      { id: 'db_mf_holdings', label: 'mf_holdings',         type: 'db' },
+      { id: 'db_mf_txn',      label: 'mf_transactions',     type: 'db' },
+      { id: 'db_sip',         label: 'sip_schedules',       type: 'db' },
+      { id: 'db_nps_s',       label: 'nps_schemes',         type: 'db' },
+      { id: 'db_nps_h',       label: 'nps_holdings',        type: 'db' },
+      { id: 'db_nps_nav',     label: 'nps_nav_history',     type: 'db' },
+      { id: 'db_stocks',      label: 'stock_master',        type: 'db' },
+      { id: 'db_sh',          label: 'stock_holdings',      type: 'db' },
+      { id: 'db_fd',          label: 'fd_accounts',         type: 'db' },
+      { id: 'db_savings',     label: 'savings_accounts',    type: 'db' },
+      { id: 'db_si',          label: 'savings_interest',    type: 'db' },
+      { id: 'db_banks',       label: 'bank_accounts',       type: 'db' },
+      { id: 'db_epf',         label: 'epf_accounts',        type: 'db' },
+      { id: 'db_ins',         label: 'insurance_policies',  type: 'db' },
+      { id: 'db_loans',       label: 'loan_accounts',       type: 'db' },
+      { id: 'db_po',          label: 'po_schemes',          type: 'db' },
+      { id: 'db_goals_b',     label: 'goal_buckets',        type: 'db' },
+      { id: 'db_goals_i',     label: 'investment_goals',    type: 'db' },
+      { id: 'db_gc',          label: 'goal_contributions',  type: 'db' },
+      { id: 'db_peak',        label: 'mf_peak_progress',    type: 'db' },
+      { id: 'db_nav_dl',      label: 'nav_download_progress',type: 'db' },
+      { id: 'db_settings',    label: 'app_settings',        type: 'db' },
+      { id: 'db_audit',       label: 'audit_log',           type: 'db' },
+    ]
+  },
+  {
+    id: 'hc_nav', icon: '📡', label: 'NAV & Data Modules', color: '#0d9488',
+    items: [
+      { id: 'nav_peak_status',  label: 'Peak NAV Status',         url: '/wealthdash/peak_nav/status.php',                    type: 'page' },
+      { id: 'nav_dl_status',    label: 'NAV Download Status',     url: '/wealthdash/nav_download/status.php',                type: 'page' },
+      { id: 'nav_hist_status',  label: 'NAV History Status',      url: '/wealthdash/nav_history_downloader/status.php',      type: 'page' },
+      { id: 'nav_peak_api',     label: 'Peak NAV API',            url: '/wealthdash/peak_nav/api.php?action=status',          type: 'api' },
+      { id: 'nav_dl_api',       label: 'NAV Download API',        url: '/wealthdash/nav_download/api.php?action=status',      type: 'api' },
+      { id: 'nav_hist_api',     label: 'NAV History API',         url: '/wealthdash/nav_history_downloader/api.php?action=status', type: 'api' },
+      { id: 'nav_nps_trigger',  label: 'NPS NAV Trigger API',     url: '/wealthdash/api/admin/nps_nav_trigger.php',           type: 'api' },
+      { id: 'nav_debug_runner', label: 'Debug Runner',            url: '/wealthdash/debug/runner.php?format=json',            type: 'api' },
+    ]
+  },
+  {
+    id: 'hc_auth', icon: '🔐', label: 'Auth & Config', color: '#ea580c',
+    items: [
+      { id: 'auth_login',    label: 'Login Page',        url: '/wealthdash/auth/login.php',          type: 'page' },
+      { id: 'auth_register', label: 'Register Page',     url: '/wealthdash/auth/register.php',       type: 'page' },
+      { id: 'auth_forgot',   label: 'Forgot Password',   url: '/wealthdash/auth/forgot_password.php',type: 'page' },
+      { id: 'cfg_router',    label: 'API Router',        url: '/wealthdash/api/router.php',          type: 'api' },
+    ]
+  },
+];
+
+// Per-item status store
+const hcStatus = {};
+
+function hcRenderGrid(filter='all') {
+  const grid = document.getElementById('hcGrid');
+  grid.innerHTML = '';
+  HC_MODULES.forEach(mod => {
+    const items = filter === 'all' ? mod.items : mod.items.filter(i => (hcStatus[i.id]||'pending') === filter);
+    if (filter !== 'all' && items.length === 0) return;
+
+    const passCount = mod.items.filter(i => hcStatus[i.id] === 'pass').length;
+    const failCount = mod.items.filter(i => hcStatus[i.id] === 'fail').length;
+    const warnCount = mod.items.filter(i => hcStatus[i.id] === 'warn').length;
+    const total     = mod.items.length;
+
+    const block = document.createElement('div');
+    block.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)';
+    block.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <span style="font-size:18px">${mod.icon}</span>
+        <span style="font-weight:800;font-size:13px;flex:1">${mod.label}</span>
+        <span style="font-size:11px;color:var(--green);font-weight:700">${passCount > 0 ? '✅ '+passCount : ''}</span>
+        <span style="font-size:11px;color:var(--red);font-weight:700;margin-left:4px">${failCount > 0 ? '❌ '+failCount : ''}</span>
+        <span style="font-size:11px;color:var(--yellow);font-weight:700;margin-left:4px">${warnCount > 0 ? '⚠️ '+warnCount : ''}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:4px">${total} checks</span>
+        <button onclick="hcRunModule('${mod.id}')" style="padding:4px 12px;border-radius:6px;border:1.5px solid;font-size:11px;font-weight:700;cursor:pointer;background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border)">▶ Run</button>
+      </div>
+      ${mod.note ? `<div style="padding:7px 16px;font-size:11px;color:var(--muted);background:var(--yellow-bg);border-bottom:1px solid var(--yellow-border)">ℹ️ ${mod.note}</div>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0">
+        ${items.map(item => `
+          <div id="hci_${item.id}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:12px;cursor:${item.url ? 'pointer' : 'default'}"
+            onclick="${item.url ? `hcCheckItem('${item.id}','${item.url}','${item.type}',this)` : ''}">
+            <span id="hcs_${item.id}" style="width:9px;height:9px;border-radius:50%;background:var(--muted2);flex-shrink:0;display:inline-block"></span>
+            <span style="flex:1;color:var(--text)">${item.label}</span>
+            <span id="hcm_${item.id}" style="font-size:10px;color:var(--muted)"></span>
+            ${item.url ? `<span style="font-size:10px;font-family:monospace;padding:1px 5px;background:var(--bg);border-radius:3px;color:var(--muted2);border:1px solid var(--border)">${item.type}</span>` : `<span style="font-size:10px;font-family:monospace;padding:1px 5px;background:var(--purple-bg);border-radius:3px;color:var(--purple);border:1px solid var(--purple-border)">db</span>`}
+          </div>
+        `).join('')}
+      </div>
+    `;
+    grid.appendChild(block);
+  });
+}
+
+async function hcCheckItem(id, url, type, rowEl) {
+  const dot = document.getElementById('hcs_'+id);
+  const msg = document.getElementById('hcm_'+id);
+  dot.style.background = 'var(--yellow)';
+  msg.textContent = '⏳';
+  try {
+    const base = 'http://localhost';
+    const resp = await fetch(base + url, {method:'GET', credentials:'include'});
+    const text = await resp.text();
+    const isJsonOk = type === 'api' && (() => { try { const j = JSON.parse(text); return j.success !== false; } catch(e) { return false; } })();
+    const isPageOk = type === 'page' && resp.status === 200 && !text.includes('Fatal error') && !text.includes('Warning:') && !text.includes('Direct access not allowed') && text.length > 100;
+    const ok = type === 'api' ? (resp.status === 200 && (isJsonOk || text.includes('"success":true') || text.includes('"data"'))) : isPageOk;
+    if (ok) {
+      dot.style.background = 'var(--green)';
+      msg.textContent = '✅';
+      hcStatus[id] = 'pass';
+    } else if (resp.status === 302 || resp.status === 200 && text.includes('login')) {
+      dot.style.background = 'var(--yellow)';
+      msg.textContent = '⚠️ redirect';
+      hcStatus[id] = 'warn';
+    } else {
+      dot.style.background = 'var(--red)';
+      msg.textContent = '❌ ' + resp.status;
+      hcStatus[id] = 'fail';
+      if (rowEl) {
+        rowEl.style.background = 'var(--red-bg)';
+        setTimeout(() => rowEl.style.background = '', 3000);
+      }
+    }
+  } catch(e) {
+    dot.style.background = 'var(--red)';
+    msg.textContent = '❌ no conn';
+    hcStatus[id] = 'fail';
+  }
+  hcUpdateSummary();
+}
+
+async function hcRunModule(modId) {
+  const mod = HC_MODULES.find(m => m.id === modId);
+  if (!mod) return;
+  for (const item of mod.items) {
+    if (item.url) {
+      await hcCheckItem(item.id, item.url, item.type, null);
+      await new Promise(r => setTimeout(r, 80));
+    } else {
+      hcCheckDb(item.id);
+    }
+  }
+}
+
+async function hcRunAll() {
+  document.getElementById('hcSummaryBar').style.display = 'flex';
+  for (const mod of HC_MODULES) {
+    await hcRunModule(mod.id);
+  }
+}
+
+function hcCheckDb(id) {
+  // DB checks go through debug runner if available
+  const dot = document.getElementById('hcs_'+id);
+  const msg = document.getElementById('hcm_'+id);
+  if (!dot) return;
+  dot.style.background = 'var(--muted2)';
+  msg.textContent = 'use debug tab';
+  hcStatus[id] = 'pending';
+}
+
+function hcUpdateSummary() {
+  const vals = Object.values(hcStatus);
+  const pass = vals.filter(v=>v==='pass').length;
+  const fail = vals.filter(v=>v==='fail').length;
+  const warn = vals.filter(v=>v==='warn').length;
+  const pend = HC_MODULES.reduce((a,m)=>a+m.items.length,0) - vals.length;
+  document.getElementById('hcPassCount').textContent = '✅ '+pass+' Pass';
+  document.getElementById('hcFailCount').textContent = '❌ '+fail+' Fail';
+  document.getElementById('hcWarnCount').textContent = '⚠️ '+warn+' Warn';
+  document.getElementById('hcPendCount').textContent = '⏳ '+Math.max(0,pend)+' Pending';
+  document.getElementById('hcSummaryBar').style.display = 'flex';
+}
+
+function hcFilter(f, btn) {
+  document.querySelectorAll('.hc-filter').forEach(b => {
+    b.style.background = 'var(--surface)'; b.style.color = 'var(--muted)'; b.style.borderColor = 'var(--border)';
+  });
+  btn.style.background = 'var(--accent)'; btn.style.color = '#fff'; btn.style.borderColor = 'var(--accent)';
+  hcRenderGrid(f);
+}
+
+function hcExport() {
+  const lines = ['WealthDash File Health Check Report', '='.repeat(50), ''];
+  HC_MODULES.forEach(mod => {
+    lines.push(`\n## ${mod.icon} ${mod.label}`);
+    mod.items.forEach(item => {
+      const s = hcStatus[item.id] || 'pending';
+      const icon = s==='pass'?'✅':s==='fail'?'❌':s==='warn'?'⚠️':'⏳';
+      lines.push(`  ${icon} ${item.label}${item.url ? ' — '+item.url : ''}${s==='fail'?' [BROKEN]':''}`);
+    });
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'wealthdash_health_' + new Date().toISOString().slice(0,10) + '.txt';
+  a.click();
+}
+
+function hcReset() {
+  Object.keys(hcStatus).forEach(k => delete hcStatus[k]);
+  hcRenderGrid();
+  document.getElementById('hcSummaryBar').style.display = 'none';
+}
+
+// Initial render
+hcRenderGrid();
+</script>
 
 <script>
 // =============================================

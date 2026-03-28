@@ -30,25 +30,17 @@ const NPS = {
   },
   goPage(p)     { this.page=p; this.loadHoldings(); },
   setPerPage(n) { this.perPage=n; this.page=1; this.loadHoldings(); },
+  setTierFilter(tier, btn) {
+    document.querySelectorAll('.nps-tier-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    this.tierFilter = tier;
+    this.page = 1;
+    this.loadHoldings();
+  },
 
   /* ── INIT ── */
   init() {
     this.filterSchemes(); // populate scheme dropdown with tier1 default
-
-    // Holdings tier tabs
-    document.querySelectorAll('.view-btn[data-tier]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.view-btn[data-tier]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        NPS.tierFilter = btn.dataset.tier;
-        NPS.loadHoldings();
-      });
-    });
-
-    document.getElementById('filterPortfolio').addEventListener('change', e => {
-      NPS.portfolioFilter = e.target.value;
-      NPS.loadHoldings();
-    });
 
     // Transaction filters
     ['txnFilterScheme','txnFilterTier','txnFilterType'].forEach(id => {
@@ -146,7 +138,7 @@ const NPS = {
   /* ── LOAD HOLDINGS ── */
   async loadHoldings() {
     const body = document.getElementById('npsHoldingsBody');
-    body.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted)"><span class="spinner"></span> Loading...</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:40px;color:var(--text-muted)"><span class="spinner"></span> Loading...</td></tr>';
 
     const params = new URLSearchParams({ action: 'nps_list', type: 'holdings' });
     if (NPS.tierFilter)      params.set('tier', NPS.tierFilter);
@@ -159,7 +151,7 @@ const NPS = {
 
       const rows = data.data || [];
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="10" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">🏛️</div><p>No NPS holdings yet.<br>Add your first contribution to get started.</p></td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">🏛️</div><p>No NPS holdings yet.<br>Add your first contribution to get started.</p></td></tr>';
         NPS._renderPag(0,1,0);
         return;
       }
@@ -176,28 +168,121 @@ const NPS = {
       body.innerHTML = paged.map(h => {
         const gl     = parseFloat(h.gain_loss) || 0;
         const glPct  = parseFloat(h.gain_pct)  || 0;
-        const cagr   = parseFloat(h.cagr)      || 0;
-        const glCls  = gl >= 0 ? 'text-success' : 'text-danger';
-        return `<tr>
-          <td>
-            <div class="fund-name">${escHtml(h.scheme_name)}</div>
-            <div class="fund-sub">${escHtml(h.pfm_name)}</div>
+        const xirr   = h.xirr !== null && h.xirr !== undefined ? parseFloat(h.xirr) : null;
+        const invested = parseFloat(h.total_invested) || 0;
+        const value    = parseFloat(h.latest_value)   || 0;
+        const selfAmt  = parseFloat(h.self_contributed)     || 0;
+        const empAmt   = parseFloat(h.employer_contributed) || 0;
+
+        // ── colored cell helper ──
+        function cell(val, isAmt = false, dec = 2) {
+          const n = parseFloat(val);
+          if (isNaN(n)) return '<span style="color:var(--text-muted);">—</span>';
+          const pos = n >= 0;
+          const clr = pos ? '#16a34a' : '#dc2626';
+          const arr = pos ? '▲' : '▼';
+          const sign = pos ? '+' : '';
+          const fmt = isAmt
+            ? sign + fmtInr(Math.abs(n))
+            : sign + Math.abs(n).toFixed(dec) + '%';
+          return `<span style="color:${clr};font-weight:700;">${arr} ${fmt}</span>`;
+        }
+
+        // ── Asset class badge ──
+        const ac = (h.asset_class || '').toUpperCase();
+        const acColors = {
+          'E': ['rgba(22,163,74,.1)','#15803d'],
+          'C': ['rgba(37,99,235,.1)','#1d4ed8'],
+          'G': ['rgba(168,85,247,.1)','#7c3aed'],
+          'A': ['rgba(245,158,11,.1)','#b45309'],
+        };
+        const acPair = acColors[ac] || ['rgba(107,114,128,.1)','#6b7280'];
+        const acLabel = { E:'Equity', C:'Corporate Bond', G:'Govt Bond', A:'Alt Assets' }[ac] || ac;
+        const acBadge = ac
+          ? `<span style="display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${acPair[0]};color:${acPair[1]};">${escHtml(acLabel)}</span>`
+          : '';
+
+        // ── Tier badge ──
+        const tierLabel = (h.tier || '').replace('tier','Tier ').toUpperCase();
+        const tierBg = h.tier === 'tier1' ? 'rgba(37,99,235,.1)' : 'rgba(168,85,247,.1)';
+        const tierClr = h.tier === 'tier1' ? '#1d4ed8' : '#7c3aed';
+        const tierBadge = `<span style="display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;background:${tierBg};color:${tierClr};">${tierLabel}</span>`;
+
+        // ── Contribution split badge ──
+        const hasSplit = selfAmt > 0 || empAmt > 0;
+        const splitBadge = hasSplit
+          ? `<span style="display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:600;background:rgba(22,163,74,.08);color:#15803d;border:1px solid rgba(22,163,74,.2);"
+              title="Self: ${fmtInr(selfAmt)} | Employer: ${fmtInr(empAmt)}">
+              ${selfAmt > 0 && empAmt > 0 ? '👤+🏢 Both' : selfAmt > 0 ? '👤 Self' : '🏢 Employer'}
+            </span>`
+          : '';
+
+        // ── NAV + date ──
+        const navHtml = h.latest_nav
+          ? `<div style="font-weight:700;">₹${fmtNum(h.latest_nav, 4)}</div><small style="color:var(--text-muted);">${h.latest_nav_date ? fmtDate(h.latest_nav_date) : ''}</small>`
+          : '—';
+
+        // ── XIRR/CAGR ──
+        const cagrHtml = xirr !== null
+          ? cell(xirr, false, 2)
+          : '<span style="color:var(--text-muted);">—</span>';
+
+        // ── Return badges from scheme (1Y/3Y/5Y) ──
+        const r1y = h.return_1y !== null && h.return_1y !== undefined ? parseFloat(h.return_1y) : null;
+        const r3y = h.return_3y !== null && h.return_3y !== undefined ? parseFloat(h.return_3y) : null;
+        const returnBadges = [
+          r1y !== null ? `<span title="1Y Return" style="font-size:10px;padding:1px 5px;border-radius:3px;background:${r1y>=0?'rgba(22,163,74,.08)':'rgba(220,38,38,.08)'};color:${r1y>=0?'#15803d':'#dc2626'};font-weight:600;">1Y: ${r1y>=0?'+':''}${r1y.toFixed(1)}%</span>` : '',
+          r3y !== null ? `<span title="3Y Return" style="font-size:10px;padding:1px 5px;border-radius:3px;background:${r3y>=0?'rgba(37,99,235,.08)':'rgba(220,38,38,.08)'};color:${r3y>=0?'#1d4ed8':'#dc2626'};font-weight:600;">3Y: ${r3y>=0?'+':''}${r3y.toFixed(1)}%</span>` : '',
+        ].filter(Boolean).join(' ');
+
+        return `<tr style="transition:background .12s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+          <td class="fund-name-cell" style="text-align:left;padding:10px 14px;">
+            <div class="fund-title" style="font-weight:700;font-size:13px;margin-bottom:3px;">${escHtml(h.scheme_name)}</div>
+            <div class="fund-sub" style="color:var(--text-muted);font-size:11px;margin-bottom:5px;">${escHtml(h.pfm_name)}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+              ${tierBadge}${acBadge ? ' ' + acBadge : ''}${splitBadge ? ' ' + splitBadge : ''}
+              ${returnBadges ? `<span style="margin-left:2px;">${returnBadges}</span>` : ''}
+            </div>
           </td>
-          <td><span class="badge badge-outline">${h.tier.toUpperCase()}</span></td>
-          <td class="text-right">${fmtNum(h.total_units, 4)}</td>
-          <td class="text-right">₹${fmtNum(h.latest_nav, 4)}<br><small style="color:var(--text-muted)">${h.latest_nav_date || '—'}</small></td>
-          <td class="text-right">${fmtInr(h.total_invested)}</td>
-          <td class="text-right">${fmtInr(h.latest_value)}</td>
-          <td class="text-right ${glCls}">${fmtInr(gl)}<br><small>${gl >= 0 ? '+' : ''}${glPct.toFixed(2)}%</small></td>
-          <td class="text-right ${cagr >= 0 ? 'text-success' : 'text-danger'}">${cagr.toFixed(2)}%</td>
-          <td class="text-right">${h.first_contribution_date ? fmtDate(h.first_contribution_date) : '—'}</td>
-          <td class="text-center">
-            <button class="btn btn-sm btn-ghost" onclick="NPS.viewHistory(${h.scheme_id}, '${h.tier}')" title="View history">📋</button>
+          <td class="text-center" style="padding:6px 10px;">
+            <div style="font-size:12px;color:var(--text-muted);">${fmtInr(invested)}</div>
+            <div style="font-weight:800;font-size:14px;">${fmtInr(value)}</div>
+            <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:3px;margin-top:3px;">${cell(gl, true)}</div>
+          </td>
+          <td class="text-center" style="padding:6px 10px;">
+            <div style="font-size:12px;">${cell(glPct, false)}</div>
+            <div style="font-size:12px;border-top:1px solid var(--border-color);padding-top:3px;margin-top:3px;">${cagrHtml}</div>
+          </td>
+          <td class="text-center" style="padding:6px 10px;">
+            <div style="font-weight:700;">${fmtNum(h.total_units, 4)}</div>
+            ${selfAmt > 0 && empAmt > 0 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px;">👤 ${fmtInr(selfAmt)}</div><div style="font-size:10px;color:var(--text-muted);">🏢 ${fmtInr(empAmt)}</div>` : ''}
+          </td>
+          <td class="text-center" style="padding:6px 10px;">${navHtml}</td>
+          <td class="text-center" style="padding:6px 10px;color:var(--text-muted);font-size:12px;">${h.first_contribution_date ? fmtDate(h.first_contribution_date) : '—'}</td>
+          <td class="text-center" style="padding:6px 8px;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
+              <button onclick="NPS.viewHistory(${h.scheme_id}, '${h.tier}')"
+                style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:600;transition:all .15s;"
+                onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)';this.style.background='rgba(37,99,235,.06)'"
+                onmouseout="this.style.borderColor='var(--border-color)';this.style.color='var(--text-muted)';this.style.background='var(--bg-secondary)'"
+                title="View contribution history">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                History
+              </button>
+              <button onclick="NPS.openAddModalFor(${h.scheme_id},'${h.tier}')"
+                style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;border:1px solid rgba(22,163,74,.35);background:rgba(22,163,74,.06);cursor:pointer;font-size:11px;color:#15803d;font-weight:600;transition:all .15s;"
+                onmouseover="this.style.background='rgba(22,163,74,.15)';this.style.borderColor='#15803d'"
+                onmouseout="this.style.background='rgba(22,163,74,.06)';this.style.borderColor='rgba(22,163,74,.35)'"
+                title="Add contribution to this scheme">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add
+              </button>
+            </div>
           </td>
         </tr>`;
       }).join('');
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="10" class="text-center text-danger" style="padding:40px">Error: ${e.message}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="7" class="text-center text-danger" style="padding:40px">Error: ${e.message}</td></tr>`;
     }
   },
 
@@ -253,6 +338,20 @@ const NPS = {
     this.filterSchemes();
   },
 
+  /* Pre-select scheme + tier from the holdings row "Add" button */
+  openAddModalFor(schemeId, tier) {
+    this.openAddModal();
+    // Set tier first so filterSchemes() shows correct options
+    const tierSel = document.getElementById('npsTier');
+    if (tierSel) { tierSel.value = tier; this.filterSchemes(); }
+    // Then select the scheme
+    const schemeSel = document.getElementById('npsScheme');
+    if (schemeSel) {
+      schemeSel.value = schemeId;
+      this.onSchemeChange();
+    }
+  },
+
   closeAddModal() {
     document.getElementById('modalAddNps').style.display = 'none';
   },
@@ -267,7 +366,7 @@ const NPS = {
 
     const body = new URLSearchParams({
       action:            'nps_add',
-      portfolio_id:      document.getElementById('npsPortfolio').value,
+      portfolio_id:      (window.NPS_PORTFOLIO_ID || ''),
       scheme_id:         document.getElementById('npsScheme').value,
       tier:              document.getElementById('npsTier').value,
       contribution_type: document.getElementById('npsContribType').value,

@@ -58,12 +58,26 @@ try {
             ? ' t.portfolio_id = ? '
             : ' p.user_id = ? ';
 
+        // ── Extra filters from JS (txnFilterType, date range, search) ──
+        $txnType  = $_GET['txn_type'] ?? '';
+        $fromDate = $_GET['from']     ?? '';
+        $toDate   = $_GET['to']       ?? '';
+        $searchQ  = trim($_GET['q']   ?? '');
+
+        $extraWhere  = '';
+        $extraParams = [];
+        if ($txnType)  { $extraWhere .= ' AND t.transaction_type = ? '; $extraParams[] = $txnType; }
+        if ($fromDate) { $extraWhere .= ' AND t.txn_date >= ? ';        $extraParams[] = $fromDate; }
+        if ($toDate)   { $extraWhere .= ' AND t.txn_date <= ? ';        $extraParams[] = $toDate; }
+        if ($searchQ)  { $extraWhere .= ' AND f.scheme_name LIKE ? ';   $extraParams[] = "%$searchQ%"; }
+
         $countStmt = $db->prepare("
             SELECT COUNT(*) FROM mf_transactions t
+            JOIN funds f ON f.id = t.fund_id
             JOIN portfolios p ON p.id = t.portfolio_id
-            WHERE $whereBase $fundFilter
+            WHERE $whereBase $fundFilter $extraWhere
         ");
-        $countStmt->execute(array_merge($portfolioParams, $fundParams));
+        $countStmt->execute(array_merge($portfolioParams, $fundParams, $extraParams));
         $total = (int)$countStmt->fetchColumn();
 
         // t31: Dynamic sort — whitelist allowed columns
@@ -95,11 +109,11 @@ try {
             JOIN fund_houses fh ON fh.id = f.fund_house_id
             JOIN portfolios port ON port.id = t.portfolio_id
             JOIN portfolios p ON p.id = t.portfolio_id
-            WHERE $whereBase $fundFilter
+            WHERE $whereBase $fundFilter $extraWhere
             ORDER BY $orderClause
             LIMIT ? OFFSET ?
         ");
-        $stmt->execute(array_merge($portfolioParams, $fundParams, [$per_page, $offset]));
+        $stmt->execute(array_merge($portfolioParams, $fundParams, $extraParams, [$per_page, $offset]));
         $rows = $stmt->fetchAll();
 
         $data = array_map(function($r) {

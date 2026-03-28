@@ -1204,6 +1204,6 @@ ob_start();
 $pageContent = ob_get_clean();
 $extraScripts = '<script src="' . APP_URL . '/public/js/charts.js?v=' . filemtime(APP_ROOT.'/public/js/charts.js') . '"></script>'
              . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>'
-             . '<script src="' . APP_URL . '/public/js/mf_advanced_analytics.js?v=' . (file_exists(APP_ROOT.'/public/js/mf_advanced_analytics.js') ? filemtime(APP_ROOT.'/public/js/mf_advanced_analytics.js') : time()) . '"></script>';
+             ;
 require_once APP_ROOT . '/templates/layout.php';
 ?>

@@ -99,7 +99,7 @@ if (!empty($compare)) {
 // ── META (for filter dropdowns) ────────────────────────────────────────────────
 $pfmList        = DB::fetchAll("SELECT DISTINCT pfm_name FROM nps_schemes WHERE is_active=1 ORDER BY pfm_name");
 $assetClassList = DB::fetchAll("SELECT DISTINCT asset_class FROM nps_schemes WHERE is_active=1 ORDER BY asset_class");
-$statsRow       = DB::fetchRow(
+$statsRow       = DB::fetchOne(
     "SELECT COUNT(*) AS total,
             SUM(CASE WHEN return_1y IS NOT NULL THEN 1 ELSE 0 END) AS with_returns,
             SUM(CASE WHEN latest_nav_date = CURDATE() THEN 1 ELSE 0 END) AS nav_today

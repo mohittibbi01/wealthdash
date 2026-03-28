@@ -70,7 +70,7 @@ if ($type === 'holdings') {
         // Fallback: simple CAGR from nav_history
         if ($xirr === null && $h['first_contribution_date'] && $value > 0 && $invested > 0) {
             // Nav-based CAGR using first contribution nav vs today
-            $firstNavRow = DB::fetchRow(
+            $firstNavRow = DB::fetchOne(
                 "SELECT nav FROM nps_nav_history WHERE scheme_id=? AND nav_date >= ?
                  ORDER BY nav_date ASC LIMIT 1",
                 [$sid, $h['first_contribution_date']]

@@ -21,16 +21,20 @@ $navItems = [
     ],
     'nps' => [
         'label' => 'NPS',
-        'href'  => APP_URL . '/templates/pages/nps.php',
+        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
         'children' => [
+            'nps'          => ['label' => 'Holdings',           'href' => APP_URL . '/templates/pages/nps.php'],
             'nps_screener' => ['label' => '🔍 Find NPS Scheme', 'href' => APP_URL . '/templates/pages/nps_screener.php'],
         ],
-        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
     ],
     'stocks' => [
-        'label' => 'Stocks & ETF',
-        'href'  => APP_URL . '/templates/pages/stocks.php',
-        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+        'label'    => 'Stocks & ETF',
+        'icon'     => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
+        'children' => [
+            'stocks'  => ['label' => 'Stocks',       'href' => APP_URL . '/templates/pages/stocks.php'],
+            'etf'     => ['label' => 'ETF Holdings',  'href' => APP_URL . '/templates/pages/etf.php'],
+            'nfo'     => ['label' => '📋 NFO Tracker', 'href' => APP_URL . '/templates/pages/nfo.php'],
+        ],
     ],
         'market_indexes' => [
         'label' => 'Market Indexes',
@@ -56,6 +60,24 @@ $navItems = [
         'label' => 'Goals',
         'href'  => APP_URL . '/templates/pages/goals.php',
         'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+    ],
+    'banking' => [
+        'label'    => 'Banking & Loans',
+        'icon'     => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+        'children' => [
+            'banks'     => ['label' => '🏦 Bank Accounts', 'href' => APP_URL . '/templates/banks.php'],
+            'loans'     => ['label' => '💳 Loans',          'href' => APP_URL . '/templates/loans.php'],
+        ],
+    ],
+    'insurance' => [
+        'label' => 'Insurance',
+        'href'  => APP_URL . '/templates/insurance.php',
+        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+    ],
+    'epf' => [
+        'label' => 'EPF',
+        'href'  => APP_URL . '/templates/epf.php',
+        'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     ],
     'reports' => [
         'label' => 'Reports',

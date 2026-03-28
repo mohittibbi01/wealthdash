@@ -163,14 +163,16 @@ $prevNavSQL = $hasPrevNav ? ', f.prev_nav, f.prev_nav_date' : '';
 // t67+t98: fund_manager and inception_date (optional columns)
 $hasMgrCol = false; try { $db->query("SELECT fund_manager FROM funds LIMIT 1"); $hasMgrCol=true; } catch(Exception $e){}
 $hasIncCol = false; try { $db->query("SELECT inception_date FROM funds LIMIT 1"); $hasIncCol=true; } catch(Exception $e){}
+$hasRetCol = false; try { $db->query("SELECT returns_1y FROM funds LIMIT 1"); $hasRetCol=true; } catch(Exception $e){}
 $mgrColSQL = $hasMgrCol ? ', f.fund_manager, f.manager_since' : '';
 $incColSQL = $hasIncCol ? ', f.inception_date' : '';
+$retColSQL = $hasRetCol ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
            f.latest_nav, f.latest_nav_date, f.min_ltcg_days, f.lock_in_days,
            f.highest_nav, f.highest_nav_date
-           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $mgrColSQL $incColSQL,
+           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $mgrColSQL $incColSQL $retColSQL,
            COALESCE(fh.short_name, fh.name, '') AS fund_house
     FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
     $whereSQL ORDER BY $orderSQL LIMIT ? OFFSET ?
@@ -256,6 +258,10 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         'exit_load_days'  => ($hasExpCol && isset($r['exit_load_days'])) ? (int)$r['exit_load_days']   : null,
         'risk_level'      => ($hasRiskCol && isset($r['risk_level']))    ? $r['risk_level']             : null,
         'aum_crore'       => ($hasAumCol  && isset($r['aum_crore']))     ? (float)$r['aum_crore']       : null,
+        'returns_1y'      => ($hasRetCol  && isset($r['returns_1y'])  && $r['returns_1y']  !== null) ? round((float)$r['returns_1y'],  2) : null,
+        'returns_3y'      => ($hasRetCol  && isset($r['returns_3y'])  && $r['returns_3y']  !== null) ? round((float)$r['returns_3y'],  2) : null,
+        'returns_5y'      => ($hasRetCol  && isset($r['returns_5y'])  && $r['returns_5y']  !== null) ? round((float)$r['returns_5y'],  2) : null,
+        'returns_updated' => ($hasRetCol  && isset($r['returns_updated_at'])) ? $r['returns_updated_at'] : null,
     ];
 }, $rows);
 

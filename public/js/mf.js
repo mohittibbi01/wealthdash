@@ -4156,6 +4156,7 @@ function renderMfAnalytics() {
     const holdings = MF.data || [];
     if (typeof renderSectorAllocation === 'function') renderSectorAllocation(holdings, 'sectorAllocCard');
     if (typeof renderPortfolioOverlap  === 'function') renderPortfolioOverlap(holdings, 'overlapCard');
+    if (typeof renderPortfolioSectors  === 'function') renderPortfolioSectors();
   }, 300);
 }
 
@@ -4311,16 +4312,6 @@ function renderPortfolioSectors() {
     <div style="font-size:11px;color:var(--text-muted);margin-top:10px;padding:7px;background:var(--bg-secondary);border-radius:6px;">
       💡 Based on typical category sector allocation. Actual allocation varies by fund.
     </div>`;
-}
-
-// Hook into renderMfAnalytics
-const _baseRenderAnalyticsV3 = renderMfAnalytics;
-function renderMfAnalytics() {
-  _baseRenderAnalyticsV3();
-  setTimeout(() => {
-    renderPortfolioOverlap();
-    renderPortfolioSectors();
-  }, 300);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

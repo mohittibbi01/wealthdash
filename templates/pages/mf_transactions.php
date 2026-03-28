@@ -205,7 +205,7 @@ ob_start();
 
 <?php
 $pageContent = ob_get_clean();
-$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=3"></script>
+$extraScripts = '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>
 <script>document.addEventListener("DOMContentLoaded", initCustomFilterDropdowns);</script>';
 require_once APP_ROOT . '/templates/layout.php';
 ?>

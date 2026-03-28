@@ -201,7 +201,7 @@ function recalculate_returns(array $schemes): void {
             if ($navNow <= 0) continue;
         }
 
-        $oldest = DB::fetchRow(
+        $oldest = DB::fetchOne(
             "SELECT nav, nav_date FROM nps_nav_history WHERE scheme_id=? ORDER BY nav_date ASC LIMIT 1",
             [$sid]
         );
@@ -230,7 +230,7 @@ function recalculate_returns(array $schemes): void {
 }
 
 function nav_period_return(int $sid, string $fromDate, float $navNow): ?float {
-    $row = DB::fetchRow(
+    $row = DB::fetchOne(
         "SELECT nav, nav_date FROM nps_nav_history
          WHERE scheme_id=? AND nav_date <= ?
          ORDER BY nav_date DESC LIMIT 1",

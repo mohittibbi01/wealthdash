@@ -65,6 +65,8 @@ $csrfExempt = [
     'sip_xirr', 'sip_nav_status', 'sip_nav_token', 'sip_sync_txns',
     'indexes_fetch',
     'report_fy_gains',
+    'nps_statement',
+    'admin_nps_nav_trigger',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();

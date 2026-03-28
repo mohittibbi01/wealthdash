@@ -31,9 +31,7 @@ $gainLoss      = (float)($summary['gain_loss'] ?? 0);
 $gainPct       = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 2) : 0;
 $schemeCount   = (int)($summary['scheme_count'] ?? 0);
 
-$pStmt = $db->prepare("SELECT id, name FROM portfolios WHERE user_id=? ORDER BY name ASC");
-$pStmt->execute([$currentUser['id']]);
-$portfolios = $pStmt->fetchAll();
+$portfolioId = get_user_portfolio_id((int)$currentUser['id']);
 
 $schemesAll = $db->query("SELECT id, pfm_name, scheme_name, tier, latest_nav, latest_nav_date FROM nps_schemes ORDER BY pfm_name, tier, scheme_name")->fetchAll();
 
@@ -170,36 +168,27 @@ ob_start();
 <!-- Holdings Table -->
 <div class="card">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-    <div class="view-toggle">
-      <button class="view-btn active" data-tier="">All</button>
-      <button class="view-btn" data-tier="tier1">Tier I</button>
-      <button class="view-btn" data-tier="tier2">Tier II</button>
+    <div style="display:flex;gap:6px;">
+      <button class="nps-tier-btn active" data-tier="" onclick="NPS.setTierFilter('',this)">All</button>
+      <button class="nps-tier-btn" data-tier="tier1" onclick="NPS.setTierFilter('tier1',this)">Tier I</button>
+      <button class="nps-tier-btn" data-tier="tier2" onclick="NPS.setTierFilter('tier2',this)">Tier II</button>
     </div>
-    <select class="form-select" id="filterPortfolio" style="width:160px">
-      <option value="">All Portfolios</option>
-      <?php foreach ($portfolios as $p): ?>
-      <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-      <?php endforeach; ?>
-    </select>
   </div>
   <div class="table-responsive">
     <table class="table">
       <thead>
         <tr>
           <th>Scheme / PFM</th>
-          <th>Tier</th>
-          <th class="text-right">Units</th>
-          <th class="text-right">NAV (₹)</th>
-          <th class="text-right">Invested</th>
-          <th class="text-right">Current Value</th>
-          <th class="text-right">Gain / Loss</th>
-          <th class="text-right">CAGR</th>
-          <th class="text-right">Since</th>
+          <th class="text-center">Value / P&L</th>
+          <th class="text-center">Return / XIRR</th>
+          <th class="text-center">Units</th>
+          <th class="text-center">NAV (₹)</th>
+          <th class="text-center">Since</th>
           <th class="text-center">Actions</th>
         </tr>
       </thead>
       <tbody id="npsHoldingsBody">
-        <tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted)">
+        <tr><td colspan="7" class="text-center" style="padding:40px;color:var(--text-muted)">
           <span class="spinner"></span> Loading holdings...
         </td></tr>
       </tbody>
@@ -340,14 +329,6 @@ ob_start();
       <button class="modal-close" id="closeModalNps">✕</button>
     </div>
     <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Portfolio *</label>
-        <select class="form-select" id="npsPortfolio">
-          <?php foreach ($portfolios as $p): ?>
-          <option value="<?= $p['id'] ?>"><?= e($p['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Tier *</label>
@@ -419,7 +400,42 @@ ob_start();
   </div>
 </div>
 
+<style>
+/* ── NPS Tier Filter Buttons ── */
+.nps-tier-btn {
+  padding: 6px 18px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  background: var(--bg-secondary, #f8fafc);
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+  letter-spacing: .2px;
+}
+.nps-tier-btn:hover {
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+}
+.nps-tier-btn.active {
+  background: var(--accent, #2563eb);
+  color: #fff;
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 2px 8px rgba(37,99,235,.18);
+}
+
+/* ── Themed Select Dropdowns ── */
+/* form-select optgroup/option theming */
+.form-select option,
+.form-select optgroup {
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #1e293b);
+}
+</style>
+
 <script>window.NPS_SCHEMES_DATA = <?= json_encode($schemesAll, JSON_HEX_TAG) ?>;
+window.NPS_PORTFOLIO_ID = <?= json_encode($portfolioId) ?>;
 
 // t107: NPS Maturity Calculator
 function calcNpsMaturity() {
@@ -601,10 +617,6 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 <?php
 $pageContent = ob_get_clean();
-include APP_ROOT . '/templates/layout.php';
-
-<script src="<?= APP_URL ?>/public/js/charts.js?v=<?= ASSET_VERSION ?>"></script>
-<script src="<?= APP_URL ?>/public/js/nps.js?v=<?= ASSET_VERSION ?>"></script>
-<?php
-$pageContent = ob_get_clean();
+$extraScripts = '<script src="' . APP_URL . '/public/js/charts.js?v=' . ASSET_VERSION . '"></script>'
+             . '<script src="' . APP_URL . '/public/js/nps.js?v=' . ASSET_VERSION . '"></script>';
 include APP_ROOT . '/templates/layout.php';
