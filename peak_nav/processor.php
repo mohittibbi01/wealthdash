@@ -244,6 +244,8 @@
 	$pdo->prepare("UPDATE app_settings SET setting_val='idle' WHERE setting_key='peak_nav_status'")->execute();
 
 	if ((int)$remaining === 0) {
+		// All complete — record timestamp
+		$pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('peak_nav_last_completed',NOW()) ON DUPLICATE KEY UPDATE setting_val=NOW()");
 		echo "ALL_COMPLETE\n";
 	} else {
 		echo "TIME_LIMIT\n";

@@ -63,6 +63,7 @@ try {
         $fromDate = $_GET['from']     ?? '';
         $toDate   = $_GET['to']       ?? '';
         $searchQ  = trim($_GET['q']   ?? '');
+        $fyFilter = trim($_GET['fy']  ?? '');
 
         $extraWhere  = '';
         $extraParams = [];
@@ -70,6 +71,7 @@ try {
         if ($fromDate) { $extraWhere .= ' AND t.txn_date >= ? ';        $extraParams[] = $fromDate; }
         if ($toDate)   { $extraWhere .= ' AND t.txn_date <= ? ';        $extraParams[] = $toDate; }
         if ($searchQ)  { $extraWhere .= ' AND f.scheme_name LIKE ? ';   $extraParams[] = "%$searchQ%"; }
+        if ($fyFilter) { $extraWhere .= ' AND t.investment_fy = ? ';    $extraParams[] = $fyFilter; }
 
         $countStmt = $db->prepare("
             SELECT COUNT(*) FROM mf_transactions t
@@ -141,6 +143,47 @@ try {
             ];
         }, $rows);
 
+        // ── Summary stats (always full-filter, ignore pagination) ────────
+        $summaryStmt = $db->prepare("
+            SELECT
+                COUNT(*)                                                    AS total_txns,
+                SUM(CASE WHEN t.transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST') THEN t.value_at_cost ELSE 0 END) AS total_buy,
+                SUM(CASE WHEN t.transaction_type IN ('SELL','SWITCH_OUT')              THEN t.value_at_cost ELSE 0 END) AS total_sell,
+                SUM(t.units * CASE WHEN t.transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST') THEN 1 ELSE -1 END)   AS net_units,
+                MIN(t.txn_date)                                            AS first_txn,
+                MAX(t.txn_date)                                            AS last_txn,
+                COUNT(DISTINCT t.fund_id)                                  AS unique_funds,
+                COUNT(DISTINCT t.investment_fy)                            AS unique_fys
+            FROM mf_transactions t
+            JOIN funds f ON f.id = t.fund_id
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE $whereBase $fundFilter $extraWhere
+        ");
+        $summaryStmt->execute(array_merge($portfolioParams, $fundParams, $extraParams));
+        $sumRow = $summaryStmt->fetch();
+        $summary = [
+            'total_txns'   => (int)($sumRow['total_txns'] ?? 0),
+            'total_buy'    => round((float)($sumRow['total_buy']  ?? 0), 2),
+            'total_sell'   => round((float)($sumRow['total_sell'] ?? 0), 2),
+            'net_invested' => round((float)($sumRow['total_buy'] ?? 0) - (float)($sumRow['total_sell'] ?? 0), 2),
+            'net_units'    => round((float)($sumRow['net_units']  ?? 0), 4),
+            'first_txn'    => $sumRow['first_txn'] ?? null,
+            'last_txn'     => $sumRow['last_txn']  ?? null,
+            'unique_funds' => (int)($sumRow['unique_funds'] ?? 0),
+            'unique_fys'   => (int)($sumRow['unique_fys']   ?? 0),
+        ];
+
+        // ── Available FY list for filter dropdown ─────────────────────────
+        $fyStmt = $db->prepare("
+            SELECT DISTINCT t.investment_fy
+            FROM mf_transactions t
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE $whereBase AND t.investment_fy IS NOT NULL AND t.investment_fy != ''
+            ORDER BY t.investment_fy DESC
+        ");
+        $fyStmt->execute($portfolioParams);
+        $fyList = array_column($fyStmt->fetchAll(), 'investment_fy');
+
         echo json_encode([
             'success'    => true,
             'view'       => 'transactions',
@@ -148,7 +191,9 @@ try {
             'page'       => $page,
             'per_page'   => $per_page,
             'pages'      => ceil($total / $per_page),
-            'data'       => $data
+            'data'       => $data,
+            'summary'    => $summary,
+            'fy_list'    => $fyList,
         ]);
 
     } elseif ($view === 'folio') {

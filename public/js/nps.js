@@ -12,6 +12,17 @@ const NPS = {
   pendingDeleteId: null,
   // t20: Pagination
   page: 1, perPage: 10, _allRows: [],
+
+  // ── Chart Modal state ──────────────────────────────────────────────────
+  _nc: {
+    schemeId: null,
+    holding:  null,
+    range:    '1Y',
+    navData:  [],
+    txns:     [],
+    chartInst: null,
+    showTxns: true,
+  },
   _renderPag(total, pages, startIdx) {
     const wrap = document.getElementById('npsPagWrap');
     if (!wrap) return;
@@ -67,6 +78,11 @@ const NPS = {
         const drop = document.getElementById('npsStmtDrop');
         if (drop) drop.style.display = 'none';
       }
+    });
+
+    // Close NPS chart modal on backdrop click
+    document.getElementById('modalNpsChart')?.addEventListener('click', e => {
+      if (e.target.id === 'modalNpsChart') NPS.closeChartModal();
     });
 
     // Load data
@@ -237,7 +253,7 @@ const NPS = {
 
         return `<tr style="transition:background .12s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
           <td class="fund-name-cell" style="text-align:left;padding:10px 14px;">
-            <div class="fund-title" style="font-weight:700;font-size:13px;margin-bottom:3px;">${escHtml(h.scheme_name)}</div>
+            <div class="fund-title nps-scheme-clickable" style="font-weight:700;font-size:13px;margin-bottom:3px;" onclick="NPS.openChartModal(${h.scheme_id},'${h.tier}')">${escHtml(h.scheme_name)}</div>
             <div class="fund-sub" style="color:var(--text-muted);font-size:11px;margin-bottom:5px;">${escHtml(h.pfm_name)}</div>
             <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
               ${tierBadge}${acBadge ? ' ' + acBadge : ''}${splitBadge ? ' ' + splitBadge : ''}
@@ -286,7 +302,387 @@ const NPS = {
     }
   },
 
-  /* ── LOAD TRANSACTIONS ── */
+  // ── NPS NAV HISTORY CHART MODAL ─────────────────────────────────────────
+  async openChartModal(schemeId, tier) {
+    const nc = NPS._nc;
+    // Find holding in cached rows
+    const h = (NPS._allRows || []).find(r => r.scheme_id == schemeId && r.tier === tier)
+           || (NPS._allRows || []).find(r => r.scheme_id == schemeId);
+    if (!h) { showToast('Holding data not found', 'error'); return; }
+
+    nc.schemeId = schemeId;
+    nc.holding  = h;
+    nc.range    = '1Y';
+    nc.navData  = [];
+    nc.txns     = [];
+    nc.showTxns = true;
+
+    document.getElementById('modalNpsChart').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    document.getElementById('ncShowTxns').checked = true;
+
+    // Header
+    document.getElementById('ncFundName').textContent = h.scheme_name || '—';
+
+    // Meta badges
+    const tierLabel = (h.tier || '').replace('tier', 'Tier ').toUpperCase();
+    const tierBg    = h.tier === 'tier1' ? 'rgba(37,99,235,.1)' : 'rgba(168,85,247,.1)';
+    const tierClr   = h.tier === 'tier1' ? '#1d4ed8' : '#7c3aed';
+    const acColors  = { E:'#15803d', C:'#1d4ed8', G:'#7c3aed', A:'#b45309' };
+    const acLabels  = { E:'Equity', C:'Corporate Bond', G:'Govt Bond', A:'Alt Assets' };
+    const ac = (h.asset_class || '').toUpperCase();
+    const meta = [
+      `<span style="background:${tierBg};color:${tierClr};padding:1px 7px;border-radius:4px;font-weight:700;">${tierLabel}</span>`,
+      ac ? `<span style="background:rgba(0,0,0,.05);color:${acColors[ac]||'#64748b'};padding:1px 7px;border-radius:4px;font-weight:600;">${acLabels[ac]||ac}</span>` : '',
+      `<span style="color:var(--text-muted);">${escHtml(h.pfm_name||'')}</span>`,
+    ].filter(Boolean).join('');
+    document.getElementById('ncFundMeta').innerHTML = meta;
+
+    // Stats
+    this._renderNcStats(h);
+
+    // Reset range buttons
+    document.querySelectorAll('.nc-range-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.range === '1Y');
+      b.classList.remove('nc-range-btn-active');
+    });
+
+    // Spinner
+    this._ncShowSpinner(true);
+    document.getElementById('ncNoData').style.display = 'none';
+    document.getElementById('ncChartCanvas').style.display = 'none';
+    document.getElementById('ncTxnSection').style.display = 'none';
+
+    // Load transactions + NAV history
+    await this._ncFetchTxns();
+    await this._ncFetchAndRender();
+  },
+
+  closeChartModal() {
+    document.getElementById('modalNpsChart').style.display = 'none';
+    document.body.style.overflow = '';
+    const nc = NPS._nc;
+    if (nc.chartInst) { nc.chartInst.destroy(); nc.chartInst = null; }
+    nc.schemeId = null;
+    nc.navData  = [];
+    nc.txns     = [];
+  },
+
+  _renderNcStats(h) {
+    const invested = parseFloat(h.total_invested) || 0;
+    const value    = parseFloat(h.latest_value)   || 0;
+    const gl       = parseFloat(h.gain_loss)       || 0;
+    const glPct    = parseFloat(h.gain_pct)        || 0;
+    const xirr     = h.xirr !== null && h.xirr !== undefined ? parseFloat(h.xirr) : null;
+    const nav      = parseFloat(h.latest_nav)      || 0;
+    const units    = parseFloat(h.total_units)     || 0;
+
+    function cell(label, val, sub, color) {
+      return `<div class="nc-stat-cell">
+        <div class="nc-stat-label">${label}</div>
+        <div class="nc-stat-val" style="color:${color||'var(--text-primary)'};">${val}</div>
+        ${sub ? `<div class="nc-stat-sub">${sub}</div>` : ''}
+      </div>`;
+    }
+
+    const gainColor = gl >= 0 ? '#16a34a' : '#dc2626';
+    const glSign    = gl >= 0 ? '+' : '';
+    document.getElementById('ncStats').innerHTML =
+      cell('Invested',    fmtInr(invested),  '', '') +
+      cell('Current Val', fmtInr(value),     '', '') +
+      cell('Gain/Loss',   glSign + fmtInr(gl), glPct.toFixed(2) + '%', gainColor) +
+      cell('CAGR/XIRR',  xirr !== null ? (xirr >= 0 ? '+' : '') + xirr.toFixed(2) + '%' : '—', 'Annualised', xirr !== null ? (xirr >= 0 ? '#16a34a' : '#dc2626') : 'var(--text-muted)') +
+      cell('Units × NAV', fmtNum(units, 4), '@ ₹' + fmtNum(nav, 4), '');
+  },
+
+  async _ncFetchTxns() {
+    const nc = NPS._nc;
+    try {
+      const params = new URLSearchParams({ action: 'nps_list', type: 'transactions', scheme_id: nc.schemeId });
+      const res  = await fetch(APP_URL + '/api/router.php?' + params);
+      const data = await res.json();
+      nc.txns = data.success ? (data.data || []) : [];
+    } catch(e) {
+      nc.txns = [];
+    }
+  },
+
+  async _ncFetchAndRender() {
+    const nc = NPS._nc;
+    this._ncShowSpinner(true);
+    document.getElementById('ncDataStatus').textContent = '';
+
+    const { from, to } = this._ncRangeDates(nc.range, nc.holding);
+
+    try {
+      const params = new URLSearchParams({ action: 'nps_nav_history', scheme_id: nc.schemeId, from, to });
+      const res  = await fetch(APP_URL + '/api/router.php?' + params);
+      const json = await res.json();
+
+      if (!json.success || !json.data || json.data.length === 0) {
+        this._ncShowSpinner(false);
+        document.getElementById('ncNoData').style.display = 'flex';
+        document.getElementById('ncChartCanvas').style.display = 'none';
+        document.getElementById('ncTxnSection').style.display = 'none';
+        return;
+      }
+
+      nc.navData = json.data;
+      document.getElementById('ncNoData').style.display = 'none';
+      document.getElementById('ncChartCanvas').style.display = '';
+      document.getElementById('ncTxnSection').style.display = '';
+      document.getElementById('ncDataStatus').textContent = `${json.count.toLocaleString()} data points`;
+
+      this._ncRenderChart();
+      this._ncRenderTxnPills();
+    } catch(e) {
+      this._ncShowSpinner(false);
+      document.getElementById('ncDataStatus').textContent = 'NAV data load failed';
+    }
+  },
+
+  _ncRangeDates(range, holding) {
+    const toDate = new Date();
+    let fromDate;
+    switch (range) {
+      case '3M':  fromDate = new Date(toDate); fromDate.setMonth(fromDate.getMonth() - 3); break;
+      case '6M':  fromDate = new Date(toDate); fromDate.setMonth(fromDate.getMonth() - 6); break;
+      case '3Y':  fromDate = new Date(toDate); fromDate.setFullYear(fromDate.getFullYear() - 3); break;
+      case 'ALL':
+        fromDate = holding?.first_contribution_date
+          ? new Date(holding.first_contribution_date)
+          : new Date('2010-01-01');
+        fromDate.setMonth(fromDate.getMonth() - 2);
+        break;
+      case '1Y':
+      default:
+        fromDate = new Date(toDate); fromDate.setFullYear(fromDate.getFullYear() - 1);
+    }
+    const fmt = d => d.toISOString().slice(0, 10);
+    return { from: fmt(fromDate), to: fmt(toDate) };
+  },
+
+  _ncRenderChart() {
+    const nc     = NPS._nc;
+    const canvas = document.getElementById('ncChartCanvas');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (nc.chartInst) { nc.chartInst.destroy(); nc.chartInst = null; }
+
+    const ctx     = canvas.getContext('2d');
+    const labels  = nc.navData.map(d => d.date);
+    const navVals = nc.navData.map(d => d.nav);
+
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 280);
+    grad.addColorStop(0, 'rgba(37,99,235,0.18)');
+    grad.addColorStop(1, 'rgba(37,99,235,0.00)');
+
+    // Filter contributions within range
+    const { from, to } = this._ncRangeDates(nc.range, nc.holding);
+    const inRange = (nc.txns || []).filter(t => t.txn_date >= from && t.txn_date <= to);
+
+    // Contribution scatter points
+    const contribPoints = [];
+    inRange.forEach(t => {
+      const navAtTxn = this._ncNearestNav(t.txn_date);
+      if (navAtTxn === null) return;
+      contribPoints.push({ x: t.txn_date, y: navAtTxn, txn: t });
+    });
+
+    // Avg cost reference
+    const avgNav = nc.holding?.total_invested > 0 && nc.holding?.total_units > 0
+      ? parseFloat(nc.holding.total_invested) / parseFloat(nc.holding.total_units)
+      : null;
+
+    const datasets = [
+      {
+        label: 'NAV',
+        data: navVals,
+        borderColor: '#2563eb',
+        borderWidth: 1.8,
+        backgroundColor: grad,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#2563eb',
+        tension: 0.15,
+        order: 3,
+      }
+    ];
+
+    if (avgNav) {
+      datasets.push({
+        label: 'Avg Cost ₹' + avgNav.toFixed(4),
+        data: labels.map(() => avgNav),
+        borderColor: 'rgba(234,179,8,0.7)',
+        borderWidth: 1.5,
+        borderDash: [5, 4],
+        fill: false,
+        pointRadius: 0,
+        tension: 0,
+        order: 2,
+      });
+    }
+
+    if (nc.showTxns && contribPoints.length) {
+      // Self contributions
+      const selfPts   = contribPoints.filter(p => p.txn.contribution_type !== 'EMPLOYER');
+      const emplPts   = contribPoints.filter(p => p.txn.contribution_type === 'EMPLOYER');
+
+      if (selfPts.length) {
+        datasets.push({
+          label: 'Self Contrib',
+          type: 'scatter',
+          data: selfPts.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+          backgroundColor: 'rgba(22,163,74,0.9)',
+          borderColor: '#fff',
+          borderWidth: 1.5,
+          pointRadius: 7,
+          pointHoverRadius: 9,
+          pointStyle: 'triangle',
+          order: 1,
+        });
+      }
+      if (emplPts.length) {
+        datasets.push({
+          label: 'Employer Contrib',
+          type: 'scatter',
+          data: emplPts.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+          backgroundColor: 'rgba(37,99,235,0.9)',
+          borderColor: '#fff',
+          borderWidth: 1.5,
+          pointRadius: 7,
+          pointHoverRadius: 9,
+          pointStyle: 'rectRot',
+          order: 1,
+        });
+      }
+    }
+
+    nc.chartInst = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: {
+            type: 'category',
+            ticks: {
+              maxTicksLimit: 8,
+              color: 'var(--text-muted)',
+              font: { size: 10 },
+              callback(val, idx) {
+                const lbl = this.getLabelForValue(val);
+                return lbl ? lbl.slice(0, 7) : '';
+              }
+            },
+            grid: { color: 'rgba(0,0,0,0.04)', drawTicks: false },
+          },
+          y: {
+            position: 'right',
+            ticks: {
+              color: 'var(--text-muted)',
+              font: { size: 10 },
+              callback: v => '₹' + Number(v).toFixed(v >= 100 ? 2 : 4),
+            },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+          }
+        },
+        plugins: {
+          legend: {
+            display: true, position: 'top', align: 'start',
+            labels: { color: 'var(--text-muted)', font: { size: 11 }, boxWidth: 12, padding: 14 }
+          },
+          tooltip: {
+            backgroundColor: 'var(--bg-card, #fff)',
+            borderColor: 'var(--border)',
+            borderWidth: 1,
+            titleColor: 'var(--text-primary)',
+            bodyColor: 'var(--text-muted)',
+            padding: 10,
+            callbacks: {
+              title: items => items[0]?.label || '',
+              label: item => {
+                if (item.dataset.label === 'NAV') return ` NAV: ₹${Number(item.raw).toFixed(4)}`;
+                const typeMap = { 'Self Contrib': 'SELF', 'Employer Contrib': 'EMPLOYER' };
+                if (typeMap[item.dataset.label]) {
+                  const raw = item.raw?.raw?.txn;
+                  return raw
+                    ? ` ${typeMap[item.dataset.label]}: ${fmtNum(raw.units,4)} units @ ₹${fmtNum(raw.nav,4)} = ${fmtInr(raw.amount)}`
+                    : ` ${item.dataset.label}`;
+                }
+                return ` ${item.dataset.label}: ₹${Number(item.raw).toFixed(4)}`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    this._ncShowSpinner(false);
+  },
+
+  _ncNearestNav(dateStr) {
+    const nc = NPS._nc;
+    if (!nc.navData.length) return null;
+    const exact = nc.navData.find(d => d.date === dateStr);
+    if (exact) return exact.nav;
+    const target = new Date(dateStr).getTime();
+    let best = null, bestDiff = Infinity;
+    for (const d of nc.navData) {
+      const diff = Math.abs(new Date(d.date).getTime() - target);
+      if (diff < bestDiff) { bestDiff = diff; best = d.nav; }
+    }
+    return best;
+  },
+
+  _ncRenderTxnPills() {
+    const nc  = NPS._nc;
+    const el  = document.getElementById('ncTxnList');
+    if (!el) return;
+
+    if (!nc.txns.length) {
+      el.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">No contributions found</span>';
+      return;
+    }
+
+    const sorted = [...nc.txns].sort((a, b) => a.txn_date > b.txn_date ? -1 : 1).slice(0, 20);
+    el.innerHTML = sorted.map(t => {
+      const isSelf = t.contribution_type !== 'EMPLOYER';
+      const style  = isSelf
+        ? 'background:#dcfce7;color:#15803d;border-color:#86efac;'
+        : 'background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;';
+      return `<div title="${t.contribution_type}: ${fmtNum(t.units,4)} units @ ₹${fmtNum(t.nav,4)} = ${fmtInr(t.amount)}"
+        style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;border:1px solid;${style}white-space:nowrap;cursor:default;">
+        <span>${isSelf ? '👤' : '🏢'} ${t.contribution_type}</span>
+        <span style="font-weight:500;opacity:.8;">${(t.txn_date||'').slice(0,10)}</span>
+        <span>${fmtInr(t.amount)}</span>
+      </div>`;
+    }).join('') + (nc.txns.length > 20 ? `<span style="color:var(--text-muted);font-size:10px;padding:4px;">+${nc.txns.length - 20} more…</span>` : '');
+  },
+
+  async setChartRange(range, btn) {
+    const nc = NPS._nc;
+    nc.range = range;
+    document.querySelectorAll('.nc-range-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    await this._ncFetchAndRender();
+  },
+
+  toggleChartTxns() {
+    NPS._nc.showTxns = document.getElementById('ncShowTxns')?.checked !== false;
+    if (NPS._nc.navData.length) NPS._ncRenderChart();
+  },
+
+  _ncShowSpinner(show) {
+    const el = document.getElementById('ncChartSpinner');
+    if (el) el.style.display = show ? 'flex' : 'none';
+  },
+
+
   async loadTransactions() {
     const body = document.getElementById('npsTxnBody');
     body.innerHTML = '<tr><td colspan="9" class="text-center" style="padding:40px;color:var(--text-muted)"><span class="spinner"></span></td></tr>';

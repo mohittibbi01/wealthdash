@@ -221,6 +221,13 @@
 
   <!-- TABLE SECTION -->
   <div class="section" style="padding:0">
+    <!-- Search bar -->
+    <div style="padding:12px 16px 0;border-bottom:1px solid var(--border)">
+      <input type="text" id="search-input" placeholder="🔍 Search scheme name, code, category…"
+        oninput="onSearch(this.value)"
+        style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;
+               font-size:13px;background:#f8fafc;color:var(--text);outline:none">
+    </div>
     <div class="tabs" style="padding:0 16px;padding-top:12px">
       <div class="tab active" onclick="switchTab('pending')"   id="tab-pending">   ⏳ Pending   <span class="tc" id="tc-p">0</span></div>
       <div class="tab"        onclick="switchTab('working')"   id="tab-working">   ⚙️ Working   <span class="tc" id="tc-w">0</span></div>
@@ -232,12 +239,12 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Scheme Code</th>
-            <th>Scheme Name</th>
-            <th>Category</th>
-            <th>From Date</th>
-            <th>Last Downloaded</th>
-            <th>Records Saved</th>
+            <th onclick="sortTable('scheme_code')" style="cursor:pointer" title="Sort">Scheme Code <span id="sort-scheme_code">↕</span></th>
+            <th onclick="sortTable('scheme_name')" style="cursor:pointer" title="Sort">Scheme Name <span id="sort-scheme_name">↕</span></th>
+            <th onclick="sortTable('category')" style="cursor:pointer" title="Sort">Category <span id="sort-category">↕</span></th>
+            <th onclick="sortTable('from_date')" style="cursor:pointer" title="Sort">From Date <span id="sort-from_date">↕</span></th>
+            <th onclick="sortTable('last_downloaded_date')" style="cursor:pointer" title="Sort">Last Downloaded <span id="sort-last_downloaded_date">↕</span></th>
+            <th onclick="sortTable('records_saved')" style="cursor:pointer" title="Sort">Records Saved <span id="sort-records_saved">↕</span></th>
             <th>Status</th>
           </tr>
         </thead>
@@ -266,7 +273,9 @@ let isRunning    = false;
 let curTab       = 'pending';
 let curPage      = 1;
 let parallelSize = 8;
-let processorWin = null;
+let searchQuery  = '';
+let sortCol      = '';
+let sortDir      = 'asc';
 
 const g = id => document.getElementById(id);
 const fmt = n => Number(n||0).toLocaleString('en-IN');
@@ -275,13 +284,18 @@ const pad = n => String(n).padStart(2,'0');
 function tick() {
     const now = new Date();
     g('htime').textContent = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
-    if (sessionStart) {
+    // Timer sirf tab chale jab actually running ho
+    if (sessionStart && isRunning) {
         const s = Math.floor((Date.now()-sessionStart)/1000);
         g('t-session').textContent = pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);
+    } else if (!isRunning) {
+        g('t-session').textContent = '00:00:00';
     }
-    if (totalStart) {
+    if (totalStart && isRunning) {
         const s = Math.floor((Date.now()-totalStart)/1000);
         g('t-elapsed').textContent = pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);
+    } else if (!isRunning) {
+        g('t-elapsed').textContent = '00:00:00';
     }
 }
 
@@ -354,19 +368,25 @@ async function fetchSummary() {
         // Today date
         g('t-today').textContent = d.today;
 
-        // Running state
-        const running = d.working > 0 || (processorWin && !processorWin.closed);
+        // Running state — server se actual status check karo
+        const running = d.working > 0;
         if (running && !isRunning) {
             isRunning = true;
             if (!sessionStart) sessionStart = Date.now();
+            if (!totalStart) totalStart = Date.now();
             setStatus('running','● Running');
             g('btn-run').style.display  = 'none';
             g('btn-stop').style.display = 'inline-block';
         } else if (!running && isRunning) {
+            // Download ruka — timer bhi rok do
             isRunning = false;
+            sessionStart = null;
             setStatus('idle','● Idle');
             g('btn-run').style.display  = 'inline-block';
             g('btn-stop').style.display = 'none';
+        } else if (!running && !isRunning) {
+            // Page load pe bhi check karo — agar kuch nahi chal raha to timer zero pe rakho
+            if (sessionStart) { sessionStart = null; }
         }
 
         // Last refresh
@@ -377,7 +397,10 @@ async function fetchSummary() {
 }
 
 async function loadTable() {
-    const res = await fetch(`${API}?action=table&tab=${curTab}&page=${curPage}&_=${Date.now()}`,{cache:'no-store'}).then(r=>r.json());
+    let url = `${API}?action=table&tab=${curTab}&page=${curPage}&_=${Date.now()}`;
+    if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+    if (sortCol)     url += `&sort=${sortCol}&dir=${sortDir}`;
+    const res = await fetch(url, {cache:'no-store'}).then(r=>r.json());
     const body = g('tbl-body');
 
     if (!res.rows || res.rows.length === 0) {
@@ -405,6 +428,28 @@ async function loadTable() {
     g('pg-next').disabled         = curPage >= pages;
 }
 
+function onSearch(val) {
+    searchQuery = val.trim();
+    curPage = 1;
+    loadTable();
+}
+
+function sortTable(col) {
+    if (sortCol === col) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortCol = col;
+        sortDir = 'asc';
+    }
+    // Update sort icons
+    ['scheme_code','scheme_name','category','from_date','last_downloaded_date','records_saved'].forEach(c => {
+        const el = document.getElementById('sort-' + c);
+        if (el) el.textContent = c === sortCol ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
+    });
+    curPage = 1;
+    loadTable();
+}
+
 function switchTab(tab) {
     curTab  = tab;
     curPage = 1;
@@ -420,19 +465,36 @@ function changePage(delta) {
 
 async function startProcessor() {
     await fetch(API+'?action=clear_stop',{method:'POST'}).catch(()=>{});
-    sessionStart = Date.now();
-    if (!totalStart) totalStart = Date.now();
+    ctrlMsg('Starting...');
 
-    const url = `processor.php?parallel=${parallelSize}`;
-    processorWin = window.open(url, '_blank', 'width=900,height=500');
+    try {
+        const res = await fetch(`${API}?action=start_processor&parallel=${parallelSize}`, {
+            method: 'POST'
+        }).then(r => r.json());
 
-    setStatus('running','● Running');
-    g('btn-run').style.display  = 'none';
-    g('btn-stop').style.display = 'inline-block';
-    isRunning = true;
-
-    startPolling();
-    ctrlMsg('⚙️ Processor started in new window...');
+        if (res.ok) {
+            // Sirf tab timer shuru karo jab actually start hua
+            sessionStart = Date.now();
+            if (!totalStart) totalStart = Date.now();
+            setStatus('running','● Running');
+            g('btn-run').style.display  = 'none';
+            g('btn-stop').style.display = 'inline-block';
+            isRunning = true;
+            ctrlMsg(res.message || 'Processor background mein chal raha hai...');
+            startPolling();
+        } else {
+            // Failed - timer mat chalao
+            setStatus('idle','● Idle');
+            g('btn-run').style.display  = 'inline-block';
+            g('btn-stop').style.display = 'none';
+            isRunning = false;
+            ctrlMsg((res.message || 'Start nahi hua.') + ' -- Naya download karna ho to "Full Reset" karo phir start karo.');
+        }
+    } catch(e) {
+        setStatus('idle','● Idle');
+        isRunning = false;
+        ctrlMsg('Error: ' + e.message);
+    }
 }
 
 async function doStop() {

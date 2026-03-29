@@ -400,8 +400,79 @@ ob_start();
   </div>
 </div>
 
+<!-- ═══ NPS NAV History Chart Modal ═══ -->
+<div class="modal-overlay" id="modalNpsChart" style="display:none;z-index:1100;">
+  <div class="modal" style="max-width:860px;width:97%;max-height:92vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+
+    <!-- Header -->
+    <div class="modal-header" style="flex-shrink:0;padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <div style="min-width:0;">
+        <div id="ncFundName" style="font-size:15px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:680px;">—</div>
+        <div id="ncFundMeta" style="font-size:11px;color:var(--text-muted);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="NPS.closeChartModal()" style="flex-shrink:0;font-size:16px;line-height:1;padding:6px 10px;">✕</button>
+    </div>
+
+    <!-- Stats strip -->
+    <div id="ncStats" style="flex-shrink:0;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-bottom:1px solid var(--border);background:var(--bg-secondary);"></div>
+
+    <!-- Chart area -->
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+
+      <!-- Range controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;flex-shrink:0;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:4px;" id="ncRangeBtns">
+          <button class="nc-range-btn" data-range="3M"  onclick="NPS.setChartRange('3M',this)">3M</button>
+          <button class="nc-range-btn" data-range="6M"  onclick="NPS.setChartRange('6M',this)">6M</button>
+          <button class="nc-range-btn nc-range-btn-active" data-range="1Y"  onclick="NPS.setChartRange('1Y',this)">1Y</button>
+          <button class="nc-range-btn" data-range="3Y"  onclick="NPS.setChartRange('3Y',this)">3Y</button>
+          <button class="nc-range-btn" data-range="ALL" onclick="NPS.setChartRange('ALL',this)">All</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-muted);">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="ncShowTxns" checked onchange="NPS.toggleChartTxns()" style="accent-color:var(--accent);"> Show contributions
+          </label>
+          <span id="ncDataStatus" style="color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      <div style="flex:1;min-height:280px;padding:8px 16px 0;position:relative;" id="ncCanvasWrap">
+        <div id="ncChartSpinner" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-card);z-index:5;">
+          <div class="spinner"></div>
+        </div>
+        <div id="ncNoData" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-muted);">
+          <div style="font-size:28px;">📉</div>
+          <div style="font-size:13px;font-weight:600;">NAV history not available</div>
+          <div style="font-size:12px;">Admin → NAV &amp; Data se NPS history download karo</div>
+        </div>
+        <canvas id="ncChartCanvas" style="width:100%!important;height:100%!important;display:none;"></canvas>
+      </div>
+
+      <!-- Contribution pills -->
+      <div style="flex-shrink:0;padding:10px 16px 14px;border-top:1px solid var(--border);margin-top:8px;max-height:130px;overflow-y:auto;" id="ncTxnSection">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Contributions</div>
+        <div id="ncTxnList" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <style>
-/* ── NPS Tier Filter Buttons ── */
+.nc-range-btn{padding:4px 12px;border-radius:99px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;}
+.nc-range-btn:hover,.nc-range-btn-hover{border-color:var(--accent);color:var(--accent);}
+.nc-range-btn-active,.nc-range-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.nc-stat-cell{padding:10px 8px;border-right:1px solid var(--border-color);text-align:center;}
+.nc-stat-cell:last-child{border-right:none;}
+.nc-stat-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px;}
+.nc-stat-val{font-size:13px;font-weight:800;color:var(--text-primary);}
+.nc-stat-sub{font-size:10px;color:var(--text-muted);margin-top:2px;}
+.nps-scheme-clickable{cursor:pointer;transition:color .15s;}
+.nps-scheme-clickable:hover{color:var(--accent);text-decoration:underline;}
+</style>
+
+
 .nps-tier-btn {
   padding: 6px 18px;
   border-radius: 8px;

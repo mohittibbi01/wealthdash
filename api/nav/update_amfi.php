@@ -172,6 +172,10 @@ try {
          ON DUPLICATE KEY UPDATE setting_val = ?",
         [$today, $today]
     );
+    DB::run(
+        "INSERT INTO app_settings (setting_key, setting_val) VALUES ('import_amfi_last_updated', NOW())
+         ON DUPLICATE KEY UPDATE setting_val = NOW()"
+    );
 
     DB::commit();
 

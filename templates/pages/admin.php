@@ -23,7 +23,7 @@ ob_start();
 </div>
 
 <!-- Tabs -->
-<div class="admin-tabs mb-4">
+<div class="admin-tabs">
   <button class="admin-tab active" data-tab="overview" onclick="adminSwitchTab('overview',this)">Overview</button>
   <button class="admin-tab" data-tab="users"    onclick="adminSwitchTab('users',this)">Users</button>
   <button class="admin-tab" data-tab="settings" onclick="adminSwitchTab('settings',this)">Settings</button>
@@ -36,19 +36,217 @@ ob_start();
 
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
 <div id="tab-overview" class="admin-tab-content">
-  <div class="cards-grid cards-grid-4 mb-4" id="statsCards">
-    <div class="stat-card">
-      <div class="stat-label">Active Users</div>
-      <div class="stat-value" id="statUsers">—</div>
-      <div id="statUsersBreakdown" style="font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.6;">—</div>
+
+  <!-- ── Row 1: Users ── -->
+  <div class="ov-section-label">👥 Users</div>
+  <div class="ov-grid ov-grid-4 mb-4">
+    <div class="ov-tile ov-blue">
+      <div class="ov-tile-icon">👤</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statUsers">—</div>
+        <div class="ov-tile-label">Active Users</div>
+        <div class="ov-tile-sub" id="statUsersBreakdown">—</div>
+      </div>
     </div>
-    <div class="stat-card"><div class="stat-label">MF Holdings</div><div class="stat-value" id="statMfHoldings">—</div></div>
-    <div class="stat-card"><div class="stat-label">Funds in DB</div><div class="stat-value" id="statFunds">—</div></div>
-    <div class="stat-card"><div class="stat-label">Stock Holdings</div><div class="stat-value" id="statStocks">—</div></div>
-    <div class="stat-card"><div class="stat-label">Active FDs</div><div class="stat-value" id="statFDs">—</div></div>
-    <div class="stat-card"><div class="stat-label">Savings Accounts</div><div class="stat-value" id="statSavings">—</div></div>
-    <div class="stat-card"><div class="stat-label">NAV Last Updated</div><div class="stat-value text-sm" id="statNav">—</div></div>
+    <div class="ov-tile ov-indigo">
+      <div class="ov-tile-icon">📋</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statAuditLog">—</div>
+        <div class="ov-tile-label">Audit Events</div>
+        <div class="ov-tile-sub">Total activity logs</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-slate">
+      <div class="ov-tile-icon">🗄️</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statFunds">—</div>
+        <div class="ov-tile-label">Funds in DB</div>
+        <div class="ov-tile-sub">AMFI fund master</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-emerald">
+      <div class="ov-tile-icon">📉</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statStocks">—</div>
+        <div class="ov-tile-label">Stock Holdings</div>
+        <div class="ov-tile-sub">Active positions</div>
+      </div>
+    </div>
   </div>
+
+  <!-- ── Row 2: Mutual Funds ── -->
+  <div class="ov-section-label">📈 Mutual Funds</div>
+  <div class="ov-grid ov-grid-4 mb-2">
+    <div class="ov-tile ov-green">
+      <div class="ov-tile-icon">📊</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statMfHoldings">—</div>
+        <div class="ov-tile-label">MF Holdings</div>
+        <div class="ov-tile-sub">Active positions</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-teal">
+      <div class="ov-tile-icon">🔄</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statMfTxns">—</div>
+        <div class="ov-tile-label">MF Transactions</div>
+        <div class="ov-tile-sub">Buy / sell entries</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-orange">
+      <div class="ov-tile-icon">🏦</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statFDs">—</div>
+        <div class="ov-tile-label">Active FDs</div>
+        <div class="ov-tile-sub">Fixed deposits</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-cyan">
+      <div class="ov-tile-icon">🕐</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val text-sm" id="statNav">—</div>
+        <div class="ov-tile-label">NAV Last Updated</div>
+        <div class="ov-tile-sub">Mutual Fund NAV</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MF Operations date row -->
+  <div class="ov-ops-row mb-4" id="mfOpsRow">
+    <div class="ov-op-tile" id="opImportFunds">
+      <div class="ov-op-icon">📥</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Import Fund List</div>
+        <div class="ov-op-date" id="opd_import_amfi">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opNavUpdate">
+      <div class="ov-op-icon">📡</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Update Today's NAV</div>
+        <div class="ov-op-date" id="opd_nav">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opTer">
+      <div class="ov-op-icon">📊</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Expense Ratio (TER)</div>
+        <div class="ov-op-date" id="opd_ter">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opExitLoad">
+      <div class="ov-op-icon">🚪</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Exit Load Seeder</div>
+        <div class="ov-op-date" id="opd_el">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opNavDl">
+      <div class="ov-op-icon">🗄️</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">NAV History Download</div>
+        <div class="ov-op-date" id="opd_navdl">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opPeakNav">
+      <div class="ov-op-icon">🏔️</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Peak NAV (ATH)</div>
+        <div class="ov-op-date" id="opd_peak">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opRecalc">
+      <div class="ov-op-icon">🔄</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Holdings Recalc</div>
+        <div class="ov-op-date" id="opd_recalc">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Row 3: NPS ── -->
+  <div class="ov-section-label">🏛️ NPS</div>
+  <div class="ov-grid ov-grid-3 mb-2">
+    <div class="ov-tile ov-violet">
+      <div class="ov-tile-icon">🏛️</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statNpsHoldings">—</div>
+        <div class="ov-tile-label">NPS Holdings</div>
+        <div class="ov-tile-sub">Active schemes</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-indigo">
+      <div class="ov-tile-icon">📅</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val text-sm" id="statNpsLastRun">—</div>
+        <div class="ov-tile-label">NPS NAV Last Run</div>
+        <div class="ov-tile-sub" id="statNpsStatus">—</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-blue">
+      <div class="ov-tile-icon">📡</div>
+      <div class="ov-tile-body">
+        <div class="ov-op-name" style="font-weight:700;font-size:12px;color:var(--text-primary);">NPS NAV Update</div>
+        <div class="ov-op-date" id="opd_nps">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NPS Operations date row -->
+  <div class="ov-ops-row mb-4" id="npsOpsRow">
+    <div class="ov-op-tile" id="opNpsDaily">
+      <div class="ov-op-icon">🔄</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Daily NAV Update</div>
+        <div class="ov-op-date" id="opd_nps_daily">—</div>
+      </div>
+    </div>
+    <div class="ov-op-tile" id="opNpsStatus">
+      <div class="ov-op-icon">📶</div>
+      <div class="ov-op-body">
+        <div class="ov-op-name">Last Status</div>
+        <div class="ov-op-date" id="opd_nps_status">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Row 4: Other Assets ── -->
+  <div class="ov-section-label">🏠 Other Assets</div>
+  <div class="ov-grid ov-grid-4">
+    <div class="ov-tile ov-rose">
+      <div class="ov-tile-icon">💳</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statSavings">—</div>
+        <div class="ov-tile-label">Savings Accounts</div>
+        <div class="ov-tile-sub">Bank accounts</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-amber">
+      <div class="ov-tile-icon">📬</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statPostOffice">—</div>
+        <div class="ov-tile-label">Post Office</div>
+        <div class="ov-tile-sub">PPF / NSC / KVP</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-lime">
+      <div class="ov-tile-icon">🎯</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statGoals">—</div>
+        <div class="ov-tile-label">Goals</div>
+        <div class="ov-tile-sub">Financial goals</div>
+      </div>
+    </div>
+    <div class="ov-tile ov-pink">
+      <div class="ov-tile-icon">🛡️</div>
+      <div class="ov-tile-body">
+        <div class="ov-tile-val" id="statInsurance">—</div>
+        <div class="ov-tile-label">Insurance</div>
+        <div class="ov-tile-sub">Active policies</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══════ TAB: USERS ═══════ -->
@@ -266,7 +464,7 @@ ob_start();
                 <span class="nav-lastrun" id="lastrun_navdl">Last run: —</span>
               </div>
               <!-- Progress tiles -->
-              <div id="navDlTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;">
+              <div id="navDlTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px;">
                 <div class="pn-tile pn-total">  <div class="pn-num" id="navDlTotal">—</div>  <div class="pn-lbl">Total</div></div>
                 <div class="pn-tile pn-done">   <div class="pn-num" id="navDlDone">—</div>   <div class="pn-lbl">Done ✅</div></div>
                 <div class="pn-tile pn-pending"><div class="pn-num" id="navDlPend">—</div>   <div class="pn-lbl">Pending</div></div>
@@ -298,6 +496,7 @@ ob_start();
         </div>
 
         <!-- 6. Peak NAV — All-Time High -->
+        <div class="nav-op-card" id="navOpCard_peak">
           <div class="nav-op-left">
             <div class="nav-op-icon">🏔️</div>
             <div class="nav-op-info">
@@ -308,7 +507,7 @@ ob_start();
                 <span class="nav-lastrun" id="lastrun_peak">Last run: —</span>
               </div>
               <!-- Compact progress tiles -->
-              <div id="pnTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;">
+              <div id="pnTiles" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px;">
                 <div class="pn-tile pn-total">  <div class="pn-num" id="pnTotal">—</div>  <div class="pn-lbl">Total</div></div>
                 <div class="pn-tile pn-stale">  <div class="pn-num" id="pnStale">—</div>  <div class="pn-lbl">Needs Update</div></div>
                 <div class="pn-tile pn-pending"><div class="pn-num" id="pnPending">—</div><div class="pn-lbl">Pending</div></div>
@@ -969,17 +1168,23 @@ ob_start();
 
 <div id="tab-dbmgr" class="admin-tab-content" style="display:none">
   <div class="card">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
       <div>
-        <h3 style="margin:0;font-size:15px;font-weight:600;">Database Tables</h3>
-        <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">All records will be deleted permanently. This cannot be undone.</p>
+        <h3 style="margin:0;font-size:15px;font-weight:700;">Database Tables</h3>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);" id="dbTotalText">Loading…</p>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:12px;color:var(--text-muted);" id="dbTotalText">—</span>
-        <button class="btn btn-outline btn-sm" onclick="loadDbTables()" style="font-size:12px;padding:6px 12px;">↻ Refresh</button>
-        <button class="btn" onclick="deleteAllTables()"
-          style="background:#dc2626;color:#fff;font-weight:600;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <!-- Protect selected btn (hidden until selection) -->
+        <button id="dbProtectBtn" onclick="dbProtectSelected()" style="display:none;padding:7px 14px;background:rgba(245,158,11,.1);color:#b45309;border:1px solid rgba(245,158,11,.35);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">
+          🔒 Protect Selected
+        </button>
+        <button id="dbUnprotectBtn" onclick="dbUnprotectSelected()" style="display:none;padding:7px 14px;background:rgba(100,116,139,.1);color:#475569;border:1px solid rgba(100,116,139,.3);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">
+          🔓 Remove Protection
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="loadDbTables()" style="font-size:12px;padding:7px 14px;">↻ Refresh</button>
+        <button onclick="deleteAllTables()"
+          style="background:#dc2626;color:#fff;font-weight:600;padding:8px 16px;border:none;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:12px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
           </svg>
           Delete ALL Records
@@ -991,21 +1196,23 @@ ob_start();
       <table class="data-table" style="font-size:13px;">
         <thead>
           <tr>
-            <th style="width:40px;">#</th>
+            <th style="width:32px;text-align:center;">
+              <input type="checkbox" id="dbCheckAll" onchange="dbToggleAll(this)" title="Select all">
+            </th>
+            <th style="width:30px;">#</th>
             <th>Table Name</th>
-            <th class="text-center" style="width:140px;">Records</th>
-            <th class="text-center" style="width:160px;">Action</th>
+            <th class="text-center" style="width:80px;">Records</th>
+            <th class="text-center" style="width:75px;">Size</th>
+            <th class="text-center" style="width:90px;">Action</th>
           </tr>
         </thead>
         <tbody id="dbTableBody">
-          <tr><td colspan="4" class="text-center" style="padding:40px;">
+          <tr><td colspan="6" class="text-center" style="padding:40px;">
             <div class="spinner"></div>
           </td></tr>
         </tbody>
       </table>
     </div>
-
-
   </div>
 </div>
 <div class="modal-overlay" id="addUserModal" style="display:none">
@@ -1099,11 +1306,81 @@ ob_start();
 .admin-tab  { background:none; border:none; padding:.6rem 1.1rem; cursor:pointer; color:var(--text-secondary); font-size:.9rem; border-bottom:2px solid transparent; margin-bottom:-2px; border-radius:var(--radius-md) var(--radius-md) 0 0; transition:color .2s; }
 .admin-tab:hover { color:var(--text-primary); background:var(--bg-surface-2); }
 .admin-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+
+/* ── Sticky admin tabs ── */
+.admin-tabs {
+  position:sticky; top:0; z-index:40;
+  background:var(--bg-surface);
+  border-bottom:2px solid var(--border);
+  display:flex; flex-wrap:wrap; gap:2px;
+  padding:0 4px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+
+/* ── Overview Tiles ── */
+.ov-section-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:8px;margin-top:4px;padding-left:2px; }
+.ov-grid { display:grid; gap:12px; }
+.ov-grid-3 { grid-template-columns:repeat(3,1fr); }
+.ov-grid-4 { grid-template-columns:repeat(4,1fr); }
+.ov-grid-5 { grid-template-columns:repeat(5,1fr); }
+
+/* Operation date strip */
+.ov-ops-row { display:flex;gap:8px;flex-wrap:wrap; }
+.ov-op-tile { display:flex;align-items:center;gap:8px;flex:1;min-width:140px;
+  padding:8px 12px;border-radius:9px;border:1px solid var(--border);
+  background:var(--bg-surface);transition:box-shadow .15s; }
+.ov-op-tile:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); }
+.ov-op-icon { font-size:18px;flex-shrink:0; }
+.ov-op-name { font-size:11px;font-weight:600;color:var(--text-secondary);line-height:1.2; }
+.ov-op-date { font-size:12px;font-weight:700;color:var(--text-primary);margin-top:2px; }
+/* stale = red */
+.ov-op-tile.op-stale { border-color:rgba(220,38,38,.3);background:rgba(220,38,38,.04); }
+.ov-op-tile.op-stale .ov-op-date { color:#dc2626; }
+.ov-op-tile.op-stale .ov-op-icon { filter:grayscale(.3); }
+/* fresh = green tint */
+.ov-op-tile.op-fresh { border-color:rgba(22,163,74,.25);background:rgba(22,163,74,.04); }
+.ov-op-tile.op-fresh .ov-op-date { color:#15803d; }
+/* never run */
+.ov-op-tile.op-never .ov-op-date { color:var(--text-muted);font-style:italic; }
+.ov-tile { display:flex;align-items:flex-start;gap:12px;border-radius:12px;padding:14px 16px;border:1px solid transparent;transition:transform .15s,box-shadow .15s; }
+.ov-tile:hover { transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1); }
+.ov-tile-icon { font-size:24px;flex-shrink:0;line-height:1; }
+.ov-tile-val { font-size:1.6rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums; }
+.ov-tile-label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:3px; }
+.ov-tile-sub { font-size:10px;margin-top:2px;opacity:.7; }
+.mb-4 { margin-bottom:16px; }
+/* Color variants */
+.ov-blue   { background:rgba(37,99,235,.08);  border-color:rgba(37,99,235,.2);  }
+.ov-blue   .ov-tile-val,.ov-blue   .ov-tile-label { color:#1d4ed8; }
+.ov-indigo { background:rgba(99,102,241,.08); border-color:rgba(99,102,241,.2); }
+.ov-indigo .ov-tile-val,.ov-indigo .ov-tile-label { color:#4338ca; }
+.ov-cyan   { background:rgba(6,182,212,.08);  border-color:rgba(6,182,212,.2);  }
+.ov-cyan   .ov-tile-val,.ov-cyan   .ov-tile-label { color:#0e7490; }
+.ov-slate  { background:rgba(100,116,139,.08);border-color:rgba(100,116,139,.2);}
+.ov-slate  .ov-tile-val,.ov-slate  .ov-tile-label { color:#475569; }
+.ov-green  { background:rgba(22,163,74,.08);  border-color:rgba(22,163,74,.2);  }
+.ov-green  .ov-tile-val,.ov-green  .ov-tile-label { color:#15803d; }
+.ov-teal   { background:rgba(20,184,166,.08); border-color:rgba(20,184,166,.2); }
+.ov-teal   .ov-tile-val,.ov-teal   .ov-tile-label { color:#0f766e; }
+.ov-emerald{ background:rgba(5,150,105,.08);  border-color:rgba(5,150,105,.2);  }
+.ov-emerald .ov-tile-val,.ov-emerald .ov-tile-label { color:#047857; }
+.ov-violet { background:rgba(124,58,237,.08); border-color:rgba(124,58,237,.2); }
+.ov-violet .ov-tile-val,.ov-violet .ov-tile-label { color:#6d28d9; }
+.ov-orange { background:rgba(234,88,12,.08);  border-color:rgba(234,88,12,.2);  }
+.ov-orange .ov-tile-val,.ov-orange .ov-tile-label { color:#c2410c; }
+.ov-rose   { background:rgba(225,29,72,.08);  border-color:rgba(225,29,72,.2);  }
+.ov-rose   .ov-tile-val,.ov-rose   .ov-tile-label { color:#be123c; }
+.ov-amber  { background:rgba(217,119,6,.08);  border-color:rgba(217,119,6,.2);  }
+.ov-amber  .ov-tile-val,.ov-amber  .ov-tile-label { color:#b45309; }
+.ov-lime   { background:rgba(77,124,15,.08);  border-color:rgba(77,124,15,.2);  }
+.ov-lime   .ov-tile-val,.ov-lime   .ov-tile-label { color:#3f6212; }
+.ov-pink   { background:rgba(219,39,119,.08); border-color:rgba(219,39,119,.2); }
+.ov-pink   .ov-tile-val,.ov-pink   .ov-tile-label { color:#9d174d; }
 .code-block { background:var(--bg-surface-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem; font-family:monospace; font-size:.8rem; line-height:1.7; overflow-x:auto; }
 .nav-info-btn { width:22px;height:22px;border-radius:50%;background:var(--bg-surface-2);border:1.5px solid var(--border);color:var(--text-secondary);font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;transition:background .15s,color .15s; }
 .nav-info-btn:hover { background:var(--accent);color:#fff;border-color:var(--accent); }
 /* ── Progress Tiles — Colorful ── */
-.pn-tile        { border-radius:8px;padding:9px 10px;text-align:center;border:1px solid transparent; }
+.pn-tile        { border-radius:8px;padding:10px 12px;text-align:center;border:1px solid transparent; }
 .pn-num         { font-size:1.25rem;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums; }
 .pn-lbl         { font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600; }
 .pn-total       { background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.2); }
@@ -1193,7 +1470,7 @@ ob_start();
 .nav-op-meta { display:flex;align-items:center;flex-wrap:wrap;gap:10px; }
 .nav-op-freq { font-size:11px;color:var(--text-muted);font-style:italic; }
 .nav-lastrun { font-size:11px;font-weight:600;color:var(--text-muted); }
-.nav-op-actions { display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;padding-top:2px; }
+.nav-op-actions { display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;padding-top:2px;min-width:136px; }
 /* last-run badges */
 .nav-lastrun-badge { font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap; }
 .nav-badge-idle    { background:var(--bg-surface-2);color:var(--text-muted);border-color:var(--border); }
@@ -1203,6 +1480,24 @@ ob_start();
 .nav-badge-warn    { background:rgba(234,179,8,.1);color:#92400e;border-color:rgba(234,179,8,.3); }
 .nav-badge-running { background:rgba(59,130,246,.12);color:#1d4ed8;border-color:rgba(59,130,246,.35); animation:pulse-badge 1.5s ease-in-out infinite; }
 @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ── DB Manager Styles ── */
+.db-badge { display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-left:7px;vertical-align:middle; }
+.db-badge-perm { background:#fef3c7;color:#92400e;border:1px solid #fde68a; }
+.db-badge-user { background:rgba(124,58,237,.1);color:#6d28d9;border:1px solid rgba(124,58,237,.25); }
+.db-row-protected td { background:rgba(245,158,11,.03); }
+.db-btn-clear { background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:12px;font-weight:600;padding:4px 12px;border-radius:6px;cursor:pointer;transition:background .15s; }
+.db-btn-clear:hover { background:#fecaca; }
+.db-chk { width:15px;height:15px;cursor:pointer;accent-color:var(--accent); }
+@media (max-width:1100px) {
+  .ov-grid-5 { grid-template-columns:repeat(3,1fr); }
+  .ov-grid-4 { grid-template-columns:repeat(2,1fr); }
+  .nav-data-grid { grid-template-columns:1fr; }
+  .nd-box-mf-wrap { grid-column:1; }
+}
+@media (max-width:700px) {
+  .ov-grid-5,.ov-grid-4 { grid-template-columns:repeat(2,1fr); }
+}
 </style>
 
 <script>
@@ -1249,34 +1544,88 @@ async function loadStats() {
       bd.innerHTML = `Admin <strong>${s.admin_count}</strong> + Members <strong>${s.member_count}</strong> = <strong>${s.users}</strong>`;
     }
     document.getElementById('statMfHoldings').textContent= s.mf_holdings    ?? '—';
+    document.getElementById('statMfTxns').textContent    = s.mf_txns        ?? '—';
     document.getElementById('statFunds').textContent     = s.funds          ?? '—';
     document.getElementById('statStocks').textContent    = s.stock_holdings ?? '—';
     document.getElementById('statFDs').textContent       = s.fd_accounts    ?? '—';
     document.getElementById('statSavings').textContent   = s.savings_accs   ?? '—';
     document.getElementById('statNav').textContent       = s.nav_last_updated ? formatDate(s.nav_last_updated) : 'Not updated';
+    document.getElementById('statAuditLog').textContent  = s.audit_log_count != null ? Number(s.audit_log_count).toLocaleString('en-IN') : '—';
+    if (document.getElementById('statNpsHoldings')) document.getElementById('statNpsHoldings').textContent = s.nps_holdings ?? '—';
+    if (document.getElementById('statPostOffice'))  document.getElementById('statPostOffice').textContent  = s.post_office  ?? '—';
+    if (document.getElementById('statGoals'))       document.getElementById('statGoals').textContent       = s.goals        ?? '—';
+    if (document.getElementById('statInsurance'))   document.getElementById('statInsurance').textContent   = s.insurance    ?? '—';
 
-    // Populate last-run text for each operation
+    // NPS status tile
+    if (document.getElementById('statNpsLastRun'))  document.getElementById('statNpsLastRun').textContent  = s.nps_nav_last ? formatDate(s.nps_nav_last) : 'Never';
+    if (document.getElementById('statNpsStatus'))   document.getElementById('statNpsStatus').textContent   = s.nps_nav_status ?? '—';
+
+    // ── Operation date tiles (MF section) ─────────────────────
+    // thresholds: daily ops = stale after 1 day, monthly = 35 days, on-demand = 90 days
+    ovSetOpDate('opImportFunds', 'opd_import_amfi', s.import_amfi_last   || s.nav_last_updated, 35);
+    ovSetOpDate('opNavUpdate',   'opd_nav',         s.nav_last_updated,   1);
+    ovSetOpDate('opTer',         'opd_ter',          s.ter_last_updated,  35);
+    ovSetOpDate('opExitLoad',    'opd_el',           s.exit_load_last_updated, 35);
+    ovSetOpDate('opNavDl',       'opd_navdl',        s.nav_dl_last,       90);
+    ovSetOpDate('opPeakNav',     'opd_peak',         s.peak_nav_last,     35);
+    ovSetOpDate('opRecalc',      'opd_recalc',       s.last_recalc_holdings, 90);
+
+    // ── Operation date tiles (NPS section) ────────────────────
+    ovSetOpDate('opNpsDaily',    'opd_nps_daily',    s.nps_nav_last,  1);
+    const npsStatusEl = document.getElementById('opd_nps_status');
+    if (npsStatusEl) {
+      npsStatusEl.textContent = s.nps_nav_status ?? 'Unknown';
+      npsStatusEl.style.color = s.nps_nav_status === 'success' ? '#15803d'
+                               : s.nps_nav_status === 'error'  ? '#dc2626'
+                               : 'var(--text-muted)';
+    }
+    ovSetOpDate('opNpsStatus',   'opd_nps',          s.nps_nav_last,  1);
+
+    // Populate NAV tab last-run text
     const fmtRun = (val) => val ? 'Last run: ' + formatDateTime(val) : 'Last run: Never';
     const setLastRun = (id, val) => { const el=document.getElementById(id); if(el) el.textContent = fmtRun(val); };
     setLastRun('lastrun_nav',    s.nav_last_updated);
-    setLastRun('lastrun_import', s.nav_last_updated);  // same key — import updates same setting
+    setLastRun('lastrun_import', s.import_amfi_last || s.nav_last_updated);
     setLastRun('lastrun_ter',    s.ter_last_updated);
     setLastRun('lastrun_el',     s.exit_load_last_updated);
     setLastRun('lastrun_stocks', s.stocks_last_updated);
     setLastRun('lastrun_recalc', s.last_recalc_holdings);
     // Peak NAV has its own live tiles via loadPeakNavStatus()
-    // NAV History Download — load stats
+    // NAV History Download
     if (typeof adminNavDlLoadStats === 'function') adminNavDlLoadStats();
 
-    // Auto-update check: trigger NAV update if not done today
     checkNavAutoUpdate(s.nav_last_updated);
 
   } catch(e) {
     console.error('loadStats error:', e);
-    document.getElementById('statsCards').insertAdjacentHTML('beforeend',
-      `<div style="grid-column:1/-1;color:red;font-size:12px;padding:8px;background:#fee2e2;border-radius:6px;">
-        ⚠ Stats load error: ${e.message} — Check browser Console (F12) for details
-      </div>`);
+  }
+}
+
+// ── Overview: set op-date tile with stale detection ──────────
+function ovSetOpDate(tileId, dateId, rawDate, staleDays) {
+  const tile    = document.getElementById(tileId);
+  const dateEl  = document.getElementById(dateId);
+  if (!tile || !dateEl) return;
+
+  if (!rawDate) {
+    dateEl.textContent = 'Never run';
+    tile.className = tile.className.replace(/op-\w+/g, '').trim() + ' op-never';
+    return;
+  }
+
+  const date    = new Date(rawDate);
+  const now     = new Date();
+  const diffDays= (now - date) / (1000 * 60 * 60 * 24);
+  const label   = formatDateTime(rawDate);
+  dateEl.textContent = label;
+
+  // Remove old state classes
+  tile.classList.remove('op-stale', 'op-fresh', 'op-never');
+
+  if (diffDays > staleDays) {
+    tile.classList.add('op-stale');
+  } else {
+    tile.classList.add('op-fresh');
   }
 }
 
@@ -1711,55 +2060,117 @@ function auditPage(dir) {
 }
 
 // ── DB Manager ────────────────────────────────────────────
+function dbFmtSize(bytes) {
+  if (!bytes || bytes === 0) return '<span style="color:var(--text-muted)">—</span>';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1024*1024*1024) return (bytes/1024/1024).toFixed(2) + ' MB';
+  return (bytes/1024/1024/1024).toFixed(2) + ' GB';
+}
+
+let _dbTables = [];
+
 async function loadDbTables() {
   const body = document.getElementById('dbTableBody');
   const info = document.getElementById('dbTotalText');
   if (!body) return;
-  body.innerHTML = `<tr><td colspan="4" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  body.innerHTML = `<tr><td colspan="6" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  const cba = document.getElementById('dbCheckAll');
+  if (cba) cba.checked = false;
+  dbUpdateSelectionBtns();
 
   try {
     const d = await API.post('/api/router.php', { action: 'admin_db_list' });
-    const tables = d.data?.tables || d.data || [];
-    const totalRows = tables.reduce((s, t) => s + (t.rows || 0), 0);
-    if (info) info.textContent = `${tables.length} tables · ${totalRows.toLocaleString()} total records`;
+    _dbTables = d.data?.tables || d.data || [];
+    const totalRows  = _dbTables.reduce((s, t) => s + (t.rows || 0), 0);
+    const totalBytes = _dbTables.reduce((s, t) => s + (t.size_bytes || 0), 0);
+    const sizeStr = totalBytes < 1024*1024 ? (totalBytes/1024).toFixed(1)+' KB' : (totalBytes/1024/1024).toFixed(2)+' MB';
+    if (info) info.textContent = `${_dbTables.length} tables · ${totalRows.toLocaleString('en-IN')} records · ${sizeStr} total`;
 
-    if (tables.length === 0) {
-      body.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">No tables found.</td></tr>`;
+    if (_dbTables.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">No tables found.</td></tr>`;
       return;
     }
 
-    body.innerHTML = tables.map((t, i) => {
+    body.innerHTML = _dbTables.map((t, i) => {
+      const isPermanent = t.permanent_protected;
+      const isUser      = t.user_protected;
       const isProtected = t.protected;
-      const rowCount = Number(t.rows).toLocaleString('en-IN');
+      const rowCount    = Number(t.rows).toLocaleString('en-IN');
+      const sizeHtml    = dbFmtSize(t.size_bytes);
+
+      let badge = '';
+      if (isPermanent) badge = `<span class="db-badge db-badge-perm" title="Permanently protected">🔒 Permanent</span>`;
+      else if (isUser) badge = `<span class="db-badge db-badge-user" title="Protected by you">🔐 Protected</span>`;
+
+      let action = '';
+      if (isPermanent) {
+        action = `<span style="font-size:11px;color:var(--text-muted);">🔒 Protected</span>`;
+      } else {
+        action = `<button onclick="deleteTableRecords('${t.name}')" class="db-btn-clear">🗑 Clear</button>`;
+      }
+
       return `
-      <tr id="dbrow-${t.name}">
-        <td style="color:var(--text-muted);font-size:12px;">${i+1}</td>
-        <td>
-          <span style="font-weight:500;font-family:monospace;">${t.name}</span>
-          ${isProtected ? `<span style="font-size:10px;margin-left:6px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px;font-weight:600;">PROTECTED</span>` : ''}
-        </td>
-        <td class="text-center">
-          <span id="dbcount-${t.name}" style="font-weight:600;font-size:14px;color:${t.rows > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${rowCount}</span>
-        </td>
-        <td class="text-center">
-          ${isProtected
-            ? `<span style="font-size:12px;color:var(--text-muted);">🔒 Protected</span>`
-            : `<button onclick="deleteTableRecords('${t.name}')"
-                style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:12px;font-weight:500;padding:4px 12px;border-radius:6px;cursor:pointer;">
-                🗑 Clear
-              </button>`
+      <tr id="dbrow-${t.name}" class="${isProtected ? 'db-row-protected' : ''}">
+        <td style="text-align:center;padding:8px 6px;">
+          ${isPermanent
+            ? `<span title="Permanently protected" style="font-size:13px;opacity:.3;">🔒</span>`
+            : `<input type="checkbox" class="db-chk" data-table="${t.name}" data-user="${isUser?'1':'0'}" onchange="dbUpdateSelectionBtns()">`
           }
         </td>
+        <td style="color:var(--text-muted);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="text-align:left;">
+          <span style="font-weight:600;font-family:monospace;font-size:12px;">${t.name}</span>
+          ${badge}
+        </td>
+        <td class="text-center">
+          <span style="font-weight:600;font-size:12px;color:${t.rows > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${rowCount}</span>
+        </td>
+        <td class="text-center" style="font-size:11px;color:var(--text-secondary);">${sizeHtml}</td>
+        <td class="text-center">${action}</td>
       </tr>`;
     }).join('');
   } catch(e) {
     console.error('loadDbTables error:', e);
-    body.innerHTML = `<tr><td colspan="4" style="color:#dc2626;text-align:center;padding:20px;font-size:13px;">
+    body.innerHTML = `<tr><td colspan="6" style="color:#dc2626;text-align:center;padding:20px;font-size:13px;">
       ⚠️ Error: ${e.message}<br>
       <small style="color:var(--text-muted);">Check browser console (F12) for details</small>
     </td></tr>`;
     if (info) info.textContent = 'Failed to load';
   }
+}
+
+function dbToggleAll(masterCb) {
+  document.querySelectorAll('.db-chk').forEach(cb => cb.checked = masterCb.checked);
+  dbUpdateSelectionBtns();
+}
+
+function dbUpdateSelectionBtns() {
+  const checked    = [...document.querySelectorAll('.db-chk:checked')];
+  const hasUser    = checked.some(cb => cb.dataset.user === '1');
+  const hasNonUser = checked.some(cb => cb.dataset.user === '0');
+  const pb = document.getElementById('dbProtectBtn');
+  const ub = document.getElementById('dbUnprotectBtn');
+  if (pb) pb.style.display   = (checked.length > 0 && hasNonUser) ? 'inline-flex' : 'none';
+  if (ub) ub.style.display   = (checked.length > 0 && hasUser)    ? 'inline-flex' : 'none';
+}
+
+async function dbProtectSelected() {
+  const checked = [...document.querySelectorAll('.db-chk:checked')].filter(cb => cb.dataset.user === '0');
+  if (!checked.length) return;
+  for (const cb of checked)
+    await API.post('/api/router.php', { action: 'admin_db_protect', table: cb.dataset.table });
+  showToast(`🔐 ${checked.length} table(s) protected.`, 'success');
+  loadDbTables();
+}
+
+async function dbUnprotectSelected() {
+  const checked = [...document.querySelectorAll('.db-chk:checked')].filter(cb => cb.dataset.user === '1');
+  if (!checked.length) return;
+  for (const cb of checked)
+    await API.post('/api/router.php', { action: 'admin_db_unprotect', table: cb.dataset.table });
+  showToast(`🔓 Protection removed from ${checked.length} table(s).`, 'success');
+  loadDbTables();
 }
 
 async function deleteTableRecords(tableName) {
@@ -1770,7 +2181,6 @@ async function deleteTableRecords(tableName) {
     okClass: 'btn-danger',
     onConfirm: async () => {
       await API.post('/api/router.php', { action: 'admin_db_truncate_one', table: tableName });
-      document.getElementById(`dbcount-${tableName}`).textContent = '0';
       showToast(`"${tableName}" cleared.`, 'success');
       loadDbTables();
     }

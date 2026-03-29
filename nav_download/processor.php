@@ -15,11 +15,19 @@ define('EXEC_LIMIT',  110);
 define('API_TIMEOUT', 25);
 define('MFAPI_BASE',  'https://api.mfapi.in/mf/');
 
-$PARALLEL = isset($_GET['parallel']) ? max(1, min(50, (int)$_GET['parallel'])) : 8;
+// CLI (background) se bhi chale, browser se bhi
+$isCLI = php_sapi_name() === 'cli';
+if ($isCLI) {
+    $PARALLEL = isset($argv[1]) ? max(1, min(50, (int)$argv[1])) : 8;
+} else {
+    $PARALLEL = isset($_GET['parallel']) ? max(1, min(50, (int)$_GET['parallel'])) : 8;
+}
 
-set_time_limit(240);
-header('Content-Type: text/plain; charset=utf-8');
-if (ob_get_level()) ob_end_clean();
+set_time_limit(0); // CLI mein unlimited time
+if (!$isCLI) {
+    header('Content-Type: text/plain; charset=utf-8');
+    if (ob_get_level()) ob_end_clean();
+}
 
 $runStart = time();
 
@@ -91,7 +99,7 @@ $done = 0;
 $errs = 0;
 
 $stmtInsert  = $pdo->prepare("INSERT IGNORE INTO nav_history (fund_id, nav_date, nav) VALUES (?, ?, ?)");
-$stmtDone    = $pdo->prepare("UPDATE nav_download_progress SET status='completed', last_downloaded_date=?, records_saved=records_saved+?, error_message=NULL, updated_at=NOW() WHERE scheme_code=?");
+$stmtDone    = $pdo->prepare("UPDATE nav_download_progress SET status='completed', last_downloaded_date=?, from_date=COALESCE(from_date,?), records_saved=records_saved+?, error_message=NULL, updated_at=NOW() WHERE scheme_code=?");
 $stmtWorking = $pdo->prepare("UPDATE nav_download_progress SET status='in_progress', updated_at=NOW() WHERE scheme_code=?");
 $stmtError   = $pdo->prepare("UPDATE nav_download_progress SET status='error', error_message=?, updated_at=NOW() WHERE scheme_code=?");
 $stmtStop    = $pdo->prepare("SELECT setting_val FROM app_settings WHERE setting_key='nav_dl_stop'");
@@ -139,12 +147,13 @@ function processOne(array $row, ?string $raw, PDO $pdo, string $today, $stmtInse
 
     $json = json_decode($raw, true);
     if (empty($json['data'])) {
-        $stmtDone->execute([$today, 0, $sc]);
+        $stmtDone->execute([$today, $today, 0, $sc]);
         return true;
     }
 
     $lastProcessed = $row['last_downloaded_date'];
     $inserted = 0;
+    $minDate  = null; // from_date ke liye
 
     $pdo->beginTransaction();
     try {
@@ -156,7 +165,11 @@ function processOne(array $row, ?string $raw, PDO $pdo, string $today, $stmtInse
             $nav = (float)($entry['nav'] ?? 0);
             if ($nav <= 0) continue;
             $stmtInsert->execute([$fundId, $isoDate, $nav]);
-            if ($stmtInsert->rowCount() > 0) $inserted++;
+            if ($stmtInsert->rowCount() > 0) {
+                $inserted++;
+                // Minimum date track karo (from_date ke liye)
+                if ($minDate === null || $isoDate < $minDate) $minDate = $isoDate;
+            }
         }
         $pdo->commit();
     } catch (Exception $e) {
@@ -165,7 +178,9 @@ function processOne(array $row, ?string $raw, PDO $pdo, string $today, $stmtInse
         return false;
     }
 
-    $stmtDone->execute([$today, $inserted, $sc]);
+    // from_date = pehla available date (min date)
+    $fromDate = $minDate ?? $row['last_downloaded_date'] ?? $today;
+    $stmtDone->execute([$today, $fromDate, $inserted, $sc]);
     return true;
 }
 

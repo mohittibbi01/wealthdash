@@ -57,7 +57,7 @@ $csrfExempt = [
     'get_portfolio_summary', 'get_dashboard_data',
     'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
     'stocks_list', 'stocks_get',
-    'nps_list',
+    'nps_list', 'nps_nav_history',
     'savings_list',
     'po_list', 'po_meta',
     'goal_list', 'goal_projection',
@@ -67,6 +67,7 @@ $csrfExempt = [
     'report_fy_gains',
     'nps_statement',
     'admin_nps_nav_trigger',
+    'fund_notes_get',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -173,6 +174,10 @@ try {
             require APP_ROOT . '/api/mutual_funds/mf_nav_history.php'; exit;
         case 'mf_import_csv':
             require APP_ROOT . '/api/mutual_funds/mf_import_csv.php'; exit;
+        case 'fund_notes_get':
+        case 'fund_note_save':
+        case 'fund_note_delete':
+            require APP_ROOT . '/api/mutual_funds/mf_notes.php'; exit;
 
         // ── Phase 3: Reports ─────────────────────────────────
         case 'report_fy_gains':
@@ -189,6 +194,8 @@ try {
             require APP_ROOT . '/api/reports/export_csv.php'; exit;
 
         // ── Phase 4: NPS ─────────────────────────────────────
+        case 'nps_nav_history':
+            require APP_ROOT . '/api/nps/nps_nav_history.php'; exit;
         case 'nps_list':
             require APP_ROOT . '/api/nps/nps_list.php'; exit;
         case 'nps_add':
@@ -318,6 +325,12 @@ try {
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/api/admin/db_manage.php'; exit;
         case 'admin_db_truncate_all':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_protect':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_manage.php'; exit;
+        case 'admin_db_unprotect':
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/api/admin/db_manage.php'; exit;
 

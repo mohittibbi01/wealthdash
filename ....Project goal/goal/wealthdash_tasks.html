@@ -4,117 +4,305 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WealthDash — Master Dev Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f0f4f8;--surface:#ffffff;--card:#ffffff;--border:#e2e8f0;
-  --text:#1e293b;--muted:#64748b;--muted2:#94a3b8;
-  --accent:#6366f1;--accent2:#4f46e5;--accent-bg:#eef2ff;
-  --green:#16a34a;--green-bg:#f0fdf4;--green-border:#bbf7d0;
-  --yellow:#ca8a04;--yellow-bg:#fefce8;--yellow-border:#fde68a;
-  --red:#dc2626;--red-bg:#fef2f2;--red-border:#fecaca;
-  --orange:#ea580c;--orange-bg:#fff7ed;--orange-border:#fed7aa;
+  --bg:#f4f6fb;--surface:#ffffff;--border:#e4e8f0;--border2:#d0d7e8;
+  --text:#18212f;--muted:#5a6a85;--muted2:#99a8c0;
+  --accent:#5b5ef4;--accent2:#4644d4;--accent-bg:#eeeeff;--accent-border:#c8c7fb;
+  --green:#15a854;--green-bg:#edfbf3;--green-border:#a7e8c5;
+  --yellow:#c07e00;--yellow-bg:#fefae8;--yellow-border:#f0d88a;
+  --red:#d63b3b;--red-bg:#fff0f0;--red-border:#f5b8b8;
+  --orange:#d95e17;--orange-bg:#fff5ee;--orange-border:#f8c9a0;
   --blue:#2563eb;--blue-bg:#eff6ff;--blue-border:#bfdbfe;
-  --purple:#9333ea;--purple-bg:#faf5ff;--purple-border:#e9d5ff;
-  --teal:#0d9488;--teal-bg:#f0fdfa;--teal-border:#99f6e4;
+  --purple:#8b3cf7;--purple-bg:#f7f0ff;--purple-border:#d5aeff;
+  --teal:#0d9474;--teal-bg:#edfcf8;--teal-border:#7de8cd;
   --indigo:#4f46e5;--indigo-bg:#eef2ff;--indigo-border:#c7d2fe;
-  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
-  --shadow-md:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -1px rgba(0,0,0,.05);
-  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.08),0 4px 6px -2px rgba(0,0,0,.04);
-  --radius:10px;--radius-sm:6px;--radius-lg:14px;
+  --cyan:#0891b2;--cyan-bg:#ecfeff;--cyan-border:#a5f3fc;
+  --shadow:0 1px 4px rgba(20,35,80,.07),0 1px 2px rgba(20,35,80,.04);
+  --shadow-md:0 4px 12px rgba(20,35,80,.09),0 2px 4px rgba(20,35,80,.05);
+  --shadow-lg:0 12px 28px rgba(20,35,80,.10),0 4px 8px rgba(20,35,80,.06);
+  --radius:10px;--radius-sm:6px;--radius-lg:14px;--radius-xl:18px;
 }
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;font-size:14px;line-height:1.5}
 
 /* ===== TOPBAR ===== */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;height:56px;box-shadow:var(--shadow)}
-.logo{font-size:17px;font-weight:800;background:linear-gradient(135deg,#6366f1,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:flex;align-items:center;gap:7px}
-.logo-sub{font-size:11px;font-weight:500;color:var(--muted);-webkit-text-fill-color:var(--muted)}
-.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.last-saved{font-size:11px;color:var(--muted);padding:4px 8px;background:var(--bg);border-radius:20px}
-.tbtn{padding:5px 13px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;border:1px solid;transition:all .15s;white-space:nowrap}
+.topbar{
+  background:var(--surface);
+  border-bottom:1.5px solid var(--border);
+  padding:0 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;height:54px;
+  box-shadow:0 1px 0 var(--border),var(--shadow);
+}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-mark{
+  width:30px;height:30px;border-radius:8px;
+  background:linear-gradient(135deg,#5b5ef4,#a855f7);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;flex-shrink:0;box-shadow:0 2px 8px rgba(91,94,244,.35);
+}
+.logo-text{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.4px}
+.logo-sub{font-size:10px;font-weight:500;color:var(--muted);background:var(--bg);padding:1px 7px;border-radius:99px;border:1px solid var(--border);margin-left:2px}
+.topbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.last-saved{font-size:10px;color:var(--muted);padding:3px 9px;background:var(--bg);border-radius:20px;border:1px solid var(--border)}
+.tbtn{
+  padding:5px 12px;border-radius:7px;font-size:11px;cursor:pointer;
+  font-weight:700;border:1.5px solid;transition:all .15s;white-space:nowrap;
+  font-family:'DM Sans',sans-serif;
+}
 .tbtn-gray{background:var(--bg);color:var(--muted);border-color:var(--border)}
-.tbtn-gray:hover{background:var(--border);color:var(--text)}
+.tbtn-gray:hover{background:var(--border2);color:var(--text)}
 .tbtn-indigo{background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border)}
+.tbtn-indigo:hover{background:#e0e5ff}
 .tbtn-red{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.tbtn-red:hover{background:#ffe0e0}
 .tbtn-green{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
-.tbtn-purple{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.tbtn-green:hover{background:#d8f8e8}
 
 /* ===== MAIN TABS ===== */
-.main-tabs{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:0;position:sticky;top:56px;z-index:190}
-.mtab{padding:12px 18px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:2.5px solid transparent;color:var(--muted);transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.main-tabs{
+  background:var(--surface);
+  border-bottom:1.5px solid var(--border);
+  padding:0 20px;
+  display:flex;gap:0;
+  position:sticky;top:54px;z-index:190;
+  overflow-x:auto;
+}
+.main-tabs::-webkit-scrollbar{height:0}
+.mtab{
+  padding:11px 16px;font-size:12px;font-weight:700;cursor:pointer;
+  border-bottom:2.5px solid transparent;color:var(--muted);
+  transition:all .15s;white-space:nowrap;
+  display:flex;align-items:center;gap:5px;
+}
 .mtab:hover{color:var(--text);background:var(--bg)}
 .mtab.active{color:var(--accent);border-bottom-color:var(--accent);background:transparent}
 .tab-pane{display:none}
 .tab-pane.active{display:block}
 
-/* ===== OVERVIEW STATS ===== */
-.overview{padding:16px 24px;display:grid;grid-template-columns:repeat(5,1fr) 300px;gap:12px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
-.stat-num{font-size:32px;font-weight:800;line-height:1}
-.stat-lbl{font-size:10px;color:var(--muted);margin-top:4px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-.stat-sub{font-size:11px;color:var(--muted2);margin-top:2px}
+/* ===== OVERVIEW / STATS SECTION ===== */
+/* ===== TOP DASHBOARD LAYOUT ===== */
+.dashboard-top{
+  padding:14px 20px 0;
+  display:grid;
+  grid-template-columns:1fr 300px;
+  gap:12px;
+  align-items:start;
+}
+.dashboard-left{display:flex;flex-direction:column;gap:10px}
 
-.master-prog{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
-.prog-label{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:8px}
-.pct-text{color:var(--accent)}
-.bar-wrap{background:var(--border);border-radius:99px;height:8px;overflow:hidden;margin-bottom:10px}
-.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .5s}
-.phase-rows{display:flex;flex-direction:column;gap:5px}
-.phase-row{display:flex;align-items:center;gap:8px;font-size:10px}
-.pname{color:var(--muted);width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mini-wrap{flex:1;background:var(--border);border-radius:99px;height:4px;overflow:hidden}
+/* Stat cards row */
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:8px;
+}
+.stat-card{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:12px 14px;
+  box-shadow:var(--shadow);
+  text-align:center;
+  transition:border-color .15s,box-shadow .15s;
+}
+.stat-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
+.stat-num{font-size:24px;font-weight:800;line-height:1;letter-spacing:-1px}
+.stat-lbl{font-size:10px;color:var(--muted);margin-top:3px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+
+/* Category progress grid (below stat cards) */
+.cat-prog-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:7px;
+}
+.cat-prog-grid:empty{display:none}
+.cat-prog-card{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:9px 11px;
+  box-shadow:var(--shadow);
+  transition:border-color .15s,box-shadow .15s;
+  cursor:pointer;
+}
+.cat-prog-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
+.cat-prog-card.active-cat{border-color:var(--accent);box-shadow:0 0 0 2px rgba(91,94,244,.15)}
+.cpg-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.cpg-name{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--text)}
+.cpg-ico{font-size:12px}
+.cpg-count{font-size:10px;color:var(--muted);font-weight:600}
+.cpg-bar-bg{background:var(--border);border-radius:99px;height:4px;overflow:hidden;margin-bottom:4px}
+.cpg-bar-fg{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.cpg-footer{display:flex;justify-content:space-between;align-items:center}
+.cpg-done{font-size:10px;color:var(--muted);font-weight:500}
+.cpg-pct{font-size:11px;font-weight:800}
+
+/* Overall Progress panel (right) */
+.master-prog{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:14px 16px;
+  box-shadow:var(--shadow);
+  height:100%;
+}
+.prog-label{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:7px}
+.pct-text{color:var(--accent);font-size:15px;font-weight:800}
+.bar-wrap{background:var(--border);border-radius:99px;height:7px;overflow:hidden;margin-bottom:10px}
+.bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#5b5ef4,#a855f7);transition:width .6s}
+.phase-rows{display:flex;flex-direction:column;gap:4px}
+.phase-row{display:flex;align-items:center;gap:6px;font-size:10px}
+.pname{color:var(--muted);width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+.mini-wrap{flex:1;background:var(--border);border-radius:99px;height:3px;overflow:hidden}
 .mini-fill{height:100%;border-radius:99px;transition:width .5s}
-.ppct{width:26px;text-align:right;color:var(--muted);font-size:10px}
+.ppct{width:26px;text-align:right;color:var(--muted);font-size:10px;flex-shrink:0}
 
-/* ===== FILTER BAR ===== */
-.filterbar{padding:0 24px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.fbtn{padding:5px 14px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+/* Legacy class kept for compat */
+.overview-section{display:none}
+.cat-progress-section{display:none}
+.cat-prog-card{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:10px 13px;
+  box-shadow:var(--shadow);
+  transition:border-color .15s,box-shadow .15s;
+  cursor:pointer;
+}
+.cat-prog-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
+.cat-prog-card.active-cat{border-color:var(--accent);box-shadow:0 0 0 2px rgba(91,94,244,.15)}
+.cpg-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cpg-name{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--text)}
+.cpg-ico{font-size:13px}
+.cpg-count{font-size:10px;color:var(--muted);font-weight:600}
+.cpg-bar-bg{background:var(--border);border-radius:99px;height:4px;overflow:hidden;margin-bottom:4px}
+.cpg-bar-fg{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.cpg-footer{display:flex;justify-content:space-between;align-items:center}
+.cpg-done{font-size:10px;color:var(--muted);font-weight:500}
+.cpg-pct{font-size:11px;font-weight:800}
+
+/* ===== CATEGORY TAB BAR ===== */
+.catbar{
+  padding:10px 20px 0;
+  display:flex;gap:4px;flex-wrap:wrap;
+  align-items:center;
+  margin-bottom:0;
+  border-bottom:1.5px solid var(--border);
+  background:var(--surface);
+  padding-top:8px;padding-bottom:0;
+  margin-top:10px;
+}
+.catbtn{
+  padding:6px 12px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;background:transparent;
+  color:var(--muted);border-bottom:2.5px solid transparent;
+  transition:all .15s;white-space:nowrap;
+  display:flex;align-items:center;gap:4px;margin-bottom:-1.5px;
+  font-family:'DM Sans',sans-serif;border-radius:6px 6px 0 0;
+}
+.catbtn:hover{color:var(--text);background:var(--bg)}
+.catbtn.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-bg)}
+.catcount{
+  font-size:9px;background:var(--bg);padding:1px 5px;
+  border-radius:99px;font-weight:800;color:var(--muted);border:1px solid var(--border);
+}
+.catbtn.active .catcount{background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border)}
+
+/* ===== FILTER + LEGEND BAR ===== */
+.filterlegend{
+  padding:8px 20px;
+  display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+  background:var(--bg);
+  border-bottom:1px solid var(--border);
+}
+.fbtn{
+  padding:4px 12px;border-radius:99px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;
+  cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;
+}
 .fbtn:hover{border-color:var(--accent);color:var(--accent)}
 .fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .search-wrap{margin-left:auto;position:relative}
-.search-inp{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px 6px 30px;color:var(--text);font-size:12px;width:210px;outline:none;transition:border-color .15s}
+.search-inp{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:8px;padding:5px 10px 5px 28px;color:var(--text);
+  font-size:12px;width:200px;outline:none;transition:border-color .15s;
+  font-family:'DM Sans',sans-serif;
+}
 .search-inp:focus{border-color:var(--accent)}
-.sico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none}
+.sico{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;pointer-events:none}
+.leg-sep{color:var(--border2);margin:0 2px}
 
-/* ===== LEGEND ===== */
-.legend{padding:0 24px 10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
-.leg-item{display:flex;align-items:center;gap:5px}
-.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-
-/* ===== PHASES ===== */
-.phases{padding:0 24px 48px;display:flex;flex-direction:column;gap:14px}
-.phase-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)}
-.phase-hdr{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;transition:background .15s}
+/* ===== PHASES + TASKS ===== */
+.phases{padding:12px 20px 60px;display:flex;flex-direction:column;gap:10px}
+.phase-block{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  box-shadow:var(--shadow);
+  transition:border-color .15s;
+}
+.phase-block:hover{border-color:var(--border2)}
+.phase-hdr{
+  display:flex;align-items:center;gap:8px;
+  padding:11px 14px;
+  border-bottom:1.5px solid var(--border);
+  cursor:pointer;user-select:none;transition:background .15s;
+}
 .phase-hdr:hover{background:var(--bg)}
-.phase-ico{font-size:16px;width:24px;text-align:center}
-.phase-ttl{font-weight:700;font-size:13px;flex:1}
-.phase-prog-txt{font-size:11px;color:var(--muted)}
-.mini-prog-wrap{width:70px;height:6px;background:var(--border);border-radius:99px;overflow:hidden}
+.phase-ico{font-size:15px;width:22px;text-align:center;flex-shrink:0}
+.phase-ttl{font-weight:700;font-size:12px;flex:1;letter-spacing:-.2px}
+.phase-prog-txt{font-size:10px;color:var(--muted);flex-shrink:0}
+.mini-prog-wrap{width:60px;height:5px;background:var(--border);border-radius:99px;overflow:hidden;flex-shrink:0}
 .mini-prog-fill{height:100%;border-radius:99px;transition:width .4s}
-.phase-pct-lbl{font-size:11px;font-weight:700;min-width:30px;text-align:right}
-.chevron{color:var(--muted2);font-size:11px;transition:transform .2s}
+.phase-pct-lbl{font-size:11px;font-weight:800;min-width:28px;text-align:right;flex-shrink:0}
+.chevron{color:var(--muted2);font-size:10px;transition:transform .2s;flex-shrink:0}
 .collapsed .chevron{transform:rotate(-90deg)}
-.phase-body{padding:4px 0}
+.phase-body{padding:0}
 .collapsed .phase-body{display:none}
 
-/* ===== TASKS ===== */
-.task{display:flex;align-items:flex-start;gap:11px;padding:10px 16px;border-bottom:1px solid var(--border);transition:background .1s}
+/* ===== TASK ROW ===== */
+.task{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  transition:background .1s;
+  position:relative;
+}
 .task:last-child{border-bottom:none}
-.task:hover{background:#fafbff}
+.task:hover{background:#f8f9ff}
 .task.done{opacity:.45}
 .task.done .ttitle{text-decoration:line-through;color:var(--muted)}
+.task-done-strip{
+  display:none;position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green);border-radius:3px 0 0 3px;
+}
+.task.done .task-done-strip{display:block}
 
-.tcb{width:18px;height:18px;border-radius:5px;border:2px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;margin-top:2px;appearance:none;-webkit-appearance:none;transition:all .15s;position:relative}
+.tcb{
+  width:17px;height:17px;border-radius:5px;border:2px solid var(--border2);
+  background:transparent;cursor:pointer;flex-shrink:0;margin-top:2px;
+  appearance:none;-webkit-appearance:none;
+  transition:all .15s;position:relative;
+}
 .tcb:checked{background:var(--green);border-color:var(--green)}
-.tcb:checked::after{content:'✓';position:absolute;color:#fff;font-size:11px;font-weight:900;left:2px;top:-1px}
+.tcb:checked::after{content:'✓';position:absolute;color:#fff;font-size:10px;font-weight:900;left:2px;top:-1px}
 .tcb:hover{border-color:var(--accent)}
 
 .tcontent{flex:1;min-width:0}
-.thdr{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.tnum{font-size:10px;color:var(--muted2);font-weight:700;min-width:24px;background:var(--bg);padding:1px 5px;border-radius:4px}
+.thdr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tnum{
+  font-size:10px;color:var(--muted2);font-weight:700;
+  background:var(--bg);padding:1px 5px;border-radius:4px;
+  border:1px solid var(--border);font-family:'JetBrains Mono',monospace;
+  flex-shrink:0;
+}
 .ttitle{font-size:13px;font-weight:600;line-height:1.4;color:var(--text)}
 .tdesc{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.6}
-.tmeta{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;align-items:center}
+.tmeta{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;align-items:center}
 
 /* Badges */
 .bdg{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap;border:1px solid}
@@ -122,172 +310,240 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .bp1{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
 .bp2{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
 .bp3{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
-.bfile{background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border);font-family:monospace;font-size:9px}
+.bfile{background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border);font-family:'JetBrains Mono',monospace;font-size:9px}
 .beff{background:var(--bg);color:var(--muted);border-color:var(--border)}
 .bdb{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
 .bdone{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
 .bbug{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
 .bfeat{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
-.bai{background:linear-gradient(135deg,#eef2ff,#faf5ff);color:#6366f1;border-color:#c7d2fe}
+.bfix{background:var(--cyan-bg);color:var(--cyan);border-color:var(--cyan-border)}
+.bai{background:linear-gradient(135deg,#eef2ff,#f7f0ff);color:#5b5ef4;border-color:var(--accent-border)}
 
 /* Subtasks */
-.tfiles{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
-.subtasks{margin-top:7px;display:flex;flex-direction:column;gap:2px}
-.stask{display:flex;align-items:flex-start;gap:7px;font-size:11px;color:var(--muted);padding:2px 0;line-height:1.5;cursor:pointer}
-.scb{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;margin-top:1px;appearance:none;-webkit-appearance:none;transition:all .15s;position:relative}
+.tfiles{margin-top:5px;display:flex;flex-wrap:wrap;gap:3px}
+.subtasks{margin-top:6px;display:flex;flex-direction:column;gap:1px}
+.stask{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--muted);padding:2px 0;line-height:1.5;cursor:pointer}
+.scb{
+  width:13px;height:13px;border-radius:3px;border:1.5px solid var(--border2);
+  background:transparent;cursor:pointer;flex-shrink:0;margin-top:1px;
+  appearance:none;-webkit-appearance:none;transition:all .15s;position:relative;
+}
 .scb:checked{background:var(--teal);border-color:var(--teal)}
 .scb:checked::after{content:'✓';position:absolute;color:#fff;font-size:8px;font-weight:900;left:1px;top:0}
-.stask.sdone{text-decoration:line-through;opacity:.45}
+.stask.sdone{text-decoration:line-through;opacity:.4}
 
-/* Notes */
-.note-toggle{font-size:10px;color:var(--muted2);cursor:pointer;margin-top:5px;display:inline-flex;align-items:center;gap:3px;opacity:.75;transition:opacity .15s}
-.note-toggle:hover{color:var(--accent);opacity:1}
-.note-area{margin-top:5px;width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:7px 9px;resize:vertical;min-height:40px;font-family:inherit;outline:none;line-height:1.6}
+/* Notes + Prompt */
+.task-footer{display:flex;align-items:center;gap:4px;margin-top:5px;flex-wrap:wrap}
+.note-toggle{font-size:10px;color:var(--muted2);cursor:pointer;display:inline-flex;align-items:center;gap:3px;opacity:.8;transition:opacity .15s;padding:2px 6px;border-radius:4px}
+.note-toggle:hover{color:var(--accent);opacity:1;background:var(--accent-bg)}
+.note-area{
+  margin-top:5px;width:100%;background:var(--bg);border:1.5px solid var(--border);
+  border-radius:6px;color:var(--text);font-size:11px;padding:7px 9px;
+  resize:vertical;min-height:40px;font-family:inherit;outline:none;line-height:1.6;
+}
 .note-area:focus{border-color:var(--accent)}
-
-/* Prompt button */
-.prompt-btn{font-size:10px;color:var(--accent);cursor:pointer;margin-top:5px;display:inline-flex;align-items:center;gap:3px;background:var(--accent-bg);border:1px solid var(--indigo-border);padding:2px 8px;border-radius:4px;font-weight:600;margin-left:6px;transition:all .15s}
+.prompt-btn{
+  font-size:10px;color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:3px;
+  background:var(--accent-bg);border:1px solid var(--accent-border);padding:2px 8px;
+  border-radius:4px;font-weight:700;transition:all .15s;font-family:'DM Sans',sans-serif;
+}
 .prompt-btn:hover{background:var(--indigo-bg);border-color:var(--accent)}
 
-/* ===== FAB ===== */
-.fab{position:fixed;bottom:22px;right:22px;width:42px;height:42px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(99,102,241,.4);transition:all .2s;z-index:300}
-.fab:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(99,102,241,.5)}
-
-.fab-add{position:fixed;bottom:74px;right:22px;width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 18px rgba(22,163,74,.35);transition:all .2s;z-index:300}
+/* ===== FABs ===== */
+.fab{
+  position:fixed;bottom:22px;right:22px;width:42px;height:42px;border-radius:50%;
+  background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 18px rgba(91,94,244,.4);transition:all .2s;z-index:300;
+}
+.fab:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(91,94,244,.5)}
+.fab-add{
+  position:fixed;bottom:74px;right:22px;width:42px;height:42px;border-radius:50%;
+  background:var(--green);color:#fff;border:none;cursor:pointer;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 18px rgba(21,168,84,.35);transition:all .2s;z-index:300;
+}
 .fab-add:hover{transform:translateY(-2px)}
 
 /* ===== MODAL ===== */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,15,30,.4);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surface);border-radius:var(--radius-lg);padding:24px;width:90%;max-width:620px;max-height:85vh;overflow-y:auto;box-shadow:var(--shadow-lg);border:1px solid var(--border)}
+.modal{background:var(--surface);border-radius:var(--radius-xl);padding:24px;width:90%;max-width:620px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg);border:1.5px solid var(--border)}
 .modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .modal-title{font-size:15px;font-weight:800;color:var(--text)}
-.modal-close{width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.modal-close{width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s}
 .modal-close:hover{background:var(--red-bg);color:var(--red)}
 
-.form-group{margin-bottom:14px}
-.form-label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
-.form-input,.form-select,.form-textarea{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-size:13px;outline:none;font-family:inherit;transition:border-color .15s}
+.form-group{margin-bottom:13px}
+.form-label{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--bg);border:1.5px solid var(--border);
+  border-radius:7px;padding:8px 11px;color:var(--text);font-size:13px;
+  outline:none;font-family:'DM Sans',sans-serif;transition:border-color .15s;
+}
 .form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent)}
 .form-textarea{resize:vertical;min-height:70px;line-height:1.5}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.btn-primary{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-primary{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
 .btn-primary:hover{background:var(--accent2)}
-.btn-secondary{padding:9px 20px;background:var(--bg);color:var(--muted);border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-left:8px}
+.btn-secondary{padding:9px 20px;background:var(--bg);color:var(--muted);border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-left:8px;font-family:'DM Sans',sans-serif}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 
-/* ===== PROMPT MODAL ===== */
-.prompt-modal-body{background:var(--bg);border:1.5px solid var(--indigo-border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;color:var(--text);white-space:pre-wrap;max-height:400px;overflow-y:auto;font-family:monospace}
-.copy-btn{padding:8px 18px;background:var(--indigo-bg);color:var(--indigo);border:1.5px solid var(--indigo-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;margin-top:10px;transition:all .15s}
+/* Tags */
+.tags-wrap{display:flex;flex-wrap:wrap;gap:4px;padding:5px 8px;background:var(--bg);border:1.5px solid var(--border);border-radius:7px;min-height:36px;cursor:text}
+.tags-wrap:focus-within{border-color:var(--accent)}
+.tag-pill{background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);border-radius:4px;font-size:11px;padding:1px 7px;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:4px}
+.tag-pill span{cursor:pointer;opacity:.6}
+.tag-pill span:hover{opacity:1}
+.tags-input{border:none;outline:none;background:transparent;font-size:12px;color:var(--text);font-family:inherit;min-width:80px;flex:1}
+
+/* Prompt Modal */
+.prompt-modal-body{background:var(--bg);border:1.5px solid var(--indigo-border);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;color:var(--text);white-space:pre-wrap;max-height:400px;overflow-y:auto;font-family:'JetBrains Mono',monospace}
+.copy-btn{padding:8px 18px;background:var(--indigo-bg);color:var(--indigo);border:1.5px solid var(--indigo-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;margin-top:10px;transition:all .15s;font-family:'DM Sans',sans-serif}
 .copy-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 .copy-btn.copied{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
 
-/* ===== DEBUG CENTER TAB ===== */
-.debug-container{padding:20px 24px 48px}
-.debug-header{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
-.debug-title{font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px}
-.debug-sub{font-size:12px;color:var(--muted);line-height:1.6}
-.debug-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-.debug-btn{padding:9px 20px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid;transition:all .15s;display:flex;align-items:center;gap:6px}
-.debug-btn-run{background:var(--accent);color:#fff;border-color:var(--accent)}
-.debug-btn-run:hover{background:var(--accent2)}
-.debug-btn-report{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
-.debug-btn-clear{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
-
-.debug-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
-.debug-cat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
-.debug-cat-title{font-size:11px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.debug-item{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px}
-.debug-item:last-child{border-bottom:none}
-.dstatus{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.dstatus.pass{background:var(--green)}
-.dstatus.fail{background:var(--red)}
-.dstatus.warn{background:var(--yellow)}
-.dstatus.idle{background:var(--muted2)}
-.dname{flex:1;color:var(--text)}
-.derr{font-size:10px;color:var(--red)}
-
-.debug-report{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow);display:none}
-.debug-report.visible{display:block}
-.report-hdr{font-size:13px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.report-section{margin-bottom:14px}
-.report-sect-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px}
-.report-item{display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:6px;font-size:11px;margin-bottom:4px;line-height:1.5}
-.report-item.pass{background:var(--green-bg);color:var(--green)}
-.report-item.fail{background:var(--red-bg);color:var(--red)}
-.report-item.warn{background:var(--yellow-bg);color:var(--yellow)}
-.report-code{font-family:monospace;font-size:10px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px}
-
-.progress-bar-container{margin:10px 0;background:var(--border);border-radius:99px;height:22px;overflow:hidden;display:none;position:relative}
-.progress-bar-container.visible{display:block}
-.progress-bar{height:100%;background:linear-gradient(90deg,#6366f1,#a855f7);border-radius:99px;transition:width .35s ease;position:relative}
-.progress-bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;letter-spacing:.3px;text-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none;z-index:2}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ===== AI PROMPT CENTER TAB ===== */
-.ai-container{padding:20px 24px 48px}
-.ai-header{background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid var(--indigo-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px}
-.ai-header-title{font-size:16px;font-weight:800;color:var(--indigo);margin-bottom:5px;display:flex;align-items:center;gap:8px}
-.ai-header-sub{font-size:12px;color:var(--muted);line-height:1.6}
-.ai-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.ai-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s}
-.ai-card:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.1)}
-.ai-card-icon{font-size:24px;margin-bottom:8px}
-.ai-card-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px}
-.ai-card-sub{font-size:11px;color:var(--muted);line-height:1.5}
-.ai-card-tag{font-size:10px;padding:2px 8px;border-radius:99px;background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);font-weight:700;margin-top:8px;display:inline-block}
-
 /* ===== ROADMAP TAB ===== */
-.roadmap-container{padding:20px 24px 48px}
-.roadmap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
-.rm-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.roadmap-container{padding:16px 20px 60px}
+.roadmap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.rm-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
 .rm-card-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.rm-icon{font-size:20px}
-.rm-title{font-size:13px;font-weight:700;color:var(--text)}
+.rm-icon{font-size:18px}
+.rm-title{font-size:13px;font-weight:700;color:var(--text);flex:1}
 .rm-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;border:1px solid}
 .rm-live{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
 .rm-wip{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
 .rm-planned{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
 .rm-future{background:var(--bg);color:var(--muted);border-color:var(--border)}
-.rm-features{font-size:11px;color:var(--muted);line-height:1.8}
+.rm-features{font-size:11px;color:var(--muted);line-height:1.9}
 .rm-feature{display:flex;align-items:center;gap:5px}
 .rm-feature::before{content:'›';color:var(--muted2)}
+.section-heading{font-size:12px;font-weight:800;color:var(--text);margin:0 0 12px;display:flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1.5px solid var(--border);padding-bottom:8px}
 
-/* Section heading */
-.section-heading{font-size:13px;font-weight:800;color:var(--text);margin:0 0 12px;display:flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.5px}
-
-/* Responsive */
-@media(max-width:1100px){.overview{grid-template-columns:repeat(3,1fr)}.master-prog{grid-column:1/-1}.debug-grid{grid-template-columns:1fr 1fr}.ai-grid{grid-template-columns:1fr}}
-@media(max-width:700px){.overview{grid-template-columns:1fr 1fr}.roadmap-grid{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}}
-
-/* Tags input */
-.tags-wrap{display:flex;flex-wrap:wrap;gap:4px;padding:5px 8px;background:var(--bg);border:1.5px solid var(--border);border-radius:7px;min-height:36px;cursor:text}
-.tags-wrap:focus-within{border-color:var(--accent)}
-.tag-pill{background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);border-radius:4px;font-size:11px;padding:1px 7px;font-family:monospace;display:flex;align-items:center;gap:4px}
-.tag-pill span{cursor:pointer;opacity:.6}
-.tag-pill span:hover{opacity:1}
-.tags-input{border:none;outline:none;background:transparent;font-size:12px;color:var(--text);font-family:inherit;min-width:80px;flex:1}
-
-/* Checklist tab */
-.checklist-container{padding:20px 24px 48px}
-.chk-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
-.chk-group-hdr{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--bg)}
-.chk-group-title{font-size:13px;font-weight:800;flex:1}
-.chk-group-pct{font-size:12px;font-weight:700;color:var(--accent)}
-.chk-items{padding:4px 0}
-.chk-item{display:flex;align-items:flex-start;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:12px}
+/* ===== CHECKLIST TAB ===== */
+.checklist-container{padding:16px 20px 60px}
+.chk-group{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);margin-bottom:12px;box-shadow:var(--shadow);overflow:hidden}
+.chk-group-hdr{padding:11px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--bg)}
+.chk-group-title{font-size:12px;font-weight:800;flex:1}
+.chk-group-pct{font-size:12px;font-weight:800;color:var(--accent)}
+.chk-items{padding:2px 0}
+.chk-item{display:flex;align-items:flex-start;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;transition:background .1s}
 .chk-item:last-child{border-bottom:none}
-.chk-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);margin-top:1px;flex-shrink:0}
+.chk-item:hover{background:var(--bg)}
+.chk-item input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);margin-top:2px;flex-shrink:0}
 .chk-text{flex:1;line-height:1.5}
 .chk-done{text-decoration:line-through;opacity:.4}
-.chk-tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);margin-left:5px}
+.chk-tag{font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);margin-left:5px}
+
+/* ===== DEBUG CENTER TAB ===== */
+.debug-container{padding:16px 20px 60px}
+.debug-header{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.debug-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:5px}
+.debug-sub{font-size:12px;color:var(--muted);line-height:1.7}
+.debug-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.debug-btn{padding:8px 18px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid;transition:all .15s;display:flex;align-items:center;gap:6px;font-family:'DM Sans',sans-serif}
+.debug-btn-run{background:var(--accent);color:#fff;border-color:var(--accent)}
+.debug-btn-run:hover{background:var(--accent2)}
+.debug-btn-report{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.debug-btn-clear{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.progress-bar-container{margin:10px 0;background:var(--border);border-radius:99px;height:22px;overflow:hidden;display:none;position:relative}
+.progress-bar-container.visible{display:block}
+.progress-bar{height:100%;background:linear-gradient(90deg,#5b5ef4,#a855f7);border-radius:99px;transition:width .35s ease;position:relative}
+.progress-bar-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25);pointer-events:none;z-index:2}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== FILE HEALTH CHECK TAB ===== */
+.hc-container{padding:16px 20px 60px}
+.hc-header{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.hc-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.hc-sub{font-size:12px;color:var(--muted);line-height:1.7}
+.hc-url-row{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.hc-url-label{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.hc-url-input{
+  flex:1;min-width:180px;max-width:300px;
+  background:var(--bg);border:1.5px solid var(--border);
+  border-radius:7px;padding:7px 11px;color:var(--text);font-size:12px;
+  outline:none;font-family:'JetBrains Mono',monospace;
+}
+.hc-url-input:focus{border-color:var(--accent)}
+.hc-url-hint{font-size:11px;color:var(--muted);white-space:nowrap}
+.hc-status{font-size:11px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--muted)}
+.hc-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.hc-btn{padding:7px 16px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid;transition:all .15s;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px}
+.hc-btn-run{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hc-btn-run:hover{background:var(--accent2)}
+.hc-btn-export{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.hc-btn-export:hover{background:var(--green);color:#fff}
+.hc-btn-reset{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.hc-btn-ext{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.hc-filter-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.hc-filter{padding:5px 14px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.hc-filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hc-grid{display:flex;flex-direction:column;gap:10px}
+.hc-module{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)}
+.hc-module-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg)}
+.hc-module-title{font-weight:800;font-size:12px;flex:1}
+.hc-module-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.hc-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 14px;border-bottom:1px solid var(--border);
+  font-size:12px;cursor:pointer;transition:background .1s;
+}
+.hc-item:hover{background:var(--bg)}
+.hc-item:last-child{border-bottom:none}
+.hc-dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);flex-shrink:0;transition:background .2s}
+.hc-dot.pass{background:var(--green)}
+.hc-dot.fail{background:var(--red)}
+.hc-dot.warn{background:var(--yellow)}
+.hc-item-name{flex:1;color:var(--text)}
+.hc-item-msg{font-size:10px;color:var(--muted)}
+.hc-type-badge{font-size:9px;font-family:'JetBrains Mono',monospace;padding:1px 5px;background:var(--bg);border-radius:3px;color:var(--muted2);border:1px solid var(--border)}
+.hc-type-db{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.hc-summary-bar{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;margin-bottom:12px;box-shadow:var(--shadow);display:none}
+.hc-summary-bar.visible{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.hc-sum-stat{text-align:center}
+.hc-sum-num{font-size:22px;font-weight:800;line-height:1}
+.hc-sum-lbl{font-size:10px;color:var(--muted);font-weight:700;margin-top:2px}
+.hc-note{font-size:11px;background:var(--yellow-bg);color:var(--yellow);border-bottom:1px solid var(--yellow-border);padding:6px 14px}
+
+/* ===== AI PROMPT CENTER ===== */
+.ai-container{padding:16px 20px 60px}
+.ai-header{background:linear-gradient(135deg,var(--indigo-bg),var(--purple-bg));border:1.5px solid var(--indigo-border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px}
+.ai-header-title{font-size:15px;font-weight:800;color:var(--indigo);margin-bottom:5px;display:flex;align-items:center;gap:8px}
+.ai-header-sub{font-size:12px;color:var(--muted);line-height:1.6}
+.ai-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.ai-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:all .2s}
+.ai-card:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,94,244,.1),var(--shadow-md)}
+.ai-card-icon{font-size:22px;margin-bottom:8px}
+.ai-card-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+.ai-card-sub{font-size:11px;color:var(--muted);line-height:1.5}
+.ai-card-tag{font-size:10px;padding:2px 8px;border-radius:99px;background:var(--indigo-bg);color:var(--indigo);border:1px solid var(--indigo-border);font-weight:700;margin-top:8px;display:inline-block}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:1100px){
+  .dashboard-top{grid-template-columns:1fr}
+  .master-prog{height:auto}
+  .cat-prog-grid{grid-template-columns:repeat(3,1fr)}
+  .roadmap-grid{grid-template-columns:repeat(2,1fr)}
+  .ai-grid{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+  .stats-row{grid-template-columns:repeat(3,1fr)}
+  .cat-prog-grid{grid-template-columns:repeat(2,1fr)}
+  .form-row{grid-template-columns:1fr}
+  .roadmap-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <div class="logo">⚡ WealthDash <span class="logo-sub">Master Dev Dashboard</span></div>
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    <span class="logo-text">WealthDash</span>
+    <span class="logo-sub">Dev Dashboard</span>
+  </div>
   <div class="topbar-right">
     <span class="last-saved" id="lastSaved">—</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">↕ Collapse All</button>
@@ -310,28 +566,67 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 
 <!-- ========== TAB: TASKS ========== -->
 <div class="tab-pane active" id="tab-tasks">
-  <div class="overview">
-    <div class="stat-card"><div class="stat-num" id="doneC" style="color:var(--green)">0</div><div class="stat-lbl">✅ Done</div></div>
-    <div class="stat-card"><div class="stat-num" id="subC" style="color:var(--teal)">0</div><div class="stat-lbl">☑ Subtasks</div></div>
-    <div class="stat-card"><div class="stat-num" id="todoC" style="color:var(--red)">0</div><div class="stat-lbl">⏳ Remaining</div></div>
-    <div class="stat-card"><div class="stat-num" id="totalC" style="color:var(--blue)">0</div><div class="stat-lbl">📋 Total Tasks</div></div>
-    <div class="stat-card"><div class="stat-num" id="phasesC" style="color:var(--purple)">0</div><div class="stat-lbl">🗂️ Phases</div></div>
+
+  <!-- Top Dashboard: Left (stats + cat bars) | Right (overall progress) -->
+  <div class="dashboard-top">
+    <!-- LEFT COLUMN -->
+    <div class="dashboard-left">
+      <!-- Stat cards row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-num" id="doneC" style="color:var(--green)">0</div>
+          <div class="stat-lbl">✅ Done</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="subC" style="color:var(--teal)">0</div>
+          <div class="stat-lbl">☑ Subtasks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="todoC" style="color:var(--red)">0</div>
+          <div class="stat-lbl">⏳ Remaining</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="totalC" style="color:var(--blue)">0</div>
+          <div class="stat-lbl">📋 Total</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="phasesC" style="color:var(--purple)">0</div>
+          <div class="stat-lbl">🗂️ Phases</div>
+        </div>
+      </div>
+      <!-- Category Progress Bars Grid (4 columns × 3 rows = 12 cats) -->
+      <div class="cat-prog-grid" id="catProgGrid"><!-- Filled by JS --></div>
+    </div>
+
+    <!-- RIGHT COLUMN: Overall Progress -->
     <div class="master-prog">
-      <div class="prog-label"><span style="font-weight:800">📊 Overall Progress</span><span class="pct-text" id="masterPct">0%</span></div>
+      <div class="prog-label">
+        <span style="font-weight:800;font-size:12px">📊 Overall Progress</span>
+        <span class="pct-text" id="masterPct">0%</span>
+      </div>
       <div class="bar-wrap"><div class="bar-fill" id="masterBar" style="width:0%"></div></div>
       <div class="phase-rows" id="phaseRows"></div>
     </div>
   </div>
 
-  <div class="legend">
-    <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Critical</div>
-    <div class="leg-item"><div class="leg-dot" style="background:var(--orange)"></div>High</div>
-    <div class="leg-item"><div class="leg-dot" style="background:var(--yellow)"></div>Medium</div>
-    <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Low</div>
-    <span style="margin-left:6px;font-size:11px;color:var(--muted)">🔴 Bug &nbsp;🔵 Feature &nbsp;🗄️ DB Change &nbsp;🤖 AI Feature</span>
+  <!-- Category Tab Bar -->
+  <div class="catbar" id="catBar">
+    <button class="catbtn active" data-cat="all"        onclick="filterByCat('all',this)">🗂️ All <span class="catcount" id="cnt_all">0</span></button>
+    <button class="catbtn" data-cat="mf"                onclick="filterByCat('mf',this)">📈 Mutual Funds <span class="catcount" id="cnt_mf">0</span></button>
+    <button class="catbtn" data-cat="nps"               onclick="filterByCat('nps',this)">🏛️ NPS <span class="catcount" id="cnt_nps">0</span></button>
+    <button class="catbtn" data-cat="fd"                onclick="filterByCat('fd',this)">💰 FD & Savings <span class="catcount" id="cnt_fd">0</span></button>
+    <button class="catbtn" data-cat="postoffice"        onclick="filterByCat('postoffice',this)">📮 Post Office <span class="catcount" id="cnt_postoffice">0</span></button>
+    <button class="catbtn" data-cat="stocks"            onclick="filterByCat('stocks',this)">📉 Stocks <span class="catcount" id="cnt_stocks">0</span></button>
+    <button class="catbtn" data-cat="crypto"            onclick="filterByCat('crypto',this)">₿ Crypto <span class="catcount" id="cnt_crypto">0</span></button>
+    <button class="catbtn" data-cat="dashboard"         onclick="filterByCat('dashboard',this)">📊 Dashboard <span class="catcount" id="cnt_dashboard">0</span></button>
+    <button class="catbtn" data-cat="reports"           onclick="filterByCat('reports',this)">🧾 Reports &amp; Tax <span class="catcount" id="cnt_reports">0</span></button>
+    <button class="catbtn" data-cat="admin"             onclick="filterByCat('admin',this)">👑 Admin &amp; User <span class="catcount" id="cnt_admin">0</span></button>
+    <button class="catbtn" data-cat="general"           onclick="filterByCat('general',this)">🔧 General <span class="catcount" id="cnt_general">0</span></button>
+    <button class="catbtn" data-cat="ai"                onclick="filterByCat('ai',this)">🤖 AI Features <span class="catcount" id="cnt_ai">0</span></button>
   </div>
 
-  <div class="filterbar">
+  <!-- Filter + Search Bar -->
+  <div class="filterlegend">
     <button class="fbtn active" onclick="filterTasks('all',this)">All</button>
     <button class="fbtn" onclick="filterTasks('p0',this)">🔴 Critical</button>
     <button class="fbtn" onclick="filterTasks('p1',this)">🟠 High</button>
@@ -339,6 +634,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <button class="fbtn" onclick="filterTasks('p3',this)">🟢 Low</button>
     <button class="fbtn" onclick="filterTasks('pending',this)">⏳ Pending</button>
     <button class="fbtn" onclick="filterTasks('done',this)">✅ Done</button>
+    <span class="leg-sep">|</span>
+    <span style="font-size:11px;color:var(--muted)">🔴 Bug &nbsp;🔵 Feature &nbsp;🗄️ DB &nbsp;🤖 AI</span>
     <div class="search-wrap">
       <span class="sico">🔍</span>
       <input class="search-inp" placeholder="Search tasks…" oninput="searchTasks(this.value)">
@@ -352,45 +649,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="tab-pane" id="tab-roadmap">
   <div class="roadmap-container">
     <div class="section-heading">🗺️ WealthDash Module Roadmap</div>
-    <div class="roadmap-grid" id="roadmapGrid">
-      <!-- Rendered by JS -->
-    </div>
-
+    <div class="roadmap-grid" id="roadmapGrid"></div>
     <div class="section-heading" style="margin-top:20px">🏗️ Architecture Overview</div>
     <div class="rm-card" style="grid-column:1/-1;margin-bottom:14px">
-      <div style="font-size:12px;color:var(--muted);line-height:1.8">
+      <div style="font-size:12px;color:var(--muted);line-height:1.9">
         <b style="color:var(--text)">Stack:</b> Core PHP (no Laravel) · MySQL · XAMPP Local · Vanilla JS · Chart.js<br>
         <b style="color:var(--text)">Auth:</b> Session-based · Google OAuth · OTP verify<br>
         <b style="color:var(--text)">APIs:</b> AMFI (MF NAV) · mfapi.in (NAV history) · CoinGecko (Crypto) · Alpha Vantage / NSE (Stocks)<br>
         <b style="color:var(--text)">AI Plan:</b> Anthropic Claude API (claude-sonnet-4-20250514) for portfolio advice · anomaly detection · auto-categorization<br>
-        <b style="color:var(--text)">Cron:</b> update_nav_daily.php · update_stocks_daily.php · nps_nav_scraper.php · fd_maturity_alert.php<br>
-        <b style="color:var(--text)">Debug:</b> debug_check.php (planned) — single PHP file checks DB, APIs, schemas, file syntax
-      </div>
-    </div>
-
-    <div class="section-heading">📁 File Structure Plan</div>
-    <div class="rm-card">
-      <div style="font-size:11px;font-family:monospace;line-height:2;color:var(--muted)">
-        <span style="color:var(--indigo)">wealthdash/</span><br>
-        ├── api/<br>
-        │&nbsp;&nbsp; ├── mutual_funds/ ✅<br>
-        │&nbsp;&nbsp; ├── nps/ ✅<br>
-        │&nbsp;&nbsp; ├── savings/ ✅<br>
-        │&nbsp;&nbsp; ├── crypto/ 🔵 planned<br>
-        │&nbsp;&nbsp; ├── stocks/ ✅<br>
-        │&nbsp;&nbsp; ├── banks/ 🔵 planned<br>
-        │&nbsp;&nbsp; ├── govt_schemes/ 🔵 planned<br>
-        │&nbsp;&nbsp; ├── etf/ 🔵 planned<br>
-        │&nbsp;&nbsp; └── ai_advisor/ 🤖 planned<br>
-        ├── templates/pages/<br>
-        │&nbsp;&nbsp; ├── crypto.php 🔵<br>
-        │&nbsp;&nbsp; ├── banks.php 🔵<br>
-        │&nbsp;&nbsp; ├── govt_schemes.php 🔵<br>
-        │&nbsp;&nbsp; └── etf.php 🔵<br>
-        ├── includes/<br>
-        │&nbsp;&nbsp; ├── ai_engine.php 🤖<br>
-        │&nbsp;&nbsp; └── debug_engine.php 🔧<br>
-        └── debug_check.php 🔧
+        <b style="color:var(--text)">Cron:</b> update_nav_daily.php · update_stocks_daily.php · nps_nav_scraper.php · fd_maturity_alert.php
       </div>
     </div>
   </div>
@@ -400,7 +667,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="tab-pane" id="tab-checklist">
   <div class="checklist-container">
     <div class="section-heading">✅ Micro-Level Verification Checklist</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Har feature complete hone ke baad in points ko check karo. Ye apko Claude ko bhej sakte ho debugging ke liye.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Har feature complete hone ke baad in points ko check karo. Ye apko Claude ko bhej sakte ho debugging ke liye.</p>
     <div id="checklistWrap"></div>
   </div>
 </div>
@@ -408,27 +675,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <!-- ========== TAB: DEBUG CENTER ========== -->
 <div class="tab-pane" id="tab-debug">
   <div class="debug-container">
-
-    <!-- Header -->
     <div class="debug-header">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:5px">
         <div class="debug-title">🔧 WealthDash Debug Center</div>
-        <span id="debugConnBadge" style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--muted);">⚪ Not run yet</span>
+        <span id="debugConnBadge" style="font-size:11px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--muted)">⚪ Not run yet</span>
       </div>
       <div class="debug-sub">
         XAMPP chal raha ho to <b>Run All Checks</b> karo — results neeche inline dikhenge.<br>
-        <span style="font-size:11px;color:var(--muted2);">
-          Direct URL:
-          <a href="http://localhost/wealthdash/debug/runner.php?format=html" target="_blank" style="color:var(--accent)">
-            localhost/wealthdash/debug/runner.php?format=html
-          </a>
-        </span>
+        <span style="font-size:11px;color:var(--muted2)">Direct URL: <a href="http://localhost/wealthdash/debug/runner.php?format=html" target="_blank" style="color:var(--accent)">localhost/wealthdash/debug/runner.php</a></span>
       </div>
-      <div class="debug-actions" style="margin-top:12px;">
+      <div class="debug-actions">
         <button class="debug-btn debug-btn-run" onclick="runDebug()">▶ Run All Checks</button>
         <button class="debug-btn debug-btn-report" onclick="exportDebugReport()">📄 Export for Claude</button>
-        <button class="debug-btn" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)"
-          onclick="window.open('http://localhost/wealthdash/debug/runner.php?format=html','_blank')">🌐 New Tab</button>
+        <button class="debug-btn" style="background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)" onclick="window.open('http://localhost/wealthdash/debug/runner.php?format=html','_blank')">🌐 New Tab</button>
         <button class="debug-btn debug-btn-clear" onclick="clearDebug()">✕ Clear</button>
       </div>
       <div class="progress-bar-container" id="dbProgressWrap">
@@ -436,48 +695,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
         <div class="progress-bar-label" id="dbProgressLabel">0%</div>
       </div>
     </div>
-
-    <!-- Inline iframe result panel -->
-    <div id="debugIframeWrap" style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);position:relative;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg);">
-        <span style="font-size:12px;font-weight:700;color:var(--text);">📋 Live Results</span>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="debug-btn debug-btn-report" style="padding:4px 12px;font-size:11px;" onclick="exportDebugReport()">📄 Export for Claude</button>
-          <button onclick="clearDebug()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;">✕</button>
+    <div id="debugIframeWrap" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);position:relative">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <span style="font-size:12px;font-weight:700">📋 Live Results</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="debug-btn debug-btn-report" style="padding:4px 12px;font-size:11px" onclick="exportDebugReport()">📄 Export for Claude</button>
+          <button onclick="clearDebug()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px">✕</button>
         </div>
       </div>
-      <!-- Loading overlay shown while iframe loads -->
-      <div id="debugLoadingOverlay" style="display:none;position:absolute;inset:44px 0 0 0;background:var(--surface);z-index:5;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
-        <div style="width:42px;height:42px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;"></div>
-        <div id="debugLoadingMsg" style="font-size:13px;font-weight:600;color:var(--muted);">⏳ Checks chal rahe hain...</div>
-        <div id="debugLoadingSteps" style="font-size:11px;color:var(--muted2);text-align:center;line-height:1.9;">
-          DB check kar raha hai...<br>Files scan kar raha hai...<br>UI elements verify kar raha hai...
-        </div>
+      <div id="debugLoadingOverlay" style="display:none;position:absolute;inset:44px 0 0 0;background:var(--surface);z-index:5;flex-direction:column;align-items:center;justify-content:center;gap:14px">
+        <div style="width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite"></div>
+        <div id="debugLoadingMsg" style="font-size:13px;font-weight:600;color:var(--muted)">⏳ Checks chal rahe hain...</div>
+        <div style="font-size:11px;color:var(--muted2);text-align:center;line-height:1.9">DB check · Files scan · UI elements · API check</div>
       </div>
-      <iframe id="debugIframe" src="about:blank"
-        style="width:100%;height:600px;border:none;display:block;"
-        onload="onIframeLoad(this)">
-      </iframe>
+      <iframe id="debugIframe" src="about:blank" style="width:100%;height:600px;border:none;display:block"></iframe>
     </div>
-
-    <!-- File structure guide -->
-    <div style="margin-top:16px;">
-      <div class="section-heading">📁 Debug Folder — XAMPP Mein Copy Karo</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)">
-        <div style="background:var(--bg);border:1.5px solid var(--indigo-border);border-radius:8px;padding:12px;font-size:12px;font-family:monospace;line-height:2.2;color:var(--text)">
-          C:/xampp/htdocs/wealthdash/<br>
-          └── debug/<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;├── runner.php<span style="color:var(--green);font-family:sans-serif;"> ← main endpoint</span><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;└── tests/<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── test_db.php<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── test_api_files.php<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── test_ui_elements.php<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── test_api_responses.php<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── test_cron_health.php
-        </div>
-      </div>
-    </div>
-
   </div>
 </div>
 
@@ -486,13 +718,57 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="ai-container">
     <div class="ai-header">
       <div class="ai-header-title">🤖 AI Prompt Center — Claude se Code Kaise Mango</div>
-      <div class="ai-header-sub">
-        Ye ready-made prompts hain. Bas copy karo, Claude ko do — aur perfect code milega. Har prompt mein WealthDash ka context already diya hua hai.
+      <div class="ai-header-sub">Ready-made prompts hain. Bas copy karo, Claude ko do — aur perfect code milega. Har prompt mein WealthDash ka context already diya hua hai.</div>
+    </div>
+    <div class="ai-grid" id="aiGrid"></div>
+  </div>
+</div>
+
+<!-- ========== TAB: FILE HEALTH CHECK ========== -->
+<div class="tab-pane" id="tab-health">
+  <div class="hc-container">
+    <div class="hc-header">
+      <div class="hc-title">🩺 WealthDash — File Health Check</div>
+      <div class="hc-sub">Sab modules check karo ek saath — pages load ho rahi hain, APIs kaam kar rahe hain, DB tables sahi hain.<br>
+      Koi module fix karne ke baad wapas aao aur sirf us module ka re-check karo.</div>
+      <div id="hcCorsNotice" style="display:none;margin-top:10px;padding:8px 12px;background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:8px;font-size:11px;color:var(--blue);line-height:1.7">
+        ℹ️ <b>File:// mode detected.</b> "Run All Checks" XAMPP pe directly open karega. Individual module "▶ Run" buttons bhi CORS se block ho sakte hain — 
+        <a href="#" onclick="window.open(hcGetBase()+'/wealthdash/debug/runner.php?format=html','_blank');return false" style="color:var(--blue);font-weight:700">Debug Runner directly kholo</a> for full results.
+      </div>
+      <div class="hc-url-row">
+        <span class="hc-url-label">🌐 XAMPP Base URL</span>
+        <input class="hc-url-input" id="hcBaseUrl" placeholder="http://localhost" value="http://localhost" oninput="localStorage.setItem('wd_hc_base',this.value)">
+        <span class="hc-url-hint">+ /wealthdash/... path auto-append hota hai</span>
+        <button class="hc-btn" style="background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border)" onclick="hcTestBase()">Test</button>
+        <span class="hc-status" id="hcBaseStatus">⚪ Not tested</span>
+      </div>
+      <div class="hc-actions">
+        <button class="hc-btn hc-btn-run" onclick="hcRunAll()">▶ Run All Checks</button>
+        <button class="hc-btn hc-btn-export" onclick="hcExport()">📄 Export for Claude</button>
+        <button class="hc-btn hc-btn-ext" onclick="window.open(hcGetBase()+'/wealthdash/debug/runner.php?format=html','_blank')">🌐 Open in Browser</button>
+        <button class="hc-btn hc-btn-reset" onclick="hcReset()">↺ Reset</button>
       </div>
     </div>
-    <div class="ai-grid" id="aiGrid">
-      <!-- filled by JS -->
+
+    <!-- Summary bar (hidden until run) -->
+    <div class="hc-summary-bar" id="hcSummaryBar">
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcPass" style="color:var(--green)">0</div><div class="hc-sum-lbl">✅ Passed</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcFail" style="color:var(--red)">0</div><div class="hc-sum-lbl">❌ Failed</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcWarn" style="color:var(--yellow)">0</div><div class="hc-sum-lbl">⚠️ Warnings</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcPend" style="color:var(--muted)">0</div><div class="hc-sum-lbl">⏳ Pending</div></div>
+      <div style="flex:1"></div>
+      <div style="text-align:right;font-size:11px;color:var(--muted)"><span id="hcRunTime"></span></div>
     </div>
+
+    <!-- Filter row -->
+    <div class="hc-filter-row">
+      <button class="hc-filter active" onclick="hcFilter('all',this)">All</button>
+      <button class="hc-filter" onclick="hcFilter('fail',this)">❌ Failed</button>
+      <button class="hc-filter" onclick="hcFilter('pass',this)">✅ Passed</button>
+      <button class="hc-filter" onclick="hcFilter('warn',this)">⚠️ Warning</button>
+    </div>
+
+    <div class="hc-grid" id="hcGrid"></div>
   </div>
 </div>
 
@@ -517,7 +793,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     </div>
     <div class="form-group">
       <label class="form-label">Description</label>
-      <textarea class="form-textarea" id="newTaskDesc" placeholder="Optional — kya karna hai detail mein…"></textarea>
+      <textarea class="form-textarea" id="newTaskDesc" placeholder="Optional…"></textarea>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -560,12 +836,12 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
     <div class="form-group">
       <label class="form-label">Subtasks (Enter dabakar add karo)</label>
       <div class="tags-wrap" id="newTaskSubsWrap" onclick="document.getElementById('newTaskSubsInput').focus()">
-        <input class="tags-input" id="newTaskSubsInput" placeholder="subtask likhao…" onkeydown="handleTagInput(event,'newTaskSubs')">
+        <input class="tags-input" id="newTaskSubsInput" placeholder="subtask add karo…" onkeydown="handleTagInput(event,'newTaskSubs')">
       </div>
     </div>
-    <div style="text-align:right;margin-top:4px">
+    <div style="display:flex;justify-content:flex-end;margin-top:6px">
+      <button class="btn-primary" onclick="addTask()">Add Task</button>
       <button class="btn-secondary" onclick="closeAddTask()">Cancel</button>
-      <button class="btn-primary" onclick="saveNewTask()">✅ Task Add Karo</button>
     </div>
   </div>
 </div>
@@ -574,71 +850,18 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 <div class="modal-overlay" id="promptModal">
   <div class="modal">
     <div class="modal-hdr">
-      <div class="modal-title">🤖 Claude Prompt — <span id="promptTaskTitle"></span></div>
+      <div class="modal-title">🤖 <span id="promptTaskTitle"></span></div>
       <button class="modal-close" onclick="closePromptModal()">✕</button>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Ye prompt copy karo aur Claude ko do. Sab context already diya hua hai.</div>
     <div class="prompt-modal-body" id="promptBody"></div>
     <button class="copy-btn" id="promptCopyBtn" onclick="copyPrompt()">📋 Copy Prompt</button>
   </div>
 </div>
 
-<!-- ========== TAB: FILE HEALTH CHECK ========== -->
-<div class="tab-pane" id="tab-health">
-  <div style="padding:20px 24px 48px">
-
-    <!-- Header -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-        <div>
-          <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px">🩺 WealthDash — File Health Check</div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.6">Sab modules check karo ek saath — pages load ho rahi hain, APIs kaam kar rahe hain, DB tables sahi hain.<br>
-          <span style="color:var(--muted2);font-size:11px">Koi module fix karne ke baad wapas aao aur sirf us module ka re-check karo.</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button onclick="hcRunAll()" style="padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">▶ Run All Checks</button>
-          <button onclick="hcExport()" style="padding:8px 14px;background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">📄 Export for Claude</button>
-          <button onclick="hcReset()" style="padding:8px 14px;background:var(--red-bg);color:var(--red);border:1.5px solid var(--red-border);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">✕ Reset</button>
-        </div>
-      </div>
-      <!-- Summary bar -->
-      <div id="hcSummaryBar" style="display:none;margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <span id="hcPassCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)">✅ 0 Pass</span>
-        <span id="hcFailCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)">❌ 0 Fail</span>
-        <span id="hcWarnCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-border)">⚠️ 0 Warn</span>
-        <span id="hcPendCount" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--bg);color:var(--muted);border:1px solid var(--border)">⏳ 0 Pending</span>
-      </div>
-    </div>
-
-    <!-- Module filter bar -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <span style="font-size:11px;font-weight:700;color:var(--muted);margin-right:2px">Filter:</span>
-      <button class="hc-filter active" data-filter="all"   onclick="hcFilter('all',this)"   style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-size:11px;font-weight:700;cursor:pointer">All</button>
-      <button class="hc-filter"        data-filter="fail"  onclick="hcFilter('fail',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">❌ Failed</button>
-      <button class="hc-filter"        data-filter="pass"  onclick="hcFilter('pass',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">✅ Passed</button>
-      <button class="hc-filter"        data-filter="warn"  onclick="hcFilter('warn',this)"  style="padding:4px 13px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer">⚠️ Warning</button>
-    </div>
-
-    <!-- Health check grid — will be rendered by JS -->
-    <div id="hcGrid" style="display:flex;flex-direction:column;gap:12px"></div>
-
-    <!-- Iframe result panel (for XAMPP local checks) -->
-    <div id="hcIframeWrap" style="display:none;margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
-        <span id="hcIframeTitle" style="font-size:12px;font-weight:700;color:var(--text)">📋 Module Check — Live Result</span>
-        <button onclick="document.getElementById('hcIframeWrap').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px">✕</button>
-      </div>
-      <iframe id="hcIframe" src="about:blank" style="width:100%;height:500px;border:none;display:block"></iframe>
-    </div>
-
-  </div>
-</div>
-
 <script>
-// =============================================
-// HEALTH CHECK DATA
-// =============================================
+// ============================================================
+// FILE HEALTH CHECK — HC_MODULES DATA
+// ============================================================
 const HC_MODULES = [
   {
     id: 'hc_pages', icon: '🖥️', label: 'Pages & Templates', color: '#6366f1',
@@ -750,6 +973,29 @@ const HC_MODULES = [
 // Per-item status store
 const hcStatus = {};
 
+function hcGetBase() {
+  return (document.getElementById('hcBaseUrl')?.value || localStorage.getItem('wd_hc_base') || 'http://localhost').replace(/\/$/, '');
+}
+
+async function hcTestBase() {
+  const base = hcGetBase();
+  const el   = document.getElementById('hcBaseStatus');
+  el.textContent = '⏳ Testing...';
+  try {
+    const resp = await fetch(base + '/wealthdash/auth/login.php', { method: 'GET', credentials: 'include' });
+    if (resp.ok || resp.status === 302) {
+      el.textContent = '✅ Connected! Checks chalao.';
+      el.style.color = 'var(--green)';
+    } else {
+      el.textContent = '⚠️ ' + resp.status + ' — XAMPP chal raha hai?';
+      el.style.color = 'var(--yellow)';
+    }
+  } catch(e) {
+    el.textContent = '❌ Connection failed — XAMPP start karo ya URL check karo';
+    el.style.color = 'var(--red)';
+  }
+}
+
 function hcRenderGrid(filter='all') {
   const grid = document.getElementById('hcGrid');
   grid.innerHTML = '';
@@ -794,10 +1040,11 @@ function hcRenderGrid(filter='all') {
 async function hcCheckItem(id, url, type, rowEl) {
   const dot = document.getElementById('hcs_'+id);
   const msg = document.getElementById('hcm_'+id);
+  if (!dot) return;
   dot.style.background = 'var(--yellow)';
   msg.textContent = '⏳';
   try {
-    const base = 'http://localhost';
+    const base = hcGetBase();
     const resp = await fetch(base + url, {method:'GET', credentials:'include'});
     const text = await resp.text();
     const isJsonOk = type === 'api' && (() => { try { const j = JSON.parse(text); return j.success !== false; } catch(e) { return false; } })();
@@ -823,6 +1070,7 @@ async function hcCheckItem(id, url, type, rowEl) {
   } catch(e) {
     dot.style.background = 'var(--red)';
     msg.textContent = '❌ no conn';
+    msg.title = 'Error: ' + e.message + '\nXAMPP chal raha hai? Base URL sahi hai?';
     hcStatus[id] = 'fail';
   }
   hcUpdateSummary();
@@ -904,13 +1152,12 @@ function hcReset() {
 // Initial render
 hcRenderGrid();
 </script>
-
 <script>
 // =============================================
 // DATA
 // =============================================
 const PHASES=[
-{id:'p_bug',ico:'🐛',color:'#dc2626',title:'Phase 1 — Critical Bug Fixes',tasks:[
+{id:'p_bug',ico:'🐛',color:'#dc2626',title:'Phase 1 — Critical Bug Fixes',cat:'general',tasks:[
   {id:'t01',title:'1D Change ⏳ — renderHoldings ke andar hi inline inject karo',pr:'p0',type:'bug',eff:'1-2 hr',
    files:['public/js/mf.js'],
    desc:'renderHoldings() rows mein ⏳ hardcoded hai. Sort/filter/toggle pe row re-render hoti hai aur 1D data uda jaata hai.',
@@ -934,7 +1181,7 @@ const PHASES=[
    files:['peak_nav/status.php'],
    sub:['Query update karo: total = pending + working + needs_update + done','Progress% = done/total * 100','Status breakdown table mein needs_update row dikhao']},
 ]},
-{id:'p_mf',ico:'📈',color:'#6366f1',title:'Phase 2 — MF Holdings & SIP/SWP Module',tasks:[
+{id:'p_mf',ico:'📈',color:'#6366f1',title:'Phase 2 — MF Holdings & SIP/SWP Module',cat:'mf',tasks:[
   {id:'t07',title:'Holdings table — SIP/SWP column hatao, fund name badge banao',pr:'p1',type:'bug',eff:'30 min',
    files:['templates/pages/mf_holdings.php','public/js/mf.js'],
    sub:['Table header se SIP/SWP column remove karo','Fund name cell mein "🔄 SIP" badge dikhao sirf active wale pe','colspan adjust karo']},
@@ -959,7 +1206,7 @@ const PHASES=[
    files:['templates/pages/report_sip.php','api/reports/sip_tracker.php'],
    sub:['API mein SWP schedules bhi fetch karo','Report mein SIP aur SWP alag sections mein','Upcoming dates highlight karo','Total invested vs current value dikhao per SIP']},
 ]},
-{id:'p_po',ico:'📮',color:'#ea580c',title:'Phase 3 — Post Office Schemes',tasks:[
+{id:'p_po',ico:'📮',color:'#ea580c',title:'Phase 3 — Post Office Schemes',cat:'postoffice',tasks:[
   {id:'t14',title:'TD — 4 sub-tenures (1/2/3/5 yr), har tenure ki alag rate',pr:'p0',type:'bug',eff:'2-3 hr',db:true,
    files:['api/po_schemes/po_schemes.php','templates/pages/post_office.php'],
    desc:'TD mein 4 tenures ke 4 alag rates hain.',
@@ -981,7 +1228,7 @@ const PHASES=[
    desc:'PPF=EEE, MIS=taxable, SCSS=TDS, KVP=annual, NSC=deemed reinvest, SSY=EEE',
    sub:['Har scheme card pe scheme-specific tax badge','Color: Green=Tax Free, Yellow=Partial, Red=Fully Taxable','Click pe detailed breakdown']},
 ]},
-{id:'p_gen',ico:'🔧',color:'#0d9488',title:'Phase 4 — General App Improvements',tasks:[
+{id:'p_gen',ico:'🔧',color:'#0d9488',title:'Phase 4 — General App Improvements',cat:'general',tasks:[
   {id:'t20',title:'Pagination — FD, Savings, NPS, Stocks tables pe add karo',pr:'p2',type:'feat',eff:'1-2 hr each',
    files:['templates/pages/fd.php','templates/pages/savings.php','templates/pages/nps.php','templates/pages/stocks.php'],
    sub:['FD, Savings, NPS, Stocks — 10/25/50 per page','Reusable paginator component banao']},
@@ -998,7 +1245,7 @@ const PHASES=[
    files:['api/crypto/ (NEW)','templates/pages/crypto.php (NEW)'],
    sub:['crypto_holdings table banao','CoinGecko free API se live price fetch karo','Holdings page: list + current value','Dashboard mein crypto tile','Net worth mein crypto include']},
 ]},
-{id:'p_scr',ico:'🔍',color:'#9333ea',title:'Phase 5 — MF Screener New Features',tasks:[
+{id:'p_scr',ico:'🔍',color:'#9333ea',title:'Phase 5 — MF Screener New Features',cat:'mf',tasks:[
   {id:'t25',title:'NAV History Chart — Screener drawer mein add karo',pr:'p2',type:'feat',eff:'4-5 hr',
    files:['templates/pages/mf_screener.php'],
    desc:'nav_history table ✅. mf_nav_history.php API ✅. Sirf Chart UI banana hai.',
@@ -1019,7 +1266,7 @@ const PHASES=[
    files:['database/migrations/ (NEW)','includes/notification.php'],
    sub:['DB: price_alerts table','Screener drawer mein "🔔 Set Alert" button','Cron: daily crossing detect karo','Notification bell mein dikhao']},
 ]},
-{id:'p_rep',ico:'📊',color:'#16a34a',title:'Phase 6 — Reports & Data Improvements',tasks:[
+{id:'p_rep',ico:'📊',color:'#16a34a',title:'Phase 6 — Reports & Data Improvements',cat:'reports',tasks:[
   {id:'t31',title:'MF Transactions — table headers clickable sort karo',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['templates/pages/mf_transactions.php','public/js/mf.js'],
    sub:['Date, Fund, Amount, NAV, Units columns sort karo','Active sort column arrow indicator']},
@@ -1034,7 +1281,7 @@ const PHASES=[
    desc:'Abhi export pe sab data aata hai. Filtered data export hona chahiye.',
    sub:['Export click pe current filters bhi pass karo API ko','Filename mein filter info include karo']},
 ]},
-{id:'p_stocks',ico:'📉',color:'#2563eb',title:'Phase 7 — Stocks & ETF Module',tasks:[
+{id:'p_stocks',ico:'📉',color:'#2563eb',title:'Phase 7 — Stocks & ETF Module',cat:'stocks',tasks:[
   {id:'t36',title:'Stocks holdings page — CAGR aur gain% add karo',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/stocks.php','public/js/stocks.js'],
    sub:['Avg buy price se current price ka CAGR calculate karo','Gain/Loss% column add karo','Sector-wise grouping add karo','Sort by gain%']},
@@ -1048,7 +1295,7 @@ const PHASES=[
    files:['templates/pages/report_fy.php','api/reports/fy_gains.php'],
    sub:['Stocks STCG: held < 1 yr → 15% tax','Stocks LTCG: held > 1 yr → 10% above ₹1L','Grandfathering clause: Jan 31 2018 price','FY report mein stocks section alag dikhao']},
 ]},
-{id:'p_crypto',ico:'₿',color:'#f59e0b',title:'Phase 8 — Crypto Module',tasks:[
+{id:'p_crypto',ico:'₿',color:'#f59e0b',title:'Phase 8 — Crypto Module',cat:'crypto',tasks:[
   {id:'t40',title:'Crypto holdings table banao + CoinGecko API',pr:'p2',type:'feat',eff:'1-2 days',db:true,
    files:['api/crypto/crypto_list.php (NEW)','api/crypto/crypto_add.php (NEW)'],
    sub:['crypto_holdings: user_id, coin_id, symbol, name, quantity, avg_buy_price_inr','CoinGecko /simple/price?ids=bitcoin,ethereum&vs_currencies=inr&include_24hr_change=true','Daily cron: price update karo','FIFO/Avg cost basis calculation']},
@@ -1059,7 +1306,7 @@ const PHASES=[
    files:['api/reports/fy_gains.php','includes/tax_engine.php'],
    sub:['VDA: flat 30% tax on all gains (no set-off allowed)','1% TDS on sell above ₹50K','FY report mein crypto section alag','Set-off restriction ka note dikhao']},
 ]},
-{id:'p_banks',ico:'🏦',color:'#6366f1',title:'Phase 9 — Banks & FD Advanced',tasks:[
+{id:'p_banks',ico:'🏦',color:'#6366f1',title:'Phase 9 — Banks & FD Advanced',cat:'fd',tasks:[
   {id:'t43',title:'Bank accounts tracker — balance + interest history',pr:'p2',type:'feat',eff:'2-3 days',db:true,
    files:['api/banks/ (NEW)','templates/pages/banks.php (NEW)'],
    sub:['bank_accounts: id, user_id, bank_name, acc_type, balance, interest_rate','Monthly balance log karo','Interest earned YTD calculate karo','Dashboard mein savings tile update karo']},
@@ -1070,7 +1317,7 @@ const PHASES=[
    files:['api/banks/ (NEW)'],
    sub:['rd_accounts table banao','Monthly installment tracking','Maturity amount calculator','Current value calculator']},
 ]},
-{id:'p_govt',ico:'🏛️',color:'#64748b',title:'Phase 10 — Govt & Employee Schemes',tasks:[
+{id:'p_govt',ico:'🏛️',color:'#64748b',title:'Phase 10 — Govt & Employee Schemes',cat:'general',tasks:[
   {id:'t46',title:'EPF tracker — monthly contribution + interest',pr:'p2',type:'feat',eff:'2-3 days',db:true,
    files:['api/govt_schemes/ (NEW)','templates/pages/govt_schemes.php (NEW)'],
    sub:['epf_accounts table: uan, employer_name, monthly_contribution, employer_contribution','EPF interest 8.15% per annum','EPS contribution separate track karo','UAN portal se balance manually update']},
@@ -1084,7 +1331,7 @@ const PHASES=[
    files:['api/govt_schemes/ (NEW)'],
    sub:['Leave balance track karo','LTA claim history','Tax exemption limits note karo']},
 ]},
-{id:'p_admin',ico:'👑',color:'#7c3aed',title:'Phase 11 — Super Admin Panel',tasks:[
+{id:'p_admin',ico:'👑',color:'#7c3aed',title:'Phase 11 — Super Admin Panel',cat:'admin',tasks:[
   {id:'t50',title:'Admin — Multi-user management (ban/unban/role change)',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['templates/pages/admin.php','api/admin/'],
    sub:['Users list with roles','Ban/Unban user','Change role: user/admin/super_admin','View user portfolio summary (read only)','Login as user (debug mode)']},
@@ -1098,7 +1345,7 @@ const PHASES=[
    files:['templates/pages/admin.php'],
    sub:['Safe SQL executor (SELECT only)','Full DB backup download (mysqldump)','Migration runner — run pending migrations','Table size stats','Dangerous: truncate / delete with confirmation']},
 ]},
-{id:'p_user',ico:'👤',color:'#0891b2',title:'Phase 12 — User Control Panel',tasks:[
+{id:'p_user',ico:'👤',color:'#0891b2',title:'Phase 12 — User Control Panel',cat:'admin',tasks:[
   {id:'t54',title:'User settings — profile, currency, date format',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
    files:['templates/pages/settings.php (NEW)'],
    sub:['Profile: name, email, avatar','Default currency (INR default)','Date format preference','Number format (Indian vs International)','Notification preferences']},
@@ -1112,7 +1359,7 @@ const PHASES=[
    files:['includes/notification.php','templates/topbar.php'],
    sub:['DB: notifications table','Bell icon topbar mein','Types: FD maturity, NAV alert, SIP due, AI insight','Mark as read / clear all']},
 ]},
-{id:'p_ai',ico:'🤖',color:'#8b5cf6',title:'Phase 13 — AI Features (Claude API)',tasks:[
+{id:'p_ai',ico:'🤖',color:'#8b5cf6',title:'Phase 13 — AI Features (Claude API)',cat:'ai',tasks:[
   {id:'t58',title:'AI Portfolio Advisor — monthly insights + recommendations',pr:'p3',type:'ai',eff:'3-5 days',db:true,
    files:['api/ai_advisor/ (NEW)','includes/ai_engine.php (NEW)'],
    desc:'Claude API use karke user ke portfolio ka analysis karo aur personalized advice do.',
@@ -1132,7 +1379,7 @@ const PHASES=[
    sub:['March ke end mein: 80C gap dikhao','LTCG harvesting opportunity detect karo (book gains under ₹1L limit)','ELSS vs PPF recommendation','Loss harvesting: kaunse funds sell karke tax save ho']},
 ]},
 
-{id:'p_mf_alpha',ico:'📈',color:'#6366f1',title:'Phase 14B — MF Alpha & Rolling Returns',tasks:[
+{id:'p_mf_alpha',ico:'📈',color:'#6366f1',title:'Phase 14B — MF Alpha & Rolling Returns',cat:'mf',tasks:[
   {id:'t93',title:'Alpha & Beta — Fund ki risk-adjusted performance calculate karo',pr:'p1',type:'feat',eff:'2-3 days',db:true,
    files:['database/migrations/013_fund_metrics.sql (NEW)','cron/update_nav_daily.php','api/mutual_funds/fund_screener.php','templates/pages/mf_screener.php'],
    desc:'Alpha = kitna extra return diya benchmark se upar. Beta = market ke saath kitna move karta hai. Sharpe = risk per unit return. Ye sab Value Research aur MoneyControl dikhate hain.',
@@ -1158,7 +1405,7 @@ const PHASES=[
    sub:['DB: fund_inception_date, manager_since columns','Fund age badge: <1yr (New), 1-3yr, 3-5yr, 5yr+ (Veteran)','Manager tenure: kitne saal same manager chal raha hai','Screener filter: Fund age > 3yr, Manager tenure > 2yr','Manager change alert: jab fund manager change ho notify karo']},
 ]},
 
-{id:'p_nps_advanced',ico:'🏛️',color:'#0369a1',title:'Phase 15B — NPS Complete Overhaul (MF Jaisa)',tasks:[
+{id:'p_nps_advanced',ico:'🏛️',color:'#0369a1',title:'Phase 15B — NPS Complete Overhaul (MF Jaisa)',cat:'nps',tasks:[
   {id:'t99',title:'NPS NAV History Store karo — MF ki tarah nav_history table',pr:'p0',type:'feat',eff:'2-3 days',db:true,
    files:['database/migrations/014_nps_nav_history.sql (NEW)','cron/nps_nav_scraper.php','api/nps/nps_list.php'],
    desc:'MF mein nav_history table hai jisme historical NAV store hoti hai. NPS ke liye bhi yahi chahiye — CAGR, XIRR, charts ke liye zaroori hai.',
@@ -1193,9 +1440,22 @@ const PHASES=[
   {id:'t107',title:'NPS Maturity Calculator — Retirement corpus projection',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['templates/pages/nps.php'],
    sub:['Input: current age, retirement age, monthly contribution, expected return','Projection chart: corpus growth year by year','Lump sum (60%) + Annuity (40%) split dikhao','Monthly pension estimate (annuity rate ~6%)','Inflation-adjusted real value bhi dikhao','SIP step-up option: contribution har saal X% badhao']},
+  {id:'t196',title:'NPS NAV History Chart Modal — Scheme name click → NAV trend chart',pr:'p1',type:'feat',eff:'3-4 hr',
+   files:['api/nps/nps_nav_history.php','api/router.php','templates/pages/nps.php','public/js/nps.js'],
+   desc:'MF holdings mein fund naam click karne pe chart modal khulta hai. Same cheez NPS ke liye. Scheme naam clickable banao → Chart.js line chart with contribution markers, avg cost line, range switching (3M/6M/1Y/3Y/All).',
+   sub:['api/nps/nps_nav_history.php — New endpoint, nps_nav_history table se data fetch','router.php mein nps_nav_history action add karo','nps.php mein #modalNpsChart HTML add karo','nps.js mein NPS.openChartModal(), _ncRenderChart(), _ncFetchTxns() functions','Contribution pills — Self (green triangle) aur Employer (blue diamond) markers','Range buttons: 3M / 6M / 1Y / 3Y / All','Stats strip: Invested, Current, Gain, CAGR/XIRR, Units×NAV','Backdrop click se modal close ho'],
+   prompt:'NPS holdings table mein scheme naam clickable banao. Click karne pe chart modal khule jisme nps_nav_history table se NAV data Chart.js line chart pe dikhao. Contribution markers bhi dikhao (self=green triangle, employer=blue diamond). Range switching (3M/6M/1Y/3Y/All) aur stats strip bhi chahiye. Files: api/nps/nps_nav_history.php (new), router.php, nps.php (modal HTML), nps.js (chart functions).'},
+  {id:'t197',title:'NPS Contribution SIP Tracker — Monthly auto-debit tracking',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/nps.php','api/reports/sip_tracker.php','public/js/nps.js'],
+   desc:'Agar user monthly NPS mein contribute karta hai (employer ya self) to SIP tracker jaisi cheez dikhao. Expected vs actual contribution ka comparison.',
+   sub:['NPS mein "SIP Mode" toggle — monthly expected amount set karo','Har FY mein expected contributions vs actual comparison','Missing months highlight karo (red badge)','Annual contribution chart — bar chart','Tax saving projection: agar full 80CCD(1B) utilize karo to kitni saving hogi','CSV export with FY summary']},
+  {id:'t198',title:'NPS Screener — PFM + Asset Class wise comparison tool',pr:'p2',type:'feat',eff:'2-3 days',
+   files:['templates/pages/nps_screener.php','api/nps/nps_screener.php'],
+   desc:'NPS screener page already hai (nps_screener.php) lekin basic hai. MF screener jaisa proper comparison tool banana hai.',
+   sub:['Filter: PFM (HDFC/SBI/ICICI/etc), Tier (I/II), Asset Class (E/C/G/A)','Returns column: 1Y / 3Y / 5Y / Since Inception','Sort by any column','NAV history chart modal — scheme naam click karo (t196 se reuse karo)','Benchmark comparison: Equity class vs Nifty 50','AUM column: scheme size dikhao','Export CSV with all metrics']},
 ]},
 
-{id:'p_fund_finder_v2',ico:'🔍',color:'#7c3aed',title:'Phase 16B — Fund Finder Complete (v2)',tasks:[
+{id:'p_fund_finder_v2',ico:'🔍',color:'#7c3aed',title:'Phase 16B — Fund Finder Complete (v2)',cat:'mf',tasks:[
   {id:'t108',title:'Fund Finder v2 — MF Screener ko properly "Find Funds" banana',pr:'p1',type:'feat',eff:'2-3 days',
    files:['templates/pages/mf_screener.php','api/mutual_funds/fund_screener.php'],
    desc:'Sidebar mein "Find Funds" → mf_screener.php jaata hai. Lekin screener bahut basic hai. MoneyControl/ValueResearch level banana hai.',
@@ -1217,7 +1477,7 @@ const PHASES=[
    sub:['Screener drawer mein prominent "Add to Portfolio" button','Holdings se "Swap Fund" — exit ek, enter doosra same amount','"Similar better funds" — agar current fund underperform kar raha hai to alternatives suggest karo','Portfolio health score: overall rating of current holdings']},
 ]},
 
-{id:'p_instruments',ico:'💎',color:'#b45309',title:'Phase 19 — New Investment Instruments',tasks:[
+{id:'p_instruments',ico:'💎',color:'#b45309',title:'Phase 19 — New Investment Instruments',cat:'general',tasks:[
   {id:'t113',title:'Sovereign Gold Bonds (SGB) — Full lifecycle tracker',pr:'p1',type:'feat',eff:'2-3 days',db:true,
    files:['api/sgb/sgb.php (NEW)','templates/pages/sgb.php (NEW)','database/migrations/017_sgb.sql'],
    desc:'SGB sirf FD ya gold nahi hai — 2.5% annual interest + gold price appreciation + capital gains exemption on maturity. Yeh sab track karna zaroori hai.',
@@ -1260,7 +1520,7 @@ const PHASES=[
    sub:['DB: property_holdings — type(residential/commercial), location, purchase_price, current_value, rental_income, loan_outstanding','Rental yield: annual_rent / property_value * 100','Capital gains: LTCG after 2 years, indexation benefit applicable (old regime)','Net worth mein include karo (value - loan)','EMI vs rent comparison','Real return: appreciation - inflation - maintenance costs']},
 ]},
 
-{id:'p_analytics2',ico:'📉',color:'#0f766e',title:'Phase 20 — Advanced Portfolio Analytics',tasks:[
+{id:'p_analytics2',ico:'📉',color:'#0f766e',title:'Phase 20 — Advanced Portfolio Analytics',cat:'dashboard',tasks:[
   {id:'t125',title:'TWRR — Time Weighted Return (cashflow-independent)',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['includes/holding_calculator.php','templates/pages/mf_holdings.php'],
    desc:'XIRR cashflow timing pe depend karta hai. TWRR actual fund performance dikhata hai regardless of when you invested.',
@@ -1314,7 +1574,7 @@ const PHASES=[
    sub:['CII (Cost Inflation Index) table: 2001-02 se present','Indexed cost = Purchase price × (CII of sale year / CII of purchase year)','Debt MF: only for units purchased before April 1 2023','Real estate: always eligible','Tax: without indexation 12.5%, with indexation 20% (kaunsa kam hai decide karo)','Show: "Indexed cost ₹X → LTCG ₹Y → Tax ₹Z"','For real estate linked to property tracker']},
 ]},
 
-{id:'p_behavioral',ico:'🧠',color:'#9333ea',title:'Phase 21 — Behavioral Finance Features',tasks:[
+{id:'p_behavioral',ico:'🧠',color:'#9333ea',title:'Phase 21 — Behavioral Finance Features',cat:'dashboard',tasks:[
   {id:'t139',title:'Goal-Based Buckets — SIP/fund ko life goal se tag karo',pr:'p1',type:'feat',eff:'2-3 days',db:true,
    files:['templates/pages/goals.php','api/goals/goals.php (NEW)','database/migrations/025_goal_buckets.sql'],
    desc:'₹14.45L portfolio nahi — "Daughter Education" + "Retirement" + "House Down Payment" buckets. Behavioral research: goal-labeled accounts have 30% higher SIP continuation.',
@@ -1350,7 +1610,7 @@ const PHASES=[
    sub:['Anonymous aggregate: users in same age/income bracket','Metrics shared: SIP consistency%, asset allocation%, emergency fund months','"70% of investors your age have higher equity allocation than you"','"You are in top 15% for SIP consistency"','No fund names shared — only behavior metrics','Opt-in: users choose to participate','Weekly insight: one actionable comparison']},
 ]},
 
-{id:'p_integrations',ico:'🔗',color:'#0284c7',title:'Phase 22 — India Ecosystem Integrations',tasks:[
+{id:'p_integrations',ico:'🔗',color:'#0284c7',title:'Phase 22 — India Ecosystem Integrations',cat:'general',tasks:[
   {id:'t148',title:'CAMS + KFintech CAS Auto-Import — Full portfolio in one click',pr:'p1',type:'feat',eff:'3-4 days',
    files:['api/mutual_funds/cas_import.php (NEW)','templates/pages/mf_holdings.php'],
    desc:'CAMS + KFintech cover 95%+ of Indian MF industry. CAS (Consolidated Account Statement) import karo — all MF transactions auto-sync.',
@@ -1373,7 +1633,7 @@ const PHASES=[
    sub:['Zerodha Kite Connect API: holdings, P&L, order history','Groww API (if available): portfolio sync','Upstox API v3: holdings + transaction history','OAuth-based: no password sharing','Auto-sync: daily holdings + P&L update','Corporate actions: bonus, split, dividend auto-adjust','Reconcile: broker data vs WealthDash manual entries']},
 ]},
 
-{id:'p_life_planning',ico:'🏡',color:'#be185d',title:'Phase 23 — Life Planning & Family',tasks:[
+{id:'p_life_planning',ico:'🏡',color:'#be185d',title:'Phase 23 — Life Planning & Family',cat:'dashboard',tasks:[
   {id:'t154',title:'FIRE Calculator — Financial Independence Retire Early planner',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['templates/pages/goals.php'],
    sub:['FIRE number: 25x annual expenses (4% withdrawal rule)','Coast FIRE: corpus needed today to retire without more investing','Barista FIRE: part-time income covers expenses calculator','Input: current corpus, monthly expenses, expected return, inflation','Output: years to FIRE, FIRE number, monthly SIP needed','India adjustment: 6% inflation (higher than US), 12% equity expected','Progress bar: X% of FIRE number achieved','SWP sustainability at retirement: can corpus last 30 years?']},
@@ -1394,7 +1654,7 @@ const PHASES=[
    files:['api/cashflow/cashflow.php (NEW)','templates/pages/cashflow.php (NEW)'],
    sub:['Bank statement import (AA framework ya CSV)','Auto-categorize: Salary, SIP, EMI, Rent, Food, Entertainment','Income vs Expense chart monthly','Savings rate: (income - expense) / income → target 30%+','Lifestyle inflation: is expense growing faster than income?','Investment %: what % of income going to investments','SIP schedule vs actual: deductions match karo']},
 ]},
-{id:'p_screener2',ico:'🔍',color:'#0891b2',title:'Phase 14 — MF Screener Advanced (NFO + AUM + Filters)',tasks:[
+{id:'p_screener2',ico:'🔍',color:'#0891b2',title:'Phase 14 — MF Screener Advanced (NFO + AUM + Filters)',cat:'mf',tasks:[
   {id:'t63',title:'AUM Filter — Screener mein AUM range filter add karo',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/mf_screener.php','api/mutual_funds/fund_screener.php'],
    desc:'aum_crore column funds table mein already hai (drawer mein dikhta bhi hai) lekin filter nahi. MoneyControl style range filter add karo.',
@@ -1419,7 +1679,7 @@ const PHASES=[
    files:['templates/pages/mf_screener.php','api/mutual_funds/fund_screener.php'],
    sub:['Export button screener mein','Current filters apply karke export','Columns: Fund, AMC, NAV, AUM, Expense, Returns, Risk']},
 ]},
-{id:'p_mf_analytics',ico:'📊',color:'#7c3aed',title:'Phase 15 — MF Analytics',tasks:[
+{id:'p_mf_analytics',ico:'📊',color:'#7c3aed',title:'Phase 15 — MF Analytics',cat:'mf',tasks:[
   {id:'t70',title:'Portfolio Overlap — 2 funds mein common stocks detect karo',pr:'p2',type:'feat',eff:'2-3 days',db:true,
    files:['api/mutual_funds/overlap.php (NEW)','templates/pages/mf_holdings.php'],
    desc:'Same stocks in 2 funds = less actual diversification.',
@@ -1440,7 +1700,7 @@ const PHASES=[
    files:['templates/pages/mf_holdings.php'],
    sub:['Monthly calendar: transaction dots','SIP upcoming dates highlight','Heat map: invest amount per month','FD maturity + NFO closing overlay']},
 ]},
-{id:'p_alerts',ico:'🔔',color:'#dc2626',title:'Phase 16 — Smart Alerts & Notifications',tasks:[
+{id:'p_alerts',ico:'🔔',color:'#dc2626',title:'Phase 16 — Smart Alerts & Notifications',cat:'general',tasks:[
   {id:'t77',title:'NAV Price Alert — Target NAV pe notify karo',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
    files:['api/mutual_funds/price_alerts.php (NEW)','templates/pages/mf_screener.php','database/migrations/011_alerts.sql'],
    sub:['DB: price_alerts — user_id, fund_id, type, target_nav, triggered_at','Screener drawer mein Alert button','Above/Below NAV input','Daily cron compare karo','In-app notification + badge']},
@@ -1457,7 +1717,7 @@ const PHASES=[
    files:['templates/topbar.php','includes/notification.php','database/migrations/012_notifications.sql'],
    sub:['Topbar bell + unread badge','DB: notifications table','Types: NAV | FD | SIP | Drawdown | NFO | System','Mark read / Clear all','Per-category on/off']},
 ]},
-{id:'p_tax2',ico:'🧾',color:'#15803d',title:'Phase 17 — Tax Planning Dashboard',tasks:[
+{id:'p_tax2',ico:'🧾',color:'#15803d',title:'Phase 17 — Tax Planning Dashboard',cat:'reports',tasks:[
   {id:'t82',title:'80C Dashboard — ₹1.5L limit complete tracker',pr:'p1',type:'feat',eff:'3-4 hr',
    files:['templates/pages/report_tax.php','api/reports/tax_planning.php'],
    sub:['Progress bar: ₹0 to ₹1.5L filled','Breakdown: ELSS, PPF, EPF, NSC, SSY','Remaining amount + March deadline alert','80CCD NPS extra 50K track','80D health insurance']},
@@ -1471,7 +1731,7 @@ const PHASES=[
    files:['templates/pages/report_tax.php'],
    sub:['Input: salary, HRA, home loan, deductions','Side-by-side: Old vs New tax','Recommendation + savings amount']},
 ]},
-{id:'p_ux',ico:'✨',color:'#f59e0b',title:'Phase 18 — UX & Quality of Life',tasks:[
+{id:'p_ux',ico:'✨',color:'#f59e0b',title:'Phase 18 — UX & Quality of Life',cat:'general',tasks:[
   {id:'t86',title:'Dark Mode — Proper dark theme toggle',pr:'p2',type:'feat',eff:'3-4 hr',
    files:['public/css/app.css','templates/topbar.php','public/js/app.js'],
    sub:['CSS variables wire up karo','Topbar 🌙/☀️ toggle button','localStorage save','prefers-color-scheme detect','Charts color bhi switch karo']},
@@ -1721,7 +1981,7 @@ Please:
 
 const NEW_PHASES = [
 
-{id:'p_mf_data',ico:'📡',color:'#0891b2',title:'Phase 25 — MF Data Pipeline (NAV History + Returns)',tasks:[
+{id:'p_mf_data',ico:'📡',color:'#0891b2',title:'Phase 25 — MF Data Pipeline (NAV History + Returns)',cat:'mf',tasks:[
   {id:'t160',title:'NAV History Populate — MFAPI se historical data fetch karo',pr:'p0',type:'feat',eff:'2-3 hr',db:true,
    files:['cron/populate_nav_history.php (NEW)'],
    desc:'nav_history table already hai lekin data nahi. MFAPI.in se free mein sab funds ka full history fetch karo.',
@@ -1740,7 +2000,7 @@ const NEW_PHASES = [
    sub:['PHP proxy: api/mutual_funds/nav_proxy.php','DB cache: agar nav_history mein data hai to seedha return karo','Fallback: MFAPI call karo agar cache miss','Cache TTL: 24 hours','Response format: same as MFAPI ({data:[{date,nav}]})','CORS headers add karo']},
 ]},
 
-{id:'p_mf_screener3',ico:'🔍',color:'#7c3aed',title:'Phase 26 — MF Screener Level 3',tasks:[
+{id:'p_mf_screener3',ico:'🔍',color:'#7c3aed',title:'Phase 26 — MF Screener Level 3',cat:'mf',tasks:[
   {id:'t164',title:'Sharpe Ratio — Risk-adjusted return metric add karo',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['cron/calculate_returns.php','api/mutual_funds/fund_screener.php','templates/pages/mf_screener.php'],
    desc:'Sharpe = (Fund Return - Risk Free Rate) / Standard Deviation. Best risk-adjusted return indicator.',
@@ -1766,7 +2026,7 @@ const NEW_PHASES = [
    sub:['DB: expense_ratio_history — fund_id, expense_ratio, recorded_date','Monthly snapshot store karo','Drawer mein trend line: TER last 12 months','Alert: "TER increased by 0.2% in last 6 months"','SEBI TER limits check: Large cap max 1.05%, Mid 1.20%']},
 ]},
 
-{id:'p_mf_portfolio2',ico:'💼',color:'#059669',title:'Phase 27 — MF Portfolio Intelligence',tasks:[
+{id:'p_mf_portfolio2',ico:'💼',color:'#059669',title:'Phase 27 — MF Portfolio Intelligence',cat:'mf',tasks:[
   {id:'t170',title:'SIP Return Analysis — Lump sum vs SIP comparison',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/mf_holdings.php','public/js/mf.js'],
    desc:'Mera SIP better tha ya ek baar lump sum deta to better hota? Real data se answer.',
@@ -1791,7 +2051,7 @@ const NEW_PHASES = [
    sub:['User sets target allocation: Equity %, Debt %, Gold %','Current allocation calculate karo from holdings','Alert: "Equity allocation drifted from 60% to 72%. Rebalance needed."','Rebalancing guide: kaise karo (redeem equity, buy debt)','Auto-rebalance suggestion: exact amounts to buy/sell']},
 ]},
 
-{id:'p_mf_data2',ico:'📊',color:'#dc2626',title:'Phase 28 — MF Data Enrichment',tasks:[
+{id:'p_mf_data2',ico:'📊',color:'#dc2626',title:'Phase 28 — MF Data Enrichment',cat:'mf',tasks:[
   {id:'t176',title:'Fund Overlap Matrix — All funds pairwise overlap',pr:'p2',type:'feat',eff:'3-4 hr',db:true,
    files:['database/migrations/028_fund_holdings.sql','cron/fetch_fund_holdings.php (NEW)'],
    desc:'AMFI monthly portfolio disclosure (CSV) se actual stock-level holdings fetch karo.',
@@ -1813,7 +2073,7 @@ const NEW_PHASES = [
    sub:['DB: fund_managers — name, fund_id, from_date, to_date','Manager switch history track karo','Performance attribution: pre vs post manager change','Top managers by 5Y alpha across all managed funds','Alert: "Fund manager changed 3 months ago — monitor performance"']},
 ]},
 
-{id:'p_mf_ux',ico:'🎨',color:'#f59e0b',title:'Phase 29 — MF UX & Productivity',tasks:[
+{id:'p_mf_ux',ico:'🎨',color:'#f59e0b',title:'Phase 29 — MF UX & Productivity',cat:'mf',tasks:[
   {id:'t181',title:'Quick Add SIP from Holdings — One click SIP add karo',pr:'p1',type:'feat',eff:'1-2 hr',
    files:['templates/pages/mf_holdings.php','public/js/mf.js'],
    sub:['Holdings row mein "+ SIP" quick button','Pre-fill fund name, folio — user sirf amount + date dale','Amount suggestions: ₹500, ₹1000, ₹2000, ₹5000 quick pills','SIP start from next 1st or 5th or 10th of month']},
@@ -1835,7 +2095,7 @@ const NEW_PHASES = [
    sub:['@media print CSS — clean layout','Page header: WealthDash Confidential + date + user name','Holdings table: all columns, no dropdowns','FY Gains: ITR-ready format','Page breaks between sections','PDF: use browser print → save as PDF']},
 ]},
 
-{id:'p_mf_import2',ico:'📥',color:'#0369a1',title:'Phase 30 — MF Import & Sync',tasks:[
+{id:'p_mf_import2',ico:'📥',color:'#0369a1',title:'Phase 30 — MF Import & Sync',cat:'mf',tasks:[
   {id:'t187',title:'CAMS CAS Import — Auto-parse PDF statement',pr:'p1',type:'feat',eff:'3-4 days',
    files:['api/mutual_funds/cas_import.php (NEW)'],
    desc:'CAMS CAS PDF statement ko parse karo. All transactions automatically import ho.',
@@ -2023,7 +2283,7 @@ function switchTab(id,el){
 // =============================================
 let taskNumMap={};
 function buildTaskNums(phases){
-  phases = phases || [...PHASES,...NEW_PHASES];
+  phases = phases || [...PHASES,...NEW_PHASES,...NEW_PHASES_EXT];
   let n=0;phases.forEach(ph=>ph.tasks.forEach(t=>{taskNumMap[t.id]=++n}))
 }
 
@@ -2076,8 +2336,8 @@ function renderTask(t,ph){
 }
 
 function renderAll(){
-  // Merge NEW_PHASES into PHASES for rendering
-  const ALL_PHASES = [...PHASES, ...NEW_PHASES];
+  // Merge NEW_PHASES + NEW_PHASES_EXT into PHASES for rendering
+  const ALL_PHASES = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
   buildTaskNums(ALL_PHASES);
   const wrap=document.getElementById('phasesWrap');
   wrap.innerHTML='';
@@ -2115,6 +2375,10 @@ function renderAll(){
   refreshChecks();
   updateStats();
   renderPhaseRows();
+  // Re-apply active category filter after render
+  if (typeof _activeCat !== 'undefined' && _activeCat !== 'all') {
+    filterByCategory(_activeCat, document.querySelector(`.catbtn[data-cat="${_activeCat}"]`));
+  }
 }
 
 function refreshChecks(){
@@ -2150,7 +2414,7 @@ function updatePhaseHeader(pid){
 }
 
 function updateStats(){
-  const allPh=[...PHASES,...NEW_PHASES];
+  const allPh=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT];
   let total=0,done=0,sub=0;
   allPh.forEach(ph=>ph.tasks.forEach(t=>{
     total++;if(S[t.id+'_m'])done++;
@@ -2167,13 +2431,17 @@ function updateStats(){
 }
 
 function renderPhaseRows(){
-  document.getElementById('phaseRows').innerHTML=PHASES.slice(0,8).map((ph)=>{
-    const total=ph.tasks.length;
-    const done=ph.tasks.filter(t=>S[t.id+'_m']).length;
-    const pct=total?Math.round(done/total*100):0;
-    const lbl=ph.title.split('—')[1]?.trim()||ph.title;
-    return`<div class="phase-row">
-      <span class="pname">${ph.ico} ${lbl}</span>
+  const allPh = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  const el = document.getElementById('phaseRows');
+  if (!el) return;
+  el.innerHTML = allPh.map((ph) => {
+    const total = ph.tasks.length;
+    const done  = ph.tasks.filter(t => S[t.id+'_m']).length;
+    const pct   = total ? Math.round(done/total*100) : 0;
+    const lbl   = ph.title.split('—')[1]?.trim() || ph.title;
+    const shortLbl = lbl.length > 24 ? lbl.slice(0,22)+'…' : lbl;
+    return `<div class="phase-row" title="${ph.title}: ${done}/${total}">
+      <span class="pname">${ph.ico} ${shortLbl}</span>
       <div class="mini-wrap"><div class="mini-fill" style="width:${pct}%;background:${ph.color}"></div></div>
       <span class="ppct">${pct}%</span>
     </div>`;
@@ -2183,21 +2451,35 @@ function renderPhaseRows(){
 function filterTasks(type,btn){
   document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  // Show all phase blocks first (category filter handles phase-level hiding)
   document.querySelectorAll('.task').forEach(el=>{
     let show=true;
-    if(type==='p0')show=el.dataset.pr==='p0';
-    else if(type==='p1')show=el.dataset.pr==='p1';
-    else if(type==='p2')show=el.dataset.pr==='p2';
-    else if(type==='p3')show=el.dataset.pr==='p3';
-    else if(type==='pending')show=el.dataset.done==='false';
-    else if(type==='done')show=el.dataset.done==='true';
-    el.style.display=show?'':'none';
+    const isDone = el.dataset.done === 'true' || el.classList.contains('done');
+    if(type==='p0')     show = el.dataset.pr==='p0';
+    else if(type==='p1')show = el.dataset.pr==='p1';
+    else if(type==='p2')show = el.dataset.pr==='p2';
+    else if(type==='p3')show = el.dataset.pr==='p3';
+    else if(type==='pending') show = !isDone;
+    else if(type==='done')    show = isDone;
+    el.style.display = show ? '' : 'none';
+  });
+  // Hide phase blocks that have no visible tasks
+  document.querySelectorAll('.phase-block').forEach(block=>{
+    const visibleTasks = block.querySelectorAll('.task:not([style*="display: none"]):not([style*="display:none"])');
+    if(type !== 'all') {
+      block.style.display = visibleTasks.length ? '' : 'none';
+    }
   });
 }
 function searchTasks(q){
   const lq=q.toLowerCase();
   document.querySelectorAll('.task').forEach(el=>{
     el.style.display=(!q||el.textContent.toLowerCase().includes(lq))?'':'none';
+  });
+  // Hide empty phase blocks during search too
+  document.querySelectorAll('.phase-block').forEach(block=>{
+    const visibleTasks = block.querySelectorAll('.task:not([style*="display: none"]):not([style*="display:none"])');
+    block.style.display = (!q || visibleTasks.length) ? '' : 'none';
   });
 }
 
@@ -2571,14 +2853,23 @@ const _completedTasks = [
   't63','t64','t65','t66','t67','t68','t69','t70','t71','t72','t73','t74',
   't77','t78','t79','t80','t81','t82','t83','t85','t86','t87','t88',
   't90','t91','t93','t94','t95','t96','t97','t98',
-  't102','t103','t104','t105','t107','t108','t109','t110','t111','t112','t114',
+  't99','t100','t101','t102','t103','t104','t105','t107',
+  't108','t109','t110','t111','t112','t114',
   't120','t122','t123','t125','t126','t127','t128','t129',
   't132','t133','t134','t135','t136','t137','t138','t139',
   't140','t141','t142','t143','t144','t145','t146','t147',
   't152','t154','t155','t157','t158',
+  't160','t161','t162','t163','t191','t192','t193','t194','t195',
+  't196',
   't23',
-,
-{id:'p_nav_history',ico:'📥',color:'#0e7490',title:'Phase 31 — Full NAV History Download (Since Inception)',tasks:[
+  't181','t182','t183','t184','t185','t186',
+];
+// =============================================
+// NEW PHASES — Phase 32+
+// =============================================
+const NEW_PHASES_EXT = [
+
+{id:'p_nav_history',ico:'📥',color:'#0e7490',title:'Phase 31 — Full NAV History Download (Since Inception)',cat:'mf',tasks:[
   {id:'t191',title:'nav_download_progress table — seed karo sab funds se',pr:'p0',type:'feat',eff:'30 min',db:true,
    files:['peak_nav/setup.sql','database/migrations/'],
    desc:'nav_download_progress table already hai schema mein. Isko properly seed karo.',
@@ -2599,16 +2890,527 @@ const _completedTasks = [
    files:['templates/pages/admin.php'],
    desc:'Admin panel mein dedicated section: Full NAV Download status + quick links.',
    sub:['Card: Total NAV records in nav_history table','Card: Funds with full history vs partial','Link to nav_download/status.php','Quick stats: DB size estimate (rows × ~40 bytes)','Warning: ~5M+ rows expected, 200MB+ storage']},
-]}
+]},
+
+{id:'p_fd_advanced',ico:'💰',color:'#0891b2',title:'Phase 32 — FD & Savings Advanced',cat:'fd',tasks:[
+  {id:'t199',title:'FD Interest Calendar — Har FD ka interest payout schedule',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/fd.php','api/fd/fd_list.php'],
+   desc:'FD mein interest quarterly/half-yearly/annually milti hai. Ek calendar view dikhao — kab kitni interest aayi/aayegi.',
+   sub:['FD table mein payout_frequency column add karo (Monthly/Quarterly/Annual/Maturity)','Calendar heatmap — har mahine kitna interest income','Total interest income this FY (80TTA tracker)','Upcoming payments — next 3 months','FD vs SB account comparison: effective rate after tax']},
+  {id:'t200',title:'FD Laddering Visual — Maturity dates ka Gantt chart',pr:'p3',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/fd.php','public/js/app.js'],
+   desc:'FD laddering strategy — alag-alag maturities mein FD rakho taaki liquidity mile. Visual Gantt chart dikhao.',
+   sub:['Horizontal bar chart — FD start date to maturity date','Color by bank/amount','Upcoming maturity highlight (next 30 days = red, 90 days = yellow)','Total maturity amount per month','Reinvestment suggestion: maturity amount ko kis rate pe re-invest karo']},
+  {id:'t201',title:'RD (Recurring Deposit) Tracker — Monthly installment tracking',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['api/fd/fd_add.php','templates/pages/fd.php'],
+   desc:'RD tracking missing hai. FD module mein hi add karo — alag tab.',
+   db:true,
+   sub:['FD table mein type column add karo: FD/RD','RD: monthly_installment, start_date, tenure_months','Auto-calculate maturity amount using compound interest formula','Missed installment alert system','RD vs FD vs MF SIP comparison calculator']},
+  {id:'t202',title:'Savings Account Interest — 80TTA tracker (₹10K limit)',pr:'p2',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/savings.php','api/savings/savings_list.php'],
+   desc:'Section 80TTA mein savings account interest up to ₹10,000 tax-free hoti hai. Iska tracker banana hai.',
+   sub:['Savings interest earned this FY — auto calculate from balance × rate','80TTA bar: 0 → ₹10,000 limit','Alert when limit reached','Multiple accounts ka combined interest','PDF export for ITR reference']},
+]},
+
+{id:'p_po_advanced',ico:'📮',color:'#ea580c',title:'Phase 33 — Post Office Schemes Advanced',cat:'postoffice',tasks:[
+  {id:'t203',title:'PPF Annual Deposit Tracker — Yearly ₹1.5L limit tracker',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/post_office.php','api/po_schemes/po_schemes.php'],
+   desc:'PPF mein minimum ₹500 aur maximum ₹1.5L/year deposit karo. Iska tracker banana hai.',
+   sub:['PPF section mein "This FY deposits" bar — 0 to ₹1.5L','Remaining capacity dikhao: ₹X aur deposit kar sakte ho','Interest calculation: April ke baad har mahine interest compute karo','5-year lock-in visualization — partial withdrawal eligibility','PPF maturity projection: 15 years + extension'],
+   db:true},
+  {id:'t204',title:'SSY (Sukanya Samriddhi Yojana) — Complete tracker',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/post_office.php','api/po_schemes/po_schemes.php'],
+   desc:'SSY is one of best govt schemes for girl child. Complete lifecycle tracker.',
+   sub:['SSY account: daughter DOB, account open date, maturity date (21 years from opening)','Annual deposit tracker: min ₹250, max ₹1.5L','Maturity calculator: projected corpus at 21','Withdrawal rules: after 18 years (50% for education)','Tax: EEE status — show in 80C tracker']},
+  {id:'t205',title:'NSC Interest — Deemed reinvestment tracker (Section 80C)',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/post_office.php'],
+   desc:'NSC mein years 1-4 ka interest deemed reinvested hota hai aur 80C eligible hai. Iska proper calculation add karo.',
+   sub:['NSC: annual interest = accrued interest for that year','Year 1-4: interest amount ko 80C benefit milega','Year 5 (maturity): interest taxable','Show annual 80C benefit from NSC interest','Cumulative benefit over 5 years']},
+  {id:'t206',title:'Post Office MIS/SCSS — Monthly payout tracker',pr:'p1',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/post_office.php','api/po_schemes/po_schemes.php'],
+   desc:'MIS aur SCSS mein monthly interest payout hoti hai. Iska income tracker banana hai.',
+   sub:['Monthly income calendar: har mahine kitna aayega','Annual income projection','MIS: 5-year tenure, max ₹9L (single), ₹15L (joint)','SCSS: senior citizens, max ₹30L, 5 yr tenure','Combined monthly income from all PO schemes']},
+]},
+
+{id:'p_dashboard_v2',ico:'📊',color:'#2563eb',title:'Phase 34 — Dashboard & Net Worth',cat:'dashboard',tasks:[
+  {id:'t207',title:'Net Worth Timeline — Historical net worth chart',pr:'p1',type:'feat',eff:'3-4 hr',
+   files:['templates/pages/report_networth.php','api/reports/net_worth.php'],
+   desc:'Net worth aaj ka dikhta hai. Historical chart nahi hai. Month-wise net worth track karo.',
+   sub:['net_worth_snapshots table — monthly snapshot store karo','Cron: har mahine 1 tarikhe ko snapshot lo','Line chart: net worth over last 12-24 months','Asset class breakdown per snapshot','Growth rate: MoM, YoY'],
+   db:true},
+  {id:'t208',title:'Dashboard Widgets — Customizable homepage tiles',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['templates/pages/dashboard.php','public/js/app.js'],
+   desc:'Dashboard fixed tiles hain. User choose kare kaunse tiles dikhni chahiye aur order kya ho.',
+   sub:['Widget types: Net Worth, MF Summary, NPS, FD, Stocks, PO, Quick Actions','Drag-and-drop reorder (using Sortable.js)','Show/hide toggle per widget','localStorage mein save widget preferences','Mobile: 1 column, Desktop: 2-3 columns'],
+   db:true},
+  {id:'t209',title:'Quick Actions — Shortcut buttons on dashboard',pr:'p2',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/dashboard.php'],
+   desc:'Dashboard mein quick action buttons: "+SIP", "+FD", "Check Returns", "View Tax Summary".',
+   sub:['Row of shortcut buttons below stat cards','"+Add MF Transaction" — opens mf_holdings + add modal','"+Add FD" — opens fd page + add modal','Contextual suggestions: "Apka 80C ₹X bacha hai — PPF ya NPS mein dalo"','Recent activity feed: last 5 transactions across all modules']},
+  {id:'t210',title:'Asset Allocation Donut — Portfolio-wide asset mix',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/dashboard.php','api/reports/net_worth.php'],
+   desc:'Dashboard mein ek bada donut chart: Equity (MF+Stocks+NPS-E), Debt (FD+PO+NPS-G+C), etc.',
+   sub:['Equity: MF equity funds + stocks + NPS equity class (E)','Debt: FD + PO + NPS govt/corporate bonds','Gold: SGBs + gold ETFs','Cash: savings accounts','Real Estate: if tracked','Target allocation vs actual — show drift','Rebalancing suggestion if drift > 5%']},
+]},
+
+{id:'p_admin_v2',ico:'👑',color:'#7c3aed',title:'Phase 35 — Admin Panel Advanced',cat:'admin',tasks:[
+  {id:'t211',title:'Admin — DB Backup & Restore UI',pr:'p1',type:'feat',eff:'3-4 hr',
+   files:['templates/pages/admin.php','api/admin/db_manage.php'],
+   desc:'Admin panel mein DB backup ek click mein. mysqldump run karo, ZIP karo, download dedo.',
+   sub:['db_manage.php mein "backup" action — mysqldump via exec()','Output: wealthdash_backup_YYYY-MM-DD.sql.gz','Download link generate karo','Automatic backup: weekly cron','Restore: SQL file upload → execute in chunks','Backup history: list of past backups with size + date']},
+  {id:'t212',title:'Admin — System Health Monitor (CPU/RAM/DB Size)',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/admin.php','api/admin/db_manage.php'],
+   desc:'Admin dashboard mein live system stats.',
+   sub:['PHP version, MySQL version, Server OS','DB size: total + per-table (nav_history biggest)','Disk space: used/free','Table row counts: funds, nav_history, mf_transactions, etc.','Recent errors: PHP error log last 20 lines','Cron job status: last run times + results']},
+  {id:'t213',title:'Admin — User Activity Log',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/admin.php','api/admin/users.php'],
+   desc:'Kaun login kiya, kab, kaunsi action ki — audit trail.',
+   sub:['audit_logs table mein user_id, action, details, ip, timestamp','View: filterable table in admin panel','Actions to log: login, MF add/delete, FD add, NPS contribution, CAS import','Export as CSV for compliance','Retention: 90 days, phir purge'],
+   db:true},
+  {id:'t214',title:'Admin — Fund Rules & Whitelist Management',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/admin.php','api/admin/fund_rules.php'],
+   desc:'Fund rules UI already hai (fund_rules.php) lekin admin panel mein properly integrate nahi hua.',
+   sub:['Fund rules list: scheme_code, rule_type, value','Add/Edit/Delete rules from UI','Test rule: given scheme_code → apply all rules → show result','Bulk import rules from CSV','TER rules: fund type wise TER limits']},
+]},
+
+{id:'p_stocks_v2',ico:'📉',color:'#1d4ed8',title:'Phase 36 — Stocks Advanced',cat:'stocks',tasks:[
+  {id:'t215',title:'Stocks — CAGR, Gain%, Cost Basis per stock',pr:'p1',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/stocks.php','api/stocks/stocks_list.php'],
+   desc:'Stocks table mein sirf P&L hain. CAGR, Gain%, Avg Cost add karo.',
+   sub:['Avg cost nav = total_invested / total_units','Gain% = (current_price - avg_cost) / avg_cost × 100','CAGR = ((current_price/avg_cost)^(1/years) - 1) × 100','Sort by CAGR/Gain% column','Color coding: green >0, red <0','1D change column bhi add karo']},
+  {id:'t216',title:'Stocks — Portfolio Analytics (Sector wise)',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['templates/pages/stocks.php'],
+   desc:'Kaunse sectors mein invested ho — IT, Banking, FMCG, Pharma etc.',
+   sub:['Sector field add karo stocks table mein (manual ya NSE data)','Donut chart: sector-wise investment %','Top 5 holdings by value','Portfolio concentration risk: single stock > 20% alert','Beta: portfolio weighted beta','P/E ratio: current market P/E vs portfolio P/E']},
+  {id:'t217',title:'Stocks — Dividend Tracker',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['api/stocks/stocks_list.php','templates/pages/stocks.php'],
+   desc:'Dividend income track karo — quarterly payouts, yield, total this FY.',
+   sub:['dividends table: stock_id, ex_date, record_date, payment_date, per_share_amount','Total dividend income this FY','Dividend yield %: annual_dividend / current_price × 100','Upcoming dividends: companies with scheduled payouts','Tax: dividend taxable as income (add to 80TTA tracker)'],
+   db:true},
+]},
+
 ];
+
 _completedTasks.forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
 save();
 
+// =============================================
+// CATEGORY FILTER
+// =============================================
+const PHASE_CAT_MAP = {};
+
+function buildCatMap() {
+  const all = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  all.forEach(ph => {
+    if (ph.cat) PHASE_CAT_MAP[ph.id] = ph.cat;
+    ph.tasks.forEach(t => { t._cat = ph.cat || 'general'; });
+  });
+}
+
+function updateCatCounts() {
+  const all = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  const counts = { all:0, mf:0, nps:0, fd:0, postoffice:0, stocks:0, crypto:0, dashboard:0, reports:0, admin:0, general:0, ai:0 };
+  all.forEach(ph => {
+    const cat = ph.cat || 'general';
+    const n = ph.tasks.length;
+    counts.all += n;
+    if (counts[cat] !== undefined) counts[cat] += n;
+    else counts.general += n;
+  });
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById('cnt_' + k);
+    if (el) el.textContent = counts[k];
+  });
+}
+
+let _activeCat = 'all';
+function filterByCategory(cat, btn) {
+  _activeCat = cat;
+  document.querySelectorAll('.catbtn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const all = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  document.querySelectorAll('.phase-block').forEach(block => {
+    const pid = block.dataset.pid;
+    const ph  = all.find(p => p.id === pid);
+    if (!ph) return;
+    const phCat = ph.cat || 'general';
+    block.style.display = (cat === 'all' || phCat === cat) ? '' : 'none';
+  });
+}
+
 renderAll();
+buildCatMap();
+updateCatCounts();
+
+// Init health check base URL from localStorage
+(function(){
+  const saved = localStorage.getItem('wd_hc_base');
+  if (saved) {
+    const el = document.getElementById('hcBaseUrl');
+    if (el) el.value = saved;
+  }
+})();
+
 renderRoadmap();
 renderChecklist();
 renderDebugGrid();
 renderAiGrid();
+</script>
+<script>
+// ============================================================
+// REDESIGNED JS — overrides / new functions
+// ============================================================
+
+// ---- CATEGORY DEFINITIONS ----
+const CAT_DEFS = [
+  {key:'all',       ico:'🗂️',  label:'All',           color:'#5b5ef4'},
+  {key:'mf',        ico:'📈',  label:'Mutual Funds',   color:'#5b5ef4'},
+  {key:'nps',       ico:'🏛️', label:'NPS',            color:'#64748b'},
+  {key:'fd',        ico:'💰',  label:'FD & Savings',   color:'#15a854'},
+  {key:'postoffice',ico:'📮',  label:'Post Office',    color:'#d95e17'},
+  {key:'stocks',    ico:'📉',  label:'Stocks',         color:'#2563eb'},
+  {key:'crypto',    ico:'₿',   label:'Crypto',         color:'#d97706'},
+  {key:'dashboard', ico:'📊',  label:'Dashboard',      color:'#0891b2'},
+  {key:'reports',   ico:'🧾',  label:'Reports & Tax',  color:'#7c3aed'},
+  {key:'admin',     ico:'👑',  label:'Admin & User',   color:'#7c3aed'},
+  {key:'general',   ico:'🔧',  label:'General',        color:'#0d9474'},
+  {key:'ai',        ico:'🤖',  label:'AI Features',    color:'#8b3cf7'},
+];
+
+// ---- OVERRIDE filterByCategory with filterByCat ----
+let _activeCat2 = 'all';
+function filterByCat(cat, btn) {
+  _activeCat2 = cat;
+  _activeCat  = cat; // keep old var in sync
+  document.querySelectorAll('.catbtn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Highlight matching progress card
+  document.querySelectorAll('.cat-prog-card').forEach(c => {
+    c.classList.toggle('active-cat', c.dataset.cat === cat);
+  });
+  const all = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  document.querySelectorAll('.phase-block').forEach(block => {
+    const pid = block.dataset.pid;
+    const ph  = all.find(p => p.id === pid);
+    if (!ph) return;
+    const phCat = ph.cat || 'general';
+    block.style.display = (cat === 'all' || phCat === cat) ? '' : 'none';
+  });
+}
+
+// ---- CATEGORY PROGRESS BARS ----
+function renderCatProgressBars() {
+  const ALL = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  const counts = {};
+  CAT_DEFS.forEach(c => counts[c.key] = {total:0, done:0});
+  ALL.forEach(ph => {
+    const cat = ph.cat || 'general';
+    ph.tasks.forEach(t => {
+      if (counts[cat] !== undefined) { counts[cat].total++; if(S[t.id+'_m']) counts[cat].done++; }
+      counts.all.total++; if(S[t.id+'_m']) counts.all.done++;
+    });
+  });
+  const grid = document.getElementById('catProgGrid');
+  if (!grid) return;
+  // Use all cats EXCEPT 'all' (all is shown in stats cards)
+  const cats = CAT_DEFS.filter(c => c.key !== 'all');
+  grid.innerHTML = cats.map(c => {
+    const d = counts[c.key] || {total:0, done:0};
+    const pct = d.total ? Math.round(d.done/d.total*100) : 0;
+    const isActive = _activeCat2 === c.key;
+    const doneTxt = d.done > 0 ? '✓ '+d.done : '—';
+    return `<div class="cat-prog-card${isActive?' active-cat':''}" data-cat="${c.key}"
+      onclick="filterByCat('${c.key}', document.querySelector('[data-cat=\'${c.key}\'].catbtn'))">
+      <div class="cpg-top">
+        <div class="cpg-name"><span class="cpg-ico">${c.ico}</span>${c.label}</div>
+        <span class="cpg-count">${d.total}</span>
+      </div>
+      <div class="cpg-bar-bg"><div class="cpg-bar-fg" style="width:${pct}%;background:${c.color}"></div></div>
+      <div class="cpg-footer">
+        <span class="cpg-done" style="color:${d.done>0?'var(--green)':'var(--muted2)'}">
+          ${doneText(d, pct)}
+        </span>
+        <span class="cpg-pct" style="color:${c.color}">${pct}%</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function doneText(d, pct) {
+  if (pct === 100) return '✅ Complete';
+  if (d.done > 0) return '✓ '+d.done+' done';
+  return (d.total - d.done)+' left';
+}
+
+// ---- OVERRIDE updateCatCounts ----
+function updateCatCounts() {
+  const ALL = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT];
+  const counts = {all:0, mf:0, nps:0, fd:0, postoffice:0, stocks:0, crypto:0, dashboard:0, reports:0, admin:0, general:0, ai:0};
+  ALL.forEach(ph => {
+    const cat = ph.cat || 'general';
+    const n = ph.tasks.length;
+    counts.all += n;
+    if (counts[cat] !== undefined) counts[cat] += n;
+    else counts.general += n;
+  });
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById('cnt_'+k);
+    if (el) el.textContent = counts[k];
+  });
+  renderCatProgressBars();
+}
+
+// Progress bars update via updateCatCounts() which is called by renderAll()
+
+// ============================================================
+// FILE HEALTH CHECK — Full JS (replaces old HC functions)
+// ============================================================
+
+function hcGetBase() {
+  return (document.getElementById('hcBaseUrl')?.value || localStorage.getItem('wd_hc_base') || 'http://localhost').replace(/\/$/, '');
+}
+
+async function hcTestBase() {
+  const base = hcGetBase();
+  const el = document.getElementById('hcBaseStatus');
+  el.textContent = '⏳ Testing...';
+  el.style.color = 'var(--muted)';
+  // File:// protocol se localhost fetch CORS block hoti hai
+  // So we use no-cors mode to at least check reachability
+  try {
+    const resp = await fetch(base + '/wealthdash/', {method:'GET', mode:'no-cors'});
+    // no-cors always returns opaque response — if we reach here, server is UP
+    el.textContent = '✅ XAMPP Online — Run All Checks karo';
+    el.style.color = 'var(--green)';
+    el.style.background = 'var(--green-bg)';
+    el.style.borderColor = 'var(--green-border)';
+    el.style.padding = '3px 10px';
+    el.style.borderRadius = '99px';
+    el.style.border = '1px solid';
+  } catch(e) {
+    el.textContent = '❌ XAMPP off hai ya URL galat hai';
+    el.style.color = 'var(--red)';
+    el.style.background = 'var(--red-bg)';
+    el.style.borderColor = 'var(--red-border)';
+    el.style.padding = '3px 10px';
+    el.style.borderRadius = '99px';
+    el.style.border = '1px solid';
+  }
+}
+
+function hcRenderGrid(filter) {
+  filter = filter || 'all';
+  const grid = document.getElementById('hcGrid');
+  grid.innerHTML = '';
+
+  HC_MODULES.forEach(mod => {
+    const items = filter === 'all' ? mod.items : mod.items.filter(i => (hcStatus[i.id]||'pending') === filter);
+    if (filter !== 'all' && items.length === 0) return;
+
+    const passCount = mod.items.filter(i => hcStatus[i.id] === 'pass').length;
+    const failCount = mod.items.filter(i => hcStatus[i.id] === 'fail').length;
+    const warnCount = mod.items.filter(i => hcStatus[i.id] === 'warn').length;
+    const total = mod.items.length;
+
+    const block = document.createElement('div');
+    block.className = 'hc-module';
+    block.innerHTML = `
+      <div class="hc-module-hdr">
+        <span style="font-size:16px">${mod.icon}</span>
+        <span class="hc-module-title">${mod.label}</span>
+        ${passCount>0?`<span style="font-size:11px;color:var(--green);font-weight:700">✅ ${passCount}</span>`:''}
+        ${failCount>0?`<span style="font-size:11px;color:var(--red);font-weight:700;margin-left:4px">❌ ${failCount}</span>`:''}
+        ${warnCount>0?`<span style="font-size:11px;color:var(--yellow);font-weight:700;margin-left:4px">⚠️ ${warnCount}</span>`:''}
+        <span style="font-size:10px;color:var(--muted);margin-left:4px">${total} checks</span>
+        ${window.location.protocol==='file:'
+          ? `<a href="${hcGetBase()+'/wealthdash/debug/runner.php?format=html'}" target="_blank" style="padding:4px 12px;border-radius:6px;border:1.5px solid var(--blue-border);font-size:11px;font-weight:700;cursor:pointer;background:var(--blue-bg);color:var(--blue);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-left:auto">↗ Open Runner</a>`
+          : `<button onclick="hcRunModule('${mod.id}')" style="padding:4px 12px;border-radius:6px;border:1.5px solid;font-size:11px;font-weight:700;cursor:pointer;background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border);font-family:'DM Sans',sans-serif;margin-left:auto">▶ Run</button>`}
+      </div>
+      ${mod.note?`<div class="hc-note">ℹ️ ${mod.note}</div>`:''}
+      <div class="hc-module-items">
+        ${items.map(item => `
+          <div id="hci_${item.id}" class="hc-item" onclick="${item.url?`hcCheckItem('${item.id}','${item.url}','${item.type}',this)`:''}">
+            <span id="hcs_${item.id}" class="hc-dot ${hcStatus[item.id]||''}"></span>
+            <span class="hc-item-name">${item.label}</span>
+            <span id="hcm_${item.id}" class="hc-item-msg"></span>
+            <span class="hc-type-badge ${item.url?'':'hc-type-db'}">${item.url?item.type:'db'}</span>
+          </div>`).join('')}
+      </div>`;
+    grid.appendChild(block);
+  });
+}
+
+async function hcCheckItem(id, url, type, rowEl) {
+  const dot = document.getElementById('hcs_'+id);
+  const msg = document.getElementById('hcm_'+id);
+  if (!dot) return;
+  // file:// se localhost fetch CORS block hoti hai
+  if (window.location.protocol === 'file:' && url) {
+    const base = hcGetBase();
+    const fullUrl = base + url;
+    dot.className = 'hc-dot warn';
+    dot.style.background = '';
+    if (msg) {
+      msg.innerHTML = '<a href="'+fullUrl+'" target="_blank" style="color:var(--blue);font-size:10px;text-decoration:none;font-weight:600">↗ Open</a>';
+    }
+    hcStatus[id] = 'warn';
+    updateHcSummary();
+    return;
+  }
+  dot.className = 'hc-dot';
+  dot.style.background = 'var(--yellow)';
+  if (msg) msg.textContent = '⏳';
+  try {
+    const base = hcGetBase();
+    const resp = await fetch(base + url, {method:'GET', credentials:'include'});
+    const text = await resp.text();
+    const isJsonOk = type === 'api' && (() => { try { const j = JSON.parse(text); return j.success !== false; } catch(e) { return false; } })();
+    const isPageOk = type === 'page' && resp.status === 200 && !text.includes('Fatal error') && !text.includes('Warning:') && !text.includes('Direct access not allowed') && text.length > 100;
+    const ok = type === 'api' ? (resp.status === 200 && (isJsonOk || text.includes('"success":true') || text.includes('"data"'))) : isPageOk;
+    if (ok) {
+      dot.className = 'hc-dot pass';
+      dot.style.background = '';
+      if (msg) msg.textContent = '✅';
+      hcStatus[id] = 'pass';
+    } else if (resp.status === 302 || (resp.status === 200 && text.includes('login'))) {
+      dot.className = 'hc-dot warn';
+      dot.style.background = '';
+      if (msg) msg.textContent = '⚠️ redirect';
+      hcStatus[id] = 'warn';
+    } else {
+      dot.className = 'hc-dot fail';
+      dot.style.background = '';
+      if (msg) msg.textContent = '❌ '+resp.status;
+      hcStatus[id] = 'fail';
+      if (rowEl) { rowEl.style.background='var(--red-bg)'; setTimeout(()=>rowEl.style.background='',2000); }
+    }
+  } catch(e) {
+    dot.className = 'hc-dot fail';
+    dot.style.background = '';
+    if (msg) msg.textContent = '❌ offline';
+    hcStatus[id] = 'fail';
+  }
+  updateHcSummary();
+}
+
+async function hcRunModule(modId) {
+  const mod = HC_MODULES.find(m => m.id === modId);
+  if (!mod) return;
+  for (const item of mod.items) {
+    if (item.url) await hcCheckItem(item.id, item.url, item.type, document.getElementById('hci_'+item.id));
+  }
+}
+
+async function hcRunAll() {
+  // Detect file:// protocol — fetch to localhost gets CORS blocked
+  if (window.location.protocol === 'file:') {
+    const wrap = document.getElementById('hcGrid');
+    const base = hcGetBase();
+    const runnerUrl = base + '/wealthdash/debug/runner.php?format=html';
+    wrap.innerHTML = `
+      <div style="background:var(--yellow-bg);border:1.5px solid var(--yellow-border);border-radius:var(--radius-lg);padding:20px;text-align:center">
+        <div style="font-size:22px;margin-bottom:8px">⚠️</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">File:// Protocol — CORS Block</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-bottom:14px">
+          Is dashboard ko <b>file://</b> se khola hai. Browser security ke wajah se<br>
+          <b>localhost</b> pe fetch nahi ho sakti (CORS policy).<br><br>
+          <b>Solution:</b> Debug Report seedha browser mein kholo 👇
+        </div>
+        <a href="${runnerUrl}" target="_blank" 
+           style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;padding:10px 22px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;margin-right:8px">
+          🌐 Open Debug Report
+        </a>
+        <a href="${base}/wealthdash/debug/runner.php?format=txt" target="_blank"
+           style="display:inline-flex;align-items:center;gap:8px;background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-border);padding:10px 22px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none">
+          📄 Download Report
+        </a>
+        <div style="margin-top:14px;font-size:11px;color:var(--muted2)">
+          Ya XAMPP se isko serve karo: <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-family:monospace">${base}/wealthdash/goal/wealthdash_tasks.html</code>
+        </div>
+      </div>`;
+    const bar = document.getElementById('hcSummaryBar');
+    if (bar) bar.classList.remove('visible');
+    return;
+  }
+  const bar = document.getElementById('hcSummaryBar');
+  if (bar) { bar.classList.add('visible'); }
+  for (const mod of HC_MODULES) {
+    await hcRunModule(mod.id);
+  }
+  const el = document.getElementById('hcRunTime');
+  if (el) el.textContent = 'Last run: '+new Date().toLocaleTimeString();
+}
+
+function updateHcSummary() {
+  const allIds = HC_MODULES.flatMap(m => m.items.map(i => i.id));
+  let pass=0, fail=0, warn=0, pend=0;
+  allIds.forEach(id => {
+    const s = hcStatus[id];
+    if (s==='pass') pass++;
+    else if (s==='fail') fail++;
+    else if (s==='warn') warn++;
+    else pend++;
+  });
+  const setEl = (id, v) => { const e=document.getElementById(id); if(e) e.textContent=v; };
+  setEl('hcPass', pass); setEl('hcFail', fail); setEl('hcWarn', warn); setEl('hcPend', pend);
+  const bar = document.getElementById('hcSummaryBar');
+  if (bar && (pass+fail+warn > 0)) bar.classList.add('visible');
+}
+
+function hcFilter(f, btn) {
+  document.querySelectorAll('.hc-filter').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  hcRenderGrid(f);
+}
+
+function hcExport() {
+  const lines = ['WealthDash File Health Check Report', '='.repeat(50), ''];
+  HC_MODULES.forEach(mod => {
+    lines.push(`\n## ${mod.icon} ${mod.label}`);
+    mod.items.forEach(item => {
+      const s = hcStatus[item.id] || 'pending';
+      const icon = s==='pass'?'✅':s==='fail'?'❌':s==='warn'?'⚠️':'⏳';
+      lines.push(`  ${icon} ${item.label}${item.url?' — '+item.url:''}${s==='fail'?' [BROKEN]':''}`);
+    });
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'wealthdash_health_'+new Date().toISOString().slice(0,10)+'.txt';
+  a.click();
+}
+
+function hcReset() {
+  Object.keys(hcStatus).forEach(k => delete hcStatus[k]);
+  hcRenderGrid();
+  const bar = document.getElementById('hcSummaryBar');
+  if (bar) bar.classList.remove('visible');
+  ['hcPass','hcFail','hcWarn','hcPend'].forEach(id => { const e=document.getElementById(id); if(e) e.textContent='0'; });
+}
+
+// ---- TRIGGER INIT (immediate — scripts run after DOM is built) ----
+(function initNewFeatures() {
+  // Render category progress bars immediately
+  renderCatProgressBars();
+  // Render HC grid
+  hcRenderGrid();
+  // Init HC base URL from localStorage
+  const saved = localStorage.getItem('wd_hc_base');
+  if (saved) { const el = document.getElementById('hcBaseUrl'); if(el) el.value = saved; }
+  // Show file:// CORS notice in HC tab
+  if (window.location.protocol === 'file:') {
+    const notice = document.getElementById('hcCorsNotice');
+    if (notice) notice.style.display = 'block';
+  }
+  // Patch toggleTask so progress bars update on checkbox click
+  const _origToggleTask = window.toggleTask;
+  if (typeof _origToggleTask === 'function') {
+    window.toggleTask = function(tid, cb) {
+      _origToggleTask(tid, cb);
+      renderCatProgressBars();
+    };
+  }
+})();
+
 </script>
 </body>
 </html>

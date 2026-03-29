@@ -582,7 +582,7 @@ function initTxnPage() {
   document.getElementById('btnTxnReset')?.addEventListener('click', resetTxnFilters);
   document.getElementById('btnExportTxnCsv')?.addEventListener('click', exportTxnCsv);
   document.getElementById('txnSearch')?.addEventListener('input', debounce(loadTransactions, 400));
-  ['txnFilterType'].forEach(id => {
+  ['txnFilterType', 'txnFilterFy'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', loadTransactions);
   });
 
@@ -635,11 +635,13 @@ async function loadTransactions(page = 1) {
     per_page: MF.perPage
   });
   const type = document.getElementById('txnFilterType')?.value;
+  const fy   = document.getElementById('txnFilterFy')?.value;
   const from = document.getElementById('txnFilterFrom')?.value;
   const to   = document.getElementById('txnFilterTo')?.value;
   const q    = document.getElementById('txnSearch')?.value;
   params.set('portfolio_id', window.WD?.selectedPortfolio || 0);
   if (type) params.set('txn_type', type);
+  if (fy)   params.set('fy', fy);
   if (from) params.set('from', from);
   if (to)   params.set('to', to);
   if (q)    params.set('q', q);
@@ -653,6 +655,12 @@ async function loadTransactions(page = 1) {
     MF.page = page;
     renderTxnTable(res.data || []);
     renderPagination(res.total, res.page, res.per_page, res.pages);
+    // Update summary stats bar (only on txn page)
+    if (res.summary) _renderTxnSummary(res.summary);
+    // Populate FY dropdown once (first load, all FYs visible)
+    if (res.fy_list && page === 1 && !fy && !type && !from && !to && !q) {
+      _populateFyDropdown(res.fy_list);
+    }
   } catch (err) {
     body.innerHTML = `<tr><td colspan="11" class="text-center text-danger">${err.message}</td></tr>`;
   }
@@ -665,7 +673,7 @@ function renderTxnTable(txns) {
   if (count) count.textContent = `${MF.totalTxns} transactions`;
 
   if (!txns.length) {
-    body.innerHTML = `<tr><td colspan="10" class="text-center" style="padding:40px;color:var(--text-muted);">No transactions found</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;color:var(--text-muted);">No transactions found</td></tr>`;
     return;
   }
 
@@ -684,6 +692,7 @@ function renderTxnTable(txns) {
       <td class="text-right">${Number(t.units).toFixed(4)}</td>
       <td class="text-right">₹${Number(t.nav).toFixed(4)}</td>
       <td class="text-right">${fmtFull(t.value_at_cost)}</td>
+      <td><span style="font-size:11px;color:var(--text-muted);">${escHtml(t.investment_fy||'—')}</span></td>
       <td>${escHtml(t.platform||'—')}</td>
       <td>
         <div style="display:flex;gap:4px;">
@@ -715,11 +724,41 @@ function renderPagination(total, page, perPage, pages) {
 }
 
 function resetTxnFilters() {
-  ['txnFilterType','txnFilterFrom','txnFilterTo','txnSearch'].forEach(id => {
+  ['txnFilterType','txnFilterFy','txnFilterFrom','txnFilterTo','txnSearch'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   loadTransactions();
+}
+
+/* ── txn page summary stats bar ─────────────────────────────── */
+function _renderTxnSummary(s) {
+  function fmt(v) {
+    v = Math.abs(parseFloat(v) || 0);
+    if (v >= 1e7) return '₹' + (v / 1e7).toFixed(2) + ' Cr';
+    if (v >= 1e5) return '₹' + (v / 1e5).toFixed(2) + ' L';
+    return '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('statTotalTxns',    (s.total_txns || 0).toLocaleString('en-IN'));
+  set('statTotalBuy',     fmt(s.total_buy));
+  set('statTotalSell',    fmt(s.total_sell));
+  const net = parseFloat(s.net_invested) || 0;
+  const netEl = document.getElementById('statNetInvested');
+  if (netEl) {
+    netEl.textContent = fmt(net);
+    netEl.style.color = net >= 0 ? '' : 'var(--danger)';
+  }
+  set('statUniqueFunds',  s.unique_funds || 0);
+}
+
+/* ── Populate FY dropdown from API list ──────────────────────── */
+function _populateFyDropdown(fyList) {
+  const sel = document.getElementById('txnFilterFy');
+  if (!sel || !fyList || !fyList.length) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All FYs</option>' +
+    fyList.map(fy => `<option value="${fy}"${fy === current ? ' selected' : ''}>${fy}</option>`).join('');
 }
 
 function exportTxnCsv() {

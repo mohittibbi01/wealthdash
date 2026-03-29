@@ -171,7 +171,16 @@ switch ($action) {
             'exit_load_last_updated'  => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='exit_load_last_updated'"),
             'stocks_last_updated'     => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='stocks_last_updated'"),
             'last_recalc_holdings'    => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='last_recalc_holdings'"),
+            'import_amfi_last'        => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='import_amfi_last_updated'"),
+            'peak_nav_last'           => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='peak_nav_last_completed'"),
+            'nav_dl_last'             => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nav_history_last_run'"),
+            'nps_nav_last'            => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nps_nav_last_run'"),
+            'nps_nav_status'          => safe_val("SELECT setting_val FROM app_settings WHERE setting_key='nps_nav_last_status'"),
             'audit_log_count'         => safe_count("SELECT COUNT(*) FROM audit_log"),
+            'nps_holdings'            => safe_count("SELECT COUNT(*) FROM nps_holdings WHERE is_active=1"),
+            'goals'                   => safe_count("SELECT COUNT(*) FROM investment_goals"),
+            'insurance'               => safe_count("SELECT COUNT(*) FROM insurance_policies WHERE status='active'"),
+            'post_office'             => safe_count("SELECT COUNT(*) FROM post_office_investments WHERE is_active=1"),
         ];
         json_response(true, '', ['stats' => $stats]);
 
