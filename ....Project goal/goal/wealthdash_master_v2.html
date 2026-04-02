@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthDash — Master Build Dashboard v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ===== ROOT VARS ===== */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f6fa;
+  --surface:#ffffff;
+  --border:#e8eaf0;
+  --border2:#d4d8e8;
+  --text:#111827;
+  --muted:#64748b;
+  --muted2:#94a3b8;
+
+  --accent:#4f46e5;
+  --accent-light:#eef2ff;
+  --accent-border:#c7d2fe;
+
+  --green:#059669;--green-bg:#ecfdf5;--green-border:#6ee7b7;
+  --red:#dc2626;--red-bg:#fef2f2;--red-border:#fca5a5;
+  --yellow:#d97706;--yellow-bg:#fffbeb;--yellow-border:#fcd34d;
+  --orange:#ea580c;--orange-bg:#fff7ed;--orange-border:#fdba74;
+  --blue:#2563eb;--blue-bg:#eff6ff;--blue-border:#93c5fd;
+  --purple:#7c3aed;--purple-bg:#f5f3ff;--purple-border:#c4b5fd;
+  --teal:#0d9488;--teal-bg:#f0fdfa;--teal-border:#5eead4;
+  --pink:#be185d;--pink-bg:#fdf2f8;--pink-border:#f9a8d4;
+  --cyan:#0891b2;--cyan-bg:#ecfeff;--cyan-border:#67e8f9;
+  --indigo:#4338ca;--indigo-bg:#eef2ff;--indigo-border:#a5b4fc;
+
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+  --shadow-md:0 4px 12px rgba(15,23,42,.08),0 2px 4px rgba(15,23,42,.04);
+  --shadow-lg:0 12px 32px rgba(15,23,42,.10),0 4px 8px rgba(15,23,42,.05);
+
+  --radius:10px;--radius-sm:6px;--radius-lg:14px;--radius-xl:20px;
+}
+
+body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',system-ui,sans-serif;min-height:100vh;font-size:14px;line-height:1.5}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+
+/* ===== TOPBAR ===== */
+.topbar{
+  background:var(--surface);
+  border-bottom:1.5px solid var(--border);
+  padding:0 24px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  position:sticky;top:0;z-index:300;height:56px;
+  box-shadow:var(--shadow);
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{
+  width:34px;height:34px;border-radius:10px;
+  background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;flex-shrink:0;
+  box-shadow:0 3px 10px rgba(79,70,229,.4);
+}
+.logo-text{font-size:16px;font-weight:900;color:var(--text);letter-spacing:-.5px}
+.logo-badge{font-size:9px;font-weight:800;color:var(--accent);background:var(--accent-light);padding:2px 7px;border-radius:99px;border:1px solid var(--accent-border);margin-left:2px;letter-spacing:.3px}
+
+.topbar-center{flex:1;display:flex;align-items:center;justify-content:center;gap:4px}
+.nav-pill{
+  padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;
+  cursor:pointer;border:none;background:transparent;color:var(--muted);
+  transition:all .15s;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif;
+  display:flex;align-items:center;gap:5px;
+}
+.nav-pill:hover{background:var(--bg);color:var(--text)}
+.nav-pill.active{background:var(--accent-light);color:var(--accent)}
+.nav-pill .np-ico{font-size:13px}
+.nav-pill .np-count{font-size:9px;background:var(--accent);color:#fff;padding:1px 5px;border-radius:99px;font-weight:800}
+
+.topbar-right{display:flex;align-items:center;gap:8px}
+.tbtn{padding:6px 14px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid;transition:all .15s;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;gap:5px}
+.tbtn-ghost{background:transparent;color:var(--muted);border-color:var(--border);padding:6px 10px}
+.tbtn-ghost:hover{background:var(--bg);color:var(--text);border-color:var(--border2)}
+.tbtn-primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(79,70,229,.3)}
+.tbtn-primary:hover{background:#4338ca;border-color:#4338ca}
+.tbtn-danger{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.tbtn-danger:hover{background:#fee2e2}
+.tbtn-success{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.tbtn-success:hover{background:#d1fae5}
+.progress-ring{font-size:11px;font-weight:800;color:var(--accent);background:var(--accent-light);padding:4px 10px;border-radius:99px;border:1.5px solid var(--accent-border)}
+
+/* ===== TAB PANES ===== */
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* ===== OVERVIEW TAB ===== */
+.overview-wrap{padding:20px 24px;display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.overview-left{display:flex;flex-direction:column;gap:14px}
+
+/* Stats strip */
+.stats-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.stat-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:14px 16px;
+  box-shadow:var(--shadow);text-align:left;
+  transition:all .2s;cursor:default;position:relative;overflow:hidden;
+}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:3px 3px 0 0}
+.stat-card:hover{border-color:var(--border2);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.stat-card.c-accent::before{background:linear-gradient(90deg,#4f46e5,#7c3aed)}
+.stat-card.c-green::before{background:var(--green)}
+.stat-card.c-red::before{background:var(--red)}
+.stat-card.c-yellow::before{background:var(--yellow)}
+.stat-card.c-blue::before{background:var(--blue)}
+.stat-card.c-teal::before{background:var(--teal)}
+.stat-num{font-size:26px;font-weight:900;line-height:1;letter-spacing:-1.5px;margin-bottom:4px}
+.stat-label{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.stat-sub{font-size:11px;color:var(--muted2);margin-top:3px;font-weight:500}
+
+/* Progress panel */
+.master-progress{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-xl);padding:20px;box-shadow:var(--shadow);
+}
+.mp-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px}
+.mp-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.big-ring{position:relative;width:120px;height:120px;margin:0 auto 16px}
+.ring-svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:var(--border);stroke-width:10}
+.ring-fg{fill:none;stroke:url(#ringGrad);stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1)}
+.ring-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-pct{font-size:24px;font-weight:900;color:var(--accent);letter-spacing:-1px}
+.ring-lbl{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.phase-list{display:flex;flex-direction:column;gap:6px}
+.phase-row{display:flex;align-items:center;gap:8px;font-size:11px}
+.phase-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.phase-name{flex:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-bar-wrap{width:60px;background:var(--border);border-radius:99px;height:3px;overflow:hidden;flex-shrink:0}
+.mini-bar-fill{height:100%;border-radius:99px;transition:width .5s}
+.phase-pct{width:28px;text-align:right;color:var(--muted);font-size:10px;font-weight:700;flex-shrink:0}
+
+/* Category grid */
+.cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cat-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:10px 12px;box-shadow:var(--shadow);
+  cursor:pointer;transition:all .15s;
+}
+.cat-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
+.cat-card.active-cat{border-color:var(--accent);background:var(--accent-light);box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+.cc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.cc-name{font-size:11px;font-weight:800;display:flex;align-items:center;gap:4px}
+.cc-count{font-size:9px;color:var(--muted);font-weight:700;background:var(--bg);padding:1px 5px;border-radius:99px;border:1px solid var(--border)}
+.cc-bar-bg{background:var(--border);border-radius:99px;height:4px;overflow:hidden;margin-bottom:5px}
+.cc-bar-fg{height:100%;border-radius:99px;transition:width .6s}
+.cc-footer{display:flex;justify-content:space-between;align-items:center}
+.cc-done{font-size:9px;color:var(--muted)}
+.cc-pct{font-size:12px;font-weight:900}
+
+/* Feature ideas section */
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.feature-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:14px 16px;box-shadow:var(--shadow);
+  transition:all .2s;position:relative;overflow:hidden;
+}
+.feature-card::after{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;background:linear-gradient(135deg,rgba(79,70,229,.04),rgba(124,58,237,.04))}
+.feature-card:hover::after{opacity:1}
+.feature-card:hover{border-color:var(--accent-border);box-shadow:var(--shadow-md)}
+.fc-icon{font-size:22px;margin-bottom:8px}
+.fc-title{font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px}
+.fc-desc{font-size:11px;color:var(--muted);line-height:1.6}
+.fc-badge{display:inline-block;margin-top:8px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid}
+
+/* ===== TASKS TAB ===== */
+.tasks-wrap{display:flex;height:calc(100vh - 56px - 49px);overflow:hidden}
+
+/* Sidebar filters */
+.task-sidebar{
+  width:230px;flex-shrink:0;border-right:1.5px solid var(--border);
+  background:var(--surface);overflow-y:auto;padding:14px 0;
+}
+.sidebar-section{margin-bottom:20px}
+.sidebar-title{font-size:9px;font-weight:900;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;padding:0 14px;margin-bottom:6px}
+.sidebar-btn{
+  display:flex;align-items:center;gap:8px;width:100%;padding:7px 14px;
+  font-size:12px;font-weight:600;cursor:pointer;border:none;background:transparent;
+  color:var(--muted);text-align:left;transition:all .12s;font-family:'Plus Jakarta Sans',sans-serif;
+  border-left:2px solid transparent;
+}
+.sidebar-btn:hover{background:var(--bg);color:var(--text)}
+.sidebar-btn.active{background:var(--accent-light);color:var(--accent);border-left-color:var(--accent);font-weight:700}
+.sidebar-btn .sb-ico{width:20px;text-align:center;font-size:13px;flex-shrink:0}
+.sidebar-btn .sb-count{margin-left:auto;font-size:9px;background:var(--bg);color:var(--muted);padding:1px 6px;border-radius:99px;border:1px solid var(--border);font-weight:800}
+.sidebar-btn.active .sb-count{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Task main area */
+.task-main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.task-topbar{
+  background:var(--surface);border-bottom:1.5px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.filter-chip{
+  padding:4px 12px;border-radius:99px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;
+  cursor:pointer;transition:all .12s;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif;
+}
+.filter-chip:hover{border-color:var(--accent);color:var(--accent)}
+.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.search-box{margin-left:auto;position:relative}
+.search-inp{
+  background:var(--bg);border:1.5px solid var(--border);border-radius:8px;
+  padding:6px 12px 6px 30px;font-size:12px;color:var(--text);width:220px;
+  outline:none;transition:border-color .15s;font-family:'Plus Jakarta Sans',sans-serif;
+}
+.search-inp:focus{border-color:var(--accent);background:var(--surface)}
+.search-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:13px;pointer-events:none}
+
+.task-scroll{flex:1;overflow-y:auto;padding:12px 16px 60px}
+.task-scroll:empty::after{content:'No tasks found';display:block;text-align:center;color:var(--muted2);padding:40px;font-size:13px}
+
+/* Phase blocks */
+.phase-block{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);
+  margin-bottom:10px;transition:border-color .15s;
+}
+.phase-block:hover{border-color:var(--border2)}
+.phase-hdr{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;
+  border-bottom:1.5px solid var(--border);cursor:pointer;
+  user-select:none;transition:background .15s;
+}
+.phase-hdr:hover{background:var(--bg)}
+.phase-ico{font-size:16px;width:24px;text-align:center;flex-shrink:0}
+.phase-ttl{font-weight:800;font-size:12px;flex:1;letter-spacing:-.2px}
+.phase-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.phase-prog{font-size:10px;color:var(--muted);font-weight:600}
+.ph-mini-wrap{width:50px;height:4px;background:var(--border);border-radius:99px;overflow:hidden}
+.ph-mini-fill{height:100%;border-radius:99px;transition:width .5s}
+.ph-pct{font-size:11px;font-weight:900;min-width:26px;text-align:right}
+.chevron{color:var(--muted2);font-size:10px;transition:transform .2s;flex-shrink:0;margin-left:4px}
+.collapsed .chevron{transform:rotate(-90deg)}
+.phase-body{padding:0}
+.collapsed .phase-body{display:none}
+
+/* Task rows */
+.task{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);transition:background .1s;
+  position:relative;
+}
+.task:last-child{border-bottom:none}
+.task:hover{background:#fafbff}
+.task.done{opacity:.42}
+.task.done .ttitle{text-decoration:line-through;color:var(--muted)}
+.task-green-strip{
+  position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--green);border-radius:3px 0 0 3px;display:none;
+}
+.task.done .task-green-strip{display:block}
+.task.highlight-task{background:#fefce8;animation:flashrow 1s ease}
+@keyframes flashrow{0%{background:#fef9c3}100%{background:#fafbff}}
+
+/* Checkbox */
+.tcb{
+  width:17px;height:17px;border-radius:5px;border:2px solid var(--border2);
+  background:transparent;cursor:pointer;flex-shrink:0;margin-top:2px;
+  appearance:none;-webkit-appearance:none;
+  transition:all .15s;position:relative;
+}
+.tcb:checked{background:var(--green);border-color:var(--green)}
+.tcb:checked::after{content:'✓';position:absolute;color:#fff;font-size:10px;font-weight:900;left:2px;top:-1px}
+.tcb:hover{border-color:var(--accent)}
+.tcontent{flex:1;min-width:0}
+.thdr{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:1px}
+.tnum{font-size:9px;color:var(--muted2);font-weight:800;background:var(--bg);padding:1px 5px;border-radius:4px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace}
+.ttitle{font-size:12px;font-weight:700;color:var(--text);line-height:1.4}
+.tdesc{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.6}
+.tmeta{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.subtasks{margin-top:6px;display:flex;flex-direction:column;gap:2px}
+.stask{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--muted);padding:2px 0;cursor:pointer;line-height:1.5}
+.scb{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--border2);background:transparent;cursor:pointer;flex-shrink:0;margin-top:1px;appearance:none;-webkit-appearance:none;transition:all .12s;position:relative}
+.scb:checked{background:var(--teal);border-color:var(--teal)}
+.scb:checked::after{content:'✓';position:absolute;color:#fff;font-size:7px;font-weight:900;left:1px;top:0}
+.tfiles{margin-top:5px;display:flex;flex-wrap:wrap;gap:3px}
+
+/* Badges */
+.bdg{font-size:9px;font-weight:800;padding:2px 7px;border-radius:99px;white-space:nowrap;border:1px solid}
+.bp0{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.bp1{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
+.bp2{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
+.bp3{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.bfile{background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border);font-family:'JetBrains Mono',monospace;font-size:8px}
+.bdb{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.bfeat{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+.bbug{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.bfix{background:var(--cyan-bg);color:var(--cyan);border-color:var(--cyan-border)}
+.beff{background:var(--bg);color:var(--muted);border-color:var(--border)}
+.bnew{background:linear-gradient(135deg,#fdf4ff,#ede9fe);color:#7c3aed;border-color:#c4b5fd}
+.bgptag{background:linear-gradient(135deg,#f0fdf4,#ecfeff);color:#0d9488;border-color:#5eead4}
+
+/* ===== ROADMAP TAB ===== */
+.roadmap-wrap{padding:20px 24px}
+.roadmap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.roadmap-card{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow);
+  transition:all .2s;
+}
+.roadmap-card:hover{box-shadow:var(--shadow-md);border-color:var(--border2);transform:translateY(-1px)}
+.rc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.rc-ico{font-size:22px}
+.rc-title{font-size:14px;font-weight:800;flex:1}
+.rc-status{font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid;white-space:nowrap}
+.st-live{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.st-planned{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-border)}
+.st-wip{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
+.rc-features{list-style:none;display:flex;flex-direction:column;gap:4px}
+.rc-features li{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.rc-features li::before{content:'·';font-size:16px;color:var(--muted2);line-height:1}
+
+/* ===== CHECKLIST TAB ===== */
+.checklist-wrap{padding:20px 24px;max-width:900px;margin:0 auto}
+.cl-section{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow)}
+.cl-hdr{padding:12px 16px;border-bottom:1.5px solid var(--border);font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .12s}
+.cl-hdr:hover{background:var(--bg)}
+.cl-hdr .cl-prog{margin-left:auto;font-size:11px;color:var(--accent);font-weight:800}
+.cl-body{padding:8px 0}
+.cl-item{display:flex;align-items:flex-start;gap:8px;padding:7px 16px;font-size:12px;cursor:pointer;transition:background .1s}
+.cl-item:hover{background:var(--bg)}
+.cl-item.cl-done span{text-decoration:line-through;color:var(--muted2)}
+.clcb{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--border2);appearance:none;cursor:pointer;flex-shrink:0;margin-top:1px;transition:all .12s;position:relative}
+.clcb:checked{background:var(--green);border-color:var(--green)}
+.clcb:checked::after{content:'✓';position:absolute;color:#fff;font-size:8px;font-weight:900;left:1px;top:0}
+.cl-tag{font-size:9px;font-weight:800;padding:1px 6px;border-radius:99px;border:1px solid;margin-left:auto;flex-shrink:0}
+.cl-required{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.cl-security{background:var(--orange-bg);color:var(--orange);border-color:var(--orange-border)}
+
+/* ===== AI PROMPTS TAB ===== */
+.ai-wrap{padding:20px 24px}
+.ai-header{background:linear-gradient(135deg,var(--accent-light),var(--purple-bg));border:1.5px solid var(--accent-border);border-radius:var(--radius-xl);padding:20px 24px;margin-bottom:16px}
+.ai-title{font-size:18px;font-weight:900;color:var(--accent);margin-bottom:4px;letter-spacing:-.5px}
+.ai-sub{font-size:12px;color:var(--muted);line-height:1.7}
+.ai-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.ai-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);transition:all .2s}
+.ai-card:hover{box-shadow:var(--shadow-md);border-color:var(--border2)}
+.ai-card-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--bg)}
+.ai-card-ico{font-size:18px}
+.ai-card-title{font-size:12px;font-weight:800;flex:1}
+.ai-card-tag{font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid}
+.ai-card-body{padding:12px 16px}
+.ai-card-sub{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+.ai-prompt-pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text);line-height:1.7;max-height:120px;overflow:hidden;position:relative;cursor:pointer}
+.ai-prompt-pre::after{content:'Click to copy';position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,var(--bg));padding:14px 12px 8px;font-size:10px;font-weight:700;color:var(--accent);text-align:center;font-family:'Plus Jakarta Sans',sans-serif}
+.ai-copy-btn{margin-top:8px;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;border:1.5px solid var(--accent-border);background:var(--accent-light);color:var(--accent);transition:all .15s;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;gap:5px}
+.ai-copy-btn:hover{background:var(--accent);color:#fff}
+
+/* ===== DEBUG TAB ===== */
+.debug-wrap{padding:20px 24px;max-width:1000px}
+.debug-header{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-xl);padding:20px 24px;box-shadow:var(--shadow);margin-bottom:16px}
+.debug-title{font-size:18px;font-weight:900;margin-bottom:4px}
+.debug-sub{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.debug-actions{display:flex;gap:8px;flex-wrap:wrap}
+.dbtn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;border:1.5px solid;font-family:'Plus Jakarta Sans',sans-serif;transition:all .15s;display:flex;align-items:center;gap:6px}
+.dbtn-run{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(79,70,229,.3)}
+.dbtn-run:hover{background:#4338ca}
+.dbtn-export{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
+.dbtn-export:hover{background:#d1fae5}
+.dbtn-clear{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.dbtn-clear:hover{background:#fee2e2}
+.dbtn-open{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-border)}
+.prog-bar-wrap{margin-top:14px;background:var(--border);border-radius:99px;height:6px;overflow:hidden}
+.prog-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--purple));border-radius:99px;transition:width .3s}
+
+/* ===== HEALTH CHECK TAB ===== */
+.hc-wrap{padding:20px 24px}
+.hc-header{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-xl);padding:20px 24px;box-shadow:var(--shadow);margin-bottom:16px}
+.hc-title{font-size:18px;font-weight:900;margin-bottom:4px}
+.hc-sub{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.hc-url-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.hc-url-inp{padding:6px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;color:var(--text);width:260px;outline:none;font-family:'Plus Jakarta Sans',sans-serif}
+.hc-url-inp:focus{border-color:var(--accent)}
+.hc-url-hint{font-size:10px;color:var(--muted2)}
+.hc-actions{display:flex;gap:8px;flex-wrap:wrap}
+.hc-summary-bar{display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:12px 20px;margin-bottom:12px;gap:24px;align-items:center}
+.hc-sum-stat{text-align:center}
+.hc-sum-num{font-size:22px;font-weight:900;line-height:1}
+.hc-sum-lbl{font-size:10px;color:var(--muted);font-weight:600}
+.hc-filter-row{display:flex;gap:6px;margin-bottom:12px}
+.hc-filter{padding:5px 12px;border-radius:99px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .12s;font-family:'Plus Jakarta Sans',sans-serif}
+.hc-filter.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.hc-grid{display:flex;flex-direction:column;gap:10px}
+
+/* ===== ADD TASK MODAL ===== */
+.modal-overlay{
+  display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(15,23,42,.5);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius-xl);box-shadow:var(--shadow-lg);
+  width:480px;max-width:96vw;max-height:90vh;overflow-y:auto;
+}
+.modal-hdr{padding:18px 20px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:15px;font-weight:900}
+.modal-close{width:28px;height:28px;border-radius:99px;border:1.5px solid var(--border);background:transparent;cursor:pointer;font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .12s}
+.modal-close:hover{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
+.modal-body{padding:20px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:800;color:var(--text);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.form-input,.form-select,.form-textarea{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);background:var(--surface);outline:none;transition:border-color .12s;font-family:'Plus Jakarta Sans',sans-serif}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent)}
+.form-textarea{resize:vertical;min-height:80px;line-height:1.5}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1.5px solid var(--border)}
+
+/* ===== FLOATING ACTIONS ===== */
+.fab{
+  position:fixed;bottom:24px;right:70px;z-index:250;
+  width:40px;height:40px;border-radius:99px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;box-shadow:var(--shadow-md);transition:all .15s;
+}
+.fab:hover{background:var(--bg);color:var(--text);transform:translateY(-2px)}
+.fab-add{
+  position:fixed;bottom:24px;right:24px;z-index:250;
+  width:48px;height:48px;border-radius:99px;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:22px;box-shadow:0 4px 16px rgba(79,70,229,.4);transition:all .15s;
+}
+.fab-add:hover{transform:translateY(-2px) scale(1.05);box-shadow:0 6px 20px rgba(79,70,229,.5)}
+
+/* ===== SECTION HEADING ===== */
+.sec-heading{
+  font-size:13px;font-weight:900;color:var(--text);
+  display:flex;align-items:center;gap:8px;margin-bottom:12px;
+  padding-bottom:8px;border-bottom:1.5px solid var(--border);
+}
+.sec-heading-count{font-size:10px;font-weight:700;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:99px;border:1px solid var(--border)}
+
+/* ===== TOAST ===== */
+.toast{
+  position:fixed;bottom:80px;right:24px;z-index:600;
+  background:var(--text);color:#fff;padding:10px 18px;border-radius:10px;
+  font-size:12px;font-weight:600;box-shadow:var(--shadow-lg);
+  opacity:0;transition:all .25s;pointer-events:none;transform:translateY(8px);
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ===== DESIGN NOTES PANEL ===== */
+.design-notes{padding:20px 24px}
+.dn-intro{background:linear-gradient(135deg,#fafbff,#f5f3ff);border:1.5px solid var(--accent-border);border-radius:var(--radius-xl);padding:24px;margin-bottom:20px}
+.dn-title{font-size:20px;font-weight:900;color:var(--accent);margin-bottom:8px;letter-spacing:-.5px}
+.dn-sub{font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:16px}
+.dn-step{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start;box-shadow:var(--shadow)}
+.dn-step-num{width:28px;height:28px;border-radius:99px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex-shrink:0}
+.dn-step-body{flex:1}
+.dn-step-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px}
+.dn-step-desc{font-size:12px;color:var(--muted);line-height:1.7}
+.dn-step-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.dn-tag{font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.tab-pane.active{animation:fadeIn .2s ease}
+
+/* ===== FEATURE IDEAS SECTION ===== */
+.feature-section-hdr{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+  padding-bottom:10px;border-bottom:1.5px solid var(--border);
+}
+.fsh-title{font-size:15px;font-weight:900;letter-spacing:-.3px}
+.fsh-badge{background:linear-gradient(135deg,#fdf4ff,#ede9fe);color:var(--purple);border:1px solid var(--purple-border);font-size:10px;font-weight:800;padding:3px 10px;border-radius:99px}
+
+/* Responsive */
+@media(max-width:900px){
+  .stats-strip{grid-template-columns:repeat(3,1fr)}
+  .overview-wrap{grid-template-columns:1fr}
+  .cat-grid{grid-template-columns:repeat(2,1fr)}
+  .features-grid{grid-template-columns:repeat(2,1fr)}
+  .tasks-wrap{flex-direction:column}
+  .task-sidebar{width:100%;height:auto;border-right:none;border-bottom:1.5px solid var(--border)}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== TOPBAR ===== -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">💎</div>
+    <span class="logo-text">WealthDash</span>
+    <span class="logo-badge">DEV v2.0</span>
+  </div>
+
+  <div class="topbar-center" id="mainNav">
+    <button class="nav-pill active" onclick="switchTab('overview',this)" data-tab="overview"><span class="np-ico">📊</span> Overview</button>
+    <button class="nav-pill" onclick="switchTab('tasks',this)" data-tab="tasks"><span class="np-ico">✅</span> All Tasks <span class="np-count" id="pendingCount">0</span></button>
+    <button class="nav-pill" onclick="switchTab('features',this)" data-tab="features"><span class="np-ico">🚀</span> New Features</button>
+    <button class="nav-pill" onclick="switchTab('design',this)" data-tab="design"><span class="np-ico">🎨</span> Design Notes</button>
+    <button class="nav-pill" onclick="switchTab('roadmap',this)" data-tab="roadmap"><span class="np-ico">🗺️</span> Roadmap</button>
+    <button class="nav-pill" onclick="switchTab('checklist',this)" data-tab="checklist"><span class="np-ico">📋</span> Checklist</button>
+    <button class="nav-pill" onclick="switchTab('ai',this)" data-tab="ai"><span class="np-ico">🤖</span> AI Prompts</button>
+    <button class="nav-pill" onclick="switchTab('debug',this)" data-tab="debug"><span class="np-ico">🔧</span> Debug</button>
+    <button class="nav-pill" onclick="switchTab('health',this)" data-tab="health"><span class="np-ico">🩺</span> Health</button>
+  </div>
+
+  <div class="topbar-right">
+    <span class="progress-ring" id="overallRing">0%</span>
+    <button class="tbtn tbtn-ghost" onclick="exportProgress()">📤 Export</button>
+    <button class="tbtn tbtn-danger" onclick="resetAll()">↺ Reset</button>
+    <button class="tbtn tbtn-primary" onclick="openAddTask()">＋ Add Task</button>
+  </div>
+</div>
+
+<!-- ===== TAB: OVERVIEW ===== -->
+<div class="tab-pane active" id="tab-overview">
+  <div class="overview-wrap">
+    <div class="overview-left">
+      <!-- Stats strip -->
+      <div class="stats-strip" id="statsStrip"></div>
+
+      <!-- Category progress -->
+      <div>
+        <div class="sec-heading">Category Progress <span class="sec-heading-count" id="catTotalCount">0 categories</span></div>
+        <div class="cat-grid" id="catGrid"></div>
+      </div>
+    </div>
+
+    <!-- Master progress ring -->
+    <div>
+      <div class="master-progress">
+        <div class="mp-title">🎯 Overall Progress</div>
+        <div class="mp-sub">Total build completion across all phases</div>
+
+        <div class="big-ring">
+          <svg class="ring-svg" viewBox="0 0 120 120" width="120" height="120">
+            <defs>
+              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#4f46e5"/>
+                <stop offset="100%" stop-color="#7c3aed"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg" cx="60" cy="60" r="50"/>
+            <circle class="ring-fg" cx="60" cy="60" r="50" id="ringCircle" stroke-dasharray="314" stroke-dashoffset="314"/>
+          </svg>
+          <div class="ring-text">
+            <span class="ring-pct" id="ringPct">0%</span>
+            <span class="ring-lbl">Done</span>
+          </div>
+        </div>
+
+        <div class="phase-list" id="phaseList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: ALL TASKS ===== -->
+<div class="tab-pane" id="tab-tasks">
+  <div class="tasks-wrap">
+    <!-- Sidebar -->
+    <div class="task-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Filter by Category</div>
+        <button class="sidebar-btn active" onclick="filterCat('all',this)">
+          <span class="sb-ico">🌐</span> All Categories <span class="sb-count" id="sbc-all">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('general',this)">
+          <span class="sb-ico">⚙️</span> General <span class="sb-count" id="sbc-general">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('mf',this)">
+          <span class="sb-ico">📈</span> Mutual Funds <span class="sb-count" id="sbc-mf">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('nps',this)">
+          <span class="sb-ico">🏛️</span> NPS <span class="sb-count" id="sbc-nps">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('dashboard',this)">
+          <span class="sb-ico">📊</span> Dashboard <span class="sb-count" id="sbc-dashboard">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('reports',this)">
+          <span class="sb-ico">📄</span> Reports <span class="sb-count" id="sbc-reports">0</span>
+        </button>
+        <button class="sidebar-btn" onclick="filterCat('ultra',this)">
+          <span class="sb-ico">🧠</span> Ultra Features <span class="sb-count" id="sbc-ultra">0</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Filter by Priority</div>
+        <button class="sidebar-btn" onclick="filterPri('p0',this)"><span class="sb-ico">🔴</span> Critical P0 <span class="sb-count" id="sbp-p0">0</span></button>
+        <button class="sidebar-btn" onclick="filterPri('p1',this)"><span class="sb-ico">🟠</span> High P1 <span class="sb-count" id="sbp-p1">0</span></button>
+        <button class="sidebar-btn" onclick="filterPri('p2',this)"><span class="sb-ico">🟡</span> Medium P2 <span class="sb-count" id="sbp-p2">0</span></button>
+        <button class="sidebar-btn" onclick="filterPri('p3',this)"><span class="sb-ico">🟢</span> Low P3 <span class="sb-count" id="sbp-p3">0</span></button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Filter by Type</div>
+        <button class="sidebar-btn" onclick="filterType('bug',this)"><span class="sb-ico">🐛</span> Bugs <span class="sb-count" id="sbt-bug">0</span></button>
+        <button class="sidebar-btn" onclick="filterType('feat',this)"><span class="sb-ico">✨</span> Features <span class="sb-count" id="sbt-feat">0</span></button>
+        <button class="sidebar-btn" onclick="filterType('fix',this)"><span class="sb-ico">🔧</span> Fixes <span class="sb-count" id="sbt-fix">0</span></button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Quick Filters</div>
+        <button class="sidebar-btn" onclick="filterStatus('pending',this)"><span class="sb-ico">⏳</span> Pending</button>
+        <button class="sidebar-btn" onclick="filterStatus('done',this)"><span class="sb-ico">✅</span> Completed</button>
+        <button class="sidebar-btn" onclick="filterDb(this)"><span class="sb-ico">🗄️</span> Needs DB</button>
+      </div>
+    </div>
+
+    <!-- Main task area -->
+    <div class="task-main">
+      <div class="task-topbar">
+        <button class="filter-chip active" onclick="filterStatus('all',this)" id="fc-all">All</button>
+        <button class="filter-chip" onclick="filterChip('p0',this)" id="fc-p0">🔴 Critical</button>
+        <button class="filter-chip" onclick="filterChip('p1',this)" id="fc-p1">🟠 High</button>
+        <button class="filter-chip" onclick="filterChip('p2',this)" id="fc-p2">🟡 Medium</button>
+        <button class="filter-chip" onclick="filterChip('p3',this)" id="fc-p3">🟢 Low</button>
+        <button class="filter-chip" onclick="filterChip('bug',this)" id="fc-bug">🐛 Bug</button>
+        <button class="filter-chip" onclick="filterChip('feat',this)" id="fc-feat">✨ Feature</button>
+        <span style="font-size:11px;color:var(--muted);margin-left:4px" id="taskCountLabel"></span>
+        <div class="search-box">
+          <span class="search-ico">🔍</span>
+          <input class="search-inp" id="taskSearch" placeholder="Search tasks..." oninput="searchTasks(this.value)">
+        </div>
+      </div>
+      <div class="task-scroll" id="taskScroll"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: NEW FEATURES ===== -->
+<div class="tab-pane" id="tab-features">
+  <div style="padding:20px 24px">
+    <div class="feature-section-hdr">
+      <div>
+        <div class="fsh-title">🚀 World-Class Features — Jo Duniya Chahti Hai</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">Ye features aaj tak kisi ne properly implement nahi kiye — in sab ko WealthDash mein build karo</div>
+      </div>
+      <span class="fsh-badge">✨ 30 Unique Features</span>
+    </div>
+    <div class="features-grid" id="featuresGrid"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: DESIGN NOTES ===== -->
+<div class="tab-pane" id="tab-design">
+  <div class="design-notes">
+    <div class="dn-intro">
+      <div class="dn-title">🎨 WealthDash v2 — Design & Architecture Notes</div>
+      <div class="dn-sub">Ye notes Claude ko dene ke liye hain jab bhi new feature build karo. Paste karo aur direct coding shuru ho jayegi.</div>
+    </div>
+    <div id="designSteps"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: ROADMAP ===== -->
+<div class="tab-pane" id="tab-roadmap">
+  <div class="roadmap-wrap">
+    <div class="sec-heading">🗺️ WealthDash Product Roadmap</div>
+    <div class="roadmap-grid" id="roadmapGrid"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: CHECKLIST ===== -->
+<div class="tab-pane" id="tab-checklist">
+  <div class="checklist-wrap">
+    <div class="sec-heading">✅ Micro-Level Verification Checklist</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Har feature complete hone ke baad in points ko check karo. Ye Claude ko bhej sakte ho debugging ke liye.</p>
+    <div id="checklistWrap"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: AI PROMPTS ===== -->
+<div class="tab-pane" id="tab-ai">
+  <div class="ai-wrap">
+    <div class="ai-header">
+      <div class="ai-title">🤖 AI Prompt Center</div>
+      <div class="ai-sub">Ready-made prompts — Copy karo, Claude ko do, perfect code milega. Har prompt mein WealthDash ka full context already included hai.</div>
+    </div>
+    <div class="ai-grid" id="aiGrid"></div>
+  </div>
+</div>
+
+<!-- ===== TAB: DEBUG ===== -->
+<div class="tab-pane" id="tab-debug">
+  <div class="debug-wrap">
+    <div class="debug-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+        <div class="debug-title">🔧 WealthDash Debug Center</div>
+        <span id="debugBadge" style="font-size:11px;font-weight:800;padding:4px 12px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--muted)">⚪ Not run yet</span>
+      </div>
+      <div class="debug-sub">XAMPP chal raha ho to Run All Checks karo — results neeche inline dikhenge.<br>
+        <span style="font-size:11px;color:var(--muted2)">Direct URL: <a href="http://localhost/wealthdash/debug/runner.php?format=html" target="_blank" style="color:var(--accent)">localhost/wealthdash/debug/runner.php</a></span>
+      </div>
+      <div class="debug-actions">
+        <button class="dbtn dbtn-run" onclick="runDebug()">▶ Run All Checks</button>
+        <button class="dbtn dbtn-export" onclick="exportDebug()">📄 Export for Claude</button>
+        <button class="dbtn dbtn-open" onclick="window.open('http://localhost/wealthdash/debug/runner.php?format=html','_blank')">🌐 Open in Browser</button>
+        <button class="dbtn dbtn-clear" onclick="clearDebug()">✕ Clear</button>
+      </div>
+      <div class="prog-bar-wrap" id="dbProgWrap" style="display:none">
+        <div class="prog-bar-fill" id="dbProgFill" style="width:0%"></div>
+      </div>
+    </div>
+    <div id="debugIframeWrap" style="display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <span style="font-size:12px;font-weight:800">📋 Live Results</span>
+        <button onclick="clearDebug()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px">✕</button>
+      </div>
+      <iframe id="debugIframe" src="about:blank" style="width:100%;height:600px;border:none;display:block"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: HEALTH CHECK ===== -->
+<div class="tab-pane" id="tab-health">
+  <div class="hc-wrap">
+    <div class="hc-header">
+      <div class="hc-title">🩺 File Health Check</div>
+      <div class="hc-sub">Sab modules check karo ek saath — pages load ho rahi hain, APIs kaam kar rahe hain, DB tables sahi hain.</div>
+      <div class="hc-url-row">
+        <span style="font-size:12px;font-weight:700">🌐 Base URL</span>
+        <input class="hc-url-inp" id="hcBaseUrl" value="http://localhost" placeholder="http://localhost">
+        <span class="hc-url-hint">+ /wealthdash/... auto-append</span>
+        <button class="tbtn tbtn-ghost" onclick="hcTestBase()">Test</button>
+        <span id="hcBaseStatus" style="font-size:11px;color:var(--muted)">⚪ Not tested</span>
+      </div>
+      <div class="hc-actions">
+        <button class="dbtn dbtn-run" onclick="hcRunAll()">▶ Run All</button>
+        <button class="dbtn dbtn-export" onclick="hcExport()">📄 Export</button>
+        <button class="dbtn dbtn-open" onclick="window.open(hcGetBase()+'/wealthdash/debug/runner.php?format=html','_blank')">🌐 Browser</button>
+        <button class="dbtn dbtn-clear" onclick="hcReset()">↺ Reset</button>
+      </div>
+    </div>
+    <div class="hc-summary-bar" id="hcSummaryBar">
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcPass" style="color:var(--green)">0</div><div class="hc-sum-lbl">✅ Passed</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcFail" style="color:var(--red)">0</div><div class="hc-sum-lbl">❌ Failed</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcWarn" style="color:var(--yellow)">0</div><div class="hc-sum-lbl">⚠️ Warnings</div></div>
+      <div class="hc-sum-stat"><div class="hc-sum-num" id="hcPend" style="color:var(--muted)">0</div><div class="hc-sum-lbl">⏳ Pending</div></div>
+    </div>
+    <div class="hc-filter-row">
+      <button class="hc-filter active" onclick="hcFilter('all',this)">All</button>
+      <button class="hc-filter" onclick="hcFilter('fail',this)">❌ Failed</button>
+      <button class="hc-filter" onclick="hcFilter('pass',this)">✅ Passed</button>
+      <button class="hc-filter" onclick="hcFilter('warn',this)">⚠️ Warning</button>
+    </div>
+    <div class="hc-grid" id="hcGrid"></div>
+  </div>
+</div>
+
+<!-- FABs -->
+<button class="fab" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+<button class="fab-add" onclick="openAddTask()" title="Add Task">＋</button>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Add Task Modal -->
+<div class="modal-overlay" id="addTaskModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">➕ Naya Task Add Karo</div>
+      <button class="modal-close" onclick="closeAddTask()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Phase Select Karo</label>
+        <select class="form-select" id="newTaskPhase"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Task Title *</label>
+        <input class="form-input" id="newTaskTitle" placeholder="Task ka naam likhao…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <textarea class="form-textarea" id="newTaskDesc" placeholder="Optional description…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select class="form-select" id="newTaskPr">
+            <option value="p0">🔴 Critical (P0)</option>
+            <option value="p1">🟠 High (P1)</option>
+            <option value="p2" selected>🟡 Medium (P2)</option>
+            <option value="p3">🟢 Low (P3)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-select" id="newTaskType">
+            <option value="feat">✨ Feature</option>
+            <option value="bug">🐛 Bug</option>
+            <option value="fix">🔧 Fix</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="tbtn tbtn-ghost" onclick="closeAddTask()">Cancel</button>
+      <button class="tbtn tbtn-primary" onclick="saveNewTask()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+
+const PHASES = [
+{id:'p_bug',ico:'🐛',color:'#dc2626',title:'Phase 1 — Critical Bug Fixes',cat:'general',tasks:[
+  {id:'t01',title:'1D Change ⏳ — renderHoldings ke andar hi inline inject karo',pr:'p0',type:'bug',eff:'1-2 hr',files:['public/js/mf.js'],desc:'renderHoldings() rows mein ⏳ hardcoded hai. Sort/filter/toggle pe row re-render hoti hai aur 1D data uda jaata hai.',sub:['Row render karte waqt MF.oneDayData[fundId] check karo directly','Data available hai to fill karo, warna ⏳ dikhao','inject1DayChange() ko renderHoldings ke last line pe permanently move karo','applySortMenu, applyHoldingsFilter, goHoldingsPage ke scattered inject calls hatao']},
+  {id:'t02',title:'Sort menu — button ke paas khule, scroll pe band ho',pr:'p0',type:'bug',eff:'30 min',files:['public/js/mf.js'],sub:['_positionSortMenu() — requestAnimationFrame ke andar btn.getBoundingClientRect() call karo','window.scroll pe menu.style.display=none','window.resize pe _positionSortMenu() call karo']},
+  {id:'t03',title:'Button icons fix — Export pe import icon, naam se icon match karo',pr:'p1',type:'bug',eff:'1 hr',files:['templates/pages/mf_holdings.php','public/css/app.css'],sub:['Export CSV → ↓ download icon','Import CSV → ↑ upload icon','Baaki pages bhi audit karo (FD, Savings, NPS, Stocks)']},
+  {id:'t04',title:'Short/Long format — sirf tiles pe apply ho, table rows pe nahi',pr:'p1',type:'bug',eff:'1 hr',files:['public/js/mf.js','public/js/app.js'],sub:['fmtFull() function add karo (WD_NUM_SHORT ignore kare)','Table row render mein fmtFull() use karo','Stat tiles/cards mein fmtInr() use karo (toggle-sensitive)']},
+  {id:'t05',title:'Admin Panel — NAV auto-update, manually click na karna pade',pr:'p1',type:'bug',eff:'1 hr',files:['templates/pages/admin.php','api/nav/update_amfi.php'],sub:['Page load pe latest_nav_date DB se check karo','Aaj ki date nahi hai to background mein auto-trigger karo','Status badge: "Updated Today ✅" / "Updating... ⏳" / "Failed ❌"']},
+  {id:'t06',title:'Peak NAV progress bar — "needs_update" wale bhi total mein lo',pr:'p1',type:'bug',eff:'30 min',files:['peak_nav/status.php'],sub:['Query update karo: total = pending + working + needs_update + done','Progress% = done/total * 100']},
+]},
+{id:'p_mf',ico:'📈',color:'#6366f1',title:'Phase 2 — MF Holdings & SIP/SWP Module',cat:'mf',tasks:[
+  {id:'t07',title:'Holdings table — SIP/SWP column hatao, fund name badge banao',pr:'p1',type:'bug',eff:'30 min',files:['templates/pages/mf_holdings.php','public/js/mf.js'],sub:['Table header se SIP/SWP column remove karo','Fund name cell mein "🔄 SIP" badge dikhao']},
+  {id:'t08',title:'"Add SIP" button → "Add SIP/SWP" rename + color change',pr:'p2',type:'feat',eff:'15 min',files:['templates/pages/mf_holdings.php'],sub:['Button text change karo','Color: purple ya teal shade']},
+  {id:'t09',title:'Action column — "+SIP" button hatao, sirf indicator badges',pr:'p1',type:'feat',eff:'1 hr',files:['templates/pages/mf_holdings.php','public/js/mf.js'],sub:['API se active_sip_count aur active_swp_count per fund fetch karo','Row render mein conditional badge','Old "+SIP" action button remove karo']},
+  {id:'t10',title:'SIP/SWP — Stop option add karo (UI + backend)',pr:'p1',type:'feat',eff:'2-3 hr',db:true,files:['api/sip/','api/router.php'],sub:['sip_schedules table mein status column check/add (active/stopped)','API: stop_sip action','Holdings mein badge pe hover = "Stop SIP" option','Confirmation modal']},
+  {id:'t11',title:'SIP start — past NAV auto-download sirf us fund ke liye',pr:'p1',type:'feat',eff:'3-4 hr',files:['api/sip/','api/nav/get_historical_nav.php'],sub:['SIP add API mein: SIP start_date se nav_history check karo','Agar missing: mfapi.in se specific fund ka data fetch karo']},
+  {id:'t12',title:'Sidebar: "SIP Tracker" → "MF SIP/SWP" rename',pr:'p2',type:'feat',eff:'15 min',files:['templates/sidebar.php']},
+  {id:'t13',title:'SIP Report — SWP support add karo',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/report_sip.php','api/reports/sip_report.php'],sub:['SWP transactions fetch karo','Income received vs capital withdrawn','Corpus depletion projection chart']},
+  {id:'t14',title:'SIP Step-Up — Annual automatic increment',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['api/sip/','database/migrations/sip_stepup.sql'],sub:['DB: step_up_pct column, step_up_month column','Cron: April 1 pe har active SIP ka amount update karo','UI: SIP modal mein step-up section']},
+]},
+{id:'p_stocks',ico:'📉',color:'#0f766e',title:'Phase 3 — Stocks Module',cat:'general',tasks:[
+  {id:'t20',title:'Stocks — CAGR & XIRR calculation',pr:'p1',type:'feat',eff:'2-3 hr',files:['includes/holding_calculator.php','templates/pages/stocks.php'],sub:['CAGR: (current/invested)^(1/years)-1','XIRR: same as MF logic — use all buy transactions + current value','Display in holdings tile']},
+  {id:'t21',title:'Stocks — Corporate actions (bonus, split, dividend)',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['api/stocks/corporate_actions.php (NEW)'],sub:['DB: corporate_actions — symbol, type, ratio, ex_date, record_date','Auto-adjust holdings on split/bonus','Dividend income tracker']},
+  {id:'t22',title:'Stock Holdings — P&L by holding period (STCG vs LTCG split)',pr:'p1',type:'feat',eff:'2-3 hr',files:['templates/pages/stocks.php','api/reports/fy_gains.php'],sub:['Holdings > 1 year = LTCG band','Holdings < 1 year = STCG band','Color code rows accordingly']},
+]},
+{id:'p_fd',ico:'💰',color:'#b45309',title:'Phase 4 — Fixed Deposits',cat:'general',tasks:[
+  {id:'t25',title:'FD Laddering View — Maturity timeline chart',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/fd.php'],sub:['Gantt-style horizontal bar chart','Each FD = one bar (start to maturity)','Maturity amount dikhao on hover','Group by bank']},
+  {id:'t26',title:'FD — Auto-renewal tracking',pr:'p2',type:'feat',eff:'1-2 hr',db:true,files:['api/fd/','database/migrations/fd_renewal.sql'],sub:['auto_renew toggle','Renewal history log','Alert when FD is about to mature for the Nth time']},
+  {id:'t27',title:'FD Interest — Monthly accrual tracking',pr:'p3',type:'feat',eff:'2-3 hr',files:['templates/pages/fd.php'],sub:['Cumulative interest earned this FY','Quarter-by-quarter interest chart','TDS deducted amount']},
+]},
+{id:'p_nps',ico:'🏛️',color:'#0369a1',title:'Phase 5-6 — NPS Complete Overhaul',cat:'nps',tasks:[
+  {id:'t99',title:'NPS NAV History Store karo — MF ki tarah nav_history table',pr:'p0',type:'feat',eff:'2-3 days',db:true,files:['database/migrations/014_nps_nav_history.sql','cron/nps_nav_scraper.php'],sub:['DB: nps_nav_history — scheme_id, nav_date, nav','PFRDA website se daily NAV fetch karo','Historical backfill: last 5 years']},
+  {id:'t102',title:'NPS XIRR & CAGR — Proper returns calculate karo',pr:'p0',type:'feat',eff:'2-3 hr',files:['api/nps/nps_list.php','includes/holding_calculator.php'],sub:['CAGR: (latest_nav / nav_on_first_contribution) ^ (1/years) - 1','XIRR: all contributions as outflow','Per-scheme returns: 1Y/3Y/5Y/Since Inception']},
+  {id:'t100',title:'NPS Screener — Scheme comparison tool',pr:'p1',type:'feat',eff:'3-4 days',files:['templates/pages/nps_screener.php (NEW)'],sub:['Filter: PFM | Tier | Asset Class','Table: Scheme, PFM, NAV, 1Y/3Y/5Y Returns','Sort by returns','Side-by-side compare: max 2 schemes']},
+  {id:'t103',title:'NPS Asset Allocation — E/C/G/A class breakdown',pr:'p1',type:'feat',eff:'2-3 hr',files:['templates/pages/nps.php'],sub:['Donut chart: E% | C% | G% | A%','Life stage analysis: age ke hisaab se ideal allocation','Tax benefit: Tier I 80C + 80CCD(1B)']},
+  {id:'t104',title:'NPS Tax Dashboard — 80C + 80CCD complete tracker',pr:'p1',type:'feat',eff:'2-3 hr',files:['templates/pages/nps.php','api/reports/tax_planning.php'],sub:['80C: Employee contribution up to ₹1.5L','80CCD(1B): Extra ₹50,000 ONLY NPS','FY-wise contribution vs deduction limit progress bar']},
+  {id:'t107',title:'NPS Maturity Calculator — Retirement corpus projection',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/nps.php'],sub:['Input: current age, retirement age, monthly contribution','Projection chart: corpus growth year by year','Lump sum (60%) + Annuity (40%) split']},
+  {id:'t196',title:'NPS NAV History Chart Modal — Scheme name click → chart',pr:'p1',type:'feat',eff:'3-4 hr',files:['api/nps/nps_nav_history.php','templates/pages/nps.php','public/js/nps.js'],sub:['Chart.js line chart with contribution markers','Range switching (3M/6M/1Y/3Y/All)','Stats strip: Invested, Current, Gain, CAGR/XIRR']},
+]},
+{id:'p_analytics',ico:'📊',color:'#0f766e',title:'Phase 7-8 — Advanced Analytics',cat:'dashboard',tasks:[
+  {id:'t125',title:'TWRR — Time Weighted Return (cashflow-independent)',pr:'p2',type:'feat',eff:'2-3 hr',files:['includes/holding_calculator.php'],sub:['TWRR formula: product of (1 + sub-period return) - 1','Sub-periods: har transaction pe split','XIRR vs TWRR comparison tile']},
+  {id:'t127',title:'Correlation Matrix — Assets ke beech correlation heatmap',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/mf_holdings.php'],sub:['Nav history se pairwise correlation','Heatmap: green (low) to red (high)','Alert: fund pairs > 0.9 = "Redundant funds"']},
+  {id:'t128',title:'Monte Carlo Simulation — Retirement success probability',pr:'p2',type:'feat',eff:'3-4 hr',files:['templates/pages/goals.php'],sub:['1000+ simulations: random return sequences','Output: P90/P50/P10 scenarios','Visual: fan chart showing range of outcomes']},
+  {id:'t129',title:'Stress Test — Market crash simulation (2008, COVID)',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/mf_holdings.php'],sub:['Scenarios: 2008 crisis (-55%), COVID 2020 (-38%)','Apply to current portfolio: kitna nuksaan hota','Recovery time estimate']},
+  {id:'t132',title:'Grandfathering Calculator — Jan 31 2018 LTCG rule',pr:'p1',type:'feat',eff:'2-3 hr',files:['api/reports/fy_gains.php'],sub:['Identify holdings purchased before Jan 31 2018','Fetch AMFI NAV for Jan 31 2018','Show: "Tax savings ₹Z due to grandfathering"']},
+  {id:'t133',title:'HIFO / Specific Lot Selection — Tax-optimal cost basis',pr:'p1',type:'feat',eff:'2-3 hr',files:['includes/holding_calculator.php'],sub:['Support: FIFO | LIFO | HIFO | Specific Lot','Tax impact comparison: FIFO vs HIFO','Show tax saved by choosing HIFO']},
+]},
+{id:'p_behavioral',ico:'🧠',color:'#9333ea',title:'Phase 9 — Behavioral Finance',cat:'dashboard',tasks:[
+  {id:'t139',title:'Goal-Based Buckets — SIP/fund ko life goal se tag karo',pr:'p1',type:'feat',eff:'2-3 days',db:true,files:['templates/pages/goals.php'],desc:'₹14.45L portfolio nahi — "Daughter Education" + "Retirement" buckets.',sub:['DB: goal_buckets — name, target_amount, target_date, emoji','Tag any holding/SIP to a goal','Withdrawal friction: "₹50K withdraw delays House goal by 8 months"']},
+  {id:'t140',title:'Panic Mode — Market crash mein units dikhao, losses mat',pr:'p1',type:'feat',eff:'2-3 hr',files:['templates/pages/mf_holdings.php','public/js/mf.js'],sub:['Market Crash Detector: Nifty 50 1D change check','Auto-trigger: Nifty < -2% → Panic Mode badge','Toggle: "Switch to Units View" — hide INR loss, show total units']},
+  {id:'t141',title:'SIP Streak — Consistency gamification (Duolingo style)',pr:'p1',type:'feat',eff:'2-3 hr',db:true,files:['templates/pages/mf_holdings.php'],sub:['DB: sip_streaks — user_id, streak_months, longest_streak','Current streak: "🔥 18 months SIP without skip"','Milestone rewards: 12m/24m/36m/60m badges']},
+  {id:'t142',title:'Financial Health Score — Single behavior-based score (CIBIL style)',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/dashboard.php'],sub:['Score 300-900 (like CIBIL)','Components: SIP consistency + Diversification + Emergency fund + Insurance','Weekly update trend chart']},
+  {id:'t143',title:'Zoom Out Toggle — Long term view hide karo daily noise',pr:'p1',type:'feat',eff:'1-2 hr',files:['templates/pages/mf_holdings.php'],sub:['Toggle: "Daily View ↔ Long Term View"','Long Term View: hide 1D change, show only 3Y/5Y returns','"96% chance of profit in 5 years" badge']},
+]},
+{id:'p_tax',ico:'🧾',color:'#15803d',title:'Phase 10 — Tax Planning Dashboard',cat:'reports',tasks:[
+  {id:'t82',title:'80C Dashboard — ₹1.5L limit complete tracker',pr:'p1',type:'feat',eff:'3-4 hr',files:['templates/pages/report_tax.php'],sub:['Progress bar: ₹0 to ₹1.5L filled','Breakdown: ELSS, PPF, EPF, NSC, SSY','Remaining amount + March deadline alert']},
+  {id:'t83',title:'LTCG Harvesting Tool — Tax-free ₹1.25L mein gains book karo',pr:'p1',type:'feat',eff:'3-4 hr',files:['templates/pages/report_tax.php'],sub:['Already booked vs 1.25L limit','Which fund sell karo suggestion','March deadline countdown']},
+  {id:'t84',title:'ITR Schedule — Capital gains ITR-ready download',pr:'p2',type:'feat',eff:'3-4 hr',files:['templates/pages/report_fy.php'],sub:['Schedule 112A: LTCG equity MF','Schedule CG: STCG','CSV in ITR format']},
+  {id:'t85',title:'New vs Old Tax Regime Calculator',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/report_tax.php'],sub:['Input: salary, HRA, home loan, deductions','Side-by-side: Old vs New tax','Recommendation + savings amount']},
+  {id:'t135',title:'Set-off & Carry Forward — Loss tracking (8 years rule)',pr:'p1',type:'feat',eff:'2-3 hr',db:true,files:['api/reports/fy_gains.php'],sub:['DB: capital_loss_carryforward — fy, loss_type, amount, expiry_fy','Auto set-off against previous losses','Expiry alerts: "₹X LTCG loss will expire this FY"']},
+  {id:'t136',title:'AIS / TIS Reconciliation — Income Tax portal match karo',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/report_tax.php'],sub:['AIS upload: JSON/PDF format','Auto-reconcile: MF transactions, FD interest, dividend','Mismatch highlight']},
+  {id:'t137',title:'Advance Tax Calculator — Quarterly estimate + alerts',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/report_tax.php'],sub:['Estimate full year tax liability','Quarterly: 15 Jun | 15 Sep | 15 Dec | 15 Mar','Penalty if missed: 1% per month (234B/234C)']},
+]},
+{id:'p_instruments',ico:'💎',color:'#b45309',title:'Phase 11 — New Investment Instruments',cat:'general',tasks:[
+  {id:'t113',title:'Sovereign Gold Bonds (SGB) — Full lifecycle tracker',pr:'p1',type:'feat',eff:'2-3 days',db:true,files:['api/sgb/sgb.php (NEW)','templates/pages/sgb.php (NEW)'],sub:['DB: sgb_holdings — series, issue_date, maturity_date, units, issue_price','2.5% annual interest + gold price appreciation','Capital gains exemption on maturity']},
+  {id:'t115',title:'REITs & InvITs — Real Estate trust tracker',pr:'p2',type:'feat',eff:'2-3 days',db:true,files:['api/reits/reits.php (NEW)','templates/pages/reits.php (NEW)'],sub:['NSE/BSE price feed','Distribution tracking: quarterly distributions','XIRR per REIT including distributions']},
+  {id:'t117',title:'ESOP / RSU — Vesting + tax lifecycle',pr:'p1',type:'feat',eff:'3-4 days',db:true,files:['api/esop/esop.php (NEW)','templates/pages/esop.php (NEW)'],desc:'Most underserved feature. Vesting schedule, perquisite tax, then LTCG/STCG on sale.',sub:['Vesting schedule: cliff + monthly/quarterly vesting','Perquisite tax: (FMV on exercise - exercise price) × tax slab','Blackout window alerts']},
+  {id:'t121',title:'International Stocks / LRS — US stocks, RSU, ETFs',pr:'p2',type:'feat',eff:'3-4 days',db:true,files:['api/international/intl.php (NEW)'],sub:['LRS utilization tracker: $250K/year limit','Yahoo Finance API se USD prices','DTAA benefit: Form W-8BEN track karo']},
+  {id:'t122',title:'Insurance Portfolio — Term + Health + ULIP tracker',pr:'p2',type:'feat',eff:'2-3 days',db:true,files:['api/insurance/insurance.php (NEW)'],sub:['Coverage adequacy: term = 20x annual income rule','Premium due alerts: 15/7/1 day pehle','80C + 80D tracking']},
+  {id:'t123',title:'Loan Tracker — Home, Personal, Education, Vehicle',pr:'p2',type:'feat',eff:'2-3 days',db:true,files:['api/loans/loans.php (NEW)'],sub:['Amortization schedule: month-wise principal + interest','Prepayment impact calculator','EMI-to-income ratio: >40% = warning']},
+]},
+{id:'p_screener',ico:'🔍',color:'#0891b2',title:'Phase 12 — MF Screener Advanced',cat:'mf',tasks:[
+  {id:'t63',title:'AUM Filter — Screener mein AUM range filter',pr:'p1',type:'feat',eff:'2-3 hr',files:['templates/pages/mf_screener.php'],sub:['Range: <500Cr | 500-2000Cr | 2000-10000Cr | >10000Cr','Screener table mein AUM column (sortable)']},
+  {id:'t64',title:'NFO Tracker — Open/Upcoming NFOs track karo',pr:'p2',type:'feat',eff:'3-4 days',db:true,files:['api/mutual_funds/nfo.php (NEW)'],sub:['AMFI se NFO data fetch','Cards: Open | Closing Soon | Upcoming','Alert: NFO 2 din mein band ho rahi hai']},
+  {id:'t66',title:'1Y/3Y/5Y Returns Filter + Column',pr:'p2',type:'feat',eff:'1 day',db:true,files:['templates/pages/mf_screener.php'],sub:['Migration: returns_1y, returns_3y, returns_5y, alpha, beta, sharpe','Daily cron: nav_history se calculate','Filter: >10% >15% >20% >25%']},
+  {id:'t68',title:'Watchlist — Favourite funds star karke track karo',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['api/mutual_funds/watchlist.php (NEW)'],sub:['DB: fund_watchlist — user_id, fund_id, added_at, notes','Star button screener row mein','Daily NAV change notification']},
+  {id:'t96',title:'Fund Comparison Tool — Max 3 funds side-by-side',pr:'p2',type:'feat',eff:'6-8 hr',files:['templates/pages/mf_screener.php'],sub:['Screener row mein Compare checkbox (max 3)','Floating bar: "Compare (2) →" bottom pe','Columns: NAV, Drawdown, Expense, Returns, Sharpe, AUM']},
+  {id:'t108',title:'Fund Finder v2 — MF Screener properly banana',pr:'p1',type:'feat',eff:'2-3 days',files:['templates/pages/mf_screener.php'],sub:['Goal-based search: "Retirement ke liye", "Tax saving"','Consistency score: kitne saal fund ne category average beat kiya','Trending searches: "Most added this week"']},
+]},
+{id:'p_alerts',ico:'🔔',color:'#dc2626',title:'Phase 13 — Smart Alerts',cat:'general',tasks:[
+  {id:'t77',title:'NAV Price Alert — Target NAV pe notify karo',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['api/mutual_funds/price_alerts.php (NEW)'],sub:['DB: price_alerts — user_id, fund_id, type, target_nav','Screener drawer mein Alert button','Daily cron compare karo']},
+  {id:'t78',title:'Drawdown Alert — ATH se X% gire to notify',pr:'p2',type:'feat',eff:'1-2 hr',files:['cron/update_nav_daily.php'],sub:['User threshold: 10/15/20% custom','Holdings pe warning badge']},
+  {id:'t80',title:'FD Maturity Alert — 30/7/1 din pehle',pr:'p1',type:'feat',eff:'1 hr',files:['cron/fd_maturity_alert.php'],sub:['30 din: "Plan karo — renew ya withdraw"','7 din: urgent reminder','Current rate comparison']},
+  {id:'t81',title:'Notification Center — Sab alerts ek jagah (bell icon)',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['templates/topbar.php','includes/notification.php'],sub:['Topbar bell + unread badge','Types: NAV | FD | SIP | Drawdown | NFO','Mark read / Clear all / Per-category on/off']},
+]},
+{id:'p_integrations',ico:'🔗',color:'#0284c7',title:'Phase 14 — India Ecosystem Integrations',cat:'general',tasks:[
+  {id:'t148',title:'CAMS + KFintech CAS Auto-Import — Full portfolio 1 click',pr:'p1',type:'feat',eff:'3-4 days',files:['api/mutual_funds/cas_import.php (NEW)'],sub:['CAMS CAS email format: PDF parse karo','OTP-based fetch: CAMS API se','Auto-map: PAN → all MF folios','Duplicate check: same folio+date+amount']},
+  {id:'t149',title:'Account Aggregator (AA) Framework — RBI-mandated bank data pull',pr:'p2',type:'feat',eff:'1 week',files:['api/integrations/account_aggregator.php (NEW)'],sub:['Sahamati / Finvu AA operators integrate','Consent flow: user gives consent → data flows','Bank transactions: auto-categorize expenses']},
+  {id:'t151',title:'EPFO Passbook Sync — EPF + EPS track karo',pr:'p2',type:'feat',eff:'2-3 days',files:['api/integrations/epfo.php (NEW)'],sub:['UAN-based monthly contribution tracking','EPS: pension corpus, monthly pension estimate','Interest: 8.15% current rate, compound annually']},
+  {id:'t153',title:'Broker API Sync — Zerodha / Groww / Upstox real-time',pr:'p2',type:'feat',eff:'1 week',files:['api/integrations/brokers.php (NEW)'],sub:['Zerodha Kite Connect API: holdings, P&L','OAuth-based: no password sharing','Corporate actions: bonus, split auto-adjust']},
+]},
+{id:'p_life_planning',ico:'🏡',color:'#be185d',title:'Phase 15 — Life Planning & Family',cat:'dashboard',tasks:[
+  {id:'t154',title:'FIRE Calculator — Financial Independence Retire Early',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/goals.php'],sub:['FIRE number: 25x annual expenses (4% withdrawal rule)','Coast FIRE: corpus needed today','India adjustment: 6% inflation, 12% equity expected']},
+  {id:'t155',title:'Child Education Planner — Inflation-adjusted goal calculator',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/pages/goals.php'],sub:['Education inflation: 10-12% in India','IIT/IIM vs private vs abroad: preset templates','SSY eligibility (girl child < 10 years)']},
+  {id:'t156',title:'Family Portfolio — Multi-member household view',pr:'p2',type:'feat',eff:'3-4 days',db:true,files:['api/family/family.php (NEW)'],sub:['Consolidated net worth: all family members','HUF account: separate PAN, separate tax entity','Joint investment tracking: FD/MF in joint names']},
+  {id:'t157',title:'Emergency Fund Tracker — 6 months expense adequacy',pr:'p1',type:'feat',eff:'1-2 hr',files:['templates/pages/dashboard.php'],sub:['Emergency fund: savings + liquid fund balance','Status: "You have 4.2 months — add ₹40K more"','Dashboard widget: prominent card']},
+  {id:'t158',title:'Nominee Tracker — Across all assets nomination check',pr:'p2',type:'feat',eff:'2-3 hr',db:true,files:['templates/pages/dashboard.php'],sub:['All assets: MF, demat, bank, insurance, EPF, NPS','Alert: "7 assets have no nominee"','Periodic reminder: review every 2 years']},
+]},
+{id:'p_ux',ico:'✨',color:'#f59e0b',title:'Phase 16 — UX & Quality of Life',cat:'general',tasks:[
+  {id:'t86',title:'Dark Mode — Proper dark theme toggle',pr:'p2',type:'feat',eff:'3-4 hr',files:['public/css/app.css','templates/topbar.php'],sub:['CSS variables wire up karo','Topbar 🌙/☀️ toggle','prefers-color-scheme detect']},
+  {id:'t87',title:'Mobile Responsive — Holdings table mobile pe fix karo',pr:'p1',type:'feat',eff:'3-4 hr',files:['public/css/app.css','templates/pages/mf_holdings.php'],sub:['Mobile: Fund + Value + Gain% only','Swipe for more columns','Touch targets 44px+']},
+  {id:'t88',title:'Ctrl+K Global Search — Instant search shortcut',pr:'p2',type:'feat',eff:'2-3 hr',files:['templates/layout.php','public/js/app.js'],sub:['Ctrl+K → search modal','Search: holdings, txns, FD, goals','Results grouped by category']},
+  {id:'t90',title:'CSV Import — Zerodha/Groww/Kuvera format support',pr:'p1',type:'feat',eff:'2-3 days',files:['api/mutual_funds/mf_import_csv.php'],sub:['Zerodha Coin CSV parse karo','Groww export CSV parse karo','Auto-detect format from headers']},
+]},
+];
+
+// New World-Class Features (ChatGPT + our ideas merged as proper tasks)
+const ULTRA_PHASES = [
+{id:'p_ultra',ico:'🧠',color:'#7c3aed',title:'Ultra Features — Jo Duniya Chahti Hai',cat:'ultra',tasks:[
+  {id:'u01',title:'Future Life Simulator — 10-30 year net worth projection',pr:'p2',type:'feat',eff:'3-4 days',isNew:true,files:['templates/pages/simulator.php (NEW)','api/simulator/life_simulator.php (NEW)'],desc:'Simulate your future (marriage, kids, salary growth, inflation) and show net worth over 10–30 years with interactive sliders.',sub:['Input sliders: age, salary, annual hike%, inflation%, major life events (marriage cost, kids, home)','Monte Carlo: 500 scenarios → P10/P50/P90 bands','Chart: area chart with fan showing uncertainty','Life event markers: "Home purchase 2028", "Child education 2035"','Export: PDF life plan']},
+  {id:'u02',title:'"What If I Die" Financial Plan — Family emergency document',pr:'p1',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/estate_plan.php (NEW)'],desc:'Auto-create financial snapshot for family: assets, passwords hint, insurance, nominee guidance.',sub:['Consolidated "Family Financial Manual" page','All assets with nominee info','Insurance policy numbers + claim process','Password manager hint (not actual passwords)','PDF download: "In case of emergency — Read this"','Update reminder: every 6 months']},
+  {id:'u03',title:'Regret Minimizer Tool — Historical "what if" calculator',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/regret_minimizer.php (NEW)'],desc:'Show "if you invested ₹X in this fund 5 years ago" vs current behavior. Motivates better decisions.',sub:['Input: any past date + amount + fund/asset','Calculate: actual return vs index return vs your actual portfolio','Show: "₹1L in Nifty 5 years ago = ₹2.4L today"','"Your ₹1L is currently ₹1.2L — opportunity cost: ₹1.2L"','Shareable result card (PNG export)']},
+  {id:'u04',title:'Behavior Tracker — Anti-FOMO, anti-panic investor psychology',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,db:true,files:['api/reports/behavioral_score.php (NEW)'],sub:['Track: panic sells (sold during dip), FOMO buys (bought after rally)','Score updated weekly: "Behavioral IQ: 87/100"','"Sold 0 times during market drops — Excellent"','"Bought NFO 3 times — review strategy"','Tip checker: paste a tip, see "historical success rate of such tips"']},
+  {id:'u05',title:'Hidden Fees Detector — Total expense across portfolio',pr:'p1',type:'feat',eff:'2-3 hr',isNew:true,files:['api/reports/fee_analysis.php (NEW)'],desc:'Calculate total expense ratio, brokerage, tax leakage across your entire portfolio.',sub:['MF: expense ratio × AUM per fund','Stocks: brokerage paid this FY','FD: pre-tax vs post-tax return gap','Total annual cost: "You paid ₹X,XXX in fees this year"','Comparison: same portfolio in zero-cost index funds','30-year projection: "Fees will cost ₹XX lakh at retirement"']},
+  {id:'u06',title:'Real Life Goal Trigger Alerts — "You can afford X now!"',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,db:true,files:['api/goals/trigger_alerts.php (NEW)'],sub:['Pre-set milestones: Car, Home down payment, International trip, Kids school','When savings cross threshold → celebration notification','"🎉 Your emergency fund is complete! Time to invest more."','"You now have ₹5L liquid — can afford a ₹12L car (20% down)"','Confetti animation + shareable achievement card']},
+  {id:'u07',title:'Emergency Crash Mode — Market down? Guided action plan',pr:'p1',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/dashboard.php','api/market/crash_detector.php (NEW)'],desc:'During market crash: show personalized action suggestions — not generic advice.',sub:['Detect: portfolio drawdown > 15% from peak','Crash Mode banner: calm design, no red colors','Suggestions based on YOUR portfolio: "Your 3 debt funds are unaffected"','"Your SIP is buying units 20% cheaper — continue"','Historical recovery chart: "Nifty recovered from COVID crash in 7 months"','One-click: "Pause SIP" disabled in crash mode (friction)']},
+  {id:'u08',title:'Personal Inflation Tracker — Your actual inflation, not CPI',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,db:true,files:['api/cashflow/personal_inflation.php (NEW)'],desc:'Track user real inflation based on lifestyle, not government CPI.',sub:['Input: actual spending categories (rent, groceries, fuel, education, healthcare)','Compare: your inflation vs official CPI','"Your personal inflation is 8.2% vs CPI 5.1%"','Impact: shows how your investments need to beat YOUR inflation','Year-over-year lifestyle cost comparison','Auto-detect from bank statement (AA integration)']},
+  {id:'u09',title:'Net Worth Timeline Story — Life journey visualization',pr:'p3',type:'feat',eff:'3-4 hr',isNew:true,files:['templates/pages/net_worth_story.php (NEW)'],desc:'Visual story of your financial journey — first job, first investment, milestones.',sub:['Timeline: horizontal scroll, year by year','Each year: net worth bar + key event markers','Events: "First job ₹4L salary", "Bought first MF", "Got married", "Home loan"','Animated progress: watch net worth grow over time','"Your net worth doubled in X years"','Share: beautiful card for LinkedIn/WhatsApp']},
+  {id:'u10',title:'Financial Freedom Countdown — When can you retire?',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/dashboard.php'],desc:'Live countdown showing when you can retire based on current savings behavior.',sub:['FI Number: 25x annual expenses (4% rule)','Progress: X% of FI number achieved','Countdown: "At current pace, you reach FI in 14y 3m 22d"','"If SIP increased by ₹5000: FI in 12y 8m"','Dashboard widget: most prominent card','Color: progress from red → yellow → green as FI approaches']},
+  {id:'u11',title:'Time vs Money Analyzer — Convert expenses to "hours of your life"',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/insights.php (NEW)'],desc:'Convert expenses into hours of life. Changes spending perspective permanently.',sub:['Input: current take-home salary','Auto-calculate: hourly rate of your time','Any expense can be converted: "That ₹5000 dinner = 6.5 hours of your life"','Monthly: "You worked X hours just for EMI"','Annual: "You work Y months every year just to pay fixed costs"']},
+  {id:'u12',title:'Shadow Portfolio — Track "what if" investments without investing',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,db:true,files:['api/shadow_portfolio/shadow.php (NEW)'],desc:'Ghost tracking — add any fund/stock without actually investing and watch virtual performance.',sub:['DB: shadow_holdings — fund_id, virtual_amount, virtual_date, user_id','Same UI as real portfolio but with "Shadow" badge','Real NAV updates daily for shadow holdings','Compare: "Your shadow HDFC Nifty 50 is up 18% vs your actual Axis Active fund at 11%"','Conviction builder before real investment']},
+  {id:'u13',title:'Income Dependency Risk Meter — What if salary stops?',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/dashboard.php'],sub:['Passive income vs total expenses ratio','Score: "If salary stopped today, your investments + passive income covers X months"','Components: dividend income, FD interest, rental yield, SWP','Risk levels: Red (<3m), Yellow (3-6m), Green (>6m), Blue (>12m = financially resilient)','Action: what to do to improve score']},
+  {id:'u14',title:'Spending Leak Detector — Find unnecessary recurring expenses',pr:'p1',type:'feat',eff:'2-3 hr',isNew:true,files:['api/cashflow/leak_detector.php (NEW)'],desc:'Identify small recurring expenses that drain wealth silently over time.',sub:['Analyze bank statement / manual input','Flag: subscriptions, recurring debits, annual fees','"You have 12 active subscriptions costing ₹X/month"','30-year projection: "Cutting ₹2000/month leaks = ₹X lakh more at retirement"','One-click flag: "I want to cancel this"','Benchmark: "Top 10% savers your age spend ₹X less on subscriptions"']},
+  {id:'u15',title:'Real Return Calculator — After inflation + tax (true gain)',pr:'p1',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/mf_holdings.php'],desc:'Show actual return after inflation and taxes — the number that matters.',sub:['Formula: (1 + nominal return) / (1 + inflation) - 1 = real return','After tax: real return × (1 - effective tax rate)','Each holding: nominal XIRR → post-tax → real return','Color: green only if real return > 0 (beating inflation)','Many FDs will show negative real return after inflation — eye-opener','Dashboard: "Portfolio real return: X%"']},
+  {id:'u16',title:'Auto Rebalancing Suggestions — Detect imbalance, suggest action',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['api/reports/rebalancing.php (NEW)'],sub:['User sets target allocation: Equity X% | Debt Y% | Gold Z%','Current allocation vs target','Drift: "Equity is 12% overweight"','Exact action: "Sell ₹X Axis Bluechip, Buy ₹Y HDFC Liquid"','One-click: generate orders for broker','Tax-aware: prefer selling LTCG eligible units first']},
+  {id:'u17',title:'Peer Benchmarking — Anonymous age/income bracket comparison',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,db:true,files:['api/reports/peer_benchmark.php (NEW)'],desc:'Not what peers buy (avoids herding) — how disciplined they are.',sub:['Opt-in: users choose to participate','Metrics: SIP consistency%, asset allocation%, emergency fund months','anonymous aggregate: users in same age/income bracket','"You are in top 15% for SIP consistency in your age group"','"70% of investors your age have higher equity allocation"']},
+  {id:'u18',title:'Lifestyle Upgrade Warning — Expense growing faster than income?',pr:'p2',type:'feat',eff:'1-2 hr',isNew:true,files:['templates/pages/cashflow.php'],sub:['Track: expense growth rate vs income growth rate','Alert: "Your expenses grew 18% last year vs income 12%"','Lifestyle inflation: year-over-year spending category comparison','"Investment rate dropped from 28% to 19% — lifestyle inflation detected"']},
+  {id:'u19',title:'Stock Picker Reality Check — Your picks vs Nifty 50',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['templates/pages/stocks.php'],desc:'Most retail stock pickers underperform index. Honest comparison builds rationality.',sub:['Same money, same dates → Nifty 50 returns','Your actual stock portfolio returns','"Your picks returned 8.2% vs Nifty 50 at 14.3% same period"','Cost of stock picking: brokerage + opportunity cost','Recommendation: shift X% to index funds?']},
+  {id:'u20',title:'Financial Health Score — Overall CIBIL-style habit score',pr:'p2',type:'feat',eff:'2-3 hr',isNew:true,files:['api/reports/health_score.php (NEW)'],desc:'Not based on returns (market controls that) — based on YOUR habits and decisions.',sub:['Score 300-900 (familiar CIBIL concept)','Components: SIP consistency (25%) + Diversification (20%) + Emergency fund (15%) + Insurance (15%) + Debt-ratio (10%) + Tax efficiency (15%)','Weekly score trend chart','Actionable: "Add term insurance to gain 50 points"','Share score badge on WhatsApp/LinkedIn']},
+]},
+];
+
+// Merge all phases
+const ALL_PHASES = [...PHASES, ...ULTRA_PHASES];
+
+// Saved state
+let state = JSON.parse(localStorage.getItem('wd_v2_state') || '{}');
+let activeFilters = { cat: 'all', pri: null, type: null, status: 'all', db: false };
+let searchQuery = '';
+
+function saveState(){ localStorage.setItem('wd_v2_state', JSON.stringify(state)); }
+function isTaskDone(id){ return !!state['t_'+id]; }
+function toggleTask(id, cb){
+  state['t_'+id] = cb.checked;
+  saveState();
+  const row = cb.closest('.task');
+  if(row) row.classList.toggle('done', cb.checked);
+  updateAllStats();
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function getAllTasks(){
+  let arr = [];
+  ALL_PHASES.forEach(p => p.tasks.forEach(t => arr.push({...t, phaseId:p.id, phaseCat:p.cat})));
+  return arr;
+}
+
+function updateAllStats(){
+  const all = getAllTasks();
+  const total = all.length;
+  const done = all.filter(t => isTaskDone(t.id)).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  // Ring
+  const circ = 314;
+  const offset = circ - (pct/100)*circ;
+  const ring = document.getElementById('ringCircle');
+  if(ring) ring.style.strokeDashoffset = offset;
+  const rp = document.getElementById('ringPct');
+  if(rp) rp.textContent = pct+'%';
+
+  // Top bar ring
+  const or = document.getElementById('overallRing');
+  if(or) or.textContent = pct+'%';
+
+  // Pending count
+  const pc = document.getElementById('pendingCount');
+  if(pc) pc.textContent = total - done;
+
+  // Stats strip
+  const strip = document.getElementById('statsStrip');
+  if(strip){
+    const bugs = all.filter(t=>t.type==='bug');
+    const feats = all.filter(t=>t.type==='feat');
+    const critical = all.filter(t=>t.pr==='p0'||t.pr==='p1');
+    strip.innerHTML = `
+      <div class="stat-card c-accent"><div class="stat-num" style="color:var(--accent)">${done}</div><div class="stat-label">Completed</div><div class="stat-sub">of ${total} total</div></div>
+      <div class="stat-card c-teal"><div class="stat-num" style="color:var(--teal)">${pct}%</div><div class="stat-label">Progress</div><div class="stat-sub">overall build</div></div>
+      <div class="stat-card c-yellow"><div class="stat-num" style="color:var(--yellow)">${total-done}</div><div class="stat-label">Remaining</div><div class="stat-sub">tasks left</div></div>
+      <div class="stat-card c-red"><div class="stat-num" style="color:var(--red)">${critical.filter(t=>!isTaskDone(t.id)).length}</div><div class="stat-label">Critical Left</div><div class="stat-sub">P0+P1 undone</div></div>
+      <div class="stat-card c-blue"><div class="stat-num" style="color:var(--blue)">${feats.length}</div><div class="stat-label">Features</div><div class="stat-sub">${feats.filter(t=>isTaskDone(t.id)).length} done</div></div>
+      <div class="stat-card c-green"><div class="stat-num" style="color:var(--green)">${ALL_PHASES.length}</div><div class="stat-label">Phases</div><div class="stat-sub">total phases</div></div>
+    `;
+  }
+
+  // Sidebar counts
+  const cats = ['all','general','mf','nps','dashboard','reports','ultra'];
+  cats.forEach(c => {
+    const el = document.getElementById('sbc-'+c);
+    if(el){
+      const tasks = c==='all' ? all : all.filter(t=>t.phaseCat===c);
+      const left = tasks.filter(t=>!isTaskDone(t.id)).length;
+      el.textContent = left;
+    }
+  });
+  ['p0','p1','p2','p3'].forEach(p => {
+    const el = document.getElementById('sbp-'+p);
+    if(el) el.textContent = all.filter(t=>t.pr===p&&!isTaskDone(t.id)).length;
+  });
+  ['bug','feat','fix'].forEach(tp => {
+    const el = document.getElementById('sbt-'+tp);
+    if(el) el.textContent = all.filter(t=>t.type===tp&&!isTaskDone(t.id)).length;
+  });
+
+  // Task count label
+  const tl = document.getElementById('taskCountLabel');
+  if(tl){
+    const vis = document.querySelectorAll('#taskScroll .task').length;
+    tl.textContent = vis + ' tasks';
+  }
+
+  // Phase list in ring panel
+  renderPhaseList();
+  renderCatGrid();
+  renderTaskCountLabel();
+}
+
+function renderPhaseList(){
+  const list = document.getElementById('phaseList');
+  if(!list) return;
+  list.innerHTML = '';
+  ALL_PHASES.slice(0,10).forEach(p => {
+    const total = p.tasks.length;
+    const done = p.tasks.filter(t=>isTaskDone(t.id)).length;
+    const pct = total ? Math.round(done/total*100) : 0;
+    const row = document.createElement('div');
+    row.className = 'phase-row';
+    row.innerHTML = `
+      <div class="phase-dot" style="background:${p.color}"></div>
+      <div class="phase-name" title="${p.title}">${p.title.split('—')[0].trim()}</div>
+      <div class="mini-bar-wrap"><div class="mini-bar-fill" style="width:${pct}%;background:${p.color}"></div></div>
+      <div class="phase-pct" style="color:${p.color}">${pct}%</div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderCatGrid(){
+  const grid = document.getElementById('catGrid');
+  if(!grid) return;
+  const catMap = {
+    general:{ico:'⚙️',label:'General'},
+    mf:{ico:'📈',label:'Mutual Funds'},
+    nps:{ico:'🏛️',label:'NPS'},
+    dashboard:{ico:'📊',label:'Dashboard'},
+    reports:{ico:'📄',label:'Reports'},
+    ultra:{ico:'🧠',label:'Ultra Features'},
+  };
+  const all = getAllTasks();
+  grid.innerHTML = '';
+  Object.entries(catMap).forEach(([cat,info]) => {
+    const tasks = all.filter(t=>t.phaseCat===cat);
+    const done = tasks.filter(t=>isTaskDone(t.id)).length;
+    const pct = tasks.length ? Math.round(done/tasks.length*100) : 0;
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.onclick = () => { document.querySelector('[data-tab="tasks"]').click(); filterCat(cat, document.getElementById('sbc-'+cat)?.closest('.sidebar-btn')); };
+    card.innerHTML = `
+      <div class="cc-head">
+        <div class="cc-name">${info.ico} ${info.label}</div>
+        <div class="cc-count">${tasks.length}</div>
+      </div>
+      <div class="cc-bar-bg"><div class="cc-bar-fg" style="width:${pct}%;background:${pct>80?'var(--green)':pct>40?'var(--accent)':'var(--yellow)'}"></div></div>
+      <div class="cc-footer"><div class="cc-done">${done} done</div><div class="cc-pct" style="color:${pct>80?'var(--green)':pct>40?'var(--accent)':'var(--yellow)'}">${pct}%</div></div>
+    `;
+    grid.appendChild(card);
+  });
+  const el = document.getElementById('catTotalCount');
+  if(el) el.textContent = Object.keys(catMap).length+' categories';
+}
+
+function renderTaskCountLabel(){
+  const tl = document.getElementById('taskCountLabel');
+  if(!tl) return;
+  const vis = document.querySelectorAll('#taskScroll .task').length;
+  tl.textContent = vis + ' tasks shown';
+}
+
+// ============================================================
+// TASK RENDERING
+// ============================================================
+const PRIORITY_LABELS = {p0:'🔴 Critical',p1:'🟠 High',p2:'🟡 Medium',p3:'🟢 Low'};
+const TYPE_LABELS = {bug:'🐛 Bug',feat:'✨ Feature',fix:'🔧 Fix'};
+
+function renderTasks(){
+  const scroll = document.getElementById('taskScroll');
+  if(!scroll) return;
+  const all = getAllTasks();
+
+  // Filter
+  let filtered = all;
+  if(activeFilters.cat !== 'all') filtered = filtered.filter(t => t.phaseCat === activeFilters.cat);
+  if(activeFilters.pri) filtered = filtered.filter(t => t.pr === activeFilters.pri);
+  if(activeFilters.type) filtered = filtered.filter(t => t.type === activeFilters.type);
+  if(activeFilters.status === 'done') filtered = filtered.filter(t => isTaskDone(t.id));
+  if(activeFilters.status === 'pending') filtered = filtered.filter(t => !isTaskDone(t.id));
+  if(activeFilters.db) filtered = filtered.filter(t => t.db);
+  if(searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(t => t.title.toLowerCase().includes(q) || (t.desc||'').toLowerCase().includes(q) || (t.sub||[]).some(s=>s.toLowerCase().includes(q)));
+  }
+
+  // Group by phase
+  const byPhase = {};
+  filtered.forEach(t => {
+    if(!byPhase[t.phaseId]) byPhase[t.phaseId] = [];
+    byPhase[t.phaseId].push(t);
+  });
+
+  scroll.innerHTML = '';
+
+  if(Object.keys(byPhase).length === 0){
+    scroll.innerHTML = '<div style="text-align:center;padding:60px;color:var(--muted2);font-size:13px">No tasks found matching your filters</div>';
+    return;
+  }
+
+  ALL_PHASES.forEach(phase => {
+    const tasks = byPhase[phase.id];
+    if(!tasks || tasks.length === 0) return;
+
+    const totalInPhase = phase.tasks.length;
+    const doneInPhase = phase.tasks.filter(t=>isTaskDone(t.id)).length;
+    const phasePct = totalInPhase ? Math.round(doneInPhase/totalInPhase*100) : 0;
+
+    const block = document.createElement('div');
+    block.className = 'phase-block';
+    block.id = 'phase-'+phase.id;
+
+    block.innerHTML = `
+      <div class="phase-hdr" onclick="togglePhase(this)">
+        <span class="phase-ico">${phase.ico}</span>
+        <span class="phase-ttl">${phase.title}</span>
+        <div class="phase-meta">
+          <span class="phase-prog">${doneInPhase}/${totalInPhase}</span>
+          <div class="ph-mini-wrap"><div class="ph-mini-fill" style="width:${phasePct}%;background:${phase.color}"></div></div>
+          <span class="ph-pct" style="color:${phase.color}">${phasePct}%</span>
+        </div>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="phase-body" id="pb-${phase.id}"></div>
+    `;
+
+    const body = block.querySelector('.phase-body');
+    tasks.forEach((t, i) => {
+      const done = isTaskDone(t.id);
+      const el = document.createElement('div');
+      el.className = 'task' + (done ? ' done' : '');
+      el.id = 'task-'+t.id;
+
+      const prClass = {p0:'bp0',p1:'bp1',p2:'bp2',p3:'bp3'}[t.pr]||'bp3';
+      const typeClass = {bug:'bbug',feat:'bfeat',fix:'bfix'}[t.type]||'beff';
+
+      let subHtml = '';
+      if(t.sub && t.sub.length){
+        subHtml = '<div class="subtasks">' + t.sub.map((s,si) => `
+          <label class="stask">
+            <input type="checkbox" class="scb" ${state['s_'+t.id+'_'+si]?'checked':''} onchange="toggleSub('${t.id}',${si},this)">
+            <span>${s}</span>
+          </label>`).join('') + '</div>';
+      }
+
+      let filesHtml = '';
+      if(t.files && t.files.length){
+        filesHtml = '<div class="tfiles">' + t.files.map(f=>`<span class="bdg bfile">${f}</span>`).join('') + '</div>';
+      }
+
+      el.innerHTML = `
+        <div class="task-green-strip"></div>
+        <input type="checkbox" class="tcb" ${done?'checked':''} onchange="toggleTask('${t.id}',this)">
+        <div class="tcontent">
+          <div class="thdr">
+            <span class="tnum">#${t.id}</span>
+            <span class="ttitle">${t.title}</span>
+          </div>
+          ${t.desc ? `<div class="tdesc">${t.desc}</div>` : ''}
+          ${subHtml}
+          ${filesHtml}
+          <div class="tmeta">
+            <span class="bdg ${prClass}">${PRIORITY_LABELS[t.pr]||t.pr}</span>
+            <span class="bdg ${typeClass}">${TYPE_LABELS[t.type]||t.type}</span>
+            ${t.eff ? `<span class="bdg beff">⏱ ${t.eff}</span>` : ''}
+            ${t.db ? `<span class="bdg bdb">🗄️ DB Migration</span>` : ''}
+            ${t.isNew ? `<span class="bdg bnew">✨ New Feature</span>` : ''}
+          </div>
+        </div>
+      `;
+
+      body.appendChild(el);
+    });
+
+    scroll.appendChild(block);
+  });
+
+  renderTaskCountLabel();
+  updateAllStats();
+}
+
+function toggleSub(tid, si, cb){
+  state['s_'+tid+'_'+si] = cb.checked;
+  saveState();
+}
+
+function togglePhase(hdr){
+  hdr.parentElement.classList.toggle('collapsed');
+}
+
+// ============================================================
+// FILTER FUNCTIONS
+// ============================================================
+function filterCat(cat, btn){
+  activeFilters.cat = cat;
+  document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderTasks();
+}
+function filterPri(pri, btn){
+  activeFilters.pri = activeFilters.pri===pri ? null : pri;
+  document.querySelectorAll('.sidebar-btn').forEach(b=>{if(b.onclick&&b.onclick.toString().includes('filterPri'))b.classList.remove('active');});
+  if(activeFilters.pri && btn) btn.classList.add('active');
+  renderTasks();
+}
+function filterType(type, btn){
+  activeFilters.type = activeFilters.type===type ? null : type;
+  document.querySelectorAll('.sidebar-btn').forEach(b=>{if(b.onclick&&b.onclick.toString().includes('filterType'))b.classList.remove('active');});
+  if(activeFilters.type && btn) btn.classList.add('active');
+  renderTasks();
+}
+function filterStatus(s, btn){
+  activeFilters.status = s;
+  document.querySelectorAll('.sidebar-btn').forEach(b=>{if(b.onclick&&b.onclick.toString().includes('filterStatus'))b.classList.remove('active');});
+  if(btn) btn.classList.add('active');
+  renderTasks();
+}
+function filterDb(btn){
+  activeFilters.db = !activeFilters.db;
+  btn.classList.toggle('active', activeFilters.db);
+  renderTasks();
+}
+function filterChip(val, btn){
+  document.querySelectorAll('.filter-chip').forEach(b=>b.classList.remove('active'));
+  const isPri = ['p0','p1','p2','p3'].includes(val);
+  const isType = ['bug','feat','fix'].includes(val);
+  if(isPri) activeFilters.pri = activeFilters.pri===val ? null : val;
+  if(isType) activeFilters.type = activeFilters.type===val ? null : val;
+  if(activeFilters.pri || activeFilters.type) btn.classList.add('active');
+  else document.getElementById('fc-all').classList.add('active');
+  renderTasks();
+}
+function searchTasks(q){
+  searchQuery = q;
+  renderTasks();
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(name, btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-pill').forEach(b=>b.classList.remove('active'));
+  const pane = document.getElementById('tab-'+name);
+  if(pane) pane.classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='tasks') renderTasks();
+}
+
+// ============================================================
+// FEATURES TAB
+// ============================================================
+const WORLD_CLASS_FEATURES = [
+  {ico:'🛡️',title:'Net Worth Firewall',desc:'Auto-lock investments when market drops >20%. "Your retirement corpus cannot be touched during a crash" — behavioral guardrail.',badge:'Behavioral',color:'var(--red)'},
+  {ico:'📸',title:'Wealth Snapshot (Monthly)',desc:'Every 1st of month: auto-generated PDF/PNG with key stats. Share with spouse/CA. Like a mini annual report for your finances.',badge:'Automation',color:'var(--blue)'},
+  {ico:'🎓',title:'Smart Tax Calendar',desc:'FY-specific: auto-calculate every deadline relevant to YOUR portfolio. 80C deadline, advance tax dates, LTCG harvest window, FD maturity.',badge:'Tax',color:'var(--green)'},
+  {ico:'🔮',title:'Purchase Timing Advisor',desc:'"Is now a good time to invest in this fund?" Based on valuation (P/E ratio), rolling returns history, momentum score.',badge:'Intelligence',color:'var(--purple)'},
+  {ico:'🧬',title:'Portfolio DNA Report',desc:'Like a genome report but for your portfolio: risk tolerance fit, return potential, diversification score, behavioral pattern analysis.',badge:'Analytics',color:'var(--teal)'},
+  {ico:'💬',title:'WhatsApp-style Finance Chat',desc:'Ask your portfolio questions in plain Hindi/English: "Kitna FD mature hoga is mahine?" "Meri best performing SIP kaun si hai?"',badge:'AI Chat',color:'var(--accent)'},
+  {ico:'⚡',title:'One-Tap Rebalance Mode',desc:'Quarterly: auto-detect drift, show exact sell/buy amounts, generate orders list. "Rebalance in 3 taps" — no calculation needed.',badge:'Automation',color:'var(--orange)'},
+  {ico:'🏆',title:'Investor Archetype Quiz',desc:'"Are you a Warren Buffett, a Rakesh Jhunjhunwala, or a Fixed Deposit Uncle?" Fun quiz that reveals portfolio style and gives personalized tips.',badge:'Behavioral',color:'var(--pink)'},
+  {ico:'📡',title:'Satellite Data for Real Estate',desc:'Fetch property price trends using aggregated data from Magicbricks/99acres API. Know if your property is appreciating before you sell.',badge:'Unique',color:'var(--cyan)'},
+  {ico:'🎲',title:'Investment Confidence Meter',desc:'Before every investment: quick 3-question quiz. "Rate your conviction 1-10, time horizon, purpose." Stores decision history — review why you bought.',badge:'Behavioral',color:'var(--indigo)'},
+  {ico:'🧲',title:'Wealth Magnet Score',desc:'"Every ₹ you earn, how much becomes permanent wealth?" Tracks savings conversion rate: income → investment → net worth retention.',badge:'Analytics',color:'var(--yellow)'},
+  {ico:'🌍',title:'Currency Risk Analyzer',desc:'For international investments: USD/INR impact on real returns. "Your US stocks gained 10% but INR weakened 5% — real gain: 4.5%".',badge:'Advanced',color:'var(--teal)'},
+  {ico:'📅',title:'Financial Independence Calendar',desc:'Day-by-day countdown. Mark significant days: "Today you paid off your first loan", "1 year SIP anniversary". Milestones as shareable cards.',badge:'Motivation',color:'var(--green)'},
+  {ico:'🤝',title:'Investment Accountability Partner',desc:'Opt-in: invite a friend/spouse. They get monthly digest (not full access) — "Are you on track with goals this month?" Social accountability.',badge:'Social',color:'var(--blue)'},
+  {ico:'🔬',title:'Risk-Adjusted Return Ranker',desc:'Rank all your holdings not by raw return but by Sharpe ratio. "Fund X has higher return but Fund Y is better risk-adjusted — why you should care."',badge:'Analytics',color:'var(--purple)'},
+];
+
+function renderFeaturesGrid(){
+  const grid = document.getElementById('featuresGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  WORLD_CLASS_FEATURES.forEach(f => {
+    const card = document.createElement('div');
+    card.className = 'feature-card';
+    card.innerHTML = `
+      <div class="fc-icon">${f.ico}</div>
+      <div class="fc-title">${f.title}</div>
+      <div class="fc-desc">${f.desc}</div>
+      <span class="fc-badge" style="background:${f.color}15;color:${f.color};border-color:${f.color}40">${f.badge}</span>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ============================================================
+// DESIGN NOTES TAB
+// ============================================================
+const DESIGN_STEPS = [
+  {
+    title:'🏗️ Architecture Overview',
+    desc:'WealthDash is a Core PHP (no framework) + MySQL + Vanilla JS application. XAMPP local server. Chart.js for charts. File structure: api/ → router.php (single entry) | templates/pages/ → each module | public/js/ → mf.js, app.js, stocks.js | public/css/ → app.css | includes/ → auth, calculator, db | cron/ → daily jobs | database/migrations/ → SQL files.',
+    tags:[{t:'PHP 8+',c:'var(--blue)'},{t:'MySQL',c:'var(--purple)'},{t:'Vanilla JS',c:'var(--yellow)'},{t:'Chart.js',c:'var(--teal)'},{t:'XAMPP',c:'var(--green)'}]
+  },
+  {
+    title:'📁 File Naming Convention',
+    desc:'API endpoints: api/router.php?action=XXXX | New module API: api/module/module_api.php | Frontend page: templates/pages/module.php | JS module: public/js/module.js | Migration: database/migrations/NNN_feature_name.sql | Cron: cron/update_xxx.php. Always create migration file before testing.',
+    tags:[{t:'router.php',c:'var(--accent)'},{t:'migrations/',c:'var(--orange)'},{t:'cron/',c:'var(--red)'}]
+  },
+  {
+    title:'🎨 Design System — Colors & Typography',
+    desc:'Font: Plus Jakarta Sans (headings 800-900 weight) + JetBrains Mono (code/numbers). Primary: #4f46e5 (indigo). Accent2: #7c3aed (purple). Background: #f5f6fa. Surface: #ffffff. All colors as CSS variables. Text size: 14px body, 12px labels, 10px meta badges. Border radius: 10px cards, 14px panels, 20px modals.',
+    tags:[{t:'Plus Jakarta Sans',c:'var(--accent)'},{t:'JetBrains Mono',c:'var(--muted)'},{t:'CSS Variables',c:'var(--teal)'}]
+  },
+  {
+    title:'💡 Claude ko Prompt Karne ka Best Tarika',
+    desc:'Har prompt mein yeh 5 cheezein zaroor batao: (1) Feature ka naam + kya karna hai, (2) Relevant PHP files (api/, templates/), (3) DB schema change chahiye to migration SQL, (4) Expected input/output (JSON format), (5) Edge cases (empty data, large data, auth check). Example: "WealthDash mein ESOP tracking feature banana hai. Files: api/esop/esop.php (NEW), templates/pages/esop.php (NEW). DB migration chahiye. API should return JSON {success, data:[{grant, vest_date, units, fmv}]}. Auth check: session_start() + user_id filter."',
+    tags:[{t:'5-Part Prompt',c:'var(--accent)'},{t:'File Context',c:'var(--green)'},{t:'DB Schema',c:'var(--purple)'}]
+  },
+  {
+    title:'🔒 Security Checklist (Har API Mein)',
+    desc:'session_start() at top → check $_SESSION["user_id"] → use PDO prepared statements (NEVER string concat) → filter all output with htmlspecialchars() → validate file uploads (type + size) → CORS: only allow localhost in dev → no sensitive data in JS/frontend.',
+    tags:[{t:'session_start()',c:'var(--red)'},{t:'PDO Prepared',c:'var(--orange)'},{t:'htmlspecialchars()',c:'var(--yellow)'}]
+  },
+  {
+    title:'📊 Chart.js Standard Config',
+    desc:'All charts use Chart.js already loaded globally. Standard colors: equity=#4f46e5, debt=#0d9488, gold=#f59e0b, cash=#64748b. Responsive:true, maintainAspectRatio:false, plugins.legend.labels.font.family="Plus Jakarta Sans". Tooltip: custom tooltip with ₹ formatting. All INR amounts: use toLocaleString("en-IN") for Indian number formatting.',
+    tags:[{t:'Chart.js',c:'var(--blue)'},{t:'en-IN locale',c:'var(--green)'},{t:'Responsive',c:'var(--teal)'}]
+  },
+  {
+    title:'🚀 New Feature Implementation Order',
+    desc:'Step 1: Create DB migration SQL in database/migrations/ | Step 2: Run migration, verify with SHOW TABLES | Step 3: Create API endpoint in api/ folder | Step 4: Test API in browser/Postman (check JSON response) | Step 5: Create/update frontend template | Step 6: Add JS functionality | Step 7: Test all edge cases (empty, error, mobile) | Step 8: Add to router.php if new action | Step 9: Update checklist here.',
+    tags:[{t:'9-Step Process',c:'var(--accent)'},{t:'Migration First',c:'var(--red)'},{t:'API Then UI',c:'var(--blue)'}]
+  },
+  {
+    title:'📦 Copy-Paste Context for Claude',
+    desc:`Paste this block at start of every Claude conversation:
+
+"Main WealthDash bana raha hoon — personal finance tracker for India.
+Tech: Core PHP (no framework), MySQL, XAMPP, Vanilla JS, Chart.js.
+Structure: api/router.php (main API entry) | templates/pages/ (UI) | public/js/ (frontend JS) | includes/ (shared functions) | database/migrations/ (SQL).
+Auth: session based, user_id in $_SESSION.
+DB: portfolio_id = 1 (single user mode for now).
+APIs: AMFI (MF NAV) | mfapi.in (NAV history) | CoinGecko (Crypto) | Alpha Vantage/NSE (Stocks).
+[Describe your specific feature here]"`,
+    tags:[{t:'Context Block',c:'var(--purple)'},{t:'Copy Paste',c:'var(--green)'}]
+  },
+];
+
+function renderDesignNotes(){
+  const wrap = document.getElementById('designSteps');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  DESIGN_STEPS.forEach((step, i) => {
+    const div = document.createElement('div');
+    div.className = 'dn-step';
+    div.innerHTML = `
+      <div class="dn-step-num">${i+1}</div>
+      <div class="dn-step-body">
+        <div class="dn-step-title">${step.title}</div>
+        <div class="dn-step-desc" style="white-space:pre-line">${step.desc}</div>
+        ${step.tags ? `<div class="dn-step-tags">${step.tags.map(t=>`<span class="dn-tag" style="background:${t.c}15;color:${t.c};border-color:${t.c}40">${t.t}</span>`).join('')}</div>` : ''}
+      </div>
+    `;
+    wrap.appendChild(div);
+  });
+}
+
+// ============================================================
+// ROADMAP
+// ============================================================
+const ROADMAP = [
+  {ico:'📈',title:'Mutual Funds',status:'live',features:['Holdings + NAV tracking','SIP/SWP management','XIRR/CAGR calculations','Fund Screener v1','NAV history charts','CSV Import/Export']},
+  {ico:'🏛️',title:'NPS',status:'live',features:['Holdings tracking','Tier I / Tier II','NAV auto-update','80CCD tax benefit']},
+  {ico:'📮',title:'Post Office Schemes',status:'live',features:['PPF, SSY, MIS, SCSS','TD, RD, NSC, KVP','Maturity calculator','Tax badges']},
+  {ico:'💰',title:'Fixed Deposits',status:'live',features:['FD tracking','Maturity alerts','Interest calculation','Laddering view (WIP)']},
+  {ico:'🏦',title:'Savings Accounts',status:'live',features:['Balance tracking','Interest log','Section 80TTA']},
+  {ico:'📉',title:'Stocks',status:'live',features:['Holdings tracking','Basic P&L','Daily price update cron']},
+  {ico:'🏛️',title:'NPS Overhaul',status:'wip',features:['NAV history + XIRR','NPS Screener','80CCD complete tracker','Maturity calculator']},
+  {ico:'👑',title:'Super Admin Panel',status:'wip',features:['Multi-user management','System health','DB Manager']},
+  {ico:'🔄',title:'ETF',status:'planned',features:['Separate from MF','NSE/BSE price feed','Holdings + P&L']},
+  {ico:'₿',title:'Crypto',status:'planned',features:['CoinGecko API','VDA tax (30% flat)','TDS tracking (1%)']},
+  {ico:'🏅',title:'SGB + Gold',status:'planned',features:['Sovereign Gold Bonds','Physical + Digital Gold','Gold ETF unified view']},
+  {ico:'🏢',title:'REITs & InvITs',status:'planned',features:['NSE/BSE price feed','Distribution tracking','XIRR per REIT']},
+  {ico:'💼',title:'ESOP / RSU',status:'planned',features:['Vesting schedule','Perquisite tax','LTCG/STCG on sale']},
+  {ico:'🌍',title:'International Stocks',status:'planned',features:['LRS tracker ($250K limit)','Yahoo Finance prices','DTAA benefit tracking']},
+  {ico:'🤖',title:'AI Features',status:'planned',features:['Portfolio advisor (Claude API)','Tax optimization','Behavioral insights','Goal planning']},
+  {ico:'🔗',title:'Integrations',status:'planned',features:['CAMS/KFintech CAS import','Account Aggregator (AA)','Zerodha/Groww broker sync','EPFO passbook']},
+];
+
+function renderRoadmap(){
+  const grid = document.getElementById('roadmapGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  ROADMAP.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'roadmap-card';
+    const stClass = {live:'st-live',planned:'st-planned',wip:'st-wip'}[item.status]||'st-planned';
+    const stLabel = {live:'✅ Live',planned:'🔵 Planned',wip:'🟡 In Progress'}[item.status]||item.status;
+    card.innerHTML = `
+      <div class="rc-head">
+        <span class="rc-ico">${item.ico}</span>
+        <span class="rc-title">${item.title}</span>
+        <span class="rc-status ${stClass}">${stLabel}</span>
+      </div>
+      <ul class="rc-features">${item.features.map(f=>`<li>${f}</li>`).join('')}</ul>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// ============================================================
+// CHECKLIST
+// ============================================================
+const CHECKLIST_DATA = [
+  {title:'🐛 Bug Fix Verification',items:[
+    {t:'Bug reproduced before fix'},
+    {t:'Fix applied — no regression'},
+    {t:'Network tab mein API 200 return kar rahi hai'},
+    {t:'Edge cases test kiye: empty data, large data, single record'},
+    {t:'Mobile view check kiya'},
+    {t:'Related pages break to nahi hui'},
+    {t:'Git commit kiya'},
+  ]},
+  {title:'✨ New Feature Verification',items:[
+    {t:'DB migration SQL run kiya',tag:'required'},
+    {t:'DB mein table/column verify kiya (SHOW TABLES; DESCRIBE table;)'},
+    {t:'API endpoint test kiya — Postman ya browser se',tag:'required'},
+    {t:'API returns valid JSON (not HTML error)'},
+    {t:'Frontend data display ho raha hai correctly'},
+    {t:'Loading state dikhta hai jab API call ho rahi hai'},
+    {t:'Error state handle ho raha hai (toast/message)'},
+    {t:'Empty state handle ho raha hai'},
+    {t:'Mobile responsive hai'},
+    {t:'Session/auth check hai API mein',tag:'security'},
+    {t:'SQL injection se protected (prepared statements)',tag:'security'},
+  ]},
+  {title:'🗄️ Database Migration Verification',items:[
+    {t:'Migration SQL run kiya — no errors',tag:'required'},
+    {t:'SHOW TABLES mein naya table dikhta hai'},
+    {t:'DESCRIBE table_name — columns correct hain'},
+    {t:'Foreign keys correct hain'},
+    {t:'Default values correct hain'},
+    {t:'Existing data intact hai (agar ALTER TABLE kiya)'},
+    {t:'Migration file database/migrations/ mein save kiya'},
+  ]},
+  {title:'🤖 AI Feature Verification',items:[
+    {t:'Claude API key .env mein hai (ANTHROPIC_API_KEY)',tag:'required'},
+    {t:'API call successful — no authentication error'},
+    {t:'Response sensible hai — hallucination check karo'},
+    {t:'Response DB mein cached hai'},
+    {t:'API fail ho to fallback message dikhta hai'},
+    {t:'Rate limit handle ho raha hai (429 error)'},
+    {t:'User data leak nahi ho raha'},
+  ]},
+  {title:'📊 Report Verification',items:[
+    {t:'Correct FY dates: 1 April to 31 March',tag:'required'},
+    {t:'LTCG/STCG threshold dates correct (1 yr holding)'},
+    {t:'Tax calculation amounts match expected values'},
+    {t:'FIFO order correct hai'},
+    {t:'Export CSV download ho raha hai'},
+    {t:'Large dataset (100+ records) — no timeout'},
+  ]},
+  {title:'🔒 Security & Auth Verification',items:[
+    {t:'Har API mein session_start() + auth check hai',tag:'security'},
+    {t:'User sirf apna data dekh sakta hai (user_id filter)',tag:'security'},
+    {t:'SQL: prepared statements use karo',tag:'security'},
+    {t:'File upload: type + size check karo',tag:'security'},
+    {t:'.env file publicly accessible nahi hai (.htaccess check)'},
+  ]},
+];
+
+function renderChecklist(){
+  const wrap = document.getElementById('checklistWrap');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  CHECKLIST_DATA.forEach((section, si) => {
+    const totalItems = section.items.length;
+    const doneItems = section.items.filter((_,ii) => state['cl_'+si+'_'+ii]).length;
+    const pct = totalItems ? Math.round(doneItems/totalItems*100) : 0;
+
+    const div = document.createElement('div');
+    div.className = 'cl-section';
+    div.innerHTML = `
+      <div class="cl-hdr" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        ${section.title}
+        <span class="cl-prog">${doneItems}/${totalItems} · ${pct}%</span>
+      </div>
+      <div class="cl-body">
+        ${section.items.map((item, ii) => `
+          <label class="cl-item ${state['cl_'+si+'_'+ii]?'cl-done':''}">
+            <input type="checkbox" class="clcb" ${state['cl_'+si+'_'+ii]?'checked':''} onchange="toggleCl(${si},${ii},this)">
+            <span>${item.t}</span>
+            ${item.tag ? `<span class="cl-tag ${item.tag==='required'?'cl-required':item.tag==='security'?'cl-security':''}">${item.tag}</span>` : ''}
+          </label>
+        `).join('')}
+      </div>
+    `;
+    wrap.appendChild(div);
+  });
+}
+
+function toggleCl(si, ii, cb){
+  state['cl_'+si+'_'+ii] = cb.checked;
+  saveState();
+  const item = cb.closest('.cl-item');
+  if(item) item.classList.toggle('cl-done', cb.checked);
+  renderChecklist();
+}
+
+// ============================================================
+// AI PROMPTS
+// ============================================================
+const AI_PROMPTS = [
+  {ico:'🐛',title:'Bug Fix Request',tag:'Bug',sub:'Specific bug fix karne ke liye',
+   prompt:`WealthDash — Core PHP + MySQL + XAMPP + Vanilla JS.
+File structure: api/ | templates/pages/ | public/js/ | public/css/ | includes/
+
+Problem: [BUG KA NAAM AUR DESCRIPTION]
+File: [FILE PATH]
+Expected: [KYA HONA CHAHIYE]
+Actual: [KYA HO RAHA HAI]
+
+Code:
+\`\`\`
+[PASTE RELEVANT CODE]
+\`\`\`
+
+Fix karo aur explain karo kya change kiya aur kyun.`},
+  {ico:'✨',title:'New Feature Request',tag:'Feature',sub:'Puri feature code ke saath manga',
+   prompt:`WealthDash mein [FEATURE NAME] banana hai.
+
+Files chahiye:
+- [API FILE PATH] (API endpoint)
+- [TEMPLATE FILE PATH] (Frontend)
+- [MIGRATION SQL] (if DB change needed)
+
+Expected behavior:
+- [POINT 1]
+- [POINT 2]
+
+API response format: JSON {success: true, data: [...]}
+Auth: session_start() + $_SESSION['user_id'] check
+Security: PDO prepared statements use karo
+Edge cases: empty data, error handling, loading state.`},
+  {ico:'🗄️',title:'Database Migration',tag:'DB',sub:'Naya table ya column add karo',
+   prompt:`WealthDash mein naya DB table banana hai.
+
+Table naam: [TABLE_NAME]
+Purpose: [KISLIYE CHAHIYE]
+
+Required columns:
+- [COLUMN DETAILS]
+
+Relationships: [FOREIGN KEYS]
+Indexes: [WHICH COLUMNS NEED INDEX]
+
+Create karo:
+1. Migration SQL (database/migrations/NNN_table_name.sql)
+2. Rollback SQL
+3. Verify: SHOW TABLES + DESCRIBE commands`},
+  {ico:'📊',title:'Chart / Visualization',tag:'Chart',sub:'Chart.js se data visualize karo',
+   prompt:`WealthDash mein [CHART TYPE] chart banana hai.
+
+Data source: [API ENDPOINT ya PHP variable]
+Chart library: Chart.js (already loaded)
+Page: [templates/pages/XXX.php]
+
+Data format coming from API:
+\`\`\`json
+[SAMPLE JSON]
+\`\`\`
+
+Requirements:
+- Colors: equity=#4f46e5, debt=#0d9488, gold=#f59e0b
+- Responsive: true, maintainAspectRatio: false  
+- Tooltip: INR format (₹ + Indian number format)
+- Mobile friendly`},
+  {ico:'📄',title:'PDF Report',tag:'Report',sub:'Download/print friendly report',
+   prompt:`WealthDash mein [REPORT NAME] report banana hai.
+
+Report type: [PDF download / Print view / CSV export]
+Data source: [WHICH PHP API / QUERY]
+Time period: [FY-wise / Date range / All time]
+
+Columns needed:
+- [COLUMN LIST]
+
+Format: Indian number format (₹ XX,XX,XXX)
+Include: header with WealthDash branding, footer with date generated
+PDF: use HTML + CSS print stylesheet approach (no external PDF library)`},
+  {ico:'🔔',title:'Alert System',tag:'Alert',sub:'Notification ya alert setup karo',
+   prompt:`WealthDash mein [ALERT TYPE] alert system banana hai.
+
+Trigger condition: [WHEN SHOULD ALERT FIRE]
+Alert destination: in-app notification badge
+Cron: daily check via cron/update_nav_daily.php (extend this)
+
+DB: notifications table (already exists structure: user_id, type, message, is_read, created_at)
+
+Files to modify:
+1. cron/update_nav_daily.php — add check logic
+2. includes/notification.php — insert notification
+3. templates/topbar.php — bell icon badge count
+
+Test case: [HOW TO MANUALLY TRIGGER FOR TESTING]`},
+  {ico:'🤖',title:'AI Integration (Claude API)',tag:'AI',sub:'Claude API call karo kisi feature ke liye',
+   prompt:`WealthDash mein Claude AI [USE CASE] ke liye integrate karna hai.
+
+Feature: [WHAT AI SHOULD DO]
+Input to AI: [WHAT DATA WE SEND]
+Expected output: [WHAT AI SHOULD RETURN]
+
+Tech: Anthropic PHP SDK ya direct cURL
+Model: claude-sonnet-4-20250514
+Cache: store response in DB for 24 hours (avoid repeated API calls)
+Fallback: graceful message if API fails
+
+Files:
+- api/ai/[feature].php (new endpoint)
+- templates/pages/[page].php (UI)
+
+Security: never send raw user financial data — aggregate only`},
+  {ico:'📱',title:'Mobile Responsive Fix',tag:'UX',sub:'Mobile pe koi cheez toot rahi hai',
+   prompt:`WealthDash mein [PAGE/COMPONENT] mobile pe sahi nahi dikh raha.
+
+Screen size affected: [375px mobile / 768px tablet]
+Problem: [DESCRIBE WHAT LOOKS WRONG]
+File: [public/css/app.css ya template file]
+
+Requirements:
+- Mobile (<768px): [DESIRED BEHAVIOR]
+- Tablet (768-1024px): [DESIRED BEHAVIOR]
+- Desktop (1024px+): keep as is
+
+Current CSS (if relevant):
+\`\`\`css
+[PASTE CURRENT STYLES]
+\`\`\``},
+];
+
+function renderAiPrompts(){
+  const grid = document.getElementById('aiGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  AI_PROMPTS.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'ai-card';
+    card.innerHTML = `
+      <div class="ai-card-hdr">
+        <span class="ai-card-ico">${p.ico}</span>
+        <span class="ai-card-title">${p.title}</span>
+        <span class="ai-card-tag" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent-border)">${p.tag}</span>
+      </div>
+      <div class="ai-card-body">
+        <div class="ai-card-sub">${p.sub}</div>
+        <div class="ai-prompt-pre" onclick="copyPrompt(this,'${p.title}')">${p.prompt}</div>
+        <button class="ai-copy-btn" onclick="copyPrompt(this.previousElementSibling,'${p.title}')">📋 Copy Prompt</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function copyPrompt(preEl, title){
+  const text = preEl.textContent.replace('Click to copy','').trim();
+  navigator.clipboard.writeText(text).then(() => showToast('✅ "'+title+'" copied!'));
+}
+
+// ============================================================
+// HEALTH CHECK
+// ============================================================
+const HC_MODULES = [
+  {id:'hc_pages',icon:'📄',label:'Pages',color:'#4f46e5',items:[
+    {id:'p_dash',label:'Dashboard',url:'/wealthdash/templates/pages/dashboard.php',type:'page'},
+    {id:'p_mf',label:'MF Holdings',url:'/wealthdash/templates/pages/mf_holdings.php',type:'page'},
+    {id:'p_nps',label:'NPS',url:'/wealthdash/templates/pages/nps.php',type:'page'},
+    {id:'p_fd',label:'Fixed Deposits',url:'/wealthdash/templates/pages/fd.php',type:'page'},
+    {id:'p_stocks',label:'Stocks',url:'/wealthdash/templates/pages/stocks.php',type:'page'},
+    {id:'p_goals',label:'Goals',url:'/wealthdash/templates/pages/goals.php',type:'page'},
+    {id:'p_screener',label:'MF Screener',url:'/wealthdash/templates/pages/mf_screener.php',type:'page'},
+    {id:'p_tax',label:'Tax Report',url:'/wealthdash/templates/pages/report_tax.php',type:'page'},
+  ]},
+  {id:'hc_api',icon:'⚡',label:'API Endpoints',color:'#0d9488',items:[
+    {id:'api_mf',label:'mf_list',url:'/wealthdash/api/router.php?action=mf_list&portfolio_id=1',type:'api'},
+    {id:'api_nps',label:'nps_list',url:'/wealthdash/api/router.php?action=nps_list&portfolio_id=1',type:'api'},
+    {id:'api_fd',label:'fd_list',url:'/wealthdash/api/router.php?action=fd_list&portfolio_id=1',type:'api'},
+    {id:'api_stocks',label:'stocks_list',url:'/wealthdash/api/router.php?action=stocks_list&portfolio_id=1',type:'api'},
+    {id:'api_goals',label:'goals_list',url:'/wealthdash/api/router.php?action=goals_list',type:'api'},
+    {id:'api_networth',label:'report_net_worth',url:'/wealthdash/api/router.php?action=report_net_worth&portfolio_id=1',type:'api'},
+    {id:'api_indexes',label:'indexes_fetch',url:'/wealthdash/api/router.php?action=indexes_fetch',type:'api'},
+    {id:'api_savings',label:'savings_list',url:'/wealthdash/api/router.php?action=savings_list&portfolio_id=1',type:'api'},
+  ]},
+  {id:'hc_auth',icon:'🔐',label:'Auth & Config',color:'#ea580c',items:[
+    {id:'auth_login',label:'Login Page',url:'/wealthdash/auth/login.php',type:'page'},
+    {id:'auth_register',label:'Register Page',url:'/wealthdash/auth/register.php',type:'page'},
+    {id:'cfg_router',label:'API Router',url:'/wealthdash/api/router.php',type:'api'},
+  ]},
+];
+
+const hcStatus = {};
+
+function hcGetBase(){ return (document.getElementById('hcBaseUrl')?.value||'http://localhost').replace(/\/$/,''); }
+
+async function hcTestBase(){
+  const el = document.getElementById('hcBaseStatus');
+  el.textContent = '⏳ Testing...';
+  try {
+    const r = await fetch(hcGetBase()+'/wealthdash/auth/login.php',{method:'GET'});
+    if(r.ok||r.status===302){ el.textContent='✅ Connected!'; el.style.color='var(--green)'; }
+    else { el.textContent='⚠️ '+r.status; el.style.color='var(--yellow)'; }
+  } catch(e) { el.textContent='❌ Failed'; el.style.color='var(--red)'; }
+}
+
+function hcRenderGrid(filter='all'){
+  const grid = document.getElementById('hcGrid');
+  if(!grid) return;
+  grid.innerHTML = '';
+  HC_MODULES.forEach(mod => {
+    const items = filter==='all' ? mod.items : mod.items.filter(i=>(hcStatus[i.id]||'pending')===filter);
+    if(filter!=='all' && items.length===0) return;
+    const pass = mod.items.filter(i=>hcStatus[i.id]==='pass').length;
+    const fail = mod.items.filter(i=>hcStatus[i.id]==='fail').length;
+    const warn = mod.items.filter(i=>hcStatus[i.id]==='warn').length;
+    const block = document.createElement('div');
+    block.style.cssText = 'background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)';
+    block.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <span style="font-size:18px">${mod.icon}</span>
+        <span style="font-weight:800;font-size:13px;flex:1">${mod.label}</span>
+        ${pass>0?`<span style="color:var(--green);font-size:11px;font-weight:700">✅ ${pass}</span>`:''}
+        ${fail>0?`<span style="color:var(--red);font-size:11px;font-weight:700;margin-left:4px">❌ ${fail}</span>`:''}
+        ${warn>0?`<span style="color:var(--yellow);font-size:11px;font-weight:700;margin-left:4px">⚠️ ${warn}</span>`:''}
+        <span style="font-size:11px;color:var(--muted)">${mod.items.length} checks</span>
+        <button onclick="hcRunModule('${mod.id}')" style="padding:4px 12px;border-radius:6px;border:1.5px solid;font-size:11px;font-weight:700;cursor:pointer;background:var(--accent-light);color:var(--accent);border-color:var(--accent-border)">▶ Run</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+        ${items.map(item=>`
+          <div id="hci_${item.id}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer" onclick="hcCheckItem('${item.id}','${item.url}','${item.type}',this)">
+            <span id="hcs_${item.id}" style="width:8px;height:8px;border-radius:50%;background:var(--muted2);flex-shrink:0"></span>
+            <span style="flex:1">${item.label}</span>
+            <span id="hcm_${item.id}" style="font-size:10px;color:var(--muted)"></span>
+            <span style="font-size:9px;font-family:monospace;padding:1px 5px;background:var(--bg);border-radius:3px;color:var(--muted2);border:1px solid var(--border)">${item.type}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    grid.appendChild(block);
+  });
+}
+
+async function hcCheckItem(id, url, type, rowEl){
+  const dot = document.getElementById('hcs_'+id);
+  const msg = document.getElementById('hcm_'+id);
+  if(!dot) return;
+  dot.style.background = 'var(--yellow)';
+  msg.textContent = '⏳';
+  try {
+    const r = await fetch(hcGetBase()+url,{method:'GET',credentials:'include'});
+    const text = await r.text();
+    const isApiOk = type==='api' && r.status===200 && (() => { try { const j=JSON.parse(text); return j.success!==false; } catch(e){ return text.includes('"data"'); } })();
+    const isPageOk = type==='page' && r.status===200 && !text.includes('Fatal error') && text.length>100;
+    const ok = type==='api' ? isApiOk : isPageOk;
+    if(ok){ dot.style.background='var(--green)'; msg.textContent='✅'; hcStatus[id]='pass'; }
+    else if(r.status===302||text.includes('login')){ dot.style.background='var(--yellow)'; msg.textContent='⚠️ redirect'; hcStatus[id]='warn'; }
+    else { dot.style.background='var(--red)'; msg.textContent='❌ '+r.status; hcStatus[id]='fail'; }
+  } catch(e) { dot.style.background='var(--red)'; msg.textContent='❌ no conn'; hcStatus[id]='fail'; }
+  hcUpdateSummary();
+}
+
+async function hcRunModule(modId){
+  const mod = HC_MODULES.find(m=>m.id===modId);
+  if(!mod) return;
+  for(const item of mod.items){
+    if(item.url) { await hcCheckItem(item.id, item.url, item.type, null); await new Promise(r=>setTimeout(r,80)); }
+  }
+}
+
+async function hcRunAll(){
+  document.getElementById('hcSummaryBar').style.display = 'flex';
+  for(const mod of HC_MODULES) await hcRunModule(mod.id);
+}
+
+function hcUpdateSummary(){
+  const all = Object.values(hcStatus);
+  document.getElementById('hcPass').textContent = all.filter(s=>s==='pass').length;
+  document.getElementById('hcFail').textContent = all.filter(s=>s==='fail').length;
+  document.getElementById('hcWarn').textContent = all.filter(s=>s==='warn').length;
+  document.getElementById('hcPend').textContent = HC_MODULES.reduce((a,m)=>a+m.items.length,0) - all.length;
+}
+
+function hcFilter(f, btn){
+  document.querySelectorAll('.hc-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  hcRenderGrid(f);
+}
+
+function hcExport(){
+  const lines = ['WealthDash Health Check Report — '+new Date().toLocaleString('en-IN'),''];
+  HC_MODULES.forEach(mod => {
+    lines.push('=== '+mod.label+' ===');
+    mod.items.forEach(item => {
+      const s = hcStatus[item.id]||'pending';
+      const ico = {pass:'✅',fail:'❌',warn:'⚠️',pending:'⏳'}[s];
+      lines.push(`  ${ico} ${item.label}`);
+    });
+    lines.push('');
+  });
+  const blob = new Blob([lines.join('\n')],{type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='wealthdash_health_'+new Date().toISOString().slice(0,10)+'.txt'; a.click();
+}
+
+function hcReset(){
+  Object.keys(hcStatus).forEach(k=>delete hcStatus[k]);
+  hcRenderGrid();
+  document.getElementById('hcSummaryBar').style.display='none';
+}
+
+// ============================================================
+// DEBUG
+// ============================================================
+function runDebug(){
+  const wrap = document.getElementById('debugIframeWrap');
+  const iframe = document.getElementById('debugIframe');
+  const badge = document.getElementById('debugBadge');
+  wrap.style.display = 'block';
+  badge.textContent = '⏳ Running...';
+  badge.style.color = 'var(--yellow)';
+  iframe.src = hcGetBase()+'/wealthdash/debug/runner.php?format=html';
+  iframe.onload = () => { badge.textContent='✅ Done'; badge.style.color='var(--green)'; };
+}
+
+function exportDebug(){ window.open(hcGetBase()+'/wealthdash/debug/runner.php?format=json','_blank'); }
+function clearDebug(){
+  document.getElementById('debugIframeWrap').style.display = 'none';
+  document.getElementById('debugIframe').src = 'about:blank';
+  document.getElementById('debugBadge').textContent = '⚪ Not run yet';
+  document.getElementById('debugBadge').style.color = 'var(--muted)';
+}
+
+// ============================================================
+// ADD TASK MODAL
+// ============================================================
+function openAddTask(){
+  const sel = document.getElementById('newTaskPhase');
+  sel.innerHTML = ALL_PHASES.map(p=>`<option value="${p.id}">${p.title}</option>`).join('');
+  document.getElementById('addTaskModal').classList.add('open');
+  document.getElementById('newTaskTitle').focus();
+}
+
+function closeAddTask(){
+  document.getElementById('addTaskModal').classList.remove('open');
+  document.getElementById('newTaskTitle').value='';
+  document.getElementById('newTaskDesc').value='';
+}
+
+function saveNewTask(){
+  const title = document.getElementById('newTaskTitle').value.trim();
+  if(!title){ showToast('❌ Title required!'); return; }
+  const phaseId = document.getElementById('newTaskPhase').value;
+  const pr = document.getElementById('newTaskPr').value;
+  const type = document.getElementById('newTaskType').value;
+  const desc = document.getElementById('newTaskDesc').value.trim();
+  const phase = ALL_PHASES.find(p=>p.id===phaseId);
+  if(!phase) return;
+  const id = 'custom_'+Date.now();
+  phase.tasks.push({id, title, pr, type, desc, eff:'?', phaseId});
+  closeAddTask();
+  renderTasks();
+  updateAllStats();
+  showToast('✅ Task added to '+phase.title.split('—')[0].trim());
+}
+
+// ============================================================
+// EXPORT / RESET
+// ============================================================
+function exportProgress(){
+  const all = getAllTasks();
+  const done = all.filter(t=>isTaskDone(t.id));
+  const lines = [
+    '=== WealthDash Progress Export ===',
+    'Generated: '+new Date().toLocaleString('en-IN'),
+    'Completed: '+done.length+' / '+all.length+' tasks',
+    '',
+    '--- COMPLETED TASKS ---',
+    ...done.map(t=>'✅ ['+t.id+'] '+t.title),
+    '',
+    '--- PENDING TASKS ---',
+    ...all.filter(t=>!isTaskDone(t.id)).map(t=>'⏳ ['+t.id+']['+t.pr+'] '+t.title),
+  ];
+  const blob = new Blob([lines.join('\n')],{type:'text/plain'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='wealthdash_progress_'+new Date().toISOString().slice(0,10)+'.txt'; a.click();
+}
+
+function resetAll(){
+  if(!confirm('Sab completed tasks reset kar diye jayenge. Sure?')) return;
+  Object.keys(state).forEach(k => { if(k.startsWith('t_')||k.startsWith('s_')) delete state[k]; });
+  saveState();
+  renderTasks();
+  updateAllStats();
+  showToast('↺ Progress reset ho gaya');
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  updateAllStats();
+  renderTasks();
+  renderFeaturesGrid();
+  renderDesignNotes();
+  renderRoadmap();
+  renderChecklist();
+  renderAiPrompts();
+  hcRenderGrid();
+});
+</script>
+</body>
+</html>

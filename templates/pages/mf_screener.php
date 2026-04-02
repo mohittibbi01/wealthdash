@@ -1412,6 +1412,20 @@ function renderTable(funds,total){
         :'<span style="color:var(--text-muted);font-size:11px;">—</span>'
       }</td>
       <td style="width:76px;">${dd}</td>
+      <td style="width:72px;text-align:center;">${(()=>{
+        const mdd = f.max_drawdown;
+        if (mdd === null || mdd === undefined) return '<span style="color:var(--text-muted);font-size:10px;">—</span>';
+        const color = mdd > 40 ? '#9f1239' : mdd > 25 ? '#dc2626' : mdd > 15 ? '#d97706' : '#16a34a';
+        const mddDate = f.max_drawdown_date ? `<div style="font-size:9px;color:var(--text-muted);">${f.max_drawdown_date.slice(0,7)}</div>` : '';
+        return `<span style="font-size:11px;font-weight:700;color:${color};">▼${Number(mdd).toFixed(1)}%</span>${mddDate}`;
+      })()}</td>
+      <td style="width:68px;text-align:center;">${(()=>{
+        const sr = f.sharpe_ratio;
+        if (sr === null || sr === undefined) return '<span style="color:var(--text-muted);font-size:10px;">—</span>';
+        const color = sr >= 1.5 ? '#15803d' : sr >= 1 ? '#16a34a' : sr >= 0.5 ? '#d97706' : sr >= 0 ? '#ea580c' : '#dc2626';
+        const label = sr >= 1.5 ? '🌟' : sr >= 1 ? '✓' : sr < 0 ? '⚠' : '';
+        return `<span style="font-size:12px;font-weight:800;color:${color};" title="Sharpe Ratio: ${sr} (≥1.5 Excellent, ≥1 Good, ≥0.5 Fair, <0 Poor)">${label} ${Number(sr).toFixed(2)}</span>`;
+      })()}</td>
       <td style="width:60px;"><span class="b-ltcg">${ltcg}</span></td>
       <td style="width:80px;">${lockHtml}</td>
       <td style="width:100px;">${erHtml}</td>
@@ -1460,7 +1474,9 @@ function renderTable(funds,total){
       <th onclick="scSort('nav_desc')" id="sh_nav" style="cursor:pointer;user-select:none;">NAV <span class="sh-arr" id="sa_nav"></span></th>
       <th style="cursor:default;width:80px;">1D Change</th>
       <th onclick="scSort('peak_nav')" id="sh_peak" style="cursor:pointer;user-select:none;">Peak NAV <span class="sh-arr" id="sa_peak"></span></th>
-      <th onclick="scSort('drawdown')" id="sh_dd" style="cursor:pointer;user-select:none;">Drawdown <span class="sh-arr" id="sa_dd"></span></th>
+      <th onclick="scSort('drawdown')" id="sh_dd" style="cursor:pointer;user-select:none;">DD% <span class="sh-arr" id="sa_dd"></span></th>
+      <th onclick="scSort('mdd_asc')" id="sh_mdd" style="cursor:pointer;user-select:none;" title="Max Drawdown — worst peak-to-trough loss ever (from calculate_returns cron)">MDD% <span class="sh-arr" id="sa_mdd"></span></th>
+      <th onclick="scSort('sharpe_desc')" id="sh_sharpe" style="cursor:pointer;user-select:none;" title="Sharpe Ratio — risk-adjusted return (1Y, annualised, Rf=6.5%)">Sharpe <span class="sh-arr" id="sa_sharpe"></span></th>
       <th onclick="scSort('ltcg')" id="sh_ltcg" style="cursor:pointer;user-select:none;">LTCG <span class="sh-arr" id="sa_ltcg"></span></th>
       <th style="cursor:default;">Lock-in</th>
       <th onclick="scSort('expense')" id="sh_exp" style="cursor:pointer;user-select:none;">Exp% <span class="sh-arr" id="sa_exp"></span></th>
@@ -1544,6 +1560,26 @@ function drOpenFund(f){
       <div class="d-box"><div class="d-lbl">Lock-in</div><div class="d-val" style="font-size:13px;color:${f.lock_in_days>0?'#b45309':'var(--text-primary)'};">${lockLbl}</div><div class="d-sub">${f.lock_in_days>0?'Mandatory':'No restrictions'}</div></div>
     </div>
     <div style="margin-bottom:12px;"><div class="d-sec">Drawdown</div><div style="font-size:13px;">${dd}</div></div>
+    ${(()=>{
+      const mdd = f.max_drawdown;
+      const sr  = f.sharpe_ratio;
+      if (mdd === null && sr === null) return '';
+      const mddHtml = mdd !== null
+        ? (() => {
+            const color = mdd > 40 ? '#9f1239' : mdd > 25 ? '#dc2626' : mdd > 15 ? '#d97706' : '#16a34a';
+            const mddDate = f.max_drawdown_date ? ` (${f.max_drawdown_date.slice(0,7)})` : '';
+            return `<div class="d-box"><div class="d-lbl">Max Drawdown 📉</div><div class="d-val" style="color:${color};">▼${Number(mdd).toFixed(2)}%</div><div class="d-sub">Worst peak-to-trough${mddDate}</div></div>`;
+          })()
+        : '';
+      const srHtml = sr !== null
+        ? (() => {
+            const color = sr >= 1.5 ? '#15803d' : sr >= 1 ? '#16a34a' : sr >= 0.5 ? '#d97706' : sr >= 0 ? '#ea580c' : '#dc2626';
+            const grade = sr >= 1.5 ? 'Excellent 🌟' : sr >= 1 ? 'Good ✓' : sr >= 0.5 ? 'Fair' : sr >= 0 ? 'Below Avg' : 'Poor ⚠';
+            return `<div class="d-box"><div class="d-lbl">Sharpe Ratio ⚖️</div><div class="d-val" style="color:${color};">${Number(sr).toFixed(3)}</div><div class="d-sub">${grade} · Rf=6.5%</div></div>`;
+          })()
+        : '';
+      return `<div class="d-sec">⚖️ Risk Metrics</div><div class="d-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">${mddHtml}${srHtml}</div>`;
+    })()}
     ${retSec}
     <div class="d-sec">📊 NAV History</div>
     <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;">
@@ -1892,6 +1928,13 @@ function renderCompareTable() {
     {label:'Latest NAV',    vals: funds.map(f => fmtNav(f.latest_nav))},
     {label:'Peak NAV',      vals: funds.map(f => fmtNav(f.highest_nav))},
     {label:'Drawdown',      vals: funds.map(f => f.drawdown_pct !== null ? `<span style="color:${f.drawdown_pct>20?'#dc2626':f.drawdown_pct>10?'#d97706':'#16a34a'};">▼${f.drawdown_pct}%</span>` : '—')},
+    {label:'Max Drawdown',  vals: funds.map(f => f.max_drawdown !== null && f.max_drawdown !== undefined ? `<span style="color:${f.max_drawdown>40?'#9f1239':f.max_drawdown>25?'#dc2626':f.max_drawdown>15?'#d97706':'#16a34a'};">▼${Number(f.max_drawdown).toFixed(2)}%</span>` : '—')},
+    {label:'Sharpe Ratio',  vals: funds.map(f => {
+      const sr = f.sharpe_ratio;
+      if (sr === null || sr === undefined) return '—';
+      const color = sr>=1.5?'#15803d':sr>=1?'#16a34a':sr>=0.5?'#d97706':sr>=0?'#ea580c':'#dc2626';
+      return `<span style="font-weight:700;color:${color};">${Number(sr).toFixed(3)}</span>`;
+    }), isBest:true},
     {label:'1Y Return',     vals: funds.map(f => fmtRet(f.returns_1y, funds.map(x=>x.returns_1y))), isBest:true},
     {label:'3Y CAGR',       vals: funds.map(f => fmtRet(f.returns_3y, funds.map(x=>x.returns_3y))), isBest:true},
     {label:'5Y CAGR',       vals: funds.map(f => fmtRet(f.returns_5y, funds.map(x=>x.returns_5y))), isBest:true},
@@ -2119,7 +2162,7 @@ function updSortHeaders(sort) {
   });
   const colGroup = _sortColMap[sort] || sort.replace('_desc','');
   const isDesc = sort.endsWith('_desc') || sort === 'nav_desc';
-  const thId = {name:'sh_name', nav_desc:'sh_nav', nav_asc:'sh_nav', ltcg:'sh_ltcg', ltcg_desc:'sh_ltcg', dd_asc:'sh_dd', dd_desc:'sh_dd', expense:'sh_exp', expense_desc:'sh_exp', name_desc:'sh_name', peak_nav_asc:'sh_peak', peak_nav_desc:'sh_peak', ret1y_desc:'sh_r1', ret1y_asc:'sh_r1', ret3y_desc:'sh_r3', ret3y_asc:'sh_r3', ret5y_desc:'sh_r5', ret5y_asc:'sh_r5', aum_desc:'sh_aum', aum_asc:'sh_aum'};
+  const thId = {name:'sh_name', nav_desc:'sh_nav', nav_asc:'sh_nav', ltcg:'sh_ltcg', ltcg_desc:'sh_ltcg', dd_asc:'sh_dd', dd_desc:'sh_dd', expense:'sh_exp', expense_desc:'sh_exp', name_desc:'sh_name', peak_nav_asc:'sh_peak', peak_nav_desc:'sh_peak', ret1y_desc:'sh_r1', ret1y_asc:'sh_r1', ret3y_desc:'sh_r3', ret3y_asc:'sh_r3', ret5y_desc:'sh_r5', ret5y_asc:'sh_r5', aum_desc:'sh_aum', aum_asc:'sh_aum', sharpe_desc:'sh_sharpe', sharpe_asc:'sh_sharpe', mdd_asc:'sh_mdd', mdd_desc:'sh_mdd'};
   const th = document.getElementById(thId[sort] || 'sh_'+colGroup);
   if (th) th.classList.add(isDesc ? 'sort-desc' : 'sort-asc');
 }

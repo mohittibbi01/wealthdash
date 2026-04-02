@@ -16,9 +16,9 @@ $from    = trim($_GET['from']   ?? date('Y-m-d', strtotime('-1 year')));
 $to      = trim($_GET['to']     ?? date('Y-m-d'));
 
 // Validate symbol whitelist
-$allowed = ['^NSEI' => 'n225', '^BSESN' => 'bsesn', 'NIFTY' => 'n225'];
+$allowed  = ['^NSEI' => 'n225', '^BSESN' => 'bsesn', 'NIFTY' => 'n225', '^NSMIDCP' => 'nsmidcp'];
 // Map Yahoo symbols to stooq
-$stooqMap = ['^NSEI' => '^nsei', '^BSESN' => '^bsesn'];
+$stooqMap = ['^NSEI' => '^nsei', '^BSESN' => '^bsesn', '^NSMIDCP' => '^nsmidcp'];
 $stooqSym = $stooqMap[$symbol] ?? '^nsei';
 
 // Cache in DB/files for 1 day to avoid hammering external API

@@ -135,9 +135,22 @@ $sortMap = [
     'peak_nav_asc'  => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav ASC',
     'peak_nav_desc' => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav DESC',
     'house'         => "COALESCE(fh.short_name,fh.name,'') ASC, f.scheme_name ASC",
-];
+    // t164+t166: Sharpe + Max Drawdown sorts
+    'sharpe_desc'   => 'IF(f.sharpe_ratio IS NULL,1,0) ASC, f.sharpe_ratio DESC',
+    'sharpe_asc'    => 'IF(f.sharpe_ratio IS NULL,1,0) ASC, f.sharpe_ratio ASC',
+    'mdd_asc'       => 'IF(f.max_drawdown IS NULL,1,0) ASC, f.max_drawdown ASC',
+    'mdd_desc'      => 'IF(f.max_drawdown IS NULL,1,0) ASC, f.max_drawdown DESC',
+    // t27: 1Y/3Y/5Y return sorts
+    'ret1y_desc'    => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y DESC',
+    'ret1y_asc'     => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y ASC',
+    'ret3y_desc'    => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y DESC',
+    'ret3y_asc'     => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y ASC',
+    'ret5y_desc'    => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y DESC',
+    'ret5y_asc'     => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y ASC',
 // expense sort only if column exists
-if (!$hasExpCol && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
+if (!$hasExpCol   && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
+if (!$hasSharpCol && in_array($sort, ['sharpe_desc','sharpe_asc','mdd_asc','mdd_desc'])) $sort = 'name';
+if (!$hasRetCol   && in_array($sort, ['ret1y_desc','ret1y_asc','ret3y_desc','ret3y_asc','ret5y_desc','ret5y_asc'])) $sort = 'name';
 $orderSQL = $sortMap[$sort] ?? $sortMap['name'];
 
 // ── COUNT ────────────────────────────────────────────────
@@ -164,15 +177,18 @@ $prevNavSQL = $hasPrevNav ? ', f.prev_nav, f.prev_nav_date' : '';
 $hasMgrCol = false; try { $db->query("SELECT fund_manager FROM funds LIMIT 1"); $hasMgrCol=true; } catch(Exception $e){}
 $hasIncCol = false; try { $db->query("SELECT inception_date FROM funds LIMIT 1"); $hasIncCol=true; } catch(Exception $e){}
 $hasRetCol = false; try { $db->query("SELECT returns_1y FROM funds LIMIT 1"); $hasRetCol=true; } catch(Exception $e){}
-$mgrColSQL = $hasMgrCol ? ', f.fund_manager, f.manager_since' : '';
-$incColSQL = $hasIncCol ? ', f.inception_date' : '';
-$retColSQL = $hasRetCol ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
+// t164+t166: Sharpe Ratio + Max Drawdown (optional columns)
+$hasSharpCol = false; try { $db->query("SELECT sharpe_ratio FROM funds LIMIT 1"); $hasSharpCol=true; } catch(Exception $e){}
+$mgrColSQL   = $hasMgrCol   ? ', f.fund_manager, f.manager_since' : '';
+$incColSQL   = $hasIncCol   ? ', f.inception_date' : '';
+$retColSQL   = $hasRetCol   ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
+$sharpColSQL = $hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '';
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
            f.latest_nav, f.latest_nav_date, f.min_ltcg_days, f.lock_in_days,
            f.highest_nav, f.highest_nav_date
-           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $mgrColSQL $incColSQL $retColSQL,
+           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $mgrColSQL $incColSQL $retColSQL $sharpColSQL,
            COALESCE(fh.short_name, fh.name, '') AS fund_house
     FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
     $whereSQL ORDER BY $orderSQL LIMIT ? OFFSET ?
@@ -262,6 +278,10 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         'returns_3y'      => ($hasRetCol  && isset($r['returns_3y'])  && $r['returns_3y']  !== null) ? round((float)$r['returns_3y'],  2) : null,
         'returns_5y'      => ($hasRetCol  && isset($r['returns_5y'])  && $r['returns_5y']  !== null) ? round((float)$r['returns_5y'],  2) : null,
         'returns_updated' => ($hasRetCol  && isset($r['returns_updated_at'])) ? $r['returns_updated_at'] : null,
+        // t164+t166: Sharpe + Max Drawdown from cron
+        'sharpe_ratio'    => ($hasSharpCol && isset($r['sharpe_ratio'])   && $r['sharpe_ratio']   !== null) ? round((float)$r['sharpe_ratio'], 3)  : null,
+        'max_drawdown'    => ($hasSharpCol && isset($r['max_drawdown'])    && $r['max_drawdown']    !== null) ? round((float)$r['max_drawdown'], 2)   : null,
+        'max_drawdown_date'=> ($hasSharpCol && isset($r['max_drawdown_date'])) ? $r['max_drawdown_date'] : null,
     ];
 }, $rows);
 

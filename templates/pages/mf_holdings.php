@@ -1150,10 +1150,21 @@ ob_start();
           <button class="fc-range-btn" data-range="3Y" onclick="setFcRange('3Y',this)">3Y</button>
           <button class="fc-range-btn" data-range="ALL" onclick="setFcRange('ALL',this)">All</button>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text-muted);">
+        <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted);flex-wrap:wrap;">
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
-            <input type="checkbox" id="fcShowTxns" checked onchange="toggleFcTxnMarkers()" style="accent-color:var(--accent);"> Show transactions
+            <input type="checkbox" id="fcShowTxns" checked onchange="toggleFcTxnMarkers()" style="accent-color:var(--accent);"> Transactions
           </label>
+          <!-- t95: Benchmark toggle -->
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+            <input type="checkbox" id="fcShowBenchmark" onchange="toggleFcBenchmark()" style="accent-color:#f97316;"> vs Benchmark
+          </label>
+          <select id="fcBenchmarkSelect" onchange="setFcBenchmark(this.value)"
+            style="display:none;font-size:10px;padding:2px 6px;border-radius:6px;border:1.5px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);cursor:pointer;">
+            <option value="^NSEI">Nifty 50</option>
+            <option value="^BSESN">Sensex</option>
+            <option value="^NSMIDCP">Nifty Midcap</option>
+          </select>
+          <span id="fcBenchmarkStatus" style="color:#f97316;font-weight:700;display:none;"></span>
           <span id="fcDataStatus" style="color:var(--text-muted);"></span>
         </div>
       </div>
@@ -1169,6 +1180,7 @@ ob_start();
           <div style="font-size:12px;">Download history from Admin → NAV &amp; Data first</div>
         </div>
         <canvas id="fcChartCanvas" style="width:100%!important;height:100%!important;display:none;"></canvas>
+        <div id="fcNormalizedNote" style="display:none;position:absolute;bottom:4px;left:16px;" class="fc-normalized-note">Indexed to 100 at range start — showing % returns</div>
       </div>
 
       <!-- Transactions pills -->
@@ -1192,6 +1204,9 @@ ob_start();
 .fc-stat-sub{font-size:10px;color:var(--text-muted);margin-top:2px;}
 .fund-title.fc-clickable{cursor:pointer;transition:color .15s;}
 .fund-title.fc-clickable:hover{color:var(--accent);text-decoration:underline;}
+/* t95 — benchmark badge */
+.fc-bench-badge{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;background:rgba(249,115,22,.1);color:#ea580c;border:1px solid rgba(249,115,22,.25);}
+.fc-normalized-note{font-size:10px;color:var(--text-muted);font-style:italic;margin-top:2px;}
 
 .ff-pill { padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--bg-secondary);color:var(--text-muted);transition:all .15s; }
 .ff-pill.active { background:var(--accent);color:#fff;border-color:var(--accent); }

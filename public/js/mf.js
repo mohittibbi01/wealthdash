@@ -4505,14 +4505,19 @@ async function commitCasImport() {
 
 // ── State ─────────────────────────────────────────────────────────────────
 const FC = {
-  fundId:    null,
-  fundName:  null,
-  holding:   null,
-  range:     '1Y',
-  navData:   [],      // [{date, nav}, ...]
-  txns:      [],      // all transactions for this fund
-  chartInst: null,
-  showTxns:  true,
+  fundId:          null,
+  fundName:        null,
+  holding:         null,
+  range:           '1Y',
+  navData:         [],      // [{date, nav}, ...]
+  txns:            [],      // all transactions for this fund
+  chartInst:       null,
+  showTxns:        true,
+  // t95 — benchmark overlay
+  showBenchmark:   false,
+  benchmarkSymbol: '^NSEI',
+  benchmarkData:   [],      // [{date, close}, ...]
+  benchmarkLabel:  'Nifty 50',
 };
 
 // ── Open modal ────────────────────────────────────────────────────────────
@@ -4527,6 +4532,19 @@ async function openFundChartModal(fundId) {
   FC.range    = '1Y';
   FC.navData  = [];
   FC.txns     = [];
+  // Reset benchmark
+  FC.showBenchmark = false;
+  FC.benchmarkData = [];
+  const fcBenchChk = document.getElementById('fcShowBenchmark');
+  if (fcBenchChk) fcBenchChk.checked = false;
+  const fcBenchSel = document.getElementById('fcBenchmarkSelect');
+  if (fcBenchSel) { fcBenchSel.style.display = 'none'; fcBenchSel.value = '^NSEI'; }
+  FC.benchmarkSymbol = '^NSEI';
+  FC.benchmarkLabel  = 'Nifty 50';
+  const fcBenchStatus = document.getElementById('fcBenchmarkStatus');
+  if (fcBenchStatus) fcBenchStatus.style.display = 'none';
+  const fcNormNote = document.getElementById('fcNormalizedNote');
+  if (fcNormNote) fcNormNote.style.display = 'none';
 
   // Show modal
   document.getElementById('modalFundChart').style.display = 'flex';
@@ -4627,12 +4645,72 @@ async function _fcFetchNavAndRender() {
     document.getElementById('fcTxnSection').style.display = '';
     document.getElementById('fcDataStatus').textContent = `${json.count.toLocaleString()} data points`;
 
+    // t95 — fetch benchmark if enabled
+    if (FC.showBenchmark) {
+      await _fcFetchBenchmark(from, to);
+    }
+
     _renderNavLineChart();
     _renderFcTxnPills();
   } catch(e) {
     _fcShowSpinner(false);
     document.getElementById('fcDataStatus').textContent = 'Failed to load NAV data';
   }
+}
+
+// ── t95: Fetch benchmark (stooq via PHP proxy) ────────────────────────────
+async function _fcFetchBenchmark(from, to) {
+  const statusEl = document.getElementById('fcBenchmarkStatus');
+  if (statusEl) { statusEl.style.display = 'inline'; statusEl.textContent = '⏳ Loading…'; }
+  try {
+    const baseUrl = window.WD?.appUrl || window.APP_URL || '';
+    const url = `${baseUrl}/api/mutual_funds/benchmark_proxy.php?symbol=${FC.benchmarkSymbol}&from=${from}&to=${to}`;
+    const res  = await fetch(url, { cache: 'default' });
+    const json = await res.json();
+    if (json.success && json.data?.length) {
+      FC.benchmarkData = json.data; // [{date, close}, ...]
+      if (statusEl) { statusEl.textContent = `📊 ${FC.benchmarkLabel}`; }
+    } else {
+      FC.benchmarkData = [];
+      if (statusEl) { statusEl.textContent = '⚠️ No data'; }
+    }
+  } catch(e) {
+    FC.benchmarkData = [];
+    if (statusEl) { statusEl.textContent = '⚠️ Failed'; }
+  }
+}
+
+// ── t95: Toggle benchmark overlay ────────────────────────────────────────
+async function toggleFcBenchmark() {
+  FC.showBenchmark = document.getElementById('fcShowBenchmark')?.checked || false;
+  const selEl      = document.getElementById('fcBenchmarkSelect');
+  const statusEl   = document.getElementById('fcBenchmarkStatus');
+  const normNote   = document.getElementById('fcNormalizedNote');
+
+  if (FC.showBenchmark) {
+    if (selEl)    selEl.style.display    = 'inline-block';
+    if (normNote) normNote.style.display = 'block';
+    // Fetch benchmark & re-render
+    const { from, to } = _fcRangeDates(FC.range, FC.holding);
+    await _fcFetchBenchmark(from, to);
+  } else {
+    FC.benchmarkData = [];
+    if (selEl)    selEl.style.display    = 'none';
+    if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
+    if (normNote) normNote.style.display = 'none';
+  }
+  if (FC.navData.length) _renderNavLineChart();
+}
+
+// ── t95: Change benchmark index ───────────────────────────────────────────
+async function setFcBenchmark(symbol) {
+  const labels = { '^NSEI': 'Nifty 50', '^BSESN': 'Sensex', '^NSMIDCP': 'Nifty Midcap' };
+  FC.benchmarkSymbol = symbol;
+  FC.benchmarkLabel  = labels[symbol] || symbol;
+  if (!FC.showBenchmark) return;
+  const { from, to } = _fcRangeDates(FC.range, FC.holding);
+  await _fcFetchBenchmark(from, to);
+  if (FC.navData.length) _renderNavLineChart();
 }
 
 // ── Date range calculator ─────────────────────────────────────────────────
@@ -4660,68 +4738,110 @@ function _fcRangeDates(range, holding) {
   return { from: fmt(fromDate), to: fmt(toDate) };
 }
 
-// ── Render Chart.js line chart ────────────────────────────────────────────
+// ── Render Chart.js line chart (t95: benchmark overlay support) ───────────
 function _renderNavLineChart() {
   const canvas = document.getElementById('fcChartCanvas');
   if (!canvas) return;
 
-  // Destroy old chart
   if (FC.chartInst) { FC.chartInst.destroy(); FC.chartInst = null; }
-
   const ctx = canvas.getContext('2d');
 
-  // NAV line dataset
-  const labels  = FC.navData.map(d => d.date);
-  const navVals = FC.navData.map(d => d.nav);
+  // ── Decide mode: normalized (benchmark on) or raw NAV ─────────────────
+  const benchMode = FC.showBenchmark && FC.benchmarkData.length > 0;
 
-  // Gradient fill
+  // ── Build merged label set (union of fund dates + benchmark dates) ─────
+  const allDates = new Set(FC.navData.map(d => d.date));
+  if (benchMode) FC.benchmarkData.forEach(d => allDates.add(d.date));
+  const labels = [...allDates].sort();
+
+  // ── NAV values (raw or normalized) ────────────────────────────────────
+  const navMap   = Object.fromEntries(FC.navData.map(d => [d.date, d.nav]));
+  const benchMap = benchMode
+    ? Object.fromEntries(FC.benchmarkData.map(d => [d.date, d.close]))
+    : {};
+
+  let navVals, benchVals;
+
+  if (benchMode) {
+    // Normalize both to 100 at the earliest date with data
+    const firstNavDate   = FC.navData[0]?.date;
+    const firstBenchDate = FC.benchmarkData[0]?.date;
+    const startDate      = firstNavDate > firstBenchDate ? firstNavDate : firstBenchDate;
+
+    // Get base values at start date (or nearest)
+    const navBase   = _interpolateMap(navMap,   labels, startDate);
+    const benchBase = _interpolateMap(benchMap, labels, startDate);
+
+    navVals   = labels.map(d => {
+      const v = _interpolateMap(navMap,   labels, d);
+      return (navBase && v !== null) ? +((v / navBase) * 100).toFixed(3) : null;
+    });
+    benchVals = labels.map(d => {
+      const v = _interpolateMap(benchMap, labels, d);
+      return (benchBase && v !== null) ? +((v / benchBase) * 100).toFixed(3) : null;
+    });
+  } else {
+    navVals = labels.map(d => navMap[d] ?? null);
+  }
+
+  // ── Gradient fill ──────────────────────────────────────────────────────
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 280);
   grad.addColorStop(0, 'rgba(37,99,235,0.18)');
   grad.addColorStop(1, 'rgba(37,99,235,0.00)');
 
-  // Filter transactions within range
-  const { from, to } = _fcRangeDates(FC.range, FC.holding);
-  const inRange = FC.txns.filter(t => t.txn_date >= from && t.txn_date <= to);
+  const benchGrad = benchMode ? (() => {
+    const g = ctx.createLinearGradient(0, 0, 0, canvas.offsetHeight || 280);
+    g.addColorStop(0, 'rgba(249,115,22,0.10)');
+    g.addColorStop(1, 'rgba(249,115,22,0.00)');
+    return g;
+  })() : null;
 
-  // Build scatter datasets for transactions
-  const buyPoints  = [];
-  const sellPoints = [];
-
-  inRange.forEach(t => {
-    const navAtTxn = t.nav ? Number(t.nav) : _findNearestNav(t.txn_date);
-    if (navAtTxn === null) return;
-
-    const point = { x: t.txn_date, y: navAtTxn, txn: t };
-    const type = (t.transaction_type || '').toUpperCase();
-    if (['BUY','STP_IN','SWITCH_IN','DIV_REINVEST'].includes(type)) {
-      buyPoints.push(point);
-    } else if (['SELL','STP_OUT','SWITCH_OUT','SWP'].includes(type)) {
-      sellPoints.push(point);
-    }
-  });
-
-  // Avg cost line (horizontal)
-  const avgNav = FC.holding?.avg_cost_nav ? Number(FC.holding.avg_cost_nav) : null;
-
+  // ── Fund NAV dataset ───────────────────────────────────────────────────
+  const shortName = (FC.fundName || 'Fund').split(' ').slice(0, 3).join(' ');
   const datasets = [
-    // NAV line
     {
-      label: 'NAV',
+      label: benchMode ? shortName : 'NAV',
       data: navVals,
       borderColor: '#2563eb',
-      borderWidth: 1.8,
+      borderWidth: 2,
       backgroundColor: grad,
       fill: true,
       pointRadius: 0,
       pointHoverRadius: 4,
       pointHoverBackgroundColor: '#2563eb',
       tension: 0.15,
+      spanGaps: true,
       order: 3,
     }
   ];
 
-  // Avg cost dashed line
-  if (avgNav) {
+  // ── Benchmark dataset ──────────────────────────────────────────────────
+  if (benchMode) {
+    datasets.push({
+      label: FC.benchmarkLabel,
+      data: benchVals,
+      borderColor: '#f97316',
+      borderWidth: 2,
+      backgroundColor: benchGrad,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHoverBackgroundColor: '#f97316',
+      tension: 0.15,
+      spanGaps: true,
+      order: 4,
+      borderDash: [4, 3],
+    });
+
+    // ── Outperformance shading (fill between lines) ────────────────────
+    // Chart.js v3 doesn't support fill-between natively without plugin,
+    // so we handle it via two fill datasets (fund fills from benchmark)
+    // Instead, we annotate with a small text badge via afterDraw plugin
+  }
+
+  // ── Avg cost line — only in raw NAV mode ──────────────────────────────
+  const avgNav = FC.holding?.avg_cost_nav ? Number(FC.holding.avg_cost_nav) : null;
+  if (!benchMode && avgNav) {
     datasets.push({
       label: 'Avg Cost ₹' + avgNav.toFixed(2),
       data: labels.map(() => avgNav),
@@ -4731,45 +4851,153 @@ function _renderNavLineChart() {
       fill: false,
       pointRadius: 0,
       tension: 0,
+      spanGaps: true,
       order: 2,
     });
   }
 
-  // Buy scatter points
-  if (FC.showTxns && buyPoints.length) {
-    datasets.push({
-      label: 'Buy',
-      type: 'scatter',
-      data: buyPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
-      backgroundColor: 'rgba(22,163,74,0.9)',
-      borderColor: '#fff',
-      borderWidth: 1.5,
-      pointRadius: 7,
-      pointHoverRadius: 9,
-      pointStyle: 'triangle',
-      order: 1,
+  // ── Buy/sell scatter — only in raw NAV mode ───────────────────────────
+  if (!benchMode) {
+    const { from, to } = _fcRangeDates(FC.range, FC.holding);
+    const inRange    = FC.txns.filter(t => t.txn_date >= from && t.txn_date <= to);
+    const buyPoints  = [];
+    const sellPoints = [];
+
+    inRange.forEach(t => {
+      const navAtTxn = t.nav ? Number(t.nav) : _findNearestNav(t.txn_date);
+      if (navAtTxn === null) return;
+      const point = { x: t.txn_date, y: navAtTxn, txn: t };
+      const type  = (t.transaction_type || '').toUpperCase();
+      if (['BUY','STP_IN','SWITCH_IN','DIV_REINVEST'].includes(type)) buyPoints.push(point);
+      else if (['SELL','STP_OUT','SWITCH_OUT','SWP'].includes(type))  sellPoints.push(point);
     });
+
+    if (FC.showTxns && buyPoints.length) {
+      datasets.push({
+        label: 'Buy',
+        type: 'scatter',
+        data: buyPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+        backgroundColor: 'rgba(22,163,74,0.9)',
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: 7,
+        pointHoverRadius: 9,
+        pointStyle: 'triangle',
+        order: 1,
+      });
+    }
+    if (FC.showTxns && sellPoints.length) {
+      datasets.push({
+        label: 'Sell',
+        type: 'scatter',
+        data: sellPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
+        backgroundColor: 'rgba(220,38,38,0.9)',
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        pointRadius: 7,
+        pointHoverRadius: 9,
+        pointStyle: 'rectRot',
+        order: 1,
+      });
+    }
   }
 
-  // Sell scatter points
-  if (FC.showTxns && sellPoints.length) {
-    datasets.push({
-      label: 'Sell',
-      type: 'scatter',
-      data: sellPoints.map(p => ({ x: labels.indexOf(p.x), y: p.y, raw: p })),
-      backgroundColor: 'rgba(220,38,38,0.9)',
-      borderColor: '#fff',
-      borderWidth: 1.5,
-      pointRadius: 7,
-      pointHoverRadius: 9,
-      pointStyle: 'rectRot',
-      order: 1,
-    });
-  }
+  // ── Y-axis config ──────────────────────────────────────────────────────
+  const yAxis = benchMode
+    ? {
+        position: 'right',
+        ticks: {
+          color: 'var(--text-muted)',
+          font: { size: 10 },
+          callback: v => {
+            const diff = v - 100;
+            return (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%';
+          },
+        },
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        // Draw zero-line at 100
+        afterDataLimits: scale => {
+          if (scale.min > 95) scale.min = 95;
+        },
+      }
+    : {
+        position: 'right',
+        ticks: {
+          color: 'var(--text-muted)',
+          font: { size: 10 },
+          callback: v => '₹' + Number(v).toFixed(v >= 100 ? 0 : 2),
+        },
+        grid: { color: 'rgba(0,0,0,0.05)' },
+      };
+
+  // ── Custom plugin: 100 baseline dashed line in bench mode ─────────────
+  const baselinePlugin = {
+    id: 'fcBaseline',
+    afterDraw(chart) {
+      if (!benchMode) return;
+      const { ctx: c, scales: { y, x } } = chart;
+      const y100 = y.getPixelForValue(100);
+      c.save();
+      c.setLineDash([4, 4]);
+      c.strokeStyle = 'rgba(100,116,139,0.4)';
+      c.lineWidth   = 1;
+      c.beginPath();
+      c.moveTo(x.left, y100);
+      c.lineTo(x.right, y100);
+      c.stroke();
+      // Label
+      c.setLineDash([]);
+      c.fillStyle   = 'rgba(100,116,139,0.7)';
+      c.font        = '9px sans-serif';
+      c.textAlign   = 'right';
+      c.fillText('Base (100)', x.right - 4, y100 - 3);
+      c.restore();
+    }
+  };
+
+  // ── Final returns badge plugin (top-right corner) ─────────────────────
+  const returnsPlugin = {
+    id: 'fcReturns',
+    afterDraw(chart) {
+      if (!benchMode) return;
+      const lastFundVal  = navVals.filter(v => v !== null).at(-1);
+      const lastBenchVal = benchVals.filter(v => v !== null).at(-1);
+      if (!lastFundVal || !lastBenchVal) return;
+
+      const fundRet  = (lastFundVal  - 100).toFixed(2);
+      const benchRet = (lastBenchVal - 100).toFixed(2);
+      const alpha    = (lastFundVal  - lastBenchVal).toFixed(2);
+      const isPos    = parseFloat(alpha) >= 0;
+
+      const { ctx: c, chartArea: { right, top } } = chart;
+      c.save();
+      const pad = 8, lh = 14;
+      const x = right - 130, y = top + 8;
+      c.fillStyle = 'rgba(15,23,42,0.65)';
+      c.beginPath();
+      c.roundRect(x, y, 126, lh * 4 + pad * 2, 6);
+      c.fill();
+
+      c.font = 'bold 10px sans-serif';
+      c.fillStyle = '#93c5fd'; c.fillText('Fund:',      x + pad,      y + pad + lh * 0);
+      c.fillStyle = '#fed7aa'; c.fillText('Benchmark:', x + pad,      y + pad + lh * 1);
+      c.fillStyle = isPos ? '#86efac' : '#fca5a5';
+      c.fillText('Alpha:',    x + pad,      y + pad + lh * 2);
+      c.fillStyle = '#ffffff'; c.textAlign = 'right';
+      c.fillStyle = parseFloat(fundRet)  >= 0 ? '#86efac' : '#fca5a5';
+      c.fillText((parseFloat(fundRet)  >= 0 ? '+' : '') + fundRet  + '%', x + 122, y + pad + lh * 0);
+      c.fillStyle = parseFloat(benchRet) >= 0 ? '#86efac' : '#fca5a5';
+      c.fillText((parseFloat(benchRet) >= 0 ? '+' : '') + benchRet + '%', x + 122, y + pad + lh * 1);
+      c.fillStyle = isPos ? '#86efac' : '#fca5a5';
+      c.fillText((isPos ? '+' : '') + alpha + '%',  x + 122, y + pad + lh * 2);
+      c.restore();
+    }
+  };
 
   FC.chartInst = new Chart(ctx, {
     type: 'line',
     data: { labels, datasets },
+    plugins: [baselinePlugin, returnsPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -4782,22 +5010,14 @@ function _renderNavLineChart() {
             maxTicksLimit: 8,
             color: 'var(--text-muted)',
             font: { size: 10 },
-            callback(val, idx) {
+            callback(val) {
               const lbl = this.getLabelForValue(val);
-              return lbl ? lbl.slice(0, 7) : ''; // YYYY-MM
+              return lbl ? lbl.slice(0, 7) : '';
             }
           },
           grid: { color: 'rgba(0,0,0,0.04)', drawTicks: false },
         },
-        y: {
-          position: 'right',
-          ticks: {
-            color: 'var(--text-muted)',
-            font: { size: 10 },
-            callback: v => '₹' + Number(v).toFixed(v >= 100 ? 0 : 2),
-          },
-          grid: { color: 'rgba(0,0,0,0.05)' },
-        }
+        y: yAxis,
       },
       plugins: {
         legend: {
@@ -4809,7 +5029,6 @@ function _renderNavLineChart() {
             font: { size: 11 },
             boxWidth: 12,
             padding: 14,
-            filter: item => item.label !== 'NAV' || true,
           }
         },
         tooltip: {
@@ -4822,16 +5041,22 @@ function _renderNavLineChart() {
           callbacks: {
             title: items => items[0]?.label || '',
             label: item => {
-              if (item.dataset.label === 'NAV') return ` NAV: ₹${Number(item.raw).toFixed(4)}`;
-              if (item.dataset.label === 'Buy') {
+              const lbl = item.dataset.label;
+              if (benchMode) {
+                const pct = Number(item.raw);
+                const diff = (pct - 100).toFixed(2);
+                return ` ${lbl}: ${(pct - 100) >= 0 ? '+' : ''}${diff}%  (${pct.toFixed(2)})`;
+              }
+              if (lbl === 'NAV') return ` NAV: ₹${Number(item.raw).toFixed(4)}`;
+              if (lbl === 'Buy') {
                 const raw = item.raw?.raw?.txn;
                 return raw ? ` BUY — ${Number(raw.units||0).toFixed(4)} units @ ₹${Number(raw.nav||0).toFixed(2)}` : ' Buy';
               }
-              if (item.dataset.label === 'Sell') {
+              if (lbl === 'Sell') {
                 const raw = item.raw?.raw?.txn;
                 return raw ? ` SELL — ${Number(raw.units||0).toFixed(4)} units @ ₹${Number(raw.nav||0).toFixed(2)}` : ' Sell';
               }
-              return ` ${item.dataset.label}: ₹${Number(item.raw).toFixed(2)}`;
+              return ` ${lbl}: ₹${Number(item.raw).toFixed(2)}`;
             }
           }
         }
@@ -4840,6 +5065,22 @@ function _renderNavLineChart() {
   });
 
   _fcShowSpinner(false);
+}
+
+// ── Helper: interpolate value from a date→value map ───────────────────────
+function _interpolateMap(map, sortedLabels, targetDate) {
+  if (map[targetDate] !== undefined) return map[targetDate];
+  // Walk backwards to find nearest previous date with data
+  const idx = sortedLabels.indexOf(targetDate);
+  if (idx < 0) return null;
+  for (let i = idx - 1; i >= 0; i--) {
+    if (map[sortedLabels[i]] !== undefined) return map[sortedLabels[i]];
+  }
+  // Walk forward
+  for (let i = idx + 1; i < sortedLabels.length; i++) {
+    if (map[sortedLabels[i]] !== undefined) return map[sortedLabels[i]];
+  }
+  return null;
 }
 
 // ── Find nearest NAV for a date ───────────────────────────────────────────
@@ -4916,9 +5157,11 @@ function closeFundChartModal() {
   document.getElementById('modalFundChart').style.display = 'none';
   document.body.style.overflow = '';
   if (FC.chartInst) { FC.chartInst.destroy(); FC.chartInst = null; }
-  FC.fundId = null;
-  FC.navData = [];
-  FC.txns = [];
+  FC.fundId        = null;
+  FC.navData       = [];
+  FC.txns          = [];
+  FC.benchmarkData = [];
+  FC.showBenchmark = false;
 }
 
 // ── Spinner helper ────────────────────────────────────────────────────────
