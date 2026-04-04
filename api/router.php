@@ -192,6 +192,9 @@ try {
             require APP_ROOT . '/api/reports/tax_planning.php'; exit;
         case 'report_net_worth':
             require APP_ROOT . '/api/reports/net_worth.php'; exit;
+        case 'nw_timeline':        // t207: Net Worth Timeline fetch
+        case 'nw_snapshot_save':   // t207: Save monthly snapshot
+            require APP_ROOT . '/api/reports/net_worth_timeline.php'; exit;
         case 'report_rebalancing':
             require APP_ROOT . '/api/reports/rebalancing.php'; exit;
         case 'export_csv':

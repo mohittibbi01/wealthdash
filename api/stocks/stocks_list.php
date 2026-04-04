@@ -2,6 +2,7 @@
 /**
  * WealthDash — Stocks List (Holdings + Transactions)
  * GET /api/?action=stocks_list&type=holdings|transactions
+ * t215: Added CAGR, gain_pct_live, years_held to holdings response
  */
 declare(strict_types=1);
 defined('WEALTHDASH') or die('Direct access not permitted.');
@@ -23,9 +24,26 @@ $portWhere = $isAdmin && !$portfolioId
 if ($type === 'holdings') {
     $gainCond = $gainType ? "AND h.gain_type = " . DB::pdo()->quote($gainType) : '';
     $rows = DB::fetchAll(
-        "SELECT h.*, sm.symbol, sm.company_name, sm.exchange, sm.sector, sm.latest_price AS current_price, sm.latest_price_date,
-                p.name AS portfolio_name,
-                ROUND((sm.latest_price - h.avg_buy_price) / h.avg_buy_price * 100, 2) AS price_change_pct
+        "SELECT h.*,
+                sm.symbol, sm.company_name, sm.exchange, sm.sector,
+                sm.latest_price       AS current_price,
+                sm.latest_price_date,
+                p.name                AS portfolio_name,
+                /* t215: Gain% from avg_buy_price vs live price */
+                ROUND((sm.latest_price - h.avg_buy_price) / NULLIF(h.avg_buy_price,0) * 100, 2) AS gain_pct_live,
+                /* t215: CAGR — annualised return since first_purchase_date */
+                CASE
+                  WHEN h.first_purchase_date IS NOT NULL
+                       AND h.avg_buy_price > 0
+                       AND DATEDIFF(CURDATE(), h.first_purchase_date) > 30
+                  THEN ROUND(
+                         (POW(sm.latest_price / NULLIF(h.avg_buy_price,0),
+                              365.0 / GREATEST(DATEDIFF(CURDATE(), h.first_purchase_date),1)) - 1) * 100,
+                         2)
+                  ELSE NULL
+                END AS cagr,
+                /* t215: Years held (for tooltip) */
+                ROUND(DATEDIFF(CURDATE(), h.first_purchase_date) / 365.0, 1) AS years_held
          FROM stock_holdings h
          {$portJoin}
          JOIN stock_master sm ON sm.id = h.stock_id
@@ -56,4 +74,3 @@ if ($type === 'transactions') {
 }
 
 json_response(false, 'Invalid type.');
-

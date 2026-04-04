@@ -42,10 +42,12 @@ try {
 $latestMonth = DB::fetchVal("SELECT MAX(month_year) FROM fund_stock_holdings");
 
 switch ($action) {
-    case 'status':   handle_status($userId, $latestMonth); break;
-    case 'holdings': handle_holdings((int)($_GET['fund_id'] ?? 0), $latestMonth); break;
-    case 'overlap':  handle_overlap($_GET['fund_ids'] ?? '', $latestMonth); break;
-    case 'matrix':   handle_matrix($userId, $latestMonth); break;
+    case 'status':            handle_status($userId, $latestMonth); break;
+    case 'holdings':          handle_holdings((int)($_GET['fund_id'] ?? 0), $latestMonth); break;
+    case 'overlap':           handle_overlap($_GET['fund_ids'] ?? '', $latestMonth); break;
+    case 'matrix':            handle_matrix($userId, $latestMonth); break;
+    case 'sector_allocation': handle_sector_allocation($userId, $latestMonth); break; // t177
+    case 'top_holdings':      handle_top_holdings((int)($_GET['fund_id'] ?? 0), $latestMonth); break; // t178
     default:
         json_response(false, 'Unknown action');
 }
@@ -295,4 +297,136 @@ function overlap_risk(float $pct): string
     if ($pct >= 50) return 'high';
     if ($pct >= 25) return 'medium';
     return 'low';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// t177: Sector Allocation v2 — Real AMFI holdings data
+// ════════════════════════════════════════════════════════════════════════════
+
+function handle_sector_allocation(int $userId, ?string $latestMonth): void
+{
+    if (!$latestMonth) {
+        json_response(true, '', ['sectors' => [], 'as_of' => null, 'funds_covered' => 0]);
+        return;
+    }
+
+    $userFunds = DB::fetchAll(
+        "SELECT h.fund_id, h.value_now, f.fund_name
+         FROM mf_holdings h
+         JOIN funds f ON f.id = h.fund_id
+         WHERE h.user_id = ? AND h.value_now > 0",
+        [$userId]
+    );
+
+    if (empty($userFunds)) {
+        json_response(true, '', ['sectors' => [], 'as_of' => $latestMonth, 'funds_covered' => 0]);
+        return;
+    }
+
+    $totalPortfolioValue = array_sum(array_column($userFunds, 'value_now'));
+    $fundIds    = array_column($userFunds, 'fund_id');
+    $fundValMap = array_column($userFunds, 'value_now', 'fund_id');
+
+    $ph = implode(',', array_fill(0, count($fundIds), '?'));
+    $hasData = DB::fetchAll(
+        "SELECT DISTINCT fund_id FROM fund_stock_holdings
+         WHERE fund_id IN ({$ph}) AND disclosure_month = ?",
+        [...$fundIds, $latestMonth]
+    );
+    $covered = array_column($hasData, 'fund_id');
+
+    if (empty($covered)) {
+        json_response(true, '', [
+            'sectors' => [], 'as_of' => $latestMonth, 'funds_covered' => 0,
+            'fallback' => true,
+            'message'  => 'AMFI holdings not yet fetched. Run: php cron/fetch_fund_holdings.php'
+        ]);
+        return;
+    }
+
+    $ph2    = implode(',', array_fill(0, count($covered), '?'));
+    $stocks = DB::fetchAll(
+        "SELECT fund_id, sector, SUM(weight_pct) AS fund_sector_weight
+         FROM fund_stock_holdings
+         WHERE fund_id IN ({$ph2}) AND disclosure_month = ?
+         GROUP BY fund_id, sector",
+        [...$covered, $latestMonth]
+    );
+
+    $coveredValue  = (float)array_sum(array_map(fn($fid) => $fundValMap[$fid] ?? 0, $covered));
+    $sectorWeights = [];
+    foreach ($stocks as $row) {
+        $fid  = $row['fund_id'];
+        $fw   = $coveredValue > 0 ? (float)($fundValMap[$fid] ?? 0) / $coveredValue : 0;
+        $sec  = $row['sector'] ?: 'Others';
+        $sectorWeights[$sec] = ($sectorWeights[$sec] ?? 0) + (float)$row['fund_sector_weight'] * $fw;
+    }
+    arsort($sectorWeights);
+
+    $sectors = array_map(
+        fn($name, $w) => ['sector' => $name, 'weight' => round($w, 2)],
+        array_keys($sectorWeights), array_values($sectorWeights)
+    );
+
+    json_response(true, '', [
+        'sectors'         => array_values($sectors),
+        'as_of'           => $latestMonth,
+        'funds_covered'   => count($covered),
+        'funds_total'     => count($fundIds),
+        'covered_value'   => round($coveredValue, 2),
+        'portfolio_value' => round($totalPortfolioValue, 2),
+    ]);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// t178: Top Holdings Disclosure — Fund ke top 10 stocks
+// ════════════════════════════════════════════════════════════════════════════
+
+function handle_top_holdings(int $fundId, ?string $latestMonth): void
+{
+    if (!$fundId || !$latestMonth) {
+        json_response(false, 'fund_id and disclosure month required');
+        return;
+    }
+
+    $rows = DB::fetchAll(
+        "SELECT stock_name, isin, sector, weight_pct,
+                disclosure_month AS as_of
+         FROM fund_stock_holdings
+         WHERE fund_id = ? AND disclosure_month = ?
+         ORDER BY weight_pct DESC
+         LIMIT 10",
+        [$fundId, $latestMonth]
+    );
+
+    // Also: which other user-held funds share these stocks (overlap insight)
+    $fundIds_sharing = [];
+    if (!empty($rows)) {
+        $isins = array_filter(array_column($rows, 'isin'));
+        if ($isins) {
+            $isinPh = implode(',', array_fill(0, count($isins), '?'));
+            $sharing = DB::fetchAll(
+                "SELECT DISTINCT fsh.fund_id, f.fund_name, fsh.stock_name, fsh.weight_pct
+                 FROM fund_stock_holdings fsh
+                 JOIN funds f ON f.id = fsh.fund_id
+                 WHERE fsh.isin IN ({$isinPh})
+                   AND fsh.disclosure_month = ?
+                   AND fsh.fund_id != ?
+                 ORDER BY fsh.fund_id, fsh.weight_pct DESC",
+                [...$isins, $latestMonth, $fundId]
+            );
+            foreach ($sharing as $s) {
+                $fundIds_sharing[$s['fund_id']]['fund_name'] = $s['fund_name'];
+                $fundIds_sharing[$s['fund_id']]['shared_stocks'][] = [
+                    'stock' => $s['stock_name'], 'weight' => $s['weight_pct']
+                ];
+            }
+        }
+    }
+
+    json_response(true, '', [
+        'holdings'       => $rows,
+        'as_of'          => $latestMonth,
+        'other_funds'    => array_values($fundIds_sharing),
+    ]);
 }
