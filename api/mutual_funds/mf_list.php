@@ -234,7 +234,17 @@ try {
                     WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
                       AND s.is_active = 1 AND s.asset_type = 'mf'
                       AND s.schedule_type = 'SWP'
-                    ORDER BY s.created_at DESC LIMIT 1) AS active_swp_amount
+                    ORDER BY s.created_at DESC LIMIT 1) AS active_swp_amount,
+                   (SELECT s.id FROM sip_schedules s
+                    WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                      AND s.is_active = 1 AND s.asset_type = 'mf'
+                      AND s.schedule_type = 'SIP'
+                    ORDER BY s.created_at DESC LIMIT 1) AS active_sip_id,
+                   (SELECT s.id FROM sip_schedules s
+                    WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                      AND s.is_active = 1 AND s.asset_type = 'mf'
+                      AND s.schedule_type = 'SWP'
+                    ORDER BY s.created_at DESC LIMIT 1) AS active_swp_id
             FROM mf_holdings h
             JOIN funds f ON f.id = h.fund_id
             JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -327,6 +337,8 @@ try {
                 'active_sip_amount'    => $r['active_sip_amount'] !== null ? (float)$r['active_sip_amount'] : null,
                 'active_sip_frequency' => $r['active_sip_frequency'] ?? null,
                 'active_swp_amount'    => $r['active_swp_amount'] !== null ? (float)$r['active_swp_amount'] : null,
+                'active_sip_id'        => isset($r['active_sip_id']) && $r['active_sip_id'] !== null ? (int)$r['active_sip_id'] : null,
+                'active_swp_id'        => isset($r['active_swp_id']) && $r['active_swp_id'] !== null ? (int)$r['active_swp_id'] : null,
             ];
         }, $rows);
 
@@ -376,7 +388,17 @@ try {
                 (SELECT s.sip_amount FROM sip_schedules s
                  WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
                    AND s.is_active = 1 AND s.schedule_type = 'SWP'
-                 ORDER BY s.created_at DESC LIMIT 1) AS active_swp_amount
+                 ORDER BY s.created_at DESC LIMIT 1) AS active_swp_amount,
+                (SELECT s.id FROM sip_schedules s
+                 WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                   AND s.is_active = 1 AND s.asset_type = 'mf'
+                   AND s.schedule_type = 'SIP'
+                 ORDER BY s.created_at DESC LIMIT 1) AS active_sip_id,
+                (SELECT s.id FROM sip_schedules s
+                 WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
+                   AND s.is_active = 1 AND s.asset_type = 'mf'
+                   AND s.schedule_type = 'SWP'
+                 ORDER BY s.created_at DESC LIMIT 1) AS active_swp_id
             FROM mf_holdings h
             JOIN funds f ON f.id = h.fund_id
             JOIN fund_houses fh ON fh.id = f.fund_house_id
@@ -473,6 +495,8 @@ try {
                 'active_sip_amount'    => isset($r['active_sip_amount']) && $r['active_sip_amount'] !== null ? (float)$r['active_sip_amount'] : null,
                 'active_sip_frequency' => $r['active_sip_frequency'] ?? null,
                 'active_swp_amount'    => isset($r['active_swp_amount']) && $r['active_swp_amount'] !== null ? (float)$r['active_swp_amount'] : null,
+                'active_sip_id'        => isset($r['active_sip_id']) && $r['active_sip_id'] !== null ? (int)$r['active_sip_id'] : null,
+                'active_swp_id'        => isset($r['active_swp_id']) && $r['active_swp_id'] !== null ? (int)$r['active_swp_id'] : null,
             ];
         }, $rows);
 

@@ -295,6 +295,17 @@ ob_start();
 .dr-period-btn:hover{border-color:var(--accent);color:var(--accent);}
 .dr-period-btn.dr-active{background:var(--accent);color:#fff;border-color:var(--accent);}
 @keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── t168: AMC Rankings ─────────────────────────────── */
+.fhr-sort-btn{padding:4px 12px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;}
+.fhr-sort-btn:hover{border-color:var(--accent);color:var(--accent);}
+.fhr-sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.fhr-table{width:100%;border-collapse:collapse;font-size:12px;}
+.fhr-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:2px solid var(--border-color);white-space:nowrap;background:var(--bg-secondary);}
+.fhr-table td{padding:10px 12px;border-bottom:1px solid var(--border-color);vertical-align:middle;}
+.fhr-table tr:hover td{background:var(--bg-hover,rgba(0,0,0,.03));}
+.fhr-rank-badge{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:11px;font-weight:800;}
+.fhr-ret-bar{display:inline-block;height:5px;border-radius:3px;background:var(--accent);opacity:.7;vertical-align:middle;margin-left:6px;}
 </style>
 
 <!-- Stats bar -->
@@ -632,6 +643,7 @@ ob_start();
     <div style="display:flex;gap:8px;">
       <button class="fp-reset" onclick="SC.reset()">Reset</button>
       <button class="fp-apply" onclick="SC.applyFilters()">Apply Filter</button>
+      <button onclick="openKbModal()" title="Keyboard shortcuts (press ?)" style="padding:6px 10px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:12px;cursor:pointer;" >⌨️</button>
     </div>
   </div>
 </div>
@@ -642,6 +654,7 @@ ob_start();
   <div class="sc-view-tab" id="vtab_top" onclick="switchView('top')">🏆 Top Performers</div>
   <div class="sc-view-tab" id="vtab_wl" onclick="switchView('watchlist')">⭐ Watchlist <span id="wlCount" style="font-size:10px;background:rgba(245,158,11,.15);color:#d97706;padding:1px 6px;border-radius:99px;margin-left:3px;"></span></div>
   <div class="sc-view-tab" id="vtab_nfo" onclick="switchView('nfo')">🆕 NFO Tracker</div>
+  <div class="sc-view-tab" id="vtab_fhr" onclick="switchView('fhr')">🏛️ AMC Rankings</div><!-- t168 -->
 </div>
 
 <!-- t108: Fund Finder v2 — Goal-Based Search + Smart Presets -->
@@ -761,6 +774,24 @@ ob_start();
 <div class="sc-results-wrap" id="scNfoWrap" style="display:none;">
   <div style="padding:16px;overflow-y:auto;flex:1;" id="scNfoBody">
     <div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span></div>
+  </div>
+</div>
+
+<!-- t168: AMC Rankings panel -->
+<div class="sc-results-wrap" id="scFhrWrap" style="display:none;">
+  <div style="padding:16px;overflow-y:auto;flex:1;">
+    <!-- Sort controls -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:700;color:var(--text-muted);">Sort by:</span>
+      <button class="fhr-sort-btn active" data-sort="ret1y" onclick="fhrSetSort('ret1y',this)">1Y Return</button>
+      <button class="fhr-sort-btn" data-sort="ret3y" onclick="fhrSetSort('ret3y',this)">3Y CAGR</button>
+      <button class="fhr-sort-btn" data-sort="ret5y" onclick="fhrSetSort('ret5y',this)">5Y CAGR</button>
+      <button class="fhr-sort-btn" data-sort="aum"   onclick="fhrSetSort('aum',this)">AUM</button>
+      <button class="fhr-sort-btn" data-sort="funds" onclick="fhrSetSort('funds',this)">Fund Count</button>
+    </div>
+    <div id="scFhrBody">
+      <div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span></div>
+    </div>
   </div>
 </div>
 
@@ -1431,6 +1462,13 @@ function renderTable(funds,total){
       <td style="width:100px;">${erHtml}</td>
       <td style="width:70px;text-align:center;">${_retCell(f.returns_1y)}</td>
       <td style="width:70px;text-align:center;">${_retCell(f.returns_3y)}</td>
+      <td style="width:60px;text-align:center;">${(()=>{
+        if(f.returns_1y===null||f.returns_1y===undefined||f.category_avg_1y===null||f.category_avg_1y===undefined) return '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+        const diff=Number((f.returns_1y-f.category_avg_1y).toFixed(2));
+        const color=diff>2?'#15803d':diff>0?'#16a34a':diff>-2?'#d97706':'#dc2626';
+        const arrow=diff>=0?'▲':'▼';
+        return `<span style="color:${color};font-size:11px;font-weight:700;" title="vs Category avg ${f.category_avg_1y}%\n1Y Return: ${f.returns_1y}%">${arrow}${Math.abs(diff).toFixed(1)}%</span>`;
+      })()}</td>
       <td style="width:70px;text-align:center;">${_retCell(f.returns_5y)}</td>
       <td style="width:52px;text-align:center;">${_ratingCell(f)}</td>
       <td style="width:60px;text-align:center;padding:6px 4px;">
@@ -1474,14 +1512,15 @@ function renderTable(funds,total){
       <th onclick="scSort('nav_desc')" id="sh_nav" style="cursor:pointer;user-select:none;">NAV <span class="sh-arr" id="sa_nav"></span></th>
       <th style="cursor:default;width:80px;">1D Change</th>
       <th onclick="scSort('peak_nav')" id="sh_peak" style="cursor:pointer;user-select:none;">Peak NAV <span class="sh-arr" id="sa_peak"></span></th>
-      <th onclick="scSort('drawdown')" id="sh_dd" style="cursor:pointer;user-select:none;">DD% <span class="sh-arr" id="sa_dd"></span></th>
-      <th onclick="scSort('mdd_asc')" id="sh_mdd" style="cursor:pointer;user-select:none;" title="Max Drawdown — worst peak-to-trough loss ever (from calculate_returns cron)">MDD% <span class="sh-arr" id="sa_mdd"></span></th>
-      <th onclick="scSort('sharpe_desc')" id="sh_sharpe" style="cursor:pointer;user-select:none;" title="Sharpe Ratio — risk-adjusted return (1Y, annualised, Rf=6.5%)">Sharpe <span class="sh-arr" id="sa_sharpe"></span></th>
-      <th onclick="scSort('ltcg')" id="sh_ltcg" style="cursor:pointer;user-select:none;">LTCG <span class="sh-arr" id="sa_ltcg"></span></th>
+      <th onclick="scSort('drawdown')" id="sh_dd" style="cursor:pointer;user-select:none;">DD% <i class="wd-info-btn tip-left" data-tip="Current Drawdown: % fall from latest peak NAV. Lower is better. ">i</i><span class="sh-arr" id="sa_dd"></span></th>
+      <th onclick="scSort('mdd_asc')" id="sh_mdd" style="cursor:pointer;user-select:none;">MDD% <i class="wd-info-btn tip-left" data-tip="Max Drawdown: Worst peak-to-trough fall ever in fund history. Measures worst-case loss risk.">i</i><span class="sh-arr" id="sa_mdd"></span></th>
+      <th onclick="scSort('sharpe_desc')" id="sh_sharpe" style="cursor:pointer;user-select:none;">Sharpe <i class="wd-info-btn tip-left" data-tip="Sharpe Ratio: Return per unit of risk. Formula: (Return - Risk Free 6.5%) / Std Dev. ≥1.5 Excellent · ≥1 Good · <0 Poor">i</i><span class="sh-arr" id="sa_sharpe"></span></th>
+      <th onclick="scSort('ltcg')" id="sh_ltcg" style="cursor:pointer;user-select:none;">LTCG <i class="wd-info-btn tip-left" data-tip="Long-Term Capital Gain eligibility. Equity: hold >1 year for LTCG (12.5% tax above ₹1.25L). Debt: >2 years for LTCG.">i</i><span class="sh-arr" id="sa_ltcg"></span></th>
       <th style="cursor:default;">Lock-in</th>
-      <th onclick="scSort('expense')" id="sh_exp" style="cursor:pointer;user-select:none;">Exp% <span class="sh-arr" id="sa_exp"></span></th>
+      <th onclick="scSort('expense')" id="sh_exp" style="cursor:pointer;user-select:none;">Exp% <i class="wd-info-btn tip-left" data-tip="Expense Ratio (TER): Annual fee charged by fund. Lower is better. Direct plans have ~0.5-1% lower TER than Regular.">i</i><span class="sh-arr" id="sa_exp"></span></th>
       <th onclick="scSort('ret1y_desc')" id="sh_r1" style="cursor:pointer;user-select:none;text-align:center;">1Y <span class="sh-arr" id="sa_r1"></span></th>
       <th onclick="scSort('ret3y_desc')" id="sh_r3" style="cursor:pointer;user-select:none;text-align:center;">3Y <span class="sh-arr" id="sa_r3"></span></th>
+      <th id="sh_vs_cat" style="cursor:default;text-align:center;">vs Cat <i class="wd-info-btn" data-tip="Fund's 1Y return vs category average. Green (+) = outperforming peers. Red (-) = underperforming.">i</i><span style="font-size:9px;color:var(--text-muted);">1Y</span></th>
       <th onclick="scSort('ret5y_desc')" id="sh_r5" style="cursor:pointer;user-select:none;text-align:center;">5Y <span class="sh-arr" id="sa_r5"></span></th>
       <th style="cursor:default;text-align:center;width:52px;">⭐ WD</th>
       <th></th>
@@ -1546,11 +1585,49 @@ function drOpenFund(f){
     return `<div class="d-box"><div class="d-lbl">${label}</div><div class="d-val" style="color:${color};">${sign}${v.toFixed(1)}%</div><div class="d-sub">p.a. CAGR</div></div>`;
   }
   const hasRet=f.returns_1y!==null||f.returns_3y!==null||f.returns_5y!==null;
+  // t167 — vs Category section
+  const catCompSec=(()=>{
+    const has1y = f.returns_1y!==null&&f.returns_1y!==undefined&&f.category_avg_1y!==null&&f.category_avg_1y!==undefined;
+    const has3y = f.returns_3y!==null&&f.returns_3y!==undefined&&f.category_avg_3y!==null&&f.category_avg_3y!==undefined;
+    if(!has1y && !has3y) return '';
+    function catBar(fund, avg, label){
+      if(fund===null||fund===undefined||avg===null||avg===undefined) return '';
+      const diff = Number((fund-avg).toFixed(2));
+      const color = diff>3?'#15803d':diff>0?'#16a34a':diff>-3?'#d97706':'#dc2626';
+      const arrow = diff>=0?'▲':'▼';
+      const tag   = diff>=0?'Outperforming':'Underperforming';
+      // mini bar: fund vs category avg, max width 80px each side
+      const maxAbsDiff = 10;
+      const pct = Math.min(Math.abs(diff)/maxAbsDiff*100, 100);
+      const barStyle = diff>=0
+        ? `background:linear-gradient(90deg,#dcfce7 0%,#16a34a ${pct}%,#dcfce7 100%);`
+        : `background:linear-gradient(90deg,#fee2e2 0%,#dc2626 ${pct}%,#fee2e2 100%);`;
+      return `<div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+          <span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;">${label}</span>
+          <span style="font-size:12px;font-weight:800;color:${color};">${arrow}${Math.abs(diff).toFixed(2)}% ${tag}</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="flex:1;height:5px;border-radius:3px;${barStyle}opacity:.85;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:2px;">
+          <span style="font-size:9px;color:var(--text-muted);">This fund: <b style="color:var(--text-primary);">${fund>0?'+':''}${Number(fund).toFixed(1)}%</b></span>
+          <span style="font-size:9px;color:var(--text-muted);">Category avg: <b style="color:var(--text-primary);">${avg>0?'+':''}${Number(avg).toFixed(1)}%</b></span>
+        </div>
+      </div>`;
+    }
+    return `<div class="d-sec">🏆 vs Category Peers</div>
+    <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 12px;margin-bottom:14px;border:1px solid var(--border-color);">
+      ${catBar(f.returns_1y, f.category_avg_1y,'1 Year CAGR')}
+      ${catBar(f.returns_3y, f.category_avg_3y,'3 Year CAGR')}
+      <div style="font-size:9px;color:var(--text-muted);margin-top:4px;">Category: ${f.category_short||f.category||'—'}</div>
+    </div>`;
+  })();
   const retSec=hasRet?`
     <div class="d-sec">📈 Returns</div>
     <div class="d-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:14px;">
       ${retBadge(f.returns_1y,'1 Year')}${retBadge(f.returns_3y,'3 Year CAGR')}${retBadge(f.returns_5y,'5 Year CAGR')}
-    </div>`:'';
+    </div>${catCompSec}`:'';
 
   document.getElementById('drBody').innerHTML=`
     <div class="d-grid">
@@ -1578,7 +1655,15 @@ function drOpenFund(f){
             return `<div class="d-box"><div class="d-lbl">Sharpe Ratio ⚖️</div><div class="d-val" style="color:${color};">${Number(sr).toFixed(3)}</div><div class="d-sub">${grade} · Rf=6.5%</div></div>`;
           })()
         : '';
-      return `<div class="d-sec">⚖️ Risk Metrics</div><div class="d-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">${mddHtml}${srHtml}</div>`;
+      const soHtml = f.sortino_ratio !== null && f.sortino_ratio !== undefined
+        ? (() => {
+            const so = f.sortino_ratio;
+            const color = so >= 2 ? '#15803d' : so >= 1 ? '#16a34a' : so >= 0.5 ? '#d97706' : so >= 0 ? '#ea580c' : '#dc2626';
+            const grade = so >= 2 ? 'Excellent 🌟' : so >= 1 ? 'Good ✓' : so >= 0.5 ? 'Fair' : so >= 0 ? 'Below Avg' : 'Poor ⚠';
+            return `<div class="d-box"><div class="d-lbl">Sortino Ratio 📐</div><div class="d-val" style="color:${color};">${Number(so).toFixed(3)}</div><div class="d-sub">${grade} · Downside-only risk</div></div>`;
+          })()
+        : '';
+      return `<div class="d-sec">⚖️ Risk Metrics</div><div class="d-grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px;">${mddHtml}${srHtml}${soHtml}</div>`;
     })()}
     ${retSec}
     <div class="d-sec">📊 NAV History</div>
@@ -1660,8 +1745,10 @@ async function drLoadChart(fundId,period,btn){
   const from=new Date(today);from.setDate(from.getDate()-days);
   const fromDate=from.toISOString().slice(0,10);
   try{
+    // t163: Use nav_proxy (DB cache first, MFAPI fallback)
+    const schemeCode = window._scFunds?.find(sf=>sf.id===fundId)?.scheme_code || '';
     const appUrl=window.WD?.appUrl||window.APP_URL||'';
-    const res=await fetch(`${appUrl}/api/mutual_funds/mf_nav_history.php?fund_id=${fundId}&from=${fromDate}&to=${toDate}`,{headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const res=await fetch(`${appUrl}/api/router.php?action=nav_proxy&fund_id=${fundId}&period=${period==='Max'?'ALL':period}&scheme_code=${schemeCode}`,{headers:{'X-Requested-With':'XMLHttpRequest'}});
     const json=await res.json();
     if(loader){loader.style.display='none';}
     if(!json.success||!json.data||json.data.length<2){
@@ -1723,7 +1810,128 @@ function drClose(){
   document.getElementById('scDr').classList.remove('open');
   if(_drChartInst){_drChartInst.destroy();_drChartInst=null;}
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){ drClose(); closeCompareModal(); closeAlertModal(); }});
+
+/* ══════════════════════════════════════════════════
+   t185 — SCREENER KEYBOARD SHORTCUTS
+══════════════════════════════════════════════════ */
+function _scKbActive() {
+  // Don't fire shortcuts when typing in inputs/textareas
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  return !(tag === 'input' || tag === 'textarea' || tag === 'select' ||
+           document.activeElement?.isContentEditable);
+}
+
+document.addEventListener('keydown', e => {
+  // ── Always: Escape closes open panels ─────────────────────────
+  if (e.key === 'Escape') {
+    drClose(); closeCompareModal(); closeAlertModal();
+    const km = document.getElementById('scKbModal');
+    if (km) km.style.display = 'none';
+    return;
+  }
+
+  if (!_scKbActive()) return;
+
+  switch (e.key) {
+    // / → focus search box
+    case '/':
+      e.preventDefault();
+      const sq = document.getElementById('scQ');
+      if (sq) { sq.focus(); sq.select(); }
+      break;
+
+    // F → toggle filter panel (plan filter as proxy)
+    case 'f': case 'F': {
+      const planTab = document.querySelector('.sc-filter-tab[data-tab="plan"]');
+      if (planTab) planTab.click();
+      break;
+    }
+
+    // C → clear all filters
+    case 'c': case 'C':
+      SC.reset();
+      break;
+
+    // D → toggle Direct only
+    case 'd': case 'D': {
+      const isDirect = SC.state.planType === 'direct';
+      SC.state.planType = isDirect ? 'all' : 'direct';
+      const radio = document.querySelector(`input[name=planType][value="${SC.state.planType}"]`);
+      if (radio) radio.checked = true;
+      updTabBadge();
+      SC.trigger();
+      break;
+    }
+
+    // 1 → All Funds
+    case '1':
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); switchView('all'); }
+      break;
+    // 2 → Top Performers
+    case '2':
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); switchView('top'); }
+      break;
+    // 3 → Watchlist
+    case '3':
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); switchView('watchlist'); }
+      break;
+    // 4 → NFO Tracker
+    case '4':
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); switchView('nfo'); }
+      break;
+    // 5 → AMC Rankings
+    case '5':
+      if (!e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); switchView('fhr'); }
+      break;
+
+    // ? → show shortcuts help modal
+    case '?':
+      e.preventDefault();
+      openKbModal();
+      break;
+  }
+});
+
+function openKbModal() {
+  let modal = document.getElementById('scKbModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'scKbModal';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;';
+    modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:14px;padding:28px 32px;max-width:480px;width:95%;box-shadow:0 24px 64px rgba(0,0,0,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div style="font-size:16px;font-weight:800;">⌨️ Keyboard Shortcuts</div>
+          <button onclick="document.getElementById('scKbModal').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+        </div>
+        <div style="display:grid;gap:8px;">
+          ${[
+            ['/', 'Focus search box'],
+            ['F', 'Open filter panel'],
+            ['C', 'Clear all filters'],
+            ['D', 'Toggle Direct-only filter'],
+            ['1', 'Switch to All Funds'],
+            ['2', 'Switch to Top Performers'],
+            ['3', 'Switch to Watchlist'],
+            ['4', 'Switch to NFO Tracker'],
+            ['5', 'Switch to AMC Rankings'],
+            ['Esc', 'Close panels / modals'],
+            ['?', 'Show this help'],
+          ].map(([key, desc]) => `
+            <div style="display:flex;align-items:center;gap:12px;">
+              <kbd style="font-family:monospace;font-size:12px;font-weight:800;background:var(--bg-secondary);border:1.5px solid var(--border-color);border-radius:5px;padding:3px 9px;min-width:36px;text-align:center;flex-shrink:0;box-shadow:0 2px 0 var(--border-color);">${key}</kbd>
+              <span style="font-size:13px;color:var(--text-primary);">${desc}</span>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-color);font-size:11px;color:var(--text-muted);">
+          💡 Shortcuts inactive while typing in input fields
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+}
 
 /* ══════════════════════════════════════════════════
    t28 — TOP PERFORMERS VIEW
@@ -1935,7 +2143,19 @@ function renderCompareTable() {
       const color = sr>=1.5?'#15803d':sr>=1?'#16a34a':sr>=0.5?'#d97706':sr>=0?'#ea580c':'#dc2626';
       return `<span style="font-weight:700;color:${color};">${Number(sr).toFixed(3)}</span>`;
     }), isBest:true},
+    {label:'Sortino Ratio', vals: funds.map(f => {
+      const so = f.sortino_ratio;
+      if (so === null || so === undefined) return '—';
+      const color = so>=2?'#15803d':so>=1?'#16a34a':so>=0.5?'#d97706':so>=0?'#ea580c':'#dc2626';
+      return `<span style="font-weight:700;color:${color};" title="Sortino: only downside volatility penalized">${Number(so).toFixed(3)}</span>`;
+    }), isBest:true},
     {label:'1Y Return',     vals: funds.map(f => fmtRet(f.returns_1y, funds.map(x=>x.returns_1y))), isBest:true},
+    {label:'vs Cat (1Y)',   vals: funds.map(f => {
+      if(f.returns_1y===null||f.returns_1y===undefined||f.category_avg_1y===null||f.category_avg_1y===undefined) return '—';
+      const diff=Number((f.returns_1y-f.category_avg_1y).toFixed(2));
+      const color=diff>2?'#15803d':diff>0?'#16a34a':diff>-2?'#d97706':'#dc2626';
+      return `<span style="font-weight:700;color:${color};">${diff>=0?'▲':'▼'}${Math.abs(diff).toFixed(2)}%</span>`;
+    }), isBest:true},
     {label:'3Y CAGR',       vals: funds.map(f => fmtRet(f.returns_3y, funds.map(x=>x.returns_3y))), isBest:true},
     {label:'5Y CAGR',       vals: funds.map(f => fmtRet(f.returns_5y, funds.map(x=>x.returns_5y))), isBest:true},
     // t96: Alpha & Beta
@@ -2361,6 +2581,7 @@ function switchView(v) {
   const isTop = v === 'top';
   const isAll = v === 'all';
   const isNfo = v === 'nfo';   // t64
+  const isFhr = v === 'fhr';   // t168
 
   document.getElementById('vtab_all').classList.toggle('active', isAll);
   document.getElementById('vtab_top').classList.toggle('active', isTop);
@@ -2368,19 +2589,25 @@ function switchView(v) {
   if (wlTab) wlTab.classList.toggle('active', isWl);
   const nfoTab = document.getElementById('vtab_nfo');
   if (nfoTab) nfoTab.classList.toggle('active', isNfo);
+  const fhrTab = document.getElementById('vtab_fhr');
+  if (fhrTab) fhrTab.classList.toggle('active', isFhr);
 
-  document.getElementById('scSearchBar').style.display   = isWl || isTop || isNfo ? 'none' : '';
-  document.getElementById('scChips').style.display       = isWl || isTop || isNfo ? 'none' : '';
+  const hideSidebar = isWl || isTop || isNfo || isFhr;
+  document.getElementById('scSearchBar').style.display   = hideSidebar ? 'none' : '';
+  document.getElementById('scChips').style.display       = hideSidebar ? 'none' : '';
   document.getElementById('scResultsWrap').style.display = isAll ? '' : 'none';
   document.getElementById('scTopWrap').style.display     = isTop ? 'flex' : 'none';
   const wlWrap = document.getElementById('scWlWrap');
   if (wlWrap) wlWrap.style.display = isWl ? 'flex' : 'none';
   const nfoWrap = document.getElementById('scNfoWrap');
   if (nfoWrap) nfoWrap.style.display = isNfo ? 'flex' : 'none';
+  const fhrWrap = document.getElementById('scFhrWrap');
+  if (fhrWrap) fhrWrap.style.display = isFhr ? 'flex' : 'none';
 
   if (isTop) loadTopPerformers(_tpPeriod);
   if (isWl)  renderWatchlistView();
   if (isNfo && typeof loadNfoTracker === 'function') loadNfoTracker('scNfoBody');  // t64
+  if (isFhr) loadFhrRankings();  // t168
 }
 
 /* ══════════════════════════════════════════════════
@@ -2604,6 +2831,106 @@ function _scInit() {
 }
 
 document.addEventListener('DOMContentLoaded', _scInit);
+
+/* ══════════════════════════════════════════════════
+   t168 — FUND HOUSE (AMC) RANKINGS
+══════════════════════════════════════════════════ */
+let _fhrSort    = 'ret1y';
+let _fhrLoaded  = false;
+
+function fhrSetSort(sort, btn) {
+  _fhrSort = sort;
+  _fhrLoaded = false;
+  document.querySelectorAll('.fhr-sort-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  loadFhrRankings();
+}
+
+async function loadFhrRankings() {
+  const body = document.getElementById('scFhrBody');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span></div>';
+
+  const base = window._SCBASE || window.WD?.appUrl || window.APP_URL || '';
+  try {
+    const res  = await fetch(`${base}/api/router.php?action=fund_house_rankings&sort=${_fhrSort}`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'Load failed');
+
+    const ranks = json.data?.rankings || [];
+    if (!ranks.length) {
+      body.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);">No data — run calculate_returns.php cron first.</div>';
+      return;
+    }
+
+    // Find max values for bar scaling
+    const maxRet = Math.max(...ranks.map(r => r.avg_ret1y || 0).filter(v => v > 0));
+    const maxAum = Math.max(...ranks.map(r => r.total_aum || 0));
+
+    const medalColors = ['#f59e0b','#94a3b8','#cd7f32'];
+    const medalEmoji  = ['🥇','🥈','🥉'];
+
+    const sortLabel = { ret1y:'1Y Avg Return', ret3y:'3Y CAGR', ret5y:'5Y CAGR', aum:'Total AUM', funds:'Fund Count' }[_fhrSort] || '1Y Return';
+
+    body.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table class="fhr-table">
+          <thead>
+            <tr>
+              <th style="width:36px;">#</th>
+              <th>Fund House (AMC)</th>
+              <th style="text-align:right;">Funds</th>
+              <th style="text-align:right;">1Y Return</th>
+              <th style="text-align:right;">3Y CAGR</th>
+              <th style="text-align:right;">5Y CAGR</th>
+              <th style="text-align:right;">AUM (Cr)</th>
+              <th>Top Fund</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ranks.map((r, i) => {
+              const rank = i + 1;
+              const medal = rank <= 3 ? `<span title="Rank ${rank}" style="font-size:16px;">${medalEmoji[i]}</span>` :
+                `<span class="fhr-rank-badge" style="background:var(--bg-secondary);color:var(--text-muted);">${rank}</span>`;
+
+              function retCell(v) {
+                if (v === null || v === undefined) return '<td style="text-align:right;color:var(--text-muted);">—</td>';
+                const color = v >= 20 ? '#15803d' : v >= 12 ? '#16a34a' : v >= 0 ? '#d97706' : '#dc2626';
+                const barW  = maxRet > 0 ? Math.round((v / maxRet) * 60) : 0;
+                return `<td style="text-align:right;font-weight:700;color:${color};">${v > 0 ? '+' : ''}${v.toFixed(1)}%<span class="fhr-ret-bar" style="width:${barW}px;background:${color};"></span></td>`;
+              }
+
+              const aumCell = r.total_aum ? `<td style="text-align:right;color:var(--text-muted);font-size:11px;">₹${Number(r.total_aum).toLocaleString('en-IN',{maximumFractionDigits:0})}</td>` : '<td style="text-align:right;color:var(--text-muted);">—</td>';
+
+              const topFund = r.top_fund
+                ? `<div style="font-size:11px;font-weight:600;color:var(--text-primary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.top_fund}">${r.top_fund.length > 38 ? r.top_fund.slice(0,37)+'…' : r.top_fund}</div>${r.top_fund_ret !== null ? `<div style="font-size:10px;color:#16a34a;font-weight:700;">+${Number(r.top_fund_ret).toFixed(1)}% 1Y</div>` : ''}`
+                : '<span style="color:var(--text-muted);">—</span>';
+
+              return `<tr>
+                <td style="text-align:center;">${medal}</td>
+                <td>
+                  <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${r.house_name}</div>
+                </td>
+                <td style="text-align:right;font-weight:600;">${r.fund_count}</td>
+                ${retCell(r.avg_ret1y)}
+                ${retCell(r.avg_ret3y)}
+                ${retCell(r.avg_ret5y)}
+                ${aumCell}
+                <td>${topFund}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);padding:10px 4px;margin-top:4px;">
+        💡 Sorted by <strong>${sortLabel}</strong> · Average across all active Direct Growth funds per AMC · Returns updated by cron
+      </div>`;
+
+    _fhrLoaded = true;
+  } catch(e) {
+    body.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">⚠ Failed to load rankings: ${e.message}</div>`;
+  }
+}
 </script>
 <?php
 $pageContent = ob_get_clean();

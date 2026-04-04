@@ -1908,3 +1908,88 @@ html, body { overflow-x: hidden; }
     font-size: 1.2rem;
   }
 }
+/* ============================================================
+   t22: INFO (i) TOOLTIPS — CSS-only, hover-triggered
+   Usage: <span class="wd-info-btn" data-tip="Your tooltip text">ⓘ</span>
+   ============================================================ */
+.wd-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-secondary, #f1f5f9);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 800;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 3px;
+  flex-shrink: 0;
+  font-style: normal;
+  line-height: 1;
+  user-select: none;
+  transition: background .15s, border-color .15s;
+}
+.wd-info-btn:hover {
+  background: var(--primary-50, #eef2ff);
+  border-color: var(--primary, #6366f1);
+  color: var(--primary, #6366f1);
+}
+.wd-info-btn::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 7px 11px;
+  border-radius: 7px;
+  white-space: pre-line;
+  width: 230px;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s, visibility .18s;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  text-align: left;
+  font-style: normal;
+  font-family: var(--font-sans, system-ui);
+}
+.wd-info-btn::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e293b;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s, visibility .18s;
+  z-index: 9999;
+  pointer-events: none;
+}
+.wd-info-btn:hover::after,
+.wd-info-btn:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+/* Tooltip aligned to right when near left edge */
+.wd-info-btn.tip-right::after { left: 0; transform: none; }
+.wd-info-btn.tip-right::before { left: 7px; transform: none; }
+/* Tooltip aligned to left when near right edge */
+.wd-info-btn.tip-left::after { left: auto; right: 0; transform: none; }
+.wd-info-btn.tip-left::before { left: auto; right: 7px; transform: none; }
+/* Tooltip below (for elements near top of page) */
+.wd-info-btn.tip-below::after { bottom: auto; top: calc(100% + 8px); }
+.wd-info-btn.tip-below::before { bottom: auto; top: calc(100% + 2px); border-top-color: transparent; border-bottom-color: #1e293b; }

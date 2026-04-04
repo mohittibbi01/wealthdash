@@ -144,6 +144,9 @@ async function loadHoldings() {
     MF.data = res.data || [];
     MF.filtered = [...MF.data];
 
+    // t182: load fund notes silently
+    loadFundNotes();
+
     // Update summary from API if available
     if (res.summary) updateSummaryCards(res.summary);
 
@@ -381,22 +384,61 @@ function renderHoldings() {
       <td class="text-center" data-1d-fund="${fundId}">${render1DCell(fundId)}</td>
       <td style="white-space:nowrap;text-align:center;padding:6px 4px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-          <!-- Line 1: SIP + SWP badges side by side (only if exist) -->
+          <!-- Line 1: SIP + SWP badges with stop dropdown -->
           ${(h.active_sip_count > 0 || (h.active_swp_count||0) > 0) ? `
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:center;">
-            ${h.active_sip_count > 0 ? `<span
-              onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
-              style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:pointer;transition:all .15s;"
-              onmouseover="this.style.background='#bbf7d0'"
-              onmouseout="this.style.background='#dcfce7'"
-              title="SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString('en-IN') : '?'} / ${h.active_sip_frequency||'monthly'}">🔄 SIP</span>` : ''}
-            ${(h.active_swp_count||0) > 0 ? `<span
-              onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
-              style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:pointer;transition:all .15s;"
-              onmouseover="this.style.background='#fecaca'"
-              onmouseout="this.style.background='#fee2e2'"
-              title="SWP ₹${h.active_swp_amount ? Number(h.active_swp_amount).toLocaleString('en-IN') : '?'} / month">💸 SWP</span>` : ''}
+            ${h.active_sip_count > 0 ? `<span class="sip-badge-wrap" style="position:relative;display:inline-block;">
+              <span
+                onclick="toggleSipMenu(event,'sipmenu_sip_${fundId}')"
+                style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#dcfce7;color:#15803d;border:1px solid #86efac;cursor:pointer;transition:all .15s;user-select:none;"
+                onmouseover="this.style.background='#bbf7d0'"
+                onmouseout="this.style.background='#dcfce7'"
+                title="SIP ₹${h.active_sip_amount ? Number(h.active_sip_amount).toLocaleString('en-IN') : '?'} / ${h.active_sip_frequency||'monthly'} — Click for options">🔄 SIP ▾</span>
+              <div id="sipmenu_sip_${fundId}" class="sip-stop-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;min-width:160px;overflow:hidden;">
+                <div onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
+                  style="padding:8px 14px;font-size:11px;font-weight:600;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:7px;transition:background .1s;"
+                  onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                  ✏️ Edit / View SIP
+                </div>
+                <div style="height:1px;background:#f1f5f9;margin:0 10px;"></div>
+                <div onclick="confirmStopSip(${h.active_sip_id||0},'SIP','${escAttr(h.scheme_name)}')"
+                  style="padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;color:#dc2626;display:flex;align-items:center;gap:7px;transition:background .1s;"
+                  onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">
+                  ⏹ Stop SIP
+                </div>
+              </div>
+            </span>` : ''}
+            ${(h.active_swp_count||0) > 0 ? `<span class="sip-badge-wrap" style="position:relative;display:inline-block;">
+              <span
+                onclick="toggleSipMenu(event,'sipmenu_swp_${fundId}')"
+                style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;cursor:pointer;transition:all .15s;user-select:none;"
+                onmouseover="this.style.background='#fecaca'"
+                onmouseout="this.style.background='#fee2e2'"
+                title="SWP ₹${h.active_swp_amount ? Number(h.active_swp_amount).toLocaleString('en-IN') : '?'} / month — Click for options">💸 SWP ▾</span>
+              <div id="sipmenu_swp_${fundId}" class="sip-stop-menu" style="display:none;position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:500;min-width:160px;overflow:hidden;">
+                <div onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')"
+                  style="padding:8px 14px;font-size:11px;font-weight:600;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:7px;transition:background .1s;"
+                  onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                  ✏️ Edit / View SWP
+                </div>
+                <div style="height:1px;background:#f1f5f9;margin:0 10px;"></div>
+                <div onclick="confirmStopSip(${h.active_swp_id||0},'SWP','${escAttr(h.scheme_name)}')"
+                  style="padding:8px 14px;font-size:11px;font-weight:700;cursor:pointer;color:#dc2626;display:flex;align-items:center;gap:7px;transition:background .1s;"
+                  onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background=''">
+                  ⏹ Stop SWP
+                </div>
+              </div>
+            </span>` : ''}
           </div>` : ''}
+          <!-- t181: Quick Add SIP — show only if no active SIP/SWP -->
+          ${(h.active_sip_count === 0 && (h.active_swp_count||0) === 0) ? `
+          <button onclick="openQuickSip(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${escAttr(h.fund_house_short||'')}','${escAttr(h.category||'')}')" title="Quick Add SIP for this fund"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(22,163,74,.35);background:rgba(22,163,74,.06);cursor:pointer;font-size:11px;color:#16a34a;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(22,163,74,.15)';this.style.borderColor='#16a34a'"
+            onmouseout="this.style.background='rgba(22,163,74,.06)';this.style.borderColor='rgba(22,163,74,.35)'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            + SIP
+          </button>` : ''}
           <!-- Line 2: Transactions -->
           <button onclick="openTxnDrawer(${fundId},'${escAttr(h.scheme_name)}')" title="View Transactions"
             style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:500;transition:all .15s;"
@@ -404,6 +446,23 @@ function renderHoldings() {
             onmouseout="this.style.borderColor='var(--border-color)';this.style.color='var(--text-muted)';this.style.background='var(--bg-secondary)'">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
             Txns
+          </button>
+          <!-- t170: SIP Analysis per-fund button -->
+          <button onclick="openSipReturnAnalysis(${fundId},'${escAttr(h.scheme_name)}',${h.latest_nav||0},'${h.first_purchase_date||null}',${h.total_invested||0},${h.value_now||0})" title="SIP vs Lump Sum — kaunsa better?" 
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.35);background:rgba(99,102,241,.06);cursor:pointer;font-size:11px;color:#6366f1;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(99,102,241,.15)';this.style.borderColor='#6366f1'"
+            onmouseout="this.style.background='rgba(99,102,241,.06)';this.style.borderColor='rgba(99,102,241,.35)'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Analysis
+          </button>
+          <!-- t182: Fund Notes -->
+          <button onclick="openFundNoteModal(${fundId},'${escAttr(h.scheme_name)}')" title="Add/view note for this fund"
+            id="noteBtn_${fundId}"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(234,179,8,.35);background:rgba(234,179,8,.06);cursor:pointer;font-size:11px;color:#b45309;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(234,179,8,.15)';this.style.borderColor='#d97706'"
+            onmouseout="this.style.background='rgba(234,179,8,.06)';this.style.borderColor='rgba(234,179,8,.35)'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="16" y1="17" x2="16" y2="17"/></svg>
+            <span id="noteLbl_${fundId}">Notes</span>
           </button>
           <!-- Line 3: Delete -->
           <button onclick="openDeleteFundModal(${fundId},'${escAttr(h.scheme_name)}',${h.total_invested||0})" title="Delete this fund"
@@ -2056,8 +2115,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('tabHoldings').style.display  = which === 'holdings'  ? '' : 'none';
       document.getElementById('tabRealized').style.display  = which === 'realized'  ? '' : 'none';
       document.getElementById('tabDividends').style.display = which === 'dividends' ? '' : 'none';
-      const cgTab = document.getElementById('tabCapgains');
+      const cgTab  = document.getElementById('tabCapgains');
       if (cgTab) cgTab.style.display = which === 'capgains' ? '' : 'none';
+      const calTab = document.getElementById('tabCalendarWrap');
+      if (calTab) calTab.style.display = which === 'calendar' ? '' : 'none';
 
       // Load data on first switch
       if (which === 'realized') {
@@ -2072,6 +2133,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (which === 'capgains') {
         if (!CG.loaded) loadCapitalGains();
+      }
+      // t75: Investment Calendar
+      if (which === 'calendar') {
+        initCalendarTab();
       }
     });
   });
@@ -2298,6 +2363,110 @@ function renderDividends() {
   setEl('dSumThisFy', thisFyTotal > 0 ? fmtInr(thisFyTotal) : '—');
   setEl('dSumCount',  String(rows.length));
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   t10 — STOP SIP/SWP: badge dropdown + confirmation modal
+═══════════════════════════════════════════════════════════════════════════ */
+
+// Close all open sip menus
+function _closeAllSipMenus() {
+  document.querySelectorAll('.sip-stop-menu').forEach(m => m.style.display = 'none');
+}
+
+// Toggle the dropdown for a specific badge
+function toggleSipMenu(e, menuId) {
+  e.stopPropagation();
+  const menu = document.getElementById(menuId);
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  _closeAllSipMenus();
+  if (!isOpen) {
+    menu.style.display = 'block';
+    // Flip upward if near bottom of viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.bottom > window.innerHeight - 20) {
+      menu.style.top  = 'auto';
+      menu.style.bottom = 'calc(100% + 4px)';
+    }
+  }
+}
+
+// Close on outside click
+document.addEventListener('click', _closeAllSipMenus);
+
+// Show confirm modal then call sip_stop API
+function confirmStopSip(sipId, type, fundName) {
+  _closeAllSipMenus();
+  if (!sipId) { alert('SIP ID nahi mila. Page reload karo.'); return; }
+
+  // Build modal
+  const existing = document.getElementById('stopSipModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'stopSipModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px 28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+      <div style="font-size:22px;margin-bottom:8px;text-align:center;">⏹️</div>
+      <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:6px;text-align:center;">Stop ${escHtml(type)}?</h3>
+      <p style="font-size:13px;color:#64748b;margin-bottom:18px;text-align:center;line-height:1.6;">
+        <strong>${escHtml(fundName)}</strong> ka ${type} band ho jaayega.<br>
+        Existing holdings <em>aur transactions</em> safe rahenge.
+      </p>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px;">End Date</label>
+        <input type="date" id="stopSipDate" value="${new Date().toISOString().slice(0,10)}"
+          style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;color:#1e293b;outline:none;"
+          onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="document.getElementById('stopSipModal').remove()"
+          style="flex:1;padding:10px;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;">
+          Cancel
+        </button>
+        <button id="stopSipConfirmBtn" onclick="doStopSip(${sipId},'${escAttr(type)}')"
+          style="flex:1;padding:10px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">
+          ⏹ Stop ${escHtml(type)}
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // Close on backdrop click
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function doStopSip(sipId, type) {
+  const btn      = document.getElementById('stopSipConfirmBtn');
+  const endDate  = document.getElementById('stopSipDate')?.value || new Date().toISOString().slice(0,10);
+  const appUrl   = window.WD?.appUrl   || '';
+  const csrf     = window.WD?.csrfToken || '';
+  const portfolio = window.WD?.selectedPortfolio || 0;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Stopping...'; }
+
+  try {
+    const res  = await fetch(appUrl + '/api/router.php', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+      body   : JSON.stringify({ action: 'sip_stop', sip_id: sipId, end_date: endDate, portfolio_id: portfolio, csrf_token: csrf }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      document.getElementById('stopSipModal')?.remove();
+      if (typeof showToast === 'function') showToast(`✅ ${type} stopped successfully!`, 'success');
+      // Refresh holdings table
+      if (typeof loadHoldings === 'function') loadHoldings();
+      else if (typeof MF !== 'undefined' && typeof MF.load === 'function') MF.load();
+      else window.location.reload();
+    } else {
+      throw new Error(json.message || 'Stop failed');
+    }
+  } catch(err) {
+    if (btn) { btn.disabled = false; btn.textContent = `⏹ Stop ${type}`; }
+    alert('Error: ' + (err.message || 'Could not stop. Try again.'));
+  }
+}
+
 // ── Quick SIP from Holdings ─────────────────────────────────────────
 let _sipHoldingsFunds = null;
 let _sipSearchTimer   = null;
@@ -2693,6 +2862,8 @@ function renderMfAnalytics() {
 
   renderAllocChart(_allocMode);
   renderPortfolioReturns();
+  renderFolioAlert(holdings);     // t172
+  renderRebalancingAlert(holdings); // t175
 }
 
 function renderAllocChart(mode) {
@@ -3295,6 +3466,120 @@ function renderMfAnalytics() {
   _origRenderMfAnalytics();
   renderDirectVsRegular();
   renderSipStreak();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t186 — PRINT / PDF HOLDINGS
+═══════════════════════════════════════════════════════════════════════════ */
+function printHoldings() {
+  const printArea = document.getElementById('mfPrintArea');
+  if (!printArea) return;
+
+  // ── Collect live data from the rendered holdings table ──────────
+  const rows  = Array.from(document.querySelectorAll('#holdingsTable tbody tr.holding-row'));
+  const funds = rows.map(tr => ({
+    name:      tr.querySelector('[data-col="name"]')?.textContent?.trim()   || tr.querySelector('.fund-name')?.textContent?.trim()   || '—',
+    house:     tr.querySelector('[data-col="house"]')?.textContent?.trim()  || tr.querySelector('.fund-house')?.textContent?.trim()  || '',
+    invested:  tr.querySelector('[data-col="invested"]')?.textContent?.trim()|| tr.querySelector('.col-invested')?.textContent?.trim()|| '—',
+    value:     tr.querySelector('[data-col="value"]')?.textContent?.trim()  || tr.querySelector('.col-value')?.textContent?.trim()  || '—',
+    gain:      tr.querySelector('[data-col="gain"]')?.textContent?.trim()   || tr.querySelector('.col-gain')?.textContent?.trim()   || '—',
+    ret:       tr.querySelector('[data-col="ret"]')?.textContent?.trim()    || tr.querySelector('.col-ret')?.textContent?.trim()    || '—',
+    units:     tr.querySelector('[data-col="units"]')?.textContent?.trim()  || tr.querySelector('.col-units')?.textContent?.trim()  || '—',
+    nav:       tr.querySelector('[data-col="nav"]')?.textContent?.trim()    || tr.querySelector('.col-nav')?.textContent?.trim()    || '—',
+    category:  tr.dataset.category || tr.querySelector('.fund-category')?.textContent?.trim() || '',
+  }));
+
+  // Fallback: pull from MF.data if table rows unavailable
+  const mfData = (typeof MF !== 'undefined' && MF.data) ? MF.data : [];
+  const sourceData = funds.length ? funds : mfData.map(h => ({
+    name:     h.scheme_name || '—',
+    house:    h.fund_house  || '',
+    invested: fmtFull ? fmtFull(h.total_invested) : '₹' + Number(h.total_invested||0).toLocaleString('en-IN'),
+    value:    fmtFull ? fmtFull(h.value_now)       : '₹' + Number(h.value_now||0).toLocaleString('en-IN'),
+    gain:     (h.gain_pct >= 0 ? '+' : '') + Number(h.gain_pct||0).toFixed(2) + '%',
+    ret:      h.xirr  != null ? Number(h.xirr).toFixed(1)+'% XIRR' : '—',
+    units:    Number(h.total_units||0).toFixed(3),
+    nav:      h.latest_nav ? '₹'+Number(h.latest_nav).toFixed(4) : '—',
+    category: h.category_short || h.category || '',
+  }));
+
+  // ── Summary stats ────────────────────────────────────────────────
+  const totalInv = document.getElementById('mfTotalInvested')?.textContent?.trim() || '—';
+  const curVal   = document.getElementById('mfValueNow')?.textContent?.trim()      || '—';
+  const gainEl   = document.getElementById('mfGainLoss');
+  const gain     = gainEl?.textContent?.trim() || '—';
+
+  const now = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+
+  // ── Build print HTML ─────────────────────────────────────────────
+  const tableRows = sourceData.map((f, i) => `
+    <tr style="background:${i%2===0?'#fff':'#f9fafb'};">
+      <td style="padding:6px 8px;font-size:11px;font-weight:600;color:#111;max-width:200px;">${f.name}<br><span style="font-size:9px;color:#6b7280;font-weight:400;">${f.house}${f.category ? ' · '+f.category : ''}</span></td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;">${f.invested}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;font-weight:700;">${f.value}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;">${f.gain}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;">${f.ret}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;color:#6b7280;">${f.units}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;color:#6b7280;">${f.nav}</td>
+    </tr>`).join('');
+
+  printArea.innerHTML = `
+    <div style="font-family:Arial,sans-serif;color:#111;background:#fff;max-width:1000px;margin:0 auto;">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #1e40af;">
+        <div>
+          <div style="font-size:20px;font-weight:800;color:#1e40af;">WealthDash</div>
+          <div style="font-size:13px;color:#6b7280;margin-top:2px;">Mutual Fund Holdings Statement</div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:#6b7280;">
+          <div style="font-weight:700;font-size:13px;color:#111;">As on ${now}</div>
+          <div>${sourceData.length} fund${sourceData.length !== 1 ? 's' : ''} in portfolio</div>
+        </div>
+      </div>
+
+      <!-- Summary Boxes -->
+      <div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:3px;">Total Invested</div>
+          <div style="font-size:16px;font-weight:800;color:#111;">${totalInv}</div>
+        </div>
+        <div style="flex:1;min-width:140px;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:3px;">Current Value</div>
+          <div style="font-size:16px;font-weight:800;color:#1e40af;">${curVal}</div>
+        </div>
+        <div style="flex:1;min-width:140px;border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 14px;">
+          <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6b7280;margin-bottom:3px;">Gain / Loss</div>
+          <div style="font-size:16px;font-weight:800;">${gain}</div>
+        </div>
+      </div>
+
+      <!-- Holdings Table -->
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr style="background:#1e40af;color:#fff;">
+            <th style="padding:8px;text-align:left;font-size:10px;font-weight:700;">Fund</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">Invested</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">Current Value</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">Gain/Loss</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">Returns</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">Units</th>
+            <th style="padding:8px;text-align:right;font-size:10px;font-weight:700;">NAV</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+
+      <!-- Footer -->
+      <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:9px;color:#9ca3af;">
+        Generated by WealthDash · ${now} · For personal reference only · Not a financial statement · NAV data sourced from AMFI
+      </div>
+    </div>`;
+
+  // Show print area and trigger browser print
+  printArea.style.display = 'block';
+  window.print();
+  // Hide it again after print dialog closes
+  setTimeout(() => { printArea.style.display = 'none'; }, 500);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4200,8 +4485,9 @@ function renderMfAnalytics() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   t70 — PORTFOLIO OVERLAP ANALYSIS
-   Uses category + fund house as proxy (real holdings data from AMFI not available)
+   t70 + t176 — PORTFOLIO OVERLAP ANALYSIS
+   t176: Real AMFI stock-level data via fund_holdings.php API (when available)
+   t70:  Category-proxy fallback when AMFI data not yet synced
 ═══════════════════════════════════════════════════════════════════════════ */
 
 // Known sector overlaps by category (simplified proxy)
@@ -4232,14 +4518,128 @@ function calcOverlap(cat1, cat2) {
            commonSectors: sectorOverlap, commonStocks: stockOverlap };
 }
 
-function renderPortfolioOverlap() {
+// ── t176: Real AMFI-based overlap (tries API first, falls back to proxy) ──────
+async function renderPortfolioOverlap() {
   const holdings = MF.data || [];
   const wrap = document.getElementById('overlapWrap');
-  if (!wrap || holdings.length < 2) {
-    if (wrap) wrap.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Need at least 2 funds to analyze overlap.</div>';
+  if (!wrap) return;
+  if (holdings.length < 2) {
+    wrap.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Need at least 2 funds to analyze overlap.</div>';
     return;
   }
 
+  wrap.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:12px;">⏳ Loading overlap data…</div>';
+
+  // ── Try real AMFI data first ─────────────────────────────────────────────
+  try {
+    const resp = await fetch('api/mutual_funds/fund_holdings.php?action=matrix');
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json.success && json.data_available && json.matrix) {
+        renderOverlapMatrix(wrap, json, holdings);
+        return;
+      }
+    }
+  } catch(e) { /* fallback to proxy */ }
+
+  // ── Fallback: category-proxy overlap ────────────────────────────────────
+  renderOverlapProxy(wrap, holdings);
+}
+
+function renderOverlapMatrix(wrap, apiData, holdings) {
+  const { matrix, funds, fund_ids, month, coverage_pct } = apiData;
+  const fundById = {};
+  (funds || []).forEach(f => { fundById[f.id] = f; });
+
+  const pairs = [];
+  const ids = fund_ids || [];
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      const fA = ids[i], fB = ids[j];
+      const cell = matrix[fA]?.[fB] || matrix[fB]?.[fA];
+      if (!cell || cell.no_data) continue;
+      pairs.push({
+        fA, fB,
+        nameA: fundById[fA]?.scheme_name || 'Fund ' + fA,
+        nameB: fundById[fB]?.scheme_name || 'Fund ' + fB,
+        pct:   cell.overlap_pct,
+        common: cell.common_stocks,
+        risk:  cell.risk_level,
+      });
+    }
+  }
+  pairs.sort((a, b) => b.pct - a.pct);
+
+  const highPairs = pairs.filter(p => p.risk === 'high');
+  const avgOverlap = pairs.length ? (pairs.reduce((s,p) => s+p.pct, 0) / pairs.length) : 0;
+  const divScore = Math.max(0, Math.round(100 - avgOverlap));
+
+  const shortName = n => (n || '').replace(/\b(Fund|Growth|Direct|Plan|Regular|Option)\b/g, '').trim().split(' ').slice(0,5).join(' ');
+  const riskColor = r => r === 'high' ? '#dc2626' : r === 'medium' ? '#d97706' : '#16a34a';
+  const riskBadge = r => r === 'high' ? '🔴 High' : r === 'medium' ? '🟡 Med' : '🟢 Low';
+
+  // N×N visual matrix (max 8 funds for space)
+  const matrixFunds = ids.slice(0, 8);
+  const matrixHtml = matrixFunds.length >= 2 ? `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">📊 Overlap Matrix (stock-level)</div>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;font-size:10px;min-width:100%;">
+          <tr>
+            <td style="padding:4px;"></td>
+            ${matrixFunds.map(id => `<th style="padding:4px 6px;font-weight:700;color:var(--text-muted);text-align:center;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${fundById[id]?.scheme_name||''}">${shortName(fundById[id]?.scheme_name||'').slice(0,12)}</th>`).join('')}
+          </tr>
+          ${matrixFunds.map((idA, i) => `
+            <tr>
+              <th style="padding:4px 6px;font-weight:700;color:var(--text-muted);text-align:right;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${fundById[idA]?.scheme_name||''}">${shortName(fundById[idA]?.scheme_name||'').slice(0,12)}</th>
+              ${matrixFunds.map((idB, j) => {
+                if (idA === idB) return `<td style="padding:4px 6px;text-align:center;background:var(--border);border-radius:4px;font-weight:700;">—</td>`;
+                const kA = Math.min(idA, idB), kB = Math.max(idA, idB);
+                const cell = matrix[kA]?.[kB];
+                if (!cell || cell.no_data) return `<td style="padding:4px 6px;text-align:center;color:var(--text-muted);">?</td>`;
+                const p = cell.overlap_pct;
+                const bg = p >= 50 ? 'rgba(220,38,38,.12)' : p >= 25 ? 'rgba(217,119,6,.10)' : 'rgba(22,163,74,.08)';
+                const fc = p >= 50 ? '#dc2626' : p >= 25 ? '#d97706' : '#16a34a';
+                return `<td style="padding:4px 6px;text-align:center;background:${bg};border-radius:4px;font-weight:800;color:${fc};" title="${cell.common_stocks||0} common stocks">${p !== null ? p.toFixed(0)+'%' : '—'}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </table>
+      </div>
+    </div>` : '';
+
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="background:var(--bg-secondary,#f8f9fb);border-radius:10px;padding:12px 18px;text-align:center;flex-shrink:0;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Diversification</div>
+        <div style="font-size:26px;font-weight:900;color:${divScore>=70?'#16a34a':divScore>=50?'#d97706':'#dc2626'};">${divScore}/100</div>
+        <div style="font-size:10px;color:var(--text-muted);">Avg overlap: ${avgOverlap.toFixed(0)}%</div>
+      </div>
+      ${highPairs.length
+        ? `<div style="padding:10px 14px;background:rgba(220,38,38,.07);border-radius:8px;font-size:12px;color:#dc2626;flex:1;">🚨 <strong>${highPairs.length} high-overlap pair${highPairs.length>1?'s':''}</strong> detected. Consider consolidating to reduce concentration risk.</div>`
+        : `<div style="padding:10px 14px;background:rgba(22,163,74,.07);border-radius:8px;font-size:12px;color:#15803d;flex:1;">✅ Portfolio overlap looks healthy — no major concentration risk detected.</div>`}
+    </div>
+    ${matrixHtml}
+    <div style="display:flex;flex-direction:column;gap:0;">
+      ${pairs.slice(0,10).map(p => `
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shortName(p.nameA)} <span style="color:var(--text-muted);">vs</span> ${shortName(p.nameB)}</div>
+            ${p.common ? `<div style="font-size:11px;color:var(--text-muted);margin-top:1px;">${p.common} common stock${p.common>1?'s':''}</div>` : ''}
+          </div>
+          <div style="flex-shrink:0;text-align:right;">
+            <div style="font-weight:800;color:${riskColor(p.risk)};">${riskBadge(p.risk)}</div>
+            <div style="font-size:11px;color:${riskColor(p.risk)};">${p.pct.toFixed(1)}% overlap</div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+      <div style="font-size:11px;color:var(--text-muted);">
+        🔬 Real stock-level data from AMFI · Month: ${month ? new Date(month).toLocaleDateString('en-IN',{month:'short',year:'numeric'}) : '—'} · Coverage: ${coverage_pct||0}%
+      </div>
+    </div>`;
+}
+
+function renderOverlapProxy(wrap, holdings) {
   const pairs = [];
   for (let i = 0; i < holdings.length; i++) {
     for (let j = i+1; j < holdings.length; j++) {
@@ -4252,35 +4652,30 @@ function renderPortfolioOverlap() {
     }
   }
   pairs.sort((a,b) => b.score - a.score);
-
-  const high   = pairs.filter(p => p.score >= 60);
-  const medium = pairs.filter(p => p.score >= 30 && p.score < 60);
-
+  const high = pairs.filter(p => p.score >= 60);
   const divScore = pairs.length > 0
     ? Math.max(0, 100 - Math.round(pairs.slice(0,3).reduce((s,p) => s+p.score, 0) / 3))
     : 100;
+  const short = n => (n||'').split(' ').slice(0,4).join(' ');
 
   wrap.innerHTML = `
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
-      <div style="background:var(--bg-secondary);border-radius:10px;padding:12px 20px;text-align:center;flex-shrink:0;">
-        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Diversification Score</div>
+      <div style="background:var(--bg-secondary,#f8f9fb);border-radius:10px;padding:12px 20px;text-align:center;flex-shrink:0;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Diversification</div>
         <div style="font-size:28px;font-weight:900;color:${divScore>=70?'#16a34a':divScore>=50?'#d97706':'#dc2626'};">${divScore}/100</div>
       </div>
-      ${high.length ? `<div style="padding:10px 14px;background:rgba(220,38,38,.07);border-radius:8px;font-size:12px;color:#dc2626;flex:1;">
-        🚨 <strong>${high.length} highly overlapping pair${high.length>1?'s':''}</strong> found (&gt;60% overlap) — consider consolidating.
-      </div>` : `<div style="padding:10px 14px;background:rgba(22,163,74,.07);border-radius:8px;font-size:12px;color:#15803d;flex:1;">
-        ✅ No high overlap detected. Portfolio is reasonably diversified.
-      </div>`}
+      ${high.length
+        ? `<div style="padding:10px 14px;background:rgba(220,38,38,.07);border-radius:8px;font-size:12px;color:#dc2626;flex:1;">🚨 <strong>${high.length} high-overlap pair${high.length>1?'s':''}</strong> detected (&gt;60%).</div>`
+        : `<div style="padding:10px 14px;background:rgba(22,163,74,.07);border-radius:8px;font-size:12px;color:#15803d;flex:1;">✅ No high overlap detected. Portfolio is reasonably diversified.</div>`}
     </div>
     ${pairs.slice(0,8).map(p => {
       const color = p.score >= 60 ? '#dc2626' : p.score >= 30 ? '#d97706' : '#16a34a';
       const badge = p.score >= 60 ? '🔴 High' : p.score >= 30 ? '🟡 Medium' : '🟢 Low';
-      const short = n => (n||'').split(' ').slice(0,4).join(' ');
       return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <div style="flex:1;min-width:0;">
           <div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${short(p.h1.scheme_name)} <span style="color:var(--text-muted);">vs</span> ${short(p.h2.scheme_name)}</div>
-          ${p.commonSectors.length ? `<div style="color:var(--text-muted);font-size:11px;margin-top:2px;">Common sectors: ${p.commonSectors.slice(0,3).join(', ')}</div>` : ''}
-          ${p.commonStocks.length  ? `<div style="color:var(--text-muted);font-size:11px;">Common stocks: ${p.commonStocks.slice(0,3).join(', ')}</div>` : ''}
+          ${p.commonSectors.length ? `<div style="color:var(--text-muted);font-size:11px;margin-top:2px;">Sectors: ${p.commonSectors.slice(0,3).join(', ')}</div>` : ''}
+          ${p.commonStocks.length  ? `<div style="color:var(--text-muted);font-size:11px;">Stocks: ${p.commonStocks.slice(0,3).join(', ')}</div>` : ''}
         </div>
         <div style="flex-shrink:0;text-align:right;">
           <div style="font-weight:800;color:${color};">${badge}</div>
@@ -4288,8 +4683,8 @@ function renderPortfolioOverlap() {
         </div>
       </div>`;
     }).join('')}
-    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;">
-      💡 Based on category-level sector overlap. For precise stock-level overlap, AMFI monthly portfolio data is needed.
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;padding:8px;background:var(--bg-secondary,#f8f9fb);border-radius:6px;">
+      💡 Category-proxy data · Run <code>cron/fetch_fund_holdings.php</code> for real AMFI stock-level overlap
     </div>`;
 }
 
@@ -4369,10 +4764,128 @@ function switchCasTab(tab, el) {
   el.style.color = 'var(--accent)';
   el.style.fontWeight = '700';
 
-  document.getElementById('casTabContent').style.display = tab === 'cas' ? '' : 'none';
-  document.getElementById('csvTabContent').style.display = tab === 'csv' ? '' : 'none';
-  document.getElementById('casButtons').style.display    = tab === 'cas' ? '' : 'none';
-  document.getElementById('btnStartImport').style.display= tab === 'csv' ? '' : 'none';
+  document.getElementById('casTabContent').style.display     = tab === 'cas'     ? '' : 'none';
+  document.getElementById('csvTabContent').style.display     = tab === 'csv'     ? '' : 'none';
+  const histEl = document.getElementById('historyTabContent');
+  if (histEl) histEl.style.display = tab === 'history' ? '' : 'none';
+  document.getElementById('casButtons').style.display        = tab === 'cas'     ? '' : 'none';
+  document.getElementById('btnStartImport').style.display    = tab === 'csv'     ? '' : 'none';
+
+  if (tab === 'history') loadImportHistory();  // t190
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   t190 — IMPORT HISTORY UI
+═══════════════════════════════════════════════════════════════════ */
+let _ihPage = 1;
+
+async function loadImportHistory(page = 1) {
+  _ihPage = page;
+  const body = document.getElementById('importHistoryBody');
+  if (!body) return;
+
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);"><span class="spinner"></span></div>';
+
+  const base = window.WD?.appUrl || window.APP_URL || '';
+  try {
+    const res  = await fetch(`${base}/api/router.php?action=import_history&page=${page}&per_page=15`, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'Failed');
+
+    const logs  = json.data?.logs || [];
+    const total = json.data?.total || 0;
+    const pages = json.data?.pages || 1;
+
+    if (!logs.length) {
+      body.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:10px;">📭</div>
+          <div style="font-weight:600;margin-bottom:4px;">No imports yet</div>
+          <div style="font-size:12px;">Import your portfolio via CAS or CSV to see history here.</div>
+        </div>`;
+      return;
+    }
+
+    const formatMap = { cams_cas:'CAMS CAS', kfintech_cas:'KFintech CAS', groww_csv:'Groww CSV', zerodha_csv:'Zerodha CSV', kuvera_csv:'Kuvera CSV', wealthdash_csv:'WD CSV', other:'Other' };
+    const statusColor = { success:'#16a34a', partial:'#d97706', failed:'#dc2626' };
+    const statusIcon  = { success:'✅', partial:'⚠️', failed:'❌' };
+
+    const rows = logs.map(log => {
+      const dt  = new Date(log.imported_at);
+      const dtStr = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+      const fmt = formatMap[log.format] || log.format || '—';
+      const fname = log.filename ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" title="${log.filename}">📎 ${log.filename}</div>` : '';
+      const errBtn = log.error_log ? `<button onclick="showIhErrors(this)" data-err="${encodeURIComponent(log.error_log)}" style="font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid #fca5a5;background:#fef2f2;color:#dc2626;cursor:pointer;margin-top:4px;">View Errors</button>` : '';
+      const sc = statusColor[log.status] || '#94a3b8';
+      const si = statusIcon[log.status] || '•';
+
+      return `
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid var(--border-color);font-size:12px;">
+            <div style="font-weight:700;">${dtStr}</div>
+            ${fname}
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid var(--border-color);">
+            <span style="font-size:11px;font-weight:600;background:rgba(99,102,241,.08);color:var(--accent);padding:2px 7px;border-radius:99px;">${fmt}</span>
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid var(--border-color);text-align:center;">
+            <div style="font-size:13px;font-weight:800;color:#16a34a;">${Number(log.imported_count).toLocaleString('en-IN')}</div>
+            <div style="font-size:10px;color:var(--text-muted);">imported</div>
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid var(--border-color);text-align:center;">
+            <div style="font-size:13px;font-weight:700;color:${log.skipped_count > 0 ? '#d97706' : 'var(--text-muted)'};">${Number(log.skipped_count || 0).toLocaleString('en-IN')}</div>
+            <div style="font-size:10px;color:var(--text-muted);">skipped</div>
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid var(--border-color);text-align:center;">
+            <div style="font-size:13px;font-weight:700;color:${log.failed_count > 0 ? '#dc2626' : 'var(--text-muted)'};">${Number(log.failed_count || 0).toLocaleString('en-IN')}</div>
+            <div style="font-size:10px;color:var(--text-muted);">failed</div>
+            ${errBtn}
+          </td>
+          <td style="padding:10px 12px;border-bottom:1px solid var(--border-color);">
+            <span style="font-size:12px;font-weight:700;color:${sc};">${si} ${log.status.charAt(0).toUpperCase()+log.status.slice(1)}</span>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const pager = pages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 0 0;">
+        <button onclick="loadImportHistory(${page - 1})" ${page <= 1 ? 'disabled' : ''} style="padding:4px 12px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:12px;font-weight:600;opacity:${page<=1?'.4':'1'};">← Prev</button>
+        <span style="font-size:12px;color:var(--text-muted);">Page ${page} of ${pages}</span>
+        <button onclick="loadImportHistory(${page + 1})" ${page >= pages ? 'disabled' : ''} style="padding:4px 12px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-size:12px;font-weight:600;opacity:${page>=pages?'.4':'1'};">Next →</button>
+      </div>` : '';
+
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">${total} import${total !== 1 ? 's' : ''} total</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:var(--bg-secondary);">
+              <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);">Date & File</th>
+              <th style="padding:8px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);">Format</th>
+              <th style="padding:8px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);text-align:center;">Imported</th>
+              <th style="padding:8px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);text-align:center;">Skipped</th>
+              <th style="padding:8px 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);text-align:center;">Failed</th>
+              <th style="padding:8px 12px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);">Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${pager}`;
+  } catch(e) {
+    body.innerHTML = `<div style="padding:30px;text-align:center;color:#dc2626;">⚠ ${e.message}</div>`;
+  }
+}
+
+function showIhErrors(btn) {
+  const raw = decodeURIComponent(btn.dataset.err || '');
+  const panel = btn.nextElementSibling;
+  if (panel && panel.classList.contains('ih-err-panel')) { panel.remove(); return; }
+  const div = document.createElement('div');
+  div.className = 'ih-err-panel';
+  div.style.cssText = 'font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;margin-top:4px;white-space:pre-wrap;max-height:120px;overflow-y:auto;';
+  div.textContent = raw;
+  btn.insertAdjacentElement('afterend', div);
 }
 
 function onCasFileSelect(input) {
@@ -5210,3 +5723,778 @@ function _wireFundTitleClicks() {
 document.addEventListener('click', e => {
   if (e.target.id === 'modalFundChart') closeFundChartModal();
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// t172 — Folio Consolidation Alert
+// Detects same fund with multiple folios → shows actionable banner
+// ═══════════════════════════════════════════════════════════════════════════
+function renderFolioAlert(holdings) {
+  const wrap = document.getElementById('folioAlertBanner');
+  if (!wrap) return;
+
+  // folio_count comes from mf_list.php consolidated holdings query
+  const dupes = (holdings || []).filter(h => (parseInt(h.folio_count) || 1) > 1);
+  if (!dupes.length) { wrap.style.display = 'none'; return; }
+
+  const rows = dupes.map(h => {
+    const folios = (h.folios || '').split(',').map(f => f.trim()).filter(Boolean);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;
+                padding:7px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <span style="font-weight:700;font-size:13px;color:var(--text-primary);">${h.scheme_name||'—'}</span>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+          ${folios.map(f=>`<span style="background:var(--bg-secondary);border:1px solid var(--border);
+            border-radius:4px;padding:1px 6px;margin-right:4px;font-family:monospace;">${f}</span>`).join('')}
+        </div>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:#d97706;white-space:nowrap;">${folios.length} Folios</span>
+    </div>`;
+  }).join('');
+
+  wrap.style.display = '';
+  wrap.innerHTML = `
+    <div style="background:#fefce8;border:1.5px solid #fde68a;border-radius:12px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">📂</span>
+          <div>
+            <div style="font-weight:800;font-size:13px;color:#92400e;">
+              Folio Consolidation Recommended
+            </div>
+            <div style="font-size:11px;color:#a16207;margin-top:1px;">
+              ${dupes.length} fund${dupes.length>1?'s have':'has'} multiple folios — consolidate to simplify tracking
+            </div>
+          </div>
+        </div>
+        <button onclick="this.closest('#folioAlertBanner').style.display='none'"
+          style="background:none;border:none;cursor:pointer;font-size:16px;color:#a16207;padding:2px 6px;">✕</button>
+      </div>
+      <div style="background:rgba(255,255,255,.6);border-radius:8px;padding:8px 12px;">${rows}</div>
+      <div style="margin-top:10px;font-size:11px;color:#92400e;display:flex;gap:16px;flex-wrap:wrap;">
+        <span>💡 Consolidation = <b>no capital gains tax</b> (not a redemption)</span>
+        <a href="https://www.camsonline.com" target="_blank"
+          style="color:#b45309;font-weight:700;text-decoration:underline;">Consolidate via CAMS ↗</a>
+        <a href="https://kfintech.com" target="_blank"
+          style="color:#b45309;font-weight:700;text-decoration:underline;">or KFintech ↗</a>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// t175 — Rebalancing Alert
+// User sets target allocation; if drift > threshold → alert with buy/sell guide
+// ═══════════════════════════════════════════════════════════════════════════
+const _REBAL_KEY = 'wd_rebal_targets';
+
+function renderRebalancingAlert(holdings) {
+  const wrap = document.getElementById('rebalAlertWrap');
+  if (!wrap) return;
+
+  // Load saved targets (or defaults)
+  let targets;
+  try { targets = JSON.parse(localStorage.getItem(_REBAL_KEY) || 'null'); } catch(e){}
+  if (!targets) targets = { Equity:60, Debt:30, Other:10 };
+
+  // Calculate current allocation by broad type
+  const broadMap = {};
+  let grandTotal = 0;
+  (holdings || []).forEach(h => {
+    const cat = _broadCat(h.category || '');
+    const val = parseFloat(h.value_now) || 0;
+    broadMap[cat] = (broadMap[cat] || 0) + val;
+    grandTotal += val;
+  });
+
+  // Map to Equity / Debt / Other for simplicity
+  const current = { Equity:0, Debt:0, Other:0 };
+  Object.entries(broadMap).forEach(([cat, val]) => {
+    if (cat === 'Equity' || cat === 'ELSS') current.Equity += val;
+    else if (cat === 'Debt') current.Debt += val;
+    else current.Other += val;
+  });
+
+  if (!grandTotal) { wrap.style.display = 'none'; return; }
+
+  const currentPct = {};
+  Object.keys(current).forEach(k => {
+    currentPct[k] = grandTotal > 0 ? (current[k] / grandTotal * 100) : 0;
+  });
+
+  // Check drift
+  const DRIFT_THRESHOLD = 5; // alert if any class drifts > 5%
+  const drifts = Object.keys(targets).map(k => ({
+    label: k,
+    target: targets[k] || 0,
+    current: currentPct[k] || 0,
+    diff: (currentPct[k] || 0) - (targets[k] || 0),
+    targetAmt: grandTotal * (targets[k] || 0) / 100,
+    currentAmt: current[k] || 0,
+  }));
+
+  const hasDrift = drifts.some(d => Math.abs(d.diff) > DRIFT_THRESHOLD);
+
+  const colorOf = (d) => {
+    if (Math.abs(d.diff) <= 2) return '#16a34a';
+    if (Math.abs(d.diff) <= 5) return '#d97706';
+    return d.diff > 0 ? '#dc2626' : '#2563eb';
+  };
+
+  const driftRows = drifts.map(d => {
+    const col = colorOf(d);
+    const arrow = d.diff > 0.5 ? '▲' : d.diff < -0.5 ? '▼' : '✓';
+    const barW  = Math.min(d.current, 100);
+    const tgtW  = Math.min(d.target, 100);
+    const action = Math.abs(d.diff) > DRIFT_THRESHOLD
+      ? (d.diff > 0
+          ? `<span style="color:#dc2626;font-size:10px;font-weight:700;">Sell ₹${fmtInr(Math.abs(d.currentAmt - d.targetAmt))}</span>`
+          : `<span style="color:#2563eb;font-size:10px;font-weight:700;">Buy ₹${fmtInr(Math.abs(d.currentAmt - d.targetAmt))}</span>`)
+      : `<span style="color:#16a34a;font-size:10px;">On target ✓</span>`;
+
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text-primary);">${d.label}</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${action}
+          <span style="font-size:12px;font-weight:800;color:${col};">${arrow} ${d.current.toFixed(1)}%</span>
+          <span style="font-size:11px;color:var(--text-muted);">/ ${d.target}% target</span>
+        </div>
+      </div>
+      <div style="position:relative;height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+        <div style="height:100%;width:${barW}%;background:${col};border-radius:4px;transition:width .4s;opacity:.85;"></div>
+        <div style="position:absolute;top:0;height:100%;width:2px;background:#374151;left:${tgtW}%;"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.style.display = '';
+  const alertColor = hasDrift ? '#fee2e2' : '#f0fdf4';
+  const alertBorder = hasDrift ? '#fca5a5' : '#86efac';
+  const alertTitle = hasDrift ? '⚠️ Portfolio Drift Detected — Rebalancing Needed' : '✅ Portfolio Well Balanced';
+  const alertSub = hasDrift
+    ? `Asset allocation has drifted beyond ±${DRIFT_THRESHOLD}% threshold`
+    : 'All asset classes within target range';
+
+  wrap.innerHTML = `
+    <div style="background:${alertColor};border:1.5px solid ${alertBorder};border-radius:12px;padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div>
+          <div style="font-weight:800;font-size:13px;color:var(--text-primary);">${alertTitle}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${alertSub}</div>
+        </div>
+        <button onclick="openRebalTargetEditor()" title="Edit targets"
+          style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;
+                 background:var(--surface);font-size:11px;font-weight:700;cursor:pointer;color:var(--text-primary);">
+          ⚙️ Set Targets
+        </button>
+      </div>
+      <div style="background:rgba(255,255,255,.55);border-radius:8px;padding:10px 12px;">
+        ${driftRows}
+      </div>
+      <div style="margin-top:8px;font-size:10px;color:var(--text-muted);">
+        Target line (│) = your set allocation · Bar = current allocation · Drift alert threshold: ±${DRIFT_THRESHOLD}%
+      </div>
+    </div>
+
+    <!-- Target editor modal -->
+    <div id="rebalEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;
+         display:none;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:14px;padding:24px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="font-weight:800;font-size:15px;margin-bottom:16px;">⚙️ Set Target Allocation</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">Must sum to 100%</div>
+        ${['Equity','Debt','Other'].map(k=>`
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12px;font-weight:700;color:var(--text-primary);display:block;margin-bottom:4px;">${k} %</label>
+          <input type="number" id="rebalTarget_${k}" value="${targets[k]||0}" min="0" max="100"
+            style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;
+                   background:var(--bg-secondary);color:var(--text-primary);">
+        </div>`).join('')}
+        <div id="rebalSumErr" style="font-size:11px;color:#dc2626;min-height:16px;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="saveRebalTargets()"
+            style="flex:1;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;
+                   font-weight:700;font-size:13px;cursor:pointer;">Save</button>
+          <button onclick="document.getElementById('rebalEditModal').style.display='none'"
+            style="padding:9px 16px;border:1.5px solid var(--border);border-radius:8px;
+                   background:var(--surface);font-weight:700;font-size:13px;cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openRebalTargetEditor() {
+  const m = document.getElementById('rebalEditModal');
+  if (m) { m.style.display = 'flex'; }
+}
+
+function saveRebalTargets() {
+  const vals = {};
+  let sum = 0;
+  ['Equity','Debt','Other'].forEach(k => {
+    vals[k] = parseFloat(document.getElementById('rebalTarget_' + k)?.value) || 0;
+    sum += vals[k];
+  });
+  const err = document.getElementById('rebalSumErr');
+  if (Math.abs(sum - 100) > 0.5) {
+    if (err) err.textContent = `Sum = ${sum.toFixed(1)}% — must be exactly 100%`;
+    return;
+  }
+  if (err) err.textContent = '';
+  localStorage.setItem(_REBAL_KEY, JSON.stringify(vals));
+  document.getElementById('rebalEditModal').style.display = 'none';
+  renderRebalancingAlert(MF.data || []);
+}
+
+// ============================================================
+// t170 — SIP Return Analysis: Lump Sum vs SIP Comparison
+// Kab use karo: Fund card ya holdings row mein "SIP Analysis"
+// button click karne par — modal opens with comparison
+// ============================================================
+
+function openSipReturnAnalysis(fundId, fundName, nav, firstPurchaseDate, totalInvested, valueNow) {
+  const existing = document.getElementById('sipAnalysisModal');
+  if (existing) existing.remove();
+
+  const invested = parseFloat(totalInvested) || 0;
+  const current  = parseFloat(valueNow)      || 0;
+  const navVal   = parseFloat(nav)           || 0;
+
+  // Auto-calculate defaults from holding data
+  const startDate = firstPurchaseDate
+    ? new Date(firstPurchaseDate)
+    : new Date(Date.now() - 3 * 365 * 86400000); // default 3 years ago
+
+  const today    = new Date();
+  const yearsHeld = Math.max(0.08, (today - startDate) / (365.25 * 86400000));
+  const months   = Math.round(yearsHeld * 12);
+
+  // Estimate SIP amount: spread total invested over months
+  const estSipAmt = months > 0 ? Math.round(invested / months / 100) * 100 : 5000;
+
+  const modal = document.createElement('div');
+  modal.id    = 'sipAnalysisModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  modal.innerHTML = `
+  <div style="background:#fff;border-radius:14px;width:560px;max-width:98vw;max-height:94vh;overflow-y:auto;
+              box-shadow:0 24px 64px rgba(0,0,0,.2);">
+
+    <!-- Header -->
+    <div style="padding:18px 20px 14px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:#0f172a;">📊 SIP vs Lump Sum Analysis</div>
+        <div style="font-size:12px;color:#64748b;margin-top:2px;">${escHtml(fundName)}</div>
+      </div>
+      <button id="sraClose" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;">×</button>
+    </div>
+
+    <!-- Inputs -->
+    <div style="padding:16px 20px;background:#f8fafc;border-bottom:1px solid #f1f5f9;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Scenario Configure Karo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px;">SIP Amount (₹/month)</label>
+          <input id="sraSipAmt" type="number" min="100" step="100" value="${estSipAmt}"
+            style="width:100%;padding:7px 9px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px;">Duration (months)</label>
+          <input id="sraDuration" type="number" min="1" max="360" value="${months > 0 ? months : 36}"
+            style="width:100%;padding:7px 9px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px;">Expected Annual Return (%)</label>
+          <input id="sraReturn" type="number" min="1" max="50" step="0.5" value="12"
+            style="width:100%;padding:7px 9px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;outline:none;box-sizing:border-box;">
+        </div>
+      </div>
+      <button onclick="_sraCal()" style="margin-top:12px;width:100%;padding:9px;background:#2563eb;color:#fff;border:none;
+        border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">
+        🔄 Calculate
+      </button>
+    </div>
+
+    <!-- Results -->
+    <div id="sraResults" style="padding:20px;"></div>
+
+    <!-- Disclaimer -->
+    <div style="padding:0 20px 16px;font-size:11px;color:#94a3b8;line-height:1.5;">
+      ⚠️ Ye calculation assumed constant annual return pe based hai. Actual market returns variable hote hain.
+      Historical data ke liye fund ka NAV chart dekho.
+    </div>
+  </div>`;
+
+  document.body.appendChild(modal);
+  document.getElementById('sraClose').onclick = () => modal.remove();
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  // Auto-calculate on open
+  _sraCal();
+}
+
+function _sraCal() {
+  const sipAmt   = Math.max(100, parseFloat(document.getElementById('sraSipAmt')?.value) || 5000);
+  const months   = Math.max(1, Math.min(360, parseInt(document.getElementById('sraDuration')?.value) || 36));
+  const annualR  = Math.max(0.1, Math.min(50, parseFloat(document.getElementById('sraReturn')?.value) || 12));
+
+  const monthlyR  = annualR / 100 / 12;
+  const totalSip  = sipAmt * months;
+  const lumpSum   = totalSip; // same invested amount for fair comparison
+
+  // SIP future value: FV = P × [((1+r)^n - 1) / r] × (1+r)
+  const sipFV = monthlyR > 0
+    ? sipAmt * (((Math.pow(1 + monthlyR, months) - 1) / monthlyR) * (1 + monthlyR))
+    : totalSip;
+
+  // Lump Sum future value: FV = P × (1+r)^n
+  const lumpFV   = lumpSum * Math.pow(1 + annualR / 100, months / 12);
+
+  const sipGain  = sipFV - totalSip;
+  const lumpGain = lumpFV - lumpSum;
+
+  // Rupee-cost averaging advantage (lump sum vs SIP invested cost)
+  const sipWins  = sipFV >= lumpFV;
+  const diff     = Math.abs(sipFV - lumpFV);
+  const diffPct  = lumpFV > 0 ? (diff / lumpFV * 100).toFixed(1) : '0.0';
+
+  const fmt = n => '₹' + Number(Math.round(n)).toLocaleString('en-IN');
+  const pct = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+  const sipCAGR  = (Math.pow(sipFV / totalSip, 12 / months) - 1) * 100;
+  const lsCAGR   = annualR;
+
+  const res = document.getElementById('sraResults');
+  if (!res) return;
+
+  res.innerHTML = `
+    <!-- Comparison Cards -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+
+      <!-- SIP Card -->
+      <div style="border:2px solid ${sipWins ? '#16a34a' : '#e2e8f0'};border-radius:10px;padding:14px;
+                  background:${sipWins ? '#f0fdf4' : '#fff'};position:relative;">
+        ${sipWins ? '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:2px 10px;border-radius:99px;white-space:nowrap;">🏆 WINNER</div>' : ''}
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px;">🔄 SIP Strategy</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">Total Invested</div>
+        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:8px;">${fmt(totalSip)}</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">Future Value</div>
+        <div style="font-size:20px;font-weight:800;color:${sipWins ? '#16a34a' : '#0f172a'};margin-bottom:6px;">${fmt(sipFV)}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;border-top:1px solid #f1f5f9;padding-top:8px;margin-top:4px;">
+          <span style="color:#64748b;">Gain</span>
+          <span style="color:#16a34a;font-weight:700;">${fmt(sipGain)} (${pct(sipCAGR - annualR + annualR)})</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;">
+          <span style="color:#64748b;">CAGR (approx)</span>
+          <span style="font-weight:700;">${sipCAGR.toFixed(2)}%</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:#64748b;background:#f8fafc;border-radius:6px;padding:7px 9px;line-height:1.5;">
+          <b>Rupee Cost Averaging</b> — Market girne par zyada units milte hain, chadhne par kam. Timing ki tension nahi.
+        </div>
+      </div>
+
+      <!-- Lump Sum Card -->
+      <div style="border:2px solid ${!sipWins ? '#2563eb' : '#e2e8f0'};border-radius:10px;padding:14px;
+                  background:${!sipWins ? '#eff6ff' : '#fff'};position:relative;">
+        ${!sipWins ? '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;font-size:10px;font-weight:800;padding:2px 10px;border-radius:99px;white-space:nowrap;">🏆 WINNER</div>' : ''}
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px;">💰 Lump Sum Strategy</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">Total Invested</div>
+        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:8px;">${fmt(lumpSum)}</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">Future Value</div>
+        <div style="font-size:20px;font-weight:800;color:${!sipWins ? '#2563eb' : '#0f172a'};margin-bottom:6px;">${fmt(lumpFV)}</div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;border-top:1px solid #f1f5f9;padding-top:8px;margin-top:4px;">
+          <span style="color:#64748b;">Gain</span>
+          <span style="color:#16a34a;font-weight:700;">${fmt(lumpGain)} (${pct(lsCAGR)})</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px;">
+          <span style="color:#64748b;">CAGR</span>
+          <span style="font-weight:700;">${lsCAGR.toFixed(2)}%</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:#64748b;background:#f8fafc;border-radius:6px;padding:7px 9px;line-height:1.5;">
+          <b>Full Compounding</b> — Poora paisa day 1 se kaam karta hai. Bull market mein unbeatable. Timing critical.
+        </div>
+      </div>
+    </div>
+
+    <!-- Verdict Banner -->
+    <div style="background:${sipWins ? '#f0fdf4' : '#eff6ff'};border:1.5px solid ${sipWins ? '#86efac' : '#93c5fd'};
+                border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;color:${sipWins ? '#15803d' : '#1d4ed8'};margin-bottom:4px;">
+        ${sipWins ? '🔄 SIP' : '💰 Lump Sum'} ${diffPct}% zyada deta hai is scenario mein
+      </div>
+      <div style="font-size:12px;color:#475569;line-height:1.6;">
+        ${sipWins
+          ? `Regular market mein SIP Rupee Cost Averaging ki wajah se better perform karta hai. Lump sum tab better hota hai jab aap market bottom pe invest karo.`
+          : `Agar aap market timing pe confident hain aur ek saath bada amount invest kar sako, to Lump Sum ${diffPct}% zyada return dega. Lekin market timing mushkil hai.`
+        }
+      </div>
+    </div>
+
+    <!-- Summary Table -->
+    <div style="border:1px solid #f1f5f9;border-radius:8px;overflow:hidden;font-size:12px;">
+      <div style="background:#f8fafc;padding:8px 12px;font-weight:700;color:#475569;font-size:11px;text-transform:uppercase;">Quick Summary</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 12px;color:#64748b;">Duration</td>
+          <td style="padding:8px 12px;font-weight:600;">${months} months (${(months/12).toFixed(1)} years)</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 12px;color:#64748b;">Monthly SIP Amount</td>
+          <td style="padding:8px 12px;font-weight:600;">${fmt(sipAmt)}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 12px;color:#64748b;">Total Investment (both)</td>
+          <td style="padding:8px 12px;font-weight:600;">${fmt(totalSip)}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 12px;color:#64748b;">Assumed Return</td>
+          <td style="padding:8px 12px;font-weight:600;">${annualR}% p.a.</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:8px 12px;color:#64748b;">SIP → Future Value</td>
+          <td style="padding:8px 12px;font-weight:700;color:#16a34a;">${fmt(sipFV)}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;">Lump Sum → Future Value</td>
+          <td style="padding:8px 12px;font-weight:700;color:#2563eb;">${fmt(lumpFV)}</td>
+        </tr>
+      </table>
+    </div>`;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   t182 — FUND NOTES (per-fund personal notes)
+══════════════════════════════════════════════════════════════ */
+MF.notes = {}; // { fund_id: { note, updated_at } }
+
+async function loadFundNotes() {
+  try {
+    const res = await API.get('/api/router.php?action=fund_notes_get');
+    MF.notes = res.notes || {};
+    // Update note buttons for any visible funds
+    Object.keys(MF.notes).forEach(fid => updateNoteBtnUI(parseInt(fid)));
+  } catch(e) { /* silent */ }
+}
+
+function updateNoteBtnUI(fundId) {
+  const lbl = document.getElementById(`noteLbl_${fundId}`);
+  const btn = document.getElementById(`noteBtn_${fundId}`);
+  if (!lbl || !btn) return;
+  const hasNote = !!(MF.notes[fundId]?.note?.trim());
+  lbl.textContent  = hasNote ? '📝 Note ✓' : 'Notes';
+  btn.style.background     = hasNote ? 'rgba(234,179,8,.15)' : 'rgba(234,179,8,.06)';
+  btn.style.borderColor    = hasNote ? '#d97706'             : 'rgba(234,179,8,.35)';
+  btn.style.color          = hasNote ? '#92400e'             : '#b45309';
+}
+
+function openFundNoteModal(fundId, fundName) {
+  const existing = MF.notes[fundId]?.note || '';
+  // Create or reuse modal
+  let modal = document.getElementById('fundNoteModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'fundNoteModal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);width:420px;max-width:95vw;padding:0;overflow:hidden;" onclick="event.stopPropagation()">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-weight:700;font-size:14px;" id="fnmTitle">Notes</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="fnmSub"></div>
+          </div>
+          <button onclick="closeFundNoteModal()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted);line-height:1;padding:4px;">✕</button>
+        </div>
+        <div style="padding:16px 20px;">
+          <textarea id="fnmTextarea" rows="5"
+            placeholder="Personal notes, investment thesis, reminders..."
+            style="width:100%;padding:10px 12px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:13px;resize:vertical;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>
+          <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+            <button id="fnmSaveBtn" onclick="saveFundNote()"
+              style="flex:1;padding:8px 16px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:700;cursor:pointer;">
+              💾 Save
+            </button>
+            <button id="fnmDeleteBtn" onclick="deleteFundNote()"
+              style="padding:8px 14px;border-radius:8px;border:1.5px solid rgba(239,68,68,.35);background:rgba(239,68,68,.06);color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;">
+              🗑 Delete
+            </button>
+          </div>
+          <div id="fnmStatus" style="margin-top:8px;font-size:12px;text-align:center;min-height:16px;"></div>
+        </div>
+      </div>`;
+    modal.addEventListener('click', closeFundNoteModal);
+    document.body.appendChild(modal);
+  }
+
+  modal._fundId   = fundId;
+  modal._fundName = fundName;
+  document.getElementById('fnmTitle').textContent    = '📝 ' + (fundName.length > 40 ? fundName.slice(0,40)+'…' : fundName);
+  const upd = MF.notes[fundId]?.updated_at;
+  document.getElementById('fnmSub').textContent      = upd ? 'Last edited: ' + upd.slice(0,10) : 'No note yet';
+  document.getElementById('fnmTextarea').value       = existing;
+  document.getElementById('fnmStatus').textContent   = '';
+  document.getElementById('fnmDeleteBtn').style.display = existing ? 'block' : 'none';
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('fnmTextarea')?.focus(), 50);
+}
+
+function closeFundNoteModal() {
+  const m = document.getElementById('fundNoteModal');
+  if (m) m.style.display = 'none';
+}
+
+async function saveFundNote() {
+  const modal   = document.getElementById('fundNoteModal');
+  const fundId  = modal._fundId;
+  const note    = document.getElementById('fnmTextarea').value.trim();
+  const status  = document.getElementById('fnmStatus');
+  const saveBtn = document.getElementById('fnmSaveBtn');
+
+  saveBtn.textContent = '⏳ Saving...'; saveBtn.disabled = true;
+  try {
+    await API.post('/api/router.php?action=fund_note_save', { fund_id: fundId, note });
+    if (note) {
+      MF.notes[fundId] = { note, updated_at: new Date().toISOString().slice(0,19).replace('T',' ') };
+    } else {
+      delete MF.notes[fundId];
+    }
+    updateNoteBtnUI(fundId);
+    status.innerHTML = '<span style="color:#16a34a;font-weight:600;">✓ Saved!</span>';
+    document.getElementById('fnmDeleteBtn').style.display = note ? 'block' : 'none';
+    document.getElementById('fnmSub').textContent = note ? 'Last edited: ' + new Date().toISOString().slice(0,10) : 'No note yet';
+    setTimeout(closeFundNoteModal, 800);
+  } catch(e) {
+    status.innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
+  } finally {
+    saveBtn.textContent = '💾 Save'; saveBtn.disabled = false;
+  }
+}
+
+async function deleteFundNote() {
+  const modal  = document.getElementById('fundNoteModal');
+  const fundId = modal._fundId;
+  if (!confirm('Delete this note?')) return;
+  try {
+    await API.post('/api/router.php?action=fund_note_delete', { fund_id: fundId });
+    delete MF.notes[fundId];
+    updateNoteBtnUI(fundId);
+    closeFundNoteModal();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   t75 — INVESTMENT CALENDAR (transaction heatmap)
+   GitHub-style contribution graph — each cell = 1 day
+   Green = buy, Red = sell, intensity ∝ amount
+══════════════════════════════════════════════════════════════ */
+MF.calYear   = new Date().getFullYear();
+MF.calTxns   = null; // cached fetched transactions
+MF.calLoaded = false;
+
+async function initCalendarTab() {
+  if (MF.calLoaded && MF.calYear === MF._calRenderedYear) return;
+  renderCalendar();
+}
+
+async function renderCalendar() {
+  const wrap = document.getElementById('tabCalendar');
+  if (!wrap) return;
+
+  wrap.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:60px;">
+    <div class="spinner"></div>
+  </div>`;
+
+  // Fetch all transactions if not cached
+  if (!MF.calTxns) {
+    try {
+      const pid = window.WD?.selectedPortfolio || 0;
+      const res = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&portfolio_id=${pid}&per_page=5000&sort_col=txn_date&sort_dir=asc`);
+      MF.calTxns = res.data || [];
+      MF.calLoaded = true;
+    } catch(e) {
+      wrap.innerHTML = `<p style="color:var(--danger);text-align:center;padding:40px;">Failed to load transactions: ${e.message}</p>`;
+      return;
+    }
+  }
+
+  const year     = MF.calYear;
+  const allTxns  = MF.calTxns;
+  MF._calRenderedYear = year;
+
+  // Get available years
+  const years = [...new Set(allTxns.map(t => t.txn_date?.slice(0,4)).filter(Boolean))].sort();
+  const minYear = parseInt(years[0] || year);
+  const maxYear = new Date().getFullYear();
+
+  // Group txns by date for this year
+  const byDate = {}; // date → { buy: amount, sell: amount, txns: [] }
+  const buyTypes  = new Set(['BUY','SWITCH_IN','DIV_REINVEST']);
+  const sellTypes = new Set(['SELL','SWITCH_OUT','REDEMPTION']);
+
+  allTxns.forEach(t => {
+    if (!t.txn_date || t.txn_date.slice(0,4) !== String(year)) return;
+    const d = t.txn_date.slice(0,10);
+    if (!byDate[d]) byDate[d] = { buy:0, sell:0, txns:[] };
+    const amt = Math.abs(parseFloat(t.amount||0));
+    if (buyTypes.has(t.transaction_type))  byDate[d].buy  += amt;
+    if (sellTypes.has(t.transaction_type)) byDate[d].sell += amt;
+    byDate[d].txns.push(t);
+  });
+
+  // Stats
+  const totalBuy  = Object.values(byDate).reduce((s,d)=>s+d.buy,0);
+  const totalSell = Object.values(byDate).reduce((s,d)=>s+d.sell,0);
+  const activeDays= Object.keys(byDate).length;
+  const maxBuy    = Math.max(...Object.values(byDate).map(d=>d.buy), 1);
+  const maxSell   = Math.max(...Object.values(byDate).map(d=>d.sell), 1);
+
+  const fmt = v => v >= 100000 ? '₹'+(v/100000).toFixed(1)+'L' : v >= 1000 ? '₹'+(v/1000).toFixed(1)+'K' : '₹'+v.toFixed(0);
+
+  function cellColor(d) {
+    const info = byDate[d];
+    if (!info) return 'var(--bg-secondary)';
+    const hasBuy = info.buy > 0, hasSell = info.sell > 0;
+    if (hasBuy && hasSell) return '#a78bfa'; // purple = mixed
+    if (hasBuy) {
+      const intensity = Math.min(info.buy / maxBuy, 1);
+      if (intensity < 0.2)      return '#bbf7d0';
+      if (intensity < 0.45)     return '#4ade80';
+      if (intensity < 0.70)     return '#16a34a';
+      return '#14532d';
+    }
+    if (hasSell) {
+      const intensity = Math.min(info.sell / maxSell, 1);
+      if (intensity < 0.33)     return '#fecaca';
+      if (intensity < 0.66)     return '#f87171';
+      return '#dc2626';
+    }
+    return 'var(--bg-secondary)';
+  }
+
+  // Build 12-month grid
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  let monthsHTML = '';
+  for (let m = 0; m < 12; m++) {
+    const firstDay = new Date(year, m, 1);
+    const lastDate = new Date(year, m+1, 0).getDate();
+    const startDow = firstDay.getDay(); // 0=Sun
+
+    let cells = '';
+    // Blank leading cells
+    for (let i = 0; i < startDow; i++) {
+      cells += `<div style="width:12px;height:12px;border-radius:2px;background:transparent;"></div>`;
+    }
+    for (let d = 1; d <= lastDate; d++) {
+      const dateStr = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const info    = byDate[dateStr];
+      const color   = cellColor(dateStr);
+      const today   = new Date().toISOString().slice(0,10);
+      const border  = dateStr === today ? '1.5px solid var(--accent)' : '1px solid transparent';
+      const title   = info
+        ? `${dateStr}\nBuy: ${fmt(info.buy)} | Sell: ${fmt(info.sell)}\n${info.txns.length} transaction(s)`
+        : dateStr;
+      cells += `<div onclick="showCalDayDetail('${dateStr}')" title="${title}"
+        style="width:12px;height:12px;border-radius:2px;background:${color};border:${border};cursor:${info?'pointer':'default'};transition:transform .1s;"
+        onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform=''"
+        data-caldate="${dateStr}"></div>`;
+    }
+    monthsHTML += `
+      <div style="flex:1;min-width:80px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;">${months[m]}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,12px);gap:2px;">${cells}</div>
+      </div>`;
+  }
+
+  // Day labels
+  const dayLabels = days.map(d=>`<div style="width:12px;text-align:center;font-size:9px;color:var(--text-muted);">${d}</div>`).join('');
+
+  wrap.innerHTML = `
+    <div style="padding:20px 0;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button onclick="calPrevYear()" ${year<=minYear?'disabled':''} style="padding:5px 12px;border-radius:7px;border:1.5px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-weight:700;color:var(--text-muted);${year<=minYear?'opacity:.4;cursor:not-allowed;':''}">‹</button>
+          <span style="font-size:16px;font-weight:800;color:var(--text-primary);">${year}</span>
+          <button onclick="calNextYear()" ${year>=maxYear?'disabled':''} style="padding:5px 12px;border-radius:7px;border:1.5px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;font-weight:700;color:var(--text-muted);${year>=maxYear?'opacity:.4;cursor:not-allowed;':''}">›</button>
+        </div>
+        <!-- Stats pills -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:rgba(22,163,74,.1);color:#15803d;border:1px solid rgba(22,163,74,.2);">📈 Invested: ${fmt(totalBuy)}</span>
+          <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:rgba(239,68,68,.1);color:#dc2626;border:1px solid rgba(239,68,68,.2);">📤 Redeemed: ${fmt(totalSell)}</span>
+          <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:rgba(37,99,235,.1);color:var(--accent);border:1px solid rgba(37,99,235,.2);">📅 Active Days: ${activeDays}</span>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--text-muted);margin-right:4px;">Less</span>
+        ${['#bbf7d0','#4ade80','#16a34a','#14532d'].map(c=>`<div style="width:12px;height:12px;border-radius:2px;background:${c};"></div>`).join('')}
+        <span style="font-size:11px;color:var(--text-muted);">Buy &nbsp;&nbsp;</span>
+        ${['#fecaca','#f87171','#dc2626'].map(c=>`<div style="width:12px;height:12px;border-radius:2px;background:${c};"></div>`).join('')}
+        <span style="font-size:11px;color:var(--text-muted);">Sell &nbsp;&nbsp;</span>
+        <div style="width:12px;height:12px;border-radius:2px;background:#a78bfa;"></div>
+        <span style="font-size:11px;color:var(--text-muted);">Both</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">More</span>
+      </div>
+
+      <!-- Calendar grid -->
+      <div style="overflow-x:auto;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;min-width:600px;">${monthsHTML}</div>
+      </div>
+
+      <!-- Day detail panel -->
+      <div id="calDayDetail" style="display:none;margin-top:16px;padding:14px 16px;border:1.5px solid var(--border-color);border-radius:10px;background:var(--bg-card);"></div>
+    </div>`;
+}
+
+function showCalDayDetail(dateStr) {
+  const panel = document.getElementById('calDayDetail');
+  if (!panel) return;
+  const info = (MF.calTxns || []).filter(t => t.txn_date?.slice(0,10) === dateStr);
+  if (!info.length) { panel.style.display='none'; return; }
+
+  const buyTypes = new Set(['BUY','SWITCH_IN','DIV_REINVEST']);
+  const typeColors = { BUY:'#16a34a', SELL:'#dc2626', SWITCH_IN:'#2563eb', SWITCH_OUT:'#f59e0b', DIV_REINVEST:'#7c3aed', REDEMPTION:'#dc2626' };
+  const fmt = v => '₹' + parseFloat(v||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  const rows = info.map(t => {
+    const color = typeColors[t.transaction_type] || '#64748b';
+    return `<tr style="border-bottom:1px solid var(--border-color);">
+      <td style="padding:7px 10px;font-size:12px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.scheme_name||'—')}</td>
+      <td style="padding:7px 10px;"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${color}20;color:${color};">${t.transaction_type}</span></td>
+      <td style="padding:7px 10px;font-size:12px;font-weight:700;text-align:right;">${fmt(t.amount)}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;color:var(--text-muted);">${parseFloat(t.units||0).toFixed(4)}</td>
+      <td style="padding:7px 10px;font-size:12px;text-align:right;color:var(--text-muted);">₹${parseFloat(t.nav||0).toFixed(4)}</td>
+    </tr>`;
+  }).join('');
+
+  const d = new Date(dateStr);
+  const label = d.toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">📅 ${label} — ${info.length} transaction(s)</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:var(--bg-secondary);">
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text-muted);font-weight:700;">Fund</th>
+          <th style="padding:6px 10px;text-align:left;font-size:11px;color:var(--text-muted);font-weight:700;">Type</th>
+          <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-muted);font-weight:700;">Amount</th>
+          <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-muted);font-weight:700;">Units</th>
+          <th style="padding:6px 10px;text-align:right;font-size:11px;color:var(--text-muted);font-weight:700;">NAV</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  // Scroll into view
+  setTimeout(() => panel.scrollIntoView({ behavior:'smooth', block:'nearest' }), 50);
+}
+
+function calPrevYear() {
+  MF.calYear--;
+  renderCalendar();
+}
+function calNextYear() {
+  MF.calYear = Math.min(new Date().getFullYear(), MF.calYear + 1);
+  renderCalendar();
+}

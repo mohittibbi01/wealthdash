@@ -75,9 +75,23 @@ ob_start();
       </svg>
       Download Excel
     </button>
+    <!-- t186: Print/PDF Holdings -->
+    <button class="btn btn-ghost" id="btnPrintHoldings" onclick="printHoldings()" title="Print / Save as PDF">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"/>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+        <rect x="6" y="14" width="12" height="8"/>
+      </svg>
+      Print / PDF
+    </button>
     <button class="btn btn-primary" id="btnAddTransaction">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Add Transaction
+    </button>
+    <!-- t170: SIP Return Analysis button -->
+    <button class="btn btn-ghost" id="btnSipAnalysis" onclick="openSipReturnAnalysis(0,'My Portfolio',0,null,<?= json_encode($totalInvested) ?>,<?= json_encode($valueNow) ?>)" title="SIP vs Lump Sum — Kaunsa better tha?">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      SIP Analysis
     </button>
     <button class="btn btn-primary" id="btnAddSipHoldings" onclick="openQuickSip(0,'',0,'','')">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -200,6 +214,10 @@ ob_start();
   <button class="mf-tab" data-tab="capgains" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
     🧾 Capital Gains
   </button>
+  <!-- t75: Investment Calendar tab -->
+  <button class="mf-tab" data-tab="calendar" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    📅 Calendar
+  </button>
 </div>
 
 <!-- ═══ TAB: HOLDINGS ═══ -->
@@ -294,13 +312,13 @@ ob_start();
           <th class="text-center">
             <div style="line-height:1.3;">
               <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">Returns</span>
-              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">XIRR</span>
+              <span style="display:block;font-size:11px;color:var(--text-muted);font-weight:500;">XIRR <i class="wd-info-btn tip-left" data-tip="XIRR (Extended IRR): Cash flow-weighted annual return. Accounts for timing of each SIP/lump sum investment. Best measure of YOUR actual return.">i</i></span>
             </div>
           </th>
           <th class="text-center">Units</th>
           <th class="text-center">NAV</th>
-          <th class="text-center">Peak NAV</th>
-          <th class="text-center">Drawdown</th>
+          <th class="text-center">Peak NAV <i class="wd-info-btn tip-left" data-tip="Highest NAV ever reached by this fund. Drawdown = how far current NAV is from peak.">i</i></th>
+          <th class="text-center">Drawdown <i class="wd-info-btn tip-left" data-tip="Drawdown = % fall from all-time peak NAV. Example: Peak ₹100, Current ₹85 → Drawdown = -15%. Lower is better.">i</i></th>
           <th class="text-center">1D Change</th>
           <th class="text-center">Actions</th>
         </tr>
@@ -331,6 +349,12 @@ ob_start();
   </div>
 </div>
 </div><!-- end tabHoldings -->
+
+<!-- t172: Folio Consolidation Alert -->
+<div id="folioAlertBanner" style="display:none;margin-top:16px;"></div>
+
+<!-- t175: Rebalancing Alert -->
+<div id="rebalAlertWrap" style="display:none;margin-top:12px;"></div>
 
 <!-- ═══ ANALYTICS SECTION (below Holdings table, always visible) ═══ -->
 <div id="mfAnalyticsSection" style="display:none;margin-top:24px;">
@@ -365,12 +389,12 @@ ob_start();
       <div class="card-body" style="padding:16px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
           <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Portfolio XIRR</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Portfolio XIRR <i class="wd-info-btn" data-tip="XIRR: Considers exact dates & amounts of every SIP/lump sum. Most accurate measure of YOUR return. Different from fund's published return.">i</i></div>
             <div id="portfolioXirr" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Annualised return</div>
           </div>
           <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Simple CAGR</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Simple CAGR <i class="wd-info-btn" data-tip="CAGR: Compound Annual Growth Rate from your first purchase to today. Ignores SIP timing. Formula: (Current/Invested)^(1/Years) - 1">i</i></div>
             <div id="portfolioCagr" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Based on first purchase</div>
           </div>
@@ -393,7 +417,7 @@ ob_start();
       <div class="card-body" style="padding:16px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
           <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
-            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">TWRR (Portfolio)</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">TWRR (Portfolio) <i class="wd-info-btn" data-tip="TWRR: Time-Weighted Return. Eliminates effect of cash flows. Shows fund's pure performance regardless of when you invested. Used by fund managers to report performance.">i</i></div>
             <div id="twrrValue" style="font-size:26px;font-weight:800;color:var(--text-muted);">—</div>
             <div style="font-size:11px;color:var(--text-muted);">Annualised</div>
           </div>
@@ -467,11 +491,17 @@ ob_start();
     </div>
   </div>
 
-  <!-- t70: Portfolio Overlap -->
+  <!-- t70 + t176: Portfolio Overlap (real AMFI data when available, proxy fallback) -->
   <div class="card" style="margin-bottom:20px;">
-    <div class="card-header">
-      <h3 class="card-title">🔄 Portfolio Overlap Analyzer</h3>
-      <span style="font-size:11px;color:var(--text-muted);">Common stocks between funds</span>
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <h3 class="card-title">🔄 Fund Overlap Matrix</h3>
+        <span style="font-size:11px;color:var(--text-muted);">Real AMFI stock-level holdings · auto-proxy fallback</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span id="overlapDataTag" style="font-size:10px;padding:2px 8px;border-radius:99px;background:var(--bg-secondary,#f4f6fb);color:var(--text-muted);border:1px solid var(--border);">Checking…</span>
+        <button onclick="refreshOverlapData()" class="btn btn-sm btn-outline" style="font-size:11px;padding:4px 10px;">↻ Refresh</button>
+      </div>
     </div>
     <div class="card-body" style="padding:16px;">
       <div id="overlapWrap">
@@ -715,6 +745,22 @@ ob_start();
   </div>
 </div>
 
+<!-- ═══ TAB: INVESTMENT CALENDAR (t75) ═══ -->
+<div id="tabCalendarWrap" style="display:none;">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body" style="padding:12px 20px;">
+      <p style="font-size:13px;color:var(--text-muted);margin:0;">
+        📅 <strong>Investment Calendar</strong> — Transaction heatmap. <span style="color:#16a34a;font-weight:700;">■</span> Buy &nbsp;<span style="color:#dc2626;font-weight:700;">■</span> Sell &nbsp;<span style="color:#a78bfa;font-weight:700;">■</span> Both. Darker = larger amount. Click a day to see details.
+      </p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body" style="padding:0 16px 16px;" id="tabCalendar">
+      <!-- Calendar rendered by renderCalendar() -->
+    </div>
+  </div>
+</div>
+
 <!-- ═══ ADD/EDIT TRANSACTION MODAL ═══ -->
 <div class="modal-overlay" id="modalAddTxn" style="display:none;">
   <div class="modal" style="max-width:600px;width:95%;">
@@ -822,6 +868,11 @@ ob_start();
   </div>
 </div>
 
+<!-- ═══ t186: PRINT / PDF AREA (hidden, shown only on @media print) ═══ -->
+<div id="mfPrintArea" style="display:none;">
+  <!-- populated dynamically by printHoldings() -->
+</div>
+
 <!-- ═══ IMPORT CSV MODAL ═══ -->
 <div class="modal-overlay" id="modalImportCsv" style="display:none;">
   <div class="modal" style="max-width:620px;width:95%;">
@@ -831,13 +882,16 @@ ob_start();
     </div>
     <div class="modal-body" style="padding:0;">
 
-      <!-- Tabs: CAS Import vs CSV Import -->
+      <!-- Tabs: CAS Import vs CSV Import vs History -->
       <div style="display:flex;border-bottom:2px solid var(--border);">
         <button class="cas-tab active" onclick="switchCasTab('cas',this)" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-weight:700;font-size:13px;border-bottom:2px solid var(--accent);color:var(--accent);">
           🏦 CAS Auto-Import
         </button>
         <button class="cas-tab" onclick="switchCasTab('csv',this)" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-weight:600;font-size:13px;color:var(--text-muted);">
           📄 CSV Manual Import
+        </button>
+        <button class="cas-tab" onclick="switchCasTab('history',this)" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-weight:600;font-size:13px;color:var(--text-muted);">
+          🕓 Import History
         </button>
       </div>
 
@@ -914,6 +968,15 @@ ob_start();
           <span style="color:var(--text-muted);">Supported: WealthDash · CAMS · KFintech · Groww · Zerodha · Kuvera</span>
         </div>
         <div id="importResult" style="display:none;margin-top:16px;padding:12px;border-radius:8px;font-size:13px;"></div>
+      </div>
+
+      <!-- t190: Import History Tab -->
+      <div id="historyTabContent" style="padding:16px;display:none;min-height:200px;max-height:420px;overflow-y:auto;">
+        <div id="importHistoryBody">
+          <div style="text-align:center;padding:30px;color:var(--text-muted);">
+            <span class="spinner"></span>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1213,6 +1276,26 @@ ob_start();
 .ff-result-row { display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s; }
 .ff-result-row:hover { background:var(--bg-secondary); }
 .ff-result-row:last-child { border-bottom:none; }
+
+/* ── t186: Print / PDF Holdings ──────────────────────────────── */
+@media print {
+  /* Hide everything except print area */
+  body * { visibility: hidden; }
+  #mfPrintArea, #mfPrintArea * { visibility: visible; }
+  #mfPrintArea { position: absolute; inset: 0; padding: 20px; }
+
+  /* Reset colours for print */
+  #mfPrintArea { background: #fff !important; color: #111 !important; }
+  .mfp-card { break-inside: avoid; }
+
+  /* Hide nav, sidebar, buttons, modals */
+  .sidebar, .topbar, .page-header-actions,
+  .modal-overlay, #txnDrawer, #txnDrawerOverlay,
+  .sort-menu, #sortMenuDropdown { display: none !important; }
+
+  /* Page margins */
+  @page { margin: 15mm 12mm; size: A4 portrait; }
+}
 </style>
 
 <?php

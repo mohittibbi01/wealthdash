@@ -204,7 +204,7 @@ ob_start();
           <th class="text-right">Rate %</th>
           <th>Open Date</th>
           <th>Maturity Date</th>
-          <th class="text-right">Maturity Amt</th>
+          <th class="text-right">Payout / Maturity</th>
           <th class="text-right">Interest</th>
           <th class="text-right">Days Left</th>
           <th>Status</th>

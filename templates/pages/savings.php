@@ -119,6 +119,7 @@ ob_start();
         <tr><td colspan="9" class="text-center" style="padding:40px;color:var(--text-muted)"><span class="spinner"></span></td></tr>
       </tbody>
     </table>
+    <div id="savPagWrap" style="padding:0 16px;"></div>
   </div>
 </div>
 

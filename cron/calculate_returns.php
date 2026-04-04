@@ -35,6 +35,7 @@ $alterCols = [
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS returns_5y    DECIMAL(8,4) DEFAULT NULL",
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS returns_10y   DECIMAL(8,4) DEFAULT NULL",
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS sharpe_ratio  DECIMAL(8,4) DEFAULT NULL",
+    "ALTER TABLE funds ADD COLUMN IF NOT EXISTS sortino_ratio DECIMAL(8,4) DEFAULT NULL",
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS max_drawdown  DECIMAL(8,4) DEFAULT NULL",
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS max_drawdown_date DATE DEFAULT NULL",
     "ALTER TABLE funds ADD COLUMN IF NOT EXISTS category_avg_1y DECIMAL(8,4) DEFAULT NULL",
@@ -71,6 +72,7 @@ $updReturns = $db->prepare(
        returns_5y         = ?,
        returns_10y        = ?,
        sharpe_ratio       = ?,
+       sortino_ratio      = ?,
        max_drawdown       = ?,
        max_drawdown_date  = ?,
        returns_updated_at = NOW()
@@ -84,6 +86,12 @@ $getHistory = $db->prepare(
 );
 
 const RISK_FREE_DAILY = 6.5 / 100 / 365; // 6.5% annual → daily
+
+// ── CAGR helper (defined outside loop to avoid redeclaration) ────────────────
+function _calc_cagr(float $startNav, float $endNav, float $years): ?float {
+    if ($startNav <= 0 || $years <= 0) return null;
+    return (pow($endNav / $startNav, 1 / $years) - 1) * 100;
+}
 
 $done = 0; $updated = 0;
 
@@ -104,7 +112,7 @@ foreach ($funds as $fund) {
     $today = end($dates);
     $todayNav = end($navs);
 
-    // ── CAGR helper ──────────────────────────────────────────────────────
+    // ── getNavOnOrBefore closure (uses $rows/$dates from current iteration) ──
     $getNavOnOrBefore = function(string $targetDate) use ($rows, $dates): ?float {
         // Binary search for closest date
         $target = $targetDate;
@@ -118,11 +126,6 @@ foreach ($funds as $fund) {
         return $closest ? (float)$rows[$closest] : null;
     };
 
-    function cagr(float $startNav, float $endNav, float $years): ?float {
-        if ($startNav <= 0 || $years <= 0) return null;
-        return (pow($endNav / $startNav, 1 / $years) - 1) * 100;
-    }
-
     // 1Y, 3Y, 5Y, 10Y returns
     $date1y  = date('Y-m-d', strtotime($today . ' -365 days'));
     $date3y  = date('Y-m-d', strtotime($today . ' -1095 days'));
@@ -134,14 +137,15 @@ foreach ($funds as $fund) {
     $nav5y  = $getNavOnOrBefore($date5y);
     $nav10y = $getNavOnOrBefore($date10y);
 
-    $r1y  = $nav1y  ? cagr($nav1y,  $todayNav, 1)  : null;
-    $r3y  = $nav3y  ? cagr($nav3y,  $todayNav, 3)  : null;
-    $r5y  = $nav5y  ? cagr($nav5y,  $todayNav, 5)  : null;
-    $r10y = $nav10y ? cagr($nav10y, $todayNav, 10) : null;
+    $r1y  = $nav1y  ? _calc_cagr($nav1y,  $todayNav, 1)  : null;
+    $r3y  = $nav3y  ? _calc_cagr($nav3y,  $todayNav, 3)  : null;
+    $r5y  = $nav5y  ? _calc_cagr($nav5y,  $todayNav, 5)  : null;
+    $r10y = $nav10y ? _calc_cagr($nav10y, $todayNav, 10) : null;
 
     // ── Sharpe Ratio (annualised) ─────────────────────────────────────────
     // Using last 1Y daily returns
-    $sharpe = null;
+    $sharpe  = null;
+    $sortino = null;
     if ($nav1y && $n >= 250) {
         // Get last 252 trading days
         $lastN   = array_slice($navs, max(0, $n-253), 253);
@@ -159,6 +163,18 @@ foreach ($funds as $fund) {
                 $annualisedReturn = pow(1 + $avgRet, 252) - 1;
                 $annualisedStdDev = $stdDev * sqrt(252);
                 $sharpe = round(($annualisedReturn - 0.065) / $annualisedStdDev, 4);
+            }
+
+            // ── t165: Sortino Ratio — only downside deviation ──────────────
+            $negReturns    = array_filter($dailyRet, fn($r) => $r < 0);
+            if (count($negReturns) > 5) {
+                $downVar       = array_sum(array_map(fn($r) => pow($r, 2), $negReturns)) / count($dailyRet);
+                $downStdDev    = sqrt($downVar);
+                if ($downStdDev > 0) {
+                    $annualisedReturn = pow(1 + $avgRet, 252) - 1;
+                    $annDownStdDev    = $downStdDev * sqrt(252);
+                    $sortino = round(($annualisedReturn - 0.065) / $annDownStdDev, 4);
+                }
             }
         }
     }
@@ -188,6 +204,7 @@ foreach ($funds as $fund) {
         $r5y  !== null ? round($r5y, 4)  : null,
         $r10y !== null ? round($r10y, 4) : null,
         $sharpe,
+        $sortino,
         $maxDrawdown,
         $maxDrawdownDate,
         $fund['id'],

@@ -163,6 +163,10 @@ try {
         // ── MF routes (delegate to specific files) ──────────
         case 'mf_search':
             require APP_ROOT . '/api/mutual_funds/mf_search.php'; exit;
+        case 'fund_house_rankings':  // t168
+            require APP_ROOT . '/api/mutual_funds/fund_house_rankings.php'; exit;
+        case 'import_history':       // t190
+            require APP_ROOT . '/api/mutual_funds/import_history.php'; exit;
         case 'mf_add':
         case 'mf_edit':
             require APP_ROOT . '/api/mutual_funds/mf_add.php'; exit;
@@ -172,6 +176,8 @@ try {
             require APP_ROOT . '/api/mutual_funds/mf_list.php'; exit;
         case 'mf_nav_history':
             require APP_ROOT . '/api/mutual_funds/mf_nav_history.php'; exit;
+        case 'nav_proxy':  // t163 — NAV chart proxy with DB cache
+            require APP_ROOT . '/api/mutual_funds/nav_proxy.php'; exit;
         case 'mf_import_csv':
             require APP_ROOT . '/api/mutual_funds/mf_import_csv.php'; exit;
         case 'fund_notes_get':

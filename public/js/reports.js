@@ -435,6 +435,31 @@ if (document.getElementById('fySummaryBody')) {
         });
     }
 
+    // t84: ITR Schedule 112A export
+    const export112ABtn = document.getElementById('export112ABtn');
+    if (export112ABtn) {
+        export112ABtn.addEventListener('click', () => {
+            const fyVal = fyFilterEl?.value || currentFyStr();
+            if (!fyVal) {
+                window.showToast?.('Please select a Financial Year first', 'warning');
+                return;
+            }
+            export112ABtn.disabled = true;
+            export112ABtn.textContent = '⏳ Generating...';
+            const f = document.createElement('form');
+            f.method = 'POST';
+            f.action = window.WD?.apiUrl || '/wealthdash/api/reports/export_csv.php';
+            f.innerHTML = `<input name="action" value="export_csv"><input name="export_type" value="itr_112a">
+                <input name="portfolio_id" value="${portId()}"><input name="fy" value="${fyVal}">
+                <input name="_csrf" value="${window.WD?.csrf || ''}">`;
+            document.body.appendChild(f); f.submit(); document.body.removeChild(f);
+            setTimeout(() => {
+                export112ABtn.disabled = false;
+                export112ABtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> ITR Schedule 112A`;
+            }, 2500);
+        });
+    }
+
     // Always attempt load — portId fallback handles missing WD object
     loadFyReport();
     window.addEventListener('portfolioChanged', () => loadFyReport(fyFilterEl?.value || ''));

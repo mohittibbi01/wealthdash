@@ -251,6 +251,83 @@ function calcStepUp() {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     t72: SIP Performance — Actual vs Expected XIRR
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="sipPerfCard" style="display:none">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <h3 class="card-title">📈 SIP Performance — Actual vs Expected</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="sipPerfLastCalc" style="font-size:11px;color:var(--text-muted)"></span>
+      <button class="btn btn-sm btn-ghost" onclick="calcAllSipXirr()" id="btnCalcAllXirr">
+        🔢 Calculate All XIRR
+      </button>
+    </div>
+  </div>
+  <div class="card-body" style="padding:16px">
+
+    <!-- Summary strip -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px" id="sipPerfSummary">
+      <div style="background:var(--bg-secondary,#f8fafc);border-radius:10px;padding:12px 14px;border:1.5px solid var(--border-color,#e2e8f0)">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Avg XIRR</div>
+        <div style="font-size:22px;font-weight:800;margin-top:4px" id="sipPerfAvgXirr">—</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:12px 14px;border:1.5px solid #86efac">
+        <div style="font-size:11px;color:#15803d;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Best SIP</div>
+        <div style="font-size:14px;font-weight:700;margin-top:4px;color:#15803d" id="sipPerfBestName">—</div>
+        <div style="font-size:18px;font-weight:800;color:#16a34a" id="sipPerfBestXirr">—</div>
+      </div>
+      <div style="background:#fff7ed;border-radius:10px;padding:12px 14px;border:1.5px solid #fcd34d">
+        <div style="font-size:11px;color:#92400e;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Worst SIP</div>
+        <div style="font-size:14px;font-weight:700;margin-top:4px;color:#92400e" id="sipPerfWorstName">—</div>
+        <div style="font-size:18px;font-weight:800;color:#d97706" id="sipPerfWorstXirr">—</div>
+      </div>
+      <div style="background:#eff6ff;border-radius:10px;padding:12px 14px;border:1.5px solid #bfdbfe">
+        <div style="font-size:11px;color:#1d4ed8;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Beating 12% Target</div>
+        <div style="font-size:22px;font-weight:800;color:#2563eb;margin-top:4px" id="sipPerfBeating">—</div>
+        <div style="font-size:11px;color:var(--text-muted)" id="sipPerfBeatingTotal"></div>
+      </div>
+    </div>
+
+    <!-- Cumulative: Total Invested vs Current Value chart -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px">
+        💰 Cumulative Investment vs Current Value
+      </div>
+      <div style="position:relative;height:200px">
+        <canvas id="sipCumulChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Per-SIP XIRR breakdown table -->
+    <div id="sipPerfTableWrap" style="display:none">
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px">Per-SIP XIRR Breakdown</div>
+      <table class="data-table" style="font-size:12px">
+        <thead>
+          <tr>
+            <th>Fund</th>
+            <th class="text-right">Monthly SIP</th>
+            <th class="text-right">Invested</th>
+            <th class="text-right">Current Value</th>
+            <th class="text-right">Gain / Loss</th>
+            <th class="text-right">Actual XIRR</th>
+            <th class="text-right">vs 12%</th>
+            <th>Grade</th>
+          </tr>
+        </thead>
+        <tbody id="sipPerfBody"></tbody>
+      </table>
+    </div>
+
+    <!-- SIP Anniversary Milestones -->
+    <div id="sipAnniversaryWrap" style="margin-top:14px;display:none">
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px">🎂 SIP Anniversary Milestones</div>
+      <div id="sipAnniversaryList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+  </div>
+</div>
+
 <!-- All SIPs Table -->
 <div class="card mb-4">
   <div class="card-header">
@@ -296,6 +373,60 @@ function calcStepUp() {
         <tr><td colspan="10" class="text-center text-secondary">Loading...</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- t174: SIP Step-up Calculator -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">📈 SIP Step-up Calculator</h3>
+    <span style="font-size:11px;color:var(--text-muted);font-weight:500;">Increasing SIP annually builds significantly larger corpus</span>
+  </div>
+  <div style="padding:20px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;">Monthly SIP (₹)</label>
+        <input type="number" id="suSipAmt" value="10000" min="100" step="500" oninput="calcStepupSip()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;background:var(--bg-secondary);color:var(--text-primary);">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;">Annual Step-up %</label>
+        <input type="number" id="suStepPct" value="10" min="0" max="50" step="1" oninput="calcStepupSip()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;background:var(--bg-secondary);color:var(--text-primary);">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;">Expected Return % p.a.</label>
+        <input type="number" id="suRetPct" value="12" min="1" max="40" step="0.5" oninput="calcStepupSip()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;background:var(--bg-secondary);color:var(--text-primary);">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;">Duration (Years)</label>
+        <input type="number" id="suYears" value="20" min="1" max="40" step="1" oninput="calcStepupSip()"
+          style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:700;background:var(--bg-secondary);color:var(--text-primary);">
+      </div>
+    </div>
+
+    <!-- Results grid -->
+    <div id="suResults" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;"></div>
+
+    <!-- Year-wise table -->
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;" id="suTable">
+        <thead>
+          <tr style="background:var(--bg-secondary);">
+            <th style="padding:8px 10px;text-align:left;font-weight:700;border-bottom:2px solid var(--border);">Year</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;border-bottom:2px solid var(--border);">Monthly SIP</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;border-bottom:2px solid var(--border);">Flat SIP Corpus</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;border-bottom:2px solid var(--border);">Step-up Corpus</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:700;border-bottom:2px solid var(--border);">Extra Gain</th>
+          </tr>
+        </thead>
+        <tbody id="suTableBody"></tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:8px;">
+      * Step-up increases monthly SIP by the specified % every year · Returns assumed constant p.a.
+    </div>
   </div>
 </div>
 
@@ -568,12 +699,192 @@ async function loadSipList() {
           + '</tr>';
       }).join('');
     }
+
+    // t72: feed active SIPs into performance card
+    initSipPerfCard(all.filter(s => s.is_active == 1 && (s.schedule_type||'SIP').toUpperCase() === 'SIP'));
+
   } catch(e) {
     document.getElementById('sipBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger">Error: ' + esc(e.message) + '</td></tr>';
     const swpBody = document.getElementById('swpBody');
     if (swpBody) swpBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">Error: ' + esc(e.message) + '</td></tr>';
     console.error('sip_list error:', e);
   }
+}
+
+// Hook: called at end of loadSipList to feed SIP data into perf card
+function loadSips() { loadSipList(); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   t72 — SIP Performance: Actual vs Expected XIRR
+   Best/Worst SIP, Cumulative chart, XIRR breakdown, Anniversaries
+═══════════════════════════════════════════════════════════════════ */
+
+let _sipPerfData   = []; // all SIPs fetched from loadSipList
+let _sipXirrCache  = {}; // sipId => xirr value
+let sipCumulChartInst = null;
+
+// Called after loadSipList populates data — reveal perf card
+function initSipPerfCard(sips) {
+  const card = document.getElementById('sipPerfCard');
+  if (!card || !sips || !sips.length) return;
+  card.style.display = '';
+  _sipPerfData = sips;
+  renderSipAnniversaries(sips);
+  renderSipCumulChart(sips);
+}
+
+// Render anniversary milestones
+function renderSipAnniversaries(sips) {
+  const wrap = document.getElementById('sipAnniversaryWrap');
+  const list = document.getElementById('sipAnniversaryList');
+  if (!wrap || !list) return;
+  const today = new Date();
+  const milestones = [];
+  sips.filter(s => s.is_active == 1 && s.start_date).forEach(s => {
+    const start = new Date(s.start_date);
+    const diffMs = today - start;
+    const totalMonths = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44));
+    const yrs = Math.floor(totalMonths / 12);
+    const mos = totalMonths % 12;
+    // next anniversary = next full year
+    const nextAnnivDate = new Date(start);
+    nextAnnivDate.setFullYear(start.getFullYear() + yrs + 1);
+    const daysToAnniv = Math.round((nextAnnivDate - today) / (1000 * 60 * 60 * 24));
+    milestones.push({ name: s.fund_name, yrs, mos, totalMonths, daysToAnniv, sip_amount: s.sip_amount });
+  });
+  if (!milestones.length) return;
+  wrap.style.display = '';
+  // sort: nearest anniversary first
+  milestones.sort((a, b) => a.daysToAnniv - b.daysToAnniv);
+  list.innerHTML = milestones.slice(0, 8).map(m => {
+    const urgentColor = m.daysToAnniv <= 30 ? '#dc2626' : m.daysToAnniv <= 90 ? '#d97706' : '#6366f1';
+    const tenure = m.yrs > 0 ? `${m.yrs}yr${m.yrs>1?'s':''} ${m.mos}mo` : `${m.mos} months`;
+    return `<div style="background:#fafafe;border:1.5px solid #e0e7ff;border-radius:9px;padding:9px 13px;min-width:180px;flex:1;">
+      <div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:3px;">🎂 ${m.yrs+1}yr Anniversary in ${m.daysToAnniv}d</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${esc(m.name)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Running: <strong>${tenure}</strong> · ₹${Number(m.sip_amount).toLocaleString('en-IN')}/mo</div>
+    </div>`;
+  }).join('');
+}
+
+// Cumulative invested vs current value chart
+async function renderSipCumulChart(sips) {
+  const canvas = document.getElementById('sipCumulChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  try {
+    const r = await API.post('/api/router.php', { action:'sip_monthly_chart', months:60, portfolio_id: getSipPortfolioId() });
+    const chart = (r.data || {}).chart || [];
+    if (!chart.length) return;
+    // Build cumulative sums
+    let cumInv = 0, cumVal = 0;
+    const labels = [], invData = [], valData = [];
+    chart.forEach(pt => {
+      cumInv += parseFloat(pt.invested || 0);
+      cumVal  = parseFloat(pt.value    || cumInv); // if value missing, fallback to invested
+      labels.push(pt.month || pt.label || '');
+      invData.push(Math.round(cumInv));
+      valData.push(Math.round(cumVal));
+    });
+    if (sipCumulChartInst) sipCumulChartInst.destroy();
+    sipCumulChartInst = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label:'Total Invested', data:invData, borderColor:'#94a3b8', backgroundColor:'rgba(148,163,184,.1)', borderWidth:2, fill:true, tension:.3, pointRadius:0 },
+          { label:'Current Value',  data:valData, borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,.1)', borderWidth:2.5, fill:true, tension:.3, pointRadius:0 },
+        ],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'top', labels:{ font:{ size:11 }, boxWidth:12 } }, tooltip:{ callbacks:{ label: ctx => ' ₹' + ctx.raw.toLocaleString('en-IN') } } },
+        scales:{
+          x:{ ticks:{ font:{ size:10 }, maxTicksLimit:12 }, grid:{ display:false } },
+          y:{ ticks:{ font:{ size:10 }, callback: v => '₹'+( v>=100000 ? (v/100000).toFixed(1)+'L' : v>=1000 ? (v/1000).toFixed(0)+'K' : v ) }, grid:{ color:'rgba(0,0,0,.05)' } }
+        }
+      }
+    });
+  } catch(e) { console.warn('sipCumulChart error:', e); }
+}
+
+// Calculate XIRR for all active SIPs sequentially
+async function calcAllSipXirr() {
+  const btn = document.getElementById('btnCalcAllXirr');
+  const activeSips = _sipPerfData.filter(s => s.is_active == 1);
+  if (!activeSips.length) { alert('No active SIPs found. Load SIPs first.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Calculating...'; }
+  const results = [];
+  for (const s of activeSips) {
+    try {
+      const res  = await API.post('/api/router.php', { action:'sip_xirr', portfolio_id: getSipPortfolioId(), sip_id: s.id });
+      const xirr = res.data?.xirr ?? null;
+      _sipXirrCache[s.id] = xirr;
+      if (xirr !== null) results.push({ ...s, xirr });
+      // also update the sip table row if visible
+      const row = document.querySelector(`tr[data-sip-id="${s.id}"]`);
+      if (row) {
+        const xi = row.querySelector('.sip-xirr');
+        if (xi && xirr !== null) {
+          const color = xirr >= 12 ? '#16a34a' : xirr >= 8 ? '#d97706' : '#dc2626';
+          xi.innerHTML = `<span style="color:${color};font-weight:600;">${xirr > 0?'+':''}${xirr}%</span>`;
+        }
+        const vt = row.querySelector('.sip-vs-target');
+        if (vt && xirr !== null) {
+          const diff = xirr - 12, sign = diff >= 0 ? '+' : '', ic = diff >= 0 ? '▲' : '▼';
+          const dc   = diff >= 2 ? '#15803d' : diff >= 0 ? '#16a34a' : diff >= -3 ? '#d97706' : '#dc2626';
+          vt.innerHTML = `<span style="font-size:11px;font-weight:700;color:${dc};">${ic} ${sign}${diff.toFixed(1)}%</span><div style="font-size:10px;color:var(--text-muted);">vs 12% goal</div>`;
+        }
+      }
+    } catch(e) { /* skip failed */ }
+  }
+  renderSipPerfSummary(results);
+  if (btn) { btn.disabled = false; btn.textContent = '🔄 Recalculate'; }
+  const ts = document.getElementById('sipPerfLastCalc');
+  if (ts) ts.textContent = 'Last: ' + new Date().toLocaleTimeString();
+}
+
+function renderSipPerfSummary(results) {
+  if (!results.length) return;
+  // avg xirr
+  const avg  = results.reduce((s, r) => s + r.xirr, 0) / results.length;
+  const best = results.reduce((a, b) => b.xirr > a.xirr ? b : a);
+  const wrst = results.reduce((a, b) => b.xirr < a.xirr ? b : a);
+  const beating = results.filter(r => r.xirr >= 12).length;
+  const avgColor = avg >= 12 ? '#16a34a' : avg >= 8 ? '#d97706' : '#dc2626';
+  const set = (id, html) => { const e = document.getElementById(id); if(e) e.innerHTML = html; };
+  set('sipPerfAvgXirr', `<span style="color:${avgColor}">${avg >= 0?'+':''}${avg.toFixed(1)}%</span>`);
+  set('sipPerfBestName', esc(best.fund_name?.split(' ').slice(0,3).join(' ') || '—'));
+  set('sipPerfBestXirr', `+${best.xirr.toFixed(1)}%`);
+  set('sipPerfWorstName', esc(wrst.fund_name?.split(' ').slice(0,3).join(' ') || '—'));
+  set('sipPerfWorstXirr', `${wrst.xirr >= 0 ? '+' : ''}${wrst.xirr.toFixed(1)}%`);
+  set('sipPerfBeating', `${beating} / ${results.length}`);
+  set('sipPerfBeatingTotal', `${Math.round(beating/results.length*100)}% SIPs above 12% target`);
+  // render breakdown table
+  const tbody = document.getElementById('sipPerfBody');
+  const wrap  = document.getElementById('sipPerfTableWrap');
+  if (!tbody || !wrap) return;
+  results.sort((a, b) => b.xirr - a.xirr);
+  tbody.innerHTML = results.map(r => {
+    const inv   = parseFloat(r.total_invested || 0);
+    const val   = parseFloat(r.current_value  || inv);
+    const gain  = val - inv;
+    const diff  = r.xirr - 12;
+    const grade = r.xirr >= 15 ? '🏆 Excellent' : r.xirr >= 12 ? '✅ Good' : r.xirr >= 8 ? '🟡 Average' : '🔴 Poor';
+    const xirrColor = r.xirr >= 12 ? '#16a34a' : r.xirr >= 8 ? '#d97706' : '#dc2626';
+    const diffColor = diff >= 0 ? '#16a34a' : diff >= -3 ? '#d97706' : '#dc2626';
+    return `<tr>
+      <td><span style="font-weight:600">${esc(r.fund_name||'—')}</span><br><small class="text-secondary">${esc(r.fund_house||'')}</small></td>
+      <td class="text-right">₹${Number(r.sip_amount||0).toLocaleString('en-IN')}</td>
+      <td class="text-right">${formatINR(inv)}</td>
+      <td class="text-right">${formatINR(val)}</td>
+      <td class="text-right" style="color:${gain>=0?'#16a34a':'#dc2626'};font-weight:600">${gain>=0?'+':''}${formatINR(Math.abs(gain))}</td>
+      <td class="text-right" style="color:${xirrColor};font-weight:700">${r.xirr>=0?'+':''}${r.xirr.toFixed(1)}%</td>
+      <td class="text-right" style="color:${diffColor};font-weight:600">${diff>=0?'+':''}${diff.toFixed(1)}%</td>
+      <td>${grade}</td>
+    </tr>`;
+  }).join('');
+  wrap.style.display = '';
 }
 
 let sipChartInst = null;
@@ -1135,6 +1446,89 @@ function selectSipFund(id, name, nav, fundHouse, category) {
 
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escAttr(s) { return String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+// ── t174: SIP Step-up Calculator ─────────────────────────────────────────
+function calcStepupSip() {
+  const sip0   = parseFloat(document.getElementById('suSipAmt')?.value)  || 10000;
+  const stepPct= parseFloat(document.getElementById('suStepPct')?.value) || 0;
+  const retPct = parseFloat(document.getElementById('suRetPct')?.value)  || 12;
+  const years  = parseInt(document.getElementById('suYears')?.value)     || 20;
+
+  const r = retPct / 100 / 12; // monthly rate
+
+  // Flat SIP corpus after N years
+  function flatCorpus(sip, n) {
+    // FV = SIP × [(1+r)^n - 1] / r × (1+r)
+    if (r === 0) return sip * n;
+    return sip * (Math.pow(1+r, n) - 1) / r * (1+r);
+  }
+
+  // Step-up SIP: each year monthly SIP increases by stepPct%
+  // Build year-by-year
+  let stepCorpus = 0;
+  let flatCorpusYr = 0;
+  let totalInvestedStep = 0, totalInvestedFlat = 0;
+  const rows = [];
+  let currentSip = sip0;
+
+  for (let yr = 1; yr <= years; yr++) {
+    // Grow existing corpus for 12 months, then add this year's SIPs
+    // Step-up: stepCorpus grows at r/month, plus monthly SIPs
+    for (let m = 0; m < 12; m++) {
+      stepCorpus = stepCorpus * (1 + r) + currentSip;
+      flatCorpusYr = flatCorpusYr * (1 + r) + sip0;
+    }
+    totalInvestedStep += currentSip * 12;
+    totalInvestedFlat += sip0 * 12;
+
+    rows.push({
+      year: yr,
+      monthlySip: currentSip,
+      flatCorpus: flatCorpusYr,
+      stepCorpus: stepCorpus,
+      extraGain: stepCorpus - flatCorpusYr,
+    });
+
+    currentSip = currentSip * (1 + stepPct / 100); // increase for next year
+  }
+
+  const finalFlat = rows[rows.length-1]?.flatCorpus || 0;
+  const finalStep = rows[rows.length-1]?.stepCorpus || 0;
+  const extraPct  = finalFlat > 0 ? ((finalStep - finalFlat) / finalFlat * 100) : 0;
+
+  // Render result tiles
+  const fmt = v => '₹' + (v >= 1e7 ? (v/1e7).toFixed(2) + ' Cr' : v >= 1e5 ? (v/1e5).toFixed(1) + ' L' : v.toLocaleString('en-IN', {maximumFractionDigits:0}));
+  const tiles = [
+    { label:'Flat SIP Corpus', val: fmt(finalFlat), sub:`Invested: ${fmt(totalInvestedFlat)}`, color:'#2563eb' },
+    { label:'Step-up Corpus',  val: fmt(finalStep), sub:`Invested: ${fmt(totalInvestedStep)}`, color:'#16a34a' },
+    { label:'Extra Wealth',    val: fmt(finalStep - finalFlat), sub:`${extraPct.toFixed(1)}% more than flat SIP`, color:'#7c3aed' },
+    { label:'Final Monthly SIP', val: fmt(currentSip / (1 + stepPct/100)), sub:`Starting: ${fmt(sip0)} · Step-up: ${stepPct}%/yr`, color:'#d97706' },
+  ];
+
+  document.getElementById('suResults').innerHTML = tiles.map(t => `
+    <div style="background:var(--bg-secondary);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;">
+      <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">${t.label}</div>
+      <div style="font-size:20px;font-weight:800;color:${t.color};">${t.val}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">${t.sub}</div>
+    </div>`).join('');
+
+  // Render year table (show every year if ≤15, else every 5th + last)
+  const showRows = years <= 15 ? rows : rows.filter((_,i) => (i+1)%5===0 || i===rows.length-1);
+  document.getElementById('suTableBody').innerHTML = showRows.map(row => {
+    const extra = row.extraGain;
+    const extraColor = extra > 0 ? '#16a34a' : '#dc2626';
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:7px 10px;font-weight:700;">Year ${row.year}</td>
+      <td style="padding:7px 10px;text-align:right;">${fmt(row.monthlySip)}/mo</td>
+      <td style="padding:7px 10px;text-align:right;color:#2563eb;font-weight:700;">${fmt(row.flatCorpus)}</td>
+      <td style="padding:7px 10px;text-align:right;color:#16a34a;font-weight:700;">${fmt(row.stepCorpus)}</td>
+      <td style="padding:7px 10px;text-align:right;color:${extraColor};font-weight:700;">+${fmt(extra)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Auto-calc on page load
+document.addEventListener('DOMContentLoaded', () => calcStepupSip());
 </script>
 
 <style>

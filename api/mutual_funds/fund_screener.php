@@ -147,7 +147,8 @@ $sortMap = [
     'ret3y_asc'     => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y ASC',
     'ret5y_desc'    => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y DESC',
     'ret5y_asc'     => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y ASC',
-// expense sort only if column exists
+];
+// expense/risk/returns sort only if column exists
 if (!$hasExpCol   && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
 if (!$hasSharpCol && in_array($sort, ['sharpe_desc','sharpe_asc','mdd_asc','mdd_desc'])) $sort = 'name';
 if (!$hasRetCol   && in_array($sort, ['ret1y_desc','ret1y_asc','ret3y_desc','ret3y_asc','ret5y_desc','ret5y_asc'])) $sort = 'name';
@@ -178,11 +179,15 @@ $hasMgrCol = false; try { $db->query("SELECT fund_manager FROM funds LIMIT 1"); 
 $hasIncCol = false; try { $db->query("SELECT inception_date FROM funds LIMIT 1"); $hasIncCol=true; } catch(Exception $e){}
 $hasRetCol = false; try { $db->query("SELECT returns_1y FROM funds LIMIT 1"); $hasRetCol=true; } catch(Exception $e){}
 // t164+t166: Sharpe Ratio + Max Drawdown (optional columns)
-$hasSharpCol = false; try { $db->query("SELECT sharpe_ratio FROM funds LIMIT 1"); $hasSharpCol=true; } catch(Exception $e){}
+$hasSharpCol  = false; try { $db->query("SELECT sharpe_ratio  FROM funds LIMIT 1"); $hasSharpCol=true;  } catch(Exception $e){}
+$hasSortinoCol= false; try { $db->query("SELECT sortino_ratio FROM funds LIMIT 1"); $hasSortinoCol=true;} catch(Exception $e){}
+$hasCatAvgCol = false; try { $db->query("SELECT category_avg_1y FROM funds LIMIT 1"); $hasCatAvgCol=true;} catch(Exception $e){}
 $mgrColSQL   = $hasMgrCol   ? ', f.fund_manager, f.manager_since' : '';
 $incColSQL   = $hasIncCol   ? ', f.inception_date' : '';
 $retColSQL   = $hasRetCol   ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
-$sharpColSQL = $hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '';
+$sharpColSQL = ($hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '')
+             . ($hasSortinoCol ? ', f.sortino_ratio' : '')
+             . ($hasCatAvgCol  ? ', f.category_avg_1y, f.category_avg_3y' : '');
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
@@ -282,6 +287,11 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         'sharpe_ratio'    => ($hasSharpCol && isset($r['sharpe_ratio'])   && $r['sharpe_ratio']   !== null) ? round((float)$r['sharpe_ratio'], 3)  : null,
         'max_drawdown'    => ($hasSharpCol && isset($r['max_drawdown'])    && $r['max_drawdown']    !== null) ? round((float)$r['max_drawdown'], 2)   : null,
         'max_drawdown_date'=> ($hasSharpCol && isset($r['max_drawdown_date'])) ? $r['max_drawdown_date'] : null,
+        // t165: Sortino Ratio
+        'sortino_ratio'   => ($hasSortinoCol && isset($r['sortino_ratio']) && $r['sortino_ratio']  !== null) ? round((float)$r['sortino_ratio'], 3) : null,
+        // t167: Category Averages for peer comparison
+        'category_avg_1y' => ($hasCatAvgCol  && isset($r['category_avg_1y']) && $r['category_avg_1y'] !== null) ? round((float)$r['category_avg_1y'], 2) : null,
+        'category_avg_3y' => ($hasCatAvgCol  && isset($r['category_avg_3y']) && $r['category_avg_3y'] !== null) ? round((float)$r['category_avg_3y'], 2) : null,
     ];
 }, $rows);
 

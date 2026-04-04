@@ -91,12 +91,86 @@ const PO = (() => {
         };
       },
     },
-    mis:  { label:'Monthly Income Scheme (MIS)',         short:'MIS',  rate:7.4, icon:'💰', color:'#059669', hasMaturity:true,  tenure:5,  desc:'5yr MIS @ 7.4% monthly payouts', compounding:'simple', freq:'monthly' },
-    scss: { label:'Senior Citizen Savings Scheme (SCSS)',short:'SCSS', rate:8.2, icon:'👴', color:'#d97706', hasMaturity:true,  tenure:5,  desc:'5yr SCSS @ 8.2% quarterly (60+)', compounding:'simple', freq:'quarterly' },
-    ppf:  { label:'Public Provident Fund (PPF)',         short:'PPF',  rate:7.1, icon:'🛡️', color:'#1d4ed8', hasMaturity:true,  tenure:15, desc:'15yr PPF @ 7.1% tax-free', compounding:'compound', freq:'yearly' },
-    ssy:  { label:'Sukanya Samriddhi Yojana (SSY)',      short:'SSY',  rate:8.2, icon:'👧', color:'#be185d', hasMaturity:true,  tenure:21, desc:'21yr SSY @ 8.2% for girl child', compounding:'compound', freq:'yearly' },
-    nsc:  { label:'National Savings Certificate (NSC)',  short:'NSC',  rate:7.7, icon:'📜', color:'#0f766e', hasMaturity:true,  tenure:5,  desc:'5yr NSC @ 7.7% annually compounded', compounding:'compound', freq:'yearly' },
-    kvp:  { label:'Kisan Vikas Patra (KVP)',             short:'KVP',  rate:7.5, icon:'🌾', color:'#15803d', hasMaturity:true,  desc:'Doubles in ~115 months @ 7.5%', compounding:'compound', freq:'yearly' },
+    mis:  { label:'Monthly Income Scheme (MIS)',         short:'MIS',  rate:7.4, icon:'💰', color:'#059669', hasMaturity:true,  tenure:5,  desc:'5yr MIS @ 7.4% monthly payouts', compounding:'simple', freq:'monthly',
+            taxBadge: { label:'Taxable', color:'#dc2626', bg:'#fff0f0', desc:'Interest fully taxable per slab' },
+            taxInfo: {
+              oldRegime: 'No deduction on principal',
+              newRegime: 'No benefit',
+              section80C: false,
+              tds: false,
+              interestTax: 'Monthly interest is fully taxable as "Income from Other Sources" per your income tax slab. No TDS by post office, but self-declare in ITR.',
+            },
+            // t15: monthly payout = principal × rate/12
+            getMonthlyPayout(principal) { return principal * (7.4/100) / 12; },
+          },
+    scss: { label:'Senior Citizen Savings Scheme (SCSS)',short:'SCSS', rate:8.2, icon:'👴', color:'#d97706', hasMaturity:true,  tenure:5,  desc:'5yr SCSS @ 8.2% quarterly (60+)', compounding:'simple', freq:'quarterly',
+            taxBadge: { label:'TDS Applicable', color:'#d97706', bg:'#fffbeb', desc:'TDS on interest; 80C eligible' },
+            taxInfo: {
+              oldRegime: '80C deduction up to ₹1.5L on principal',
+              newRegime: 'No benefit (80C not applicable)',
+              section80C: '80C eligible (old regime only)',
+              tds: 'TDS @10% if quarterly interest > ₹50,000/yr for seniors',
+              interestTax: 'Quarterly interest taxable per slab. TDS deducted by post office if threshold crossed. Submit Form 15H if total income below taxable limit.',
+            },
+            // t15: quarterly payout = principal × rate/4
+            getQuarterlyPayout(principal) { return principal * (8.2/100) / 4; },
+          },
+    ppf:  { label:'Public Provident Fund (PPF)',         short:'PPF',  rate:7.1, icon:'🛡️', color:'#1d4ed8', hasMaturity:true,  tenure:15, desc:'15yr PPF @ 7.1% tax-free', compounding:'compound', freq:'yearly',
+            taxBadge: { label:'EEE — Tax Free', color:'#16a34a', bg:'#f0fdf4', desc:'Exempt-Exempt-Exempt' },
+            taxInfo: {
+              oldRegime: '80C deduction up to ₹1.5L/yr on deposits',
+              newRegime: 'No benefit (80C not applicable)',
+              section80C: 'Up to ₹1.5L/yr (old regime)',
+              tds: false,
+              interestTax: 'EEE Status: Deposits eligible for 80C, interest completely tax-free, maturity completely tax-free. Best tax-saving instrument for long term.',
+            },
+          },
+    ssy:  { label:'Sukanya Samriddhi Yojana (SSY)',      short:'SSY',  rate:8.2, icon:'👧', color:'#be185d', hasMaturity:true,  tenure:21, desc:'21yr SSY @ 8.2% for girl child', compounding:'compound', freq:'yearly',
+            taxBadge: { label:'EEE — Tax Free', color:'#16a34a', bg:'#f0fdf4', desc:'Exempt-Exempt-Exempt' },
+            taxInfo: {
+              oldRegime: '80C deduction up to ₹1.5L/yr on deposits',
+              newRegime: 'No benefit (80C not applicable)',
+              section80C: 'Up to ₹1.5L/yr (old regime)',
+              tds: false,
+              interestTax: 'EEE Status: Deposits 80C eligible, interest tax-free, maturity tax-free. Only for girl child (opened before age 10). Account matures when girl turns 21.',
+            },
+          },
+    nsc:  { label:'National Savings Certificate (NSC)',  short:'NSC',  rate:7.7, icon:'📜', color:'#0f766e', hasMaturity:true,  tenure:5,  desc:'5yr NSC @ 7.7% annually compounded', compounding:'compound', freq:'yearly',
+            taxBadge: { label:'80C + Deemed Reinvest', color:'#0f766e', bg:'#f0fdfa', desc:'Yrs 1-4 interest 80C eligible' },
+            taxInfo: {
+              oldRegime: '80C on principal + years 1-4 deemed reinvestment interest',
+              newRegime: 'No benefit (80C not applicable)',
+              section80C: 'Principal + years 1-4 interest (deemed reinvestment)',
+              tds: false,
+              // t18: NSC deemed reinvestment logic
+              interestTax: 'Special Rule: Years 1-4 interest is "deemed reinvested" → automatically qualifies for 80C deduction. Year 5 interest is taxable as "Income from Other Sources". Declare year-wise interest in ITR Schedule OS.',
+            },
+            // t18: NSC year-wise interest breakdown
+            getNscYearlyBreakdown(principal) {
+              const rate = 7.7 / 100;
+              const rows = [];
+              let corpus = principal;
+              for (let yr = 1; yr <= 5; yr++) {
+                const interest = corpus * rate;
+                const eligible80C = yr < 5;
+                rows.push({ year: yr, openingBalance: corpus, interest: interest, eligible80C, note: eligible80C ? '80C Eligible (Deemed Reinvest)' : 'Taxable' });
+                corpus += interest;
+              }
+              return rows;
+            },
+          },
+    kvp:  { label:'Kisan Vikas Patra (KVP)',             short:'KVP',  rate:7.5, icon:'🌾', color:'#15803d', hasMaturity:true,  desc:'Doubles in ~115 months @ 7.5%', compounding:'compound', freq:'yearly',
+            // t16: KVP tenure is dynamic — 115 months (9 yrs 7 months)
+            kvpMonths: 115,
+            taxBadge: { label:'Annual Tax', color:'#d97706', bg:'#fffbeb', desc:'Interest taxable every year' },
+            taxInfo: {
+              oldRegime: 'No deduction on principal',
+              newRegime: 'No benefit',
+              section80C: false,
+              tds: false,
+              interestTax: 'Annual Interest is taxable every year as "Income from Other Sources" — even though you receive it only at maturity. Declare accrual-basis interest in ITR every year. Amount doubles in ~115 months (9 yrs 7 months) @ 7.5%.',
+            },
+          },
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -281,6 +355,17 @@ const PO = (() => {
       </div>`;
     }
 
+    // t19: Tax badge for all schemes
+    if (sm.taxBadge) {
+      const tb = sm.taxBadge;
+      bannerHtml += `<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;background:${tb.bg};color:${tb.color};border:1.5px solid ${tb.color}40;">
+          📊 ${tb.label}
+        </span>
+        <span style="font-size:11px;color:var(--text-muted);">${tb.desc}</span>
+      </div>`;
+    }
+
     // For TD: show placeholder tax section that updates when tenure is selected
     if (isTD) {
       bannerHtml += `<div id="poTdTaxSection" style="margin-top:8px">
@@ -294,6 +379,15 @@ const PO = (() => {
 
     banner.innerHTML = bannerHtml;
 
+    // t18: NSC — show year-wise deemed reinvestment breakdown
+    if (type === 'nsc') {
+      setTimeout(() => renderNscBreakdown(), 50);
+    }
+    // t15: MIS/SCSS — show payout info hint
+    if (type === 'mis' || type === 'scss') {
+      setTimeout(() => renderPayoutHint(type), 50);
+    }
+
     $('poFormFields').style.display = '';
     $('savePo').style.display = '';
     $('schemeTypeGroup').querySelector('label').textContent = 'Scheme Type *  ✓ ' + sm.short;
@@ -303,13 +397,120 @@ const PO = (() => {
 
   function autoFillMaturity() {
     const sm = SCHEME_META[selectedType];
-    if (!sm || !sm.tenure) return;   // TD/KVP/savings_account — user sets date manually
+    if (!sm) return;
     const od = $('poOpenDate').value;
+
+    // t16: KVP — dynamic tenure = 115 months (9 yrs 7 months)
+    if (selectedType === 'kvp') {
+      const hint = $('kvpTenureHint');
+      if (hint) {
+        hint.style.display = '';
+        hint.innerHTML = '🌾 KVP Tenure: <strong>115 months (9 yrs 7 months)</strong> — Amount doubles at maturity @ 7.5% p.a.';
+      }
+      if (od) {
+        const d = new Date(od);
+        d.setMonth(d.getMonth() + 115);
+        $('poMaturityDate').value = d.toISOString().slice(0, 10);
+        // make maturity readonly for KVP
+        const mf = $('poMaturityDate');
+        mf.readOnly = true;
+        mf.style.background = 'var(--bg-secondary,#f3f4f6)';
+        mf.style.cursor = 'not-allowed';
+        mf.title = 'Auto-calculated: 115 months fixed tenure for KVP';
+      }
+      calcPreview();
+      return;
+    }
+
+    if (!sm.tenure) return;   // TD/savings_account — user sets date manually
     if (!od) return;
     const d = new Date(od);
     d.setFullYear(d.getFullYear() + sm.tenure);
     $('poMaturityDate').value = d.toISOString().slice(0, 10);
     calcPreview();
+  }
+
+  // t15: MIS/SCSS — show payout hint in the form
+  function renderPayoutHint(type) {
+    const principal = parseFloat($('poPrincipal')?.value) || 0;
+    const sm = SCHEME_META[type];
+    let existingHint = document.getElementById('poPayoutHint');
+    if (!existingHint) {
+      const previewEl = $('poPreview');
+      if (!previewEl) return;
+      existingHint = document.createElement('div');
+      existingHint.id = 'poPayoutHint';
+      previewEl.parentNode.insertBefore(existingHint, previewEl);
+    }
+    if (!principal) { existingHint.innerHTML = ''; return; }
+    let payoutHtml = '';
+    if (type === 'mis' && sm.getMonthlyPayout) {
+      const monthly = sm.getMonthlyPayout(principal);
+      payoutHtml = `<div style="margin:8px 0;padding:10px 12px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;font-size:12px;">
+        <strong style="color:#16a34a;">💰 MIS Monthly Payout</strong>
+        <span style="margin-left:8px;font-size:14px;font-weight:700;color:#15803d;">${fmtINR(monthly)}</span>
+        <span style="color:var(--text-muted);margin-left:6px;">per month</span>
+        <div style="color:var(--text-muted);margin-top:3px;">Total over 5 years: <strong>${fmtINR(monthly * 60)}</strong> · Principal returned at maturity: <strong>${fmtINR(principal)}</strong></div>
+      </div>`;
+    } else if (type === 'scss' && sm.getQuarterlyPayout) {
+      const quarterly = sm.getQuarterlyPayout(principal);
+      payoutHtml = `<div style="margin:8px 0;padding:10px 12px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;font-size:12px;">
+        <strong style="color:#d97706;">👴 SCSS Quarterly Payout</strong>
+        <span style="margin-left:8px;font-size:14px;font-weight:700;color:#92400e;">${fmtINR(quarterly)}</span>
+        <span style="color:var(--text-muted);margin-left:6px;">per quarter</span>
+        <div style="color:var(--text-muted);margin-top:3px;">Total over 5 years: <strong>${fmtINR(quarterly * 20)}</strong> · Principal returned at maturity: <strong>${fmtINR(principal)}</strong></div>
+      </div>`;
+    }
+    existingHint.innerHTML = payoutHtml;
+  }
+
+  // t18: NSC — year-wise deemed reinvestment breakdown
+  function renderNscBreakdown() {
+    const principal = parseFloat($('poPrincipal')?.value) || 0;
+    let existingBk = document.getElementById('poNscBreakdown');
+    if (!existingBk) {
+      const previewEl = $('poPreview');
+      if (!previewEl) return;
+      existingBk = document.createElement('div');
+      existingBk.id = 'poNscBreakdown';
+      previewEl.parentNode.insertBefore(existingBk, previewEl.nextSibling);
+    }
+    if (!principal || selectedType !== 'nsc') { existingBk.innerHTML = ''; return; }
+    const sm = SCHEME_META['nsc'];
+    if (!sm.getNscYearlyBreakdown) return;
+    const rows = sm.getNscYearlyBreakdown(principal);
+    const tableRows = rows.map(r => `
+      <tr>
+        <td style="padding:5px 8px;font-weight:600;">Year ${r.year}</td>
+        <td style="padding:5px 8px;text-align:right;">${fmtINR(r.openingBalance)}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:600;">${fmtINR(r.interest)}</td>
+        <td style="padding:5px 8px;text-align:center;">
+          <span style="padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700;
+            background:${r.eligible80C ? '#f0fdf4' : '#fff7ed'};
+            color:${r.eligible80C ? '#16a34a' : '#d97706'};
+            border:1px solid ${r.eligible80C ? '#86efac' : '#fcd34d'}">
+            ${r.note}
+          </span>
+        </td>
+      </tr>`).join('');
+    existingBk.innerHTML = `
+      <div style="margin-top:10px;border:1.5px solid #7de8cd;border-radius:8px;overflow:hidden;font-size:12px;">
+        <div style="background:#edfcf8;padding:8px 12px;font-weight:700;color:#0d9474;border-bottom:1px solid #7de8cd;">
+          📜 NSC Year-wise Interest Breakdown — ₹${principal.toLocaleString('en-IN')} @ 7.7%
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="background:#f0fdf4;font-size:11px;color:var(--text-muted);">
+            <th style="padding:5px 8px;text-align:left;">Year</th>
+            <th style="padding:5px 8px;text-align:right;">Opening Balance</th>
+            <th style="padding:5px 8px;text-align:right;">Interest Earned</th>
+            <th style="padding:5px 8px;text-align:center;">80C Status</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+        <div style="padding:7px 12px;background:#f0fdfa;font-size:11px;color:var(--text-muted);">
+          💡 Years 1-4 interest qualifies for 80C deduction (deemed reinvested). Year 5 interest taxable as income.
+        </div>
+      </div>`;
   }
 
   // ── TD: select sub-tenure (1/2/3/5 yr) ────────────────────────────────────
@@ -377,6 +578,11 @@ const PO = (() => {
     $('prevMat').textContent    = fmtINR(mat);
     $('prevInt').textContent    = fmtINR(Math.max(0, interest));
     $('poPreview').style.display = '';
+
+    // t15: refresh payout hint on every calcPreview for MIS/SCSS
+    if (type === 'mis' || type === 'scss') renderPayoutHint(type);
+    // t18: refresh NSC breakdown on every calcPreview
+    if (type === 'nsc') renderNscBreakdown();
   }
 
   // ── Load schemes ──────────────────────────────────────────────────────────
@@ -464,8 +670,22 @@ const PO = (() => {
         <td class="text-right">${parseFloat(r.interest_rate||0).toFixed(2)}%</td>
         <td>${fmtDate(r.open_date)}</td>
         <td>${r.maturity_date ? fmtDate(r.maturity_date) : '<span style="color:var(--text-muted)">Ongoing</span>'}</td>
-        <td class="text-right text-success">${r.maturity_amount ? fmtINR(r.maturity_amount) : '—'}</td>
-        <td class="text-right text-success">${interest > 0 ? fmtINR(interest) : '—'}</td>
+        <td class="text-right text-success">${r.maturity_amount ? fmtINR(r.maturity_amount) : '—'}${isRD ? '<br><small style="color:var(--text-muted);font-size:10px">at maturity</small>' : ''}</td>
+        <td class="text-right">
+          ${(() => {
+            const type = r.scheme_type;
+            const p    = parseFloat(r.principal) || 0;
+            if (type === 'mis' && p > 0) {
+              const monthly = p * (parseFloat(r.interest_rate)/100) / 12;
+              return `<span style="color:#059669;font-weight:700">${fmtINR(monthly)}</span><br><small style="color:var(--text-muted);font-size:10px">per month</small>`;
+            }
+            if (type === 'scss' && p > 0) {
+              const quarterly = p * (parseFloat(r.interest_rate)/100) / 4;
+              return `<span style="color:#d97706;font-weight:700">${fmtINR(quarterly)}</span><br><small style="color:var(--text-muted);font-size:10px">per quarter</small>`;
+            }
+            return interest > 0 ? fmtINR(interest) : '—';
+          })()}
+        </td>
         <td class="text-right">
           ${(() => {
             if (days === null || isOverdue) return `<span style="color:var(--text-muted)">—</span>`;

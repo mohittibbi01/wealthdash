@@ -8,6 +8,10 @@ const SAV = {
   portfolioFilter: '',
   delType: null,
   delId: null,
+  _page: 1,
+  _perPage: 10,
+  goPage(p)     { this._page = p; this.loadAccounts(); },
+  setPerPage(n) { this._perPage = n; this._page = 1; this.loadAccounts(); },
 
   init() {
     document.getElementById('btnAddAccount').addEventListener('click', () => SAV.openAcctModal());
@@ -33,6 +37,7 @@ const SAV = {
 
   async loadAccounts() {
     const body = document.getElementById('savBody');
+    if (!body) return;
     body.innerHTML = '<tr><td colspan="9" class="text-center" style="padding:40px"><span class="spinner"></span></td></tr>';
 
     const params = new URLSearchParams({ action: 'savings_list', type: 'accounts' });
@@ -68,7 +73,32 @@ const SAV = {
         return;
       }
 
-      body.innerHTML = SAV.accounts.map(a => {
+      // ── Paginate accounts ──────────────────────────────────────────────
+      const savPerPage = SAV._perPage || 10;
+      const savPage    = SAV._page    || 1;
+      const total      = SAV.accounts.length;
+      const pages      = savPerPage >= 999 ? 1 : Math.ceil(total / savPerPage);
+      const startIdx   = (savPage - 1) * (savPerPage >= 999 ? total : savPerPage);
+      const paged      = savPerPage >= 999 ? SAV.accounts : SAV.accounts.slice(startIdx, startIdx + savPerPage);
+
+      // Render pagination controls
+      const savPagWrap = document.getElementById('savPagWrap');
+      if (savPagWrap) {
+        savPagWrap.innerHTML = pages <= 1 && total <= 10 ? '' : `
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap;">
+            <select onchange="SAV.setPerPage(+this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+              ${[10,25,50,999].map(n=>`<option value="${n}" ${n===savPerPage?'selected':''}>${n===999?'All':n}</option>`).join('')}
+            </select>
+            <span style="font-size:12px;color:var(--text-muted);">${Math.min(startIdx+1,total)}–${Math.min(startIdx+savPerPage,total)} of ${total}</span>
+            <div style="display:flex;gap:4px;margin-left:auto;">
+              <button onclick="SAV.goPage(${savPage-1})" ${savPage<=1?'disabled':''} class="btn btn-ghost btn-sm">‹</button>
+              ${Array.from({length:Math.min(5,pages)},(_,i)=>{const p=Math.max(1,Math.min(savPage-2,pages-4))+i;return `<button onclick="SAV.goPage(${p})" class="btn btn-sm ${p===savPage?'btn-primary':'btn-ghost'}">${p}</button>`;}).join('')}
+              <button onclick="SAV.goPage(${savPage+1})" ${savPage>=pages?'disabled':''} class="btn btn-ghost btn-sm">›</button>
+            </div>
+          </div>`;
+      }
+
+      body.innerHTML = paged.map(a => {
         const annualInt = parseFloat(a.annual_interest_earned || 0);
         return `<tr>
           <td>

@@ -207,6 +207,160 @@ if ($exportType === 'tax_report') {
     send_csv("wealthdash_tax_report_{$portSlug}_{$fy}_{$dateStr}.csv", $headers, $csvRows);
 }
 
+/* ─── EXPORT 2B: ITR Schedule 112A (LTCG Equity MF) — t84 ──────────────── */
+if ($exportType === 'itr_112a') {
+    $fy = clean($_POST['fy'] ?? '');
+    if (!$fy) {
+        // Default: current or last FY
+        $curMonth = (int)date('n');
+        $curYear  = (int)date('Y');
+        $fyStartY = $curMonth >= 4 ? $curYear : $curYear - 1;
+        $fy = $fyStartY . '-' . substr((string)($fyStartY + 1), -2);
+    }
+    [$fyStartY, $fyEndY2] = explode('-', $fy);
+    $fyStart = $fyStartY . '-04-01';
+    $fyEnd   = ('20' . $fyEndY2) . '-03-31';
+
+    // Grandfathering date: Jan 31, 2018 — for equity assets held before this date
+    $grandfatherDate = '2018-01-31';
+
+    // Fetch equity MF sells for this FY (LTCG = held > 1 year for equity)
+    $sells = DB::fetchAll(
+        "SELECT t.id AS txn_id, t.txn_date AS sell_date, t.units AS sell_units,
+                t.nav AS sell_nav, t.value_at_cost AS sale_consideration,
+                t.folio_number, f.id AS fund_id, f.scheme_name, f.isin,
+                fh.name AS fund_house, f.category
+         FROM mf_transactions t
+         JOIN funds f ON f.id = t.fund_id
+         JOIN fund_houses fh ON fh.id = f.fund_house_id
+         WHERE t.portfolio_id = ?
+           AND t.transaction_type IN ('SELL','SWITCH_OUT','SWP')
+           AND t.txn_date BETWEEN ? AND ?
+           AND (f.category NOT LIKE '%Debt%' AND f.category NOT LIKE '%Liquid%'
+                AND f.category NOT LIKE '%Overnight%' AND f.category NOT LIKE '%Money Market%')
+         ORDER BY f.scheme_name, t.txn_date",
+        [$portfolioId, $fyStart, $fyEnd]
+    );
+
+    // Schedule 112A columns (as per ITR-2/ITR-3 format)
+    $headers_112a = [
+        'Sl No',
+        'ISIN Code',
+        'Name of Share/Unit',
+        'Date of Sale/Transfer',
+        'No. of Units Sold',
+        'Sale Price per Unit (₹)',
+        'Full Value of Consideration (₹)',
+        'Date of Acquisition',
+        'Cost of Acquisition (₹)',
+        'FMV as on 31.01.2018 (₹)',
+        'Cost / FMV (Grandfathered) (₹)',
+        'Gain/Loss (₹)',
+        'Gain Type',
+        'Section',
+        'Remarks',
+    ];
+
+    $rows_112a = [];
+    $slNo      = 1;
+    $totalLtcg = 0.0;
+    $totalStcg = 0.0;
+
+    foreach ($sells as $sell) {
+        // Get FIFO buy lots for this sell
+        $buyLots = DB::fetchAll(
+            "SELECT t.txn_date AS buy_date, t.units, t.nav AS buy_nav, t.value_at_cost AS buy_cost
+             FROM mf_transactions t
+             WHERE t.portfolio_id = ?
+               AND t.fund_id = ?
+               AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL))
+               AND t.transaction_type IN ('BUY','SIP','SWITCH_IN','STP_IN','REINVEST')
+               AND t.txn_date <= ?
+             ORDER BY t.txn_date ASC",
+            [$portfolioId, $sell['fund_id'], $sell['folio_number'], $sell['folio_number'], $sell['sell_date']]
+        );
+
+        // Simple approach: use first buy date + avg cost from holdings
+        $holding = DB::fetchRow(
+            "SELECT h.avg_cost_nav, h.first_purchase_date
+             FROM mf_holdings h
+             WHERE h.portfolio_id = ? AND h.fund_id = ?
+             LIMIT 1",
+            [$portfolioId, $sell['fund_id']]
+        );
+
+        $buyDate  = $holding['first_purchase_date'] ?? $sell['sell_date'];
+        $avgCost  = (float)($holding['avg_cost_nav'] ?? $sell['sell_nav']);
+        $units    = (float)$sell['sell_units'];
+        $costBasis = round($units * $avgCost, 2);
+        $proceeds  = (float)$sell['sale_consideration'];
+
+        // Holding period
+        $buyDt  = new DateTime($buyDate);
+        $sellDt = new DateTime($sell['sell_date']);
+        $holdDays = (int)$buyDt->diff($sellDt)->days;
+        $isLtcg   = $holdDays >= 365; // Equity MF: 1 year
+
+        // Grandfathering (only for assets bought before Jan 31 2018)
+        $fmv31Jan2018 = null;
+        $grandfatheredCost = $costBasis;
+        if ($isLtcg && $buyDate < $grandfatherDate) {
+            // Try to get NAV on Jan 31, 2018 from nav_history
+            $nav2018 = DB::fetchVal(
+                "SELECT nav FROM nav_history
+                 WHERE fund_id = ? AND nav_date <= ?
+                 ORDER BY nav_date DESC LIMIT 1",
+                [$sell['fund_id'], $grandfatherDate]
+            );
+            if ($nav2018) {
+                $fmv31Jan2018 = round($units * (float)$nav2018, 2);
+                // Cost = max(actual cost, FMV on 31 Jan 2018) but not > sale price
+                $grandfatheredCost = min(max($costBasis, $fmv31Jan2018), $proceeds);
+            }
+        }
+
+        $gain = round($proceeds - $grandfatheredCost, 2);
+        $gainType = $isLtcg ? 'LTCG' : 'STCG';
+        $section  = $isLtcg ? 'Section 112A' : 'Section 111A';
+
+        if ($isLtcg) $totalLtcg += $gain;
+        else         $totalStcg += $gain;
+
+        $remarks = [];
+        if ($buyDate < $grandfatherDate && $fmv31Jan2018 !== null) {
+            $remarks[] = 'Grandfathered';
+        }
+        if (!$sell['isin']) $remarks[] = 'ISIN missing — fill manually';
+
+        $rows_112a[] = [
+            $slNo++,
+            $sell['isin'] ?? 'N/A',
+            $sell['scheme_name'],
+            date('d/m/Y', strtotime($sell['sell_date'])),
+            number_format($units, 4, '.', ''),
+            number_format((float)$sell['sell_nav'], 4, '.', ''),
+            number_format($proceeds, 2, '.', ''),
+            date('d/m/Y', strtotime($buyDate)),
+            number_format($costBasis, 2, '.', ''),
+            $fmv31Jan2018 !== null ? number_format($fmv31Jan2018, 2, '.', '') : '—',
+            number_format($grandfatheredCost, 2, '.', ''),
+            number_format($gain, 2, '.', ''),
+            $gainType,
+            $section,
+            implode('; ', $remarks) ?: '—',
+        ];
+    }
+
+    // Summary rows
+    $rows_112a[] = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    $rows_112a[] = ['', '', '── LTCG SUMMARY ──', '', '', '', '', '', '', '', '', number_format($totalLtcg, 2, '.', ''), 'LTCG', '', 'Exempt: ₹1,25,000 / FY'];
+    $rows_112a[] = ['', '', '── STCG SUMMARY ──', '', '', '', '', '', '', '', '', number_format($totalStcg, 2, '.', ''), 'STCG', '', 'Tax @ 20%'];
+    $taxableLtcg = max(0, $totalLtcg - 125000);
+    $rows_112a[] = ['', '', '── TAXABLE LTCG (above ₹1.25L) ──', '', '', '', '', '', '', '', '', number_format($taxableLtcg, 2, '.', ''), 'LTCG', '', 'Tax @ 12.5%'];
+
+    send_csv("wealthdash_itr_schedule_112A_{$portSlug}_{$fy}_{$dateStr}.csv", $headers_112a, $rows_112a);
+}
+
 /* ─── EXPORT 3: All MF Transactions ──────────────────────────────────────── */
 if ($exportType === 'mf_transactions') {
     $rows = DB::fetchAll(

@@ -785,3 +785,129 @@ window.calcTaxRegime = function() {
       ${better==='old'?'Your deductions (HRA + 80C) are high enough to benefit from old regime.':'Your deductions are not high enough — new regime is better.'}
     </div>`;
 };
+
+// ============================================================
+// t89: KEYBOARD SHORTCUTS — Power user navigation
+// ============================================================
+(function initKeyboardShortcuts() {
+  const SHORTCUTS = [
+    { keys: '?',          desc: 'Show keyboard shortcuts',          action: () => showKeyboardShortcutsModal() },
+    { keys: 'g h',        desc: 'Go to MF Holdings',                action: () => navigateTo('mf_holdings') },
+    { keys: 'g t',        desc: 'Go to MF Transactions',            action: () => navigateTo('mf_transactions') },
+    { keys: 'g s',        desc: 'Go to MF Screener',                action: () => navigateTo('mf_screener') },
+    { keys: 'g n',        desc: 'Go to NPS',                        action: () => navigateTo('nps') },
+    { keys: 'g f',        desc: 'Go to Fixed Deposits',             action: () => navigateTo('fd') },
+    { keys: 'g p',        desc: 'Go to Post Office',                action: () => navigateTo('post_office') },
+    { keys: 'g r',        desc: 'Go to Reports: FY Gains',          action: () => navigateTo('report_fy') },
+    { keys: 'g x',        desc: 'Go to Tax Planning',               action: () => navigateTo('report_tax') },
+    { keys: 'g d',        desc: 'Go to Dashboard',                  action: () => navigateTo('dashboard') },
+    { keys: 'Ctrl K',     desc: 'Global Search',                    action: () => window.openGlobalSearch?.() },
+    { keys: 'Escape',     desc: 'Close modal / dialog',             action: null },
+    { keys: 'n',          desc: 'Add new transaction (context)',     action: () => triggerAddNew() },
+  ];
+
+  let _gMode = false; // g-prefix mode
+  let _gTimer = null;
+
+  function navigateTo(page) {
+    const base = window.WD?.appUrl || window.APP_URL || '';
+    const pageMap = {
+      dashboard:       `${base}/?page=dashboard`,
+      mf_holdings:     `${base}/?page=mf_holdings`,
+      mf_transactions: `${base}/?page=mf_transactions`,
+      mf_screener:     `${base}/?page=mf_screener`,
+      nps:             `${base}/?page=nps`,
+      fd:              `${base}/?page=fd`,
+      post_office:     `${base}/?page=post_office`,
+      report_fy:       `${base}/?page=report_fy`,
+      report_tax:      `${base}/?page=report_tax`,
+    };
+    if (pageMap[page]) window.location.href = pageMap[page];
+  }
+
+  function triggerAddNew() {
+    // Try common add buttons on current page
+    const addBtns = [
+      document.getElementById('addTxnBtn'),
+      document.getElementById('addFdBtn'),
+      document.querySelector('[data-action="add"]'),
+      document.querySelector('.btn-add-primary'),
+    ];
+    for (const btn of addBtns) {
+      if (btn && btn.offsetParent !== null) { btn.click(); return; }
+    }
+  }
+
+  function showKeyboardShortcutsModal() {
+    let modal = document.getElementById('kbShortcutsModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'kbShortcutsModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;align-items:center;justify-content:center;';
+      modal.innerHTML = `
+        <div style="background:var(--bg-card,#fff);border-radius:14px;padding:24px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);border:1.5px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div>
+              <div style="font-size:16px;font-weight:800;">⌨️ Keyboard Shortcuts</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Power user navigation</div>
+            </div>
+            <button onclick="this.closest('#kbShortcutsModal').style.display='none';document.body.style.overflow='';"
+              style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted);">✕</button>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:center;">
+            ${SHORTCUTS.map(s => `
+              <div style="font-family:monospace;font-size:11px;font-weight:700;background:var(--bg-secondary,#f4f6fb);border:1px solid var(--border);border-radius:5px;padding:3px 8px;white-space:nowrap;color:var(--text);">${s.keys}</div>
+              <div style="font-size:13px;color:var(--text-muted);padding:3px 0;">${s.desc}</div>
+            `).join('')}
+          </div>
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);">
+            💡 Press <strong>g</strong> then a letter within 1 second to navigate. Press <strong>?</strong> anytime to see this help.
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) { modal.style.display = 'none'; document.body.style.overflow = ''; }
+      });
+    }
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    // Skip if typing in an input/textarea/select
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+    // Skip if ctrl/alt/meta (except Ctrl+K handled separately)
+    if (e.altKey || e.metaKey) return;
+    if (e.ctrlKey && e.key !== 'k') return;
+
+    if (_gMode) {
+      clearTimeout(_gTimer);
+      _gMode = false;
+      const key = e.key.toLowerCase();
+      const gMap = { h:'mf_holdings', t:'mf_transactions', s:'mf_screener', n:'nps', f:'fd', p:'post_office', r:'report_fy', x:'report_tax', d:'dashboard' };
+      if (gMap[key]) { navigateTo(gMap[key]); e.preventDefault(); }
+      return;
+    }
+
+    switch(e.key) {
+      case '?':
+        showKeyboardShortcutsModal();
+        e.preventDefault();
+        break;
+      case 'g':
+        if (!e.shiftKey) {
+          _gMode = true;
+          _gTimer = setTimeout(() => { _gMode = false; }, 1000);
+          e.preventDefault();
+        }
+        break;
+      case 'n':
+        if (!e.shiftKey && !e.ctrlKey) {
+          triggerAddNew();
+          e.preventDefault();
+        }
+        break;
+    }
+  });
+})();
