@@ -3,6 +3,7 @@
  * WealthDash — DB Table Management API
  * Actions: admin_db_list | admin_db_truncate_one | admin_db_truncate_all
  *          admin_db_protect | admin_db_unprotect
+ *          admin_db_backup  | admin_db_backup_list | admin_db_backup_download (t211)
  */
 
 if (!defined('WEALTHDASH')) die('Direct access not allowed.');
@@ -124,4 +125,129 @@ if ($action === 'admin_db_truncate_all') {
     json_response(true, count($truncated) . ' tables cleared.', [
         'truncated' => $truncated, 'count' => count($truncated),
     ]);
+}
+// ─── t211: DB BACKUP ───────────────────────────────────────────
+if ($action === 'admin_db_backup') {
+    // Verify mysqldump available
+    $mysqldump = trim(shell_exec('which mysqldump 2>/dev/null') ?: '');
+    if (!$mysqldump) $mysqldump = 'mysqldump'; // fallback, hope it's in PATH
+
+    // Read DB credentials from config
+    $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
+    $dbName = defined('DB_NAME') ? DB_NAME : 'wealthdash';
+    $dbUser = defined('DB_USER') ? DB_USER : 'root';
+    $dbPass = defined('DB_PASS') ? DB_PASS : '';
+
+    $backupDir = APP_ROOT . '/database/backups';
+    if (!is_dir($backupDir)) @mkdir($backupDir, 0755, true);
+
+    $filename   = 'wealthdash_backup_' . date('Y-m-d_His') . '.sql';
+    $filePath   = $backupDir . '/' . $filename;
+    $gzPath     = $filePath . '.gz';
+
+    // Build mysqldump command — password via env to avoid shell history exposure
+    $passArg = $dbPass !== '' ? '-p' . escapeshellarg($dbPass) : '';
+    $cmd = sprintf(
+        'mysqldump -h %s -u %s %s --single-transaction --routines --triggers %s > %s 2>&1',
+        escapeshellarg($dbHost),
+        escapeshellarg($dbUser),
+        $passArg,
+        escapeshellarg($dbName),
+        escapeshellarg($filePath)
+    );
+
+    $output = null;
+    $retval = null;
+    exec($cmd, $output, $retval);
+
+    if ($retval !== 0 || !file_exists($filePath) || filesize($filePath) < 100) {
+        @unlink($filePath);
+        json_response(false, 'mysqldump failed. Output: ' . implode(' ', (array)$output));
+    }
+
+    // Compress with gzip
+    $gz = gzopen($gzPath, 'wb9');
+    $fh = fopen($filePath, 'rb');
+    while (!feof($fh)) gzwrite($gz, fread($fh, 65536));
+    fclose($fh); gzclose($gz);
+    @unlink($filePath); // remove uncompressed
+
+    $size = file_exists($gzPath) ? filesize($gzPath) : 0;
+
+    // Save backup record in app_settings (json list)
+    $listJson = $db->query("SELECT setting_val FROM app_settings WHERE setting_key='db_backup_list'")->fetchColumn();
+    $list = $listJson ? json_decode($listJson, true) : [];
+    array_unshift($list, [
+        'file'    => $filename . '.gz',
+        'size'    => $size,
+        'created' => date('Y-m-d H:i:s'),
+    ]);
+    $list = array_slice($list, 0, 20); // keep last 20
+    $newJson = json_encode($list);
+    $exists = $db->query("SELECT COUNT(*) FROM app_settings WHERE setting_key='db_backup_list'")->fetchColumn();
+    if ($exists) {
+        $db->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='db_backup_list'")->execute([$newJson]);
+    } else {
+        $db->prepare("INSERT INTO app_settings (setting_key,setting_val) VALUES ('db_backup_list',?)")->execute([$newJson]);
+    }
+
+    json_response(true, 'Backup created successfully.', [
+        'file'    => $filename . '.gz',
+        'size'    => $size,
+        'size_fmt'=> $size > 1048576 ? round($size/1048576,2).'MB' : round($size/1024,1).'KB',
+        'created' => date('Y-m-d H:i:s'),
+    ]);
+}
+
+// ─── t211: BACKUP LIST ─────────────────────────────────────────
+if ($action === 'admin_db_backup_list') {
+    $listJson = $db->query("SELECT setting_val FROM app_settings WHERE setting_key='db_backup_list'")->fetchColumn();
+    $list = $listJson ? json_decode($listJson, true) : [];
+
+    // Verify files still exist on disk
+    $backupDir = APP_ROOT . '/database/backups';
+    foreach ($list as &$item) {
+        $item['exists'] = file_exists($backupDir . '/' . $item['file']);
+        $item['size_fmt'] = isset($item['size'])
+            ? ($item['size'] > 1048576 ? round($item['size']/1048576,2).'MB' : round($item['size']/1024,1).'KB')
+            : '—';
+    }
+    unset($item);
+
+    json_response(true, '', $list);
+}
+
+// ─── t211: BACKUP DOWNLOAD ─────────────────────────────────────
+if ($action === 'admin_db_backup_download') {
+    $file = basename(clean($_GET['file'] ?? $_POST['file'] ?? ''));
+    if (!$file || !preg_match('/^wealthdash_backup_[\d_-]+\.sql\.gz$/', $file))
+        json_response(false, 'Invalid filename.');
+
+    $path = APP_ROOT . '/database/backups/' . $file;
+    if (!file_exists($path)) json_response(false, 'Backup file not found.');
+
+    header('Content-Type: application/gzip');
+    header('Content-Disposition: attachment; filename="' . $file . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
+// ─── t211: BACKUP DELETE ───────────────────────────────────────
+if ($action === 'admin_db_backup_delete') {
+    $body = json_decode(file_get_contents('php://input'), true) ?: [];
+    $file = basename(clean($body['file'] ?? ''));
+    if (!$file || !preg_match('/^wealthdash_backup_[\d_-]+\.sql\.gz$/', $file))
+        json_response(false, 'Invalid filename.');
+
+    $path = APP_ROOT . '/database/backups/' . $file;
+    @unlink($path);
+
+    // Remove from list
+    $listJson = $db->query("SELECT setting_val FROM app_settings WHERE setting_key='db_backup_list'")->fetchColumn();
+    $list = $listJson ? json_decode($listJson, true) : [];
+    $list = array_values(array_filter($list, fn($i) => $i['file'] !== $file));
+    $db->prepare("UPDATE app_settings SET setting_val=? WHERE setting_key='db_backup_list'")->execute([json_encode($list)]);
+
+    json_response(true, 'Backup deleted.');
 }

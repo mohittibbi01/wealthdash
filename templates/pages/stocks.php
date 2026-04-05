@@ -138,6 +138,48 @@ ob_start();
   </div>
 </div>
 
+
+<!-- t216: Stocks Sector-wise Analytics -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;margin-bottom:20px;">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">🏭 Sector Allocation</h3>
+      <span style="font-size:11px;color:var(--text-muted);">By current value</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="stockSectorWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">Loading sector data…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- t217: Stocks Dividend Tracker -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">💸 Dividend Tracker</h3>
+      <span style="font-size:11px;color:var(--text-muted);" id="stockDivFyLabel"></span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="stockDivSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;"></div>
+      <div style="overflow-x:auto;max-height:220px;overflow-y:auto;">
+        <table class="table" id="stockDivTable" style="font-size:12px;">
+          <thead>
+            <tr>
+              <th>Stock</th>
+              <th class="text-center">Date</th>
+              <th class="text-right">Amount</th>
+              <th class="text-center">FY</th>
+            </tr>
+          </thead>
+          <tbody id="stockDivBody">
+            <tr><td colspan="4" class="text-center" style="padding:24px;color:var(--text-muted);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Transaction History -->
 <div class="card" style="margin-top:24px">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -304,10 +346,13 @@ ob_start();
 <script src="<?= APP_URL ?>/public/js/stocks.js?v=<?= ASSET_VERSION ?>"></script>
 <script src="<?= APP_URL ?>/public/js/behavioral_analytics.js?v=<?= ASSET_VERSION ?>"></script>
 <script>
-// t145: Run stock picker check after holdings load
+// t145 + t216 + t217: Hook analytics after holdings load
 const _origLoadHoldings = STOCKS.loadHoldings.bind(STOCKS);
 STOCKS.loadHoldings = async function() {
   await _origLoadHoldings();
+  const holdings = STOCKS._allRows || [];
+  renderStockSectorAnalytics(holdings);
+  renderStockDividendTracker();
   // Get rendered rows data for reality check
   setTimeout(() => {
     const rows = [];

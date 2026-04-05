@@ -1085,6 +1085,29 @@ ob_start();
         </div>
       </div>
 
+      <!-- t211: DB Backup & Restore -->
+      <div class="card" style="padding:16px 18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);">💾 DB Backup</div>
+          <button onclick="loadBackupList()" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">↻ Refresh</button>
+        </div>
+        <button onclick="runDbBackup()" id="btnRunBackup"
+          style="width:100%;padding:10px;border-radius:8px;border:none;background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s;"
+          onmouseover="this.style.opacity='.88'" onmouseout="this.style.opacity='1'">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Backup Now (.sql.gz)
+        </button>
+        <div id="backupProgress" style="display:none;font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px;">
+          ⏳ Generating backup... (may take 30-60 sec)
+        </div>
+        <div id="backupList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">Click ↻ to load backups</div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text-muted);line-height:1.5;">
+          Stored in <code>database/backups/</code> · Last 20 kept · mysqldump required
+        </div>
+      </div>
+
       <!-- Tips -->
       <div class="card" style="padding:16px 18px;">
         <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">💡 Important Tips</div>
@@ -3131,6 +3154,71 @@ document.addEventListener('click', function(e) {
   };
 
 })(); // end setup IIFE
+
+// ── t211: DB Backup JS ──────────────────────────────────────────
+function runDbBackup() {
+  const btn  = document.getElementById('btnRunBackup');
+  const prog = document.getElementById('backupProgress');
+  if (btn)  { btn.disabled = true; btn.style.opacity = '.5'; }
+  if (prog) prog.style.display = 'block';
+
+  apiPost({ action: 'admin_db_backup' })
+    .then(r => {
+      if (r && r.success) {
+        showToast('✅ Backup created: ' + r.data.file + ' (' + r.data.size_fmt + ')', 'success');
+        loadBackupList();
+      } else {
+        showToast('❌ Backup failed: ' + (r?.message || 'Unknown error'), 'error');
+      }
+    })
+    .catch(() => showToast('❌ Network error during backup', 'error'))
+    .finally(() => {
+      if (btn)  { btn.disabled = false; btn.style.opacity = '1'; }
+      if (prog) prog.style.display = 'none';
+    });
+}
+
+function loadBackupList() {
+  const list = document.getElementById('backupList');
+  if (!list) return;
+  list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">Loading...</div>';
+  apiPost({ action: 'admin_db_backup_list' })
+    .then(r => {
+      if (!r || !r.success || !r.data || !r.data.length) {
+        list.innerHTML = '<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px;">No backups yet. Click "Backup Now".</div>';
+        return;
+      }
+      list.innerHTML = r.data.map((b, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:7px;background:var(--bg-secondary);gap:8px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:700;color:${b.exists?'var(--text-primary)':'var(--text-muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${b.exists ? '💾' : '⚠️'} ${b.file}
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);">${b.created} · ${b.size_fmt}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            ${b.exists ? `<a href="${window.WD?.appUrl||''}/api/router.php?action=admin_db_backup_download&file=${encodeURIComponent(b.file)}"
+              style="padding:4px 8px;border-radius:5px;border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:700;cursor:pointer;text-decoration:none;"
+              title="Download">⬇</a>` : ''}
+            <button onclick="deleteBackup('${b.file.replace(/'/g,"\\'")}')"
+              style="padding:4px 8px;border-radius:5px;border:1px solid var(--red,#dc2626);color:var(--red,#dc2626);font-size:10px;font-weight:700;cursor:pointer;background:none;"
+              title="Delete">🗑</button>
+          </div>
+        </div>`).join('');
+    })
+    .catch(() => {
+      list.innerHTML = '<div style="font-size:11px;color:var(--red,#dc2626);text-align:center;padding:8px;">Failed to load backup list.</div>';
+    });
+}
+
+function deleteBackup(file) {
+  if (!confirm('Delete backup: ' + file + '?')) return;
+  apiPost({ action: 'admin_db_backup_delete', file })
+    .then(r => {
+      if (r && r.success) { showToast('Backup deleted', 'success'); loadBackupList(); }
+      else showToast('Delete failed: ' + (r?.message || ''), 'error');
+    });
+}
 </script>
 
 <?php

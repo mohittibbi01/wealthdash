@@ -1059,3 +1059,178 @@ function onSelectSchemeHooked(type) {
     }, 100);
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   t201 — RD MONTHLY INSTALLMENT TRACKER
+   t204 — SSY COMPLETE TRACKER
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── t201: RD Tracker ── */
+const RD_TRACK_KEY = 'wd_rd_tracker_v1';
+function getRdData()       { try { return JSON.parse(localStorage.getItem(RD_TRACK_KEY)||'{}'); } catch(e){ return {}; } }
+function saveRdData(d)     { try { localStorage.setItem(RD_TRACK_KEY, JSON.stringify(d)); } catch(e){} }
+
+let _rdActiveScheme = null;
+
+function initRdTracker() {
+  // Pull RD schemes from PO data
+  const schemes = (PO._schemes || []).filter(s => s.scheme_type === 'rd');
+  const wrap = document.getElementById('rdTrackerSchemeList');
+  if (!wrap) return;
+  if (!schemes.length) {
+    wrap.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">No RD schemes found. Add an RD in the schemes list above.</div>';
+    return;
+  }
+  wrap.innerHTML = schemes.map(s =>
+    `<button onclick="selectRdScheme(${s.id},'${(s.scheme_no||s.id).toString().replace(/'/g,"\\'")}',${s.monthly_deposit||s.amount||0},'${s.start_date||''}')" 
+     style="padding:6px 14px;border-radius:99px;border:1.5px solid var(--border);background:var(--bg-secondary);font-size:12px;font-weight:600;cursor:pointer;">
+      📅 ${(s.scheme_no||'RD-'+s.id)} — ₹${Number(s.monthly_deposit||s.amount||0).toLocaleString('en-IN')}/mo
+    </button>`
+  ).join('');
+}
+
+function selectRdScheme(id, schemeNo, monthly, startDate) {
+  _rdActiveScheme = { id, schemeNo, monthly, startDate };
+  renderRdGrid();
+}
+
+function renderRdGrid() {
+  const s    = _rdActiveScheme;
+  const grid = document.getElementById('rdTrackerGrid');
+  const mGrid= document.getElementById('rdMonthGrid');
+  const hdr  = document.getElementById('rdTrackerTitle');
+  const stats= document.getElementById('rdTrackerStats');
+  if (!grid || !s) return;
+
+  grid.style.display = '';
+  hdr.textContent    = `RD ${s.schemeNo} — ₹${Number(s.monthly).toLocaleString('en-IN')}/month`;
+
+  const data  = getRdData();
+  const key   = `rd_${s.id}`;
+  const paid  = data[key] || {};
+
+  // Generate months from startDate to today
+  const start = s.startDate ? new Date(s.startDate) : new Date();
+  start.setDate(1);
+  const today = new Date(); today.setDate(1);
+  const months = [];
+  let cur = new Date(start);
+  while (cur <= today) {
+    const mkey = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
+    months.push({ mkey, label: cur.toLocaleString('en-IN',{month:'short',year:'2-digit'}) });
+    cur.setMonth(cur.getMonth()+1);
+  }
+
+  const paidCount   = months.filter(m => paid[m.mkey] === 'paid').length;
+  const missedCount = months.filter(m => paid[m.mkey] === 'missed').length;
+  const totalPaid   = paidCount * s.monthly;
+
+  stats.innerHTML = `
+    <span style="color:#16a34a;font-weight:700;">✅ ${paidCount} paid</span>
+    <span style="color:#dc2626;font-weight:700;">❌ ${missedCount} missed</span>
+    <span style="color:var(--text-muted);">₹${Number(totalPaid).toLocaleString('en-IN')} deposited</span>`;
+
+  mGrid.innerHTML = months.map(({mkey, label}) => {
+    const status = paid[mkey] || 'unpaid';
+    const bg     = status === 'paid' ? '#dcfce7' : status === 'missed' ? '#fee2e2' : 'var(--bg-secondary)';
+    const color  = status === 'paid' ? '#16a34a' : status === 'missed' ? '#dc2626' : 'var(--text-muted)';
+    const icon   = status === 'paid' ? '✅' : status === 'missed' ? '❌' : '○';
+    return `<div onclick="toggleRdMonth('${mkey}')" 
+      style="background:${bg};border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;border:1.5px solid ${bg};transition:all .15s;"
+      title="${mkey} — click to toggle">
+      <div style="font-size:14px;">${icon}</div>
+      <div style="font-size:10px;font-weight:700;color:${color};">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleRdMonth(mkey) {
+  if (!_rdActiveScheme) return;
+  const data  = getRdData();
+  const key   = `rd_${_rdActiveScheme.id}`;
+  if (!data[key]) data[key] = {};
+  const cur   = data[key][mkey] || 'unpaid';
+  const cycle = { unpaid: 'paid', paid: 'missed', missed: 'unpaid' };
+  data[key][mkey] = cycle[cur];
+  saveRdData(data);
+  renderRdGrid();
+}
+
+/* ── t204: SSY Calculator ── */
+function calcSSY() {
+  const dob     = document.getElementById('ssyDob')?.value;
+  const open    = document.getElementById('ssyOpen')?.value;
+  const yearly  = parseFloat(document.getElementById('ssyYearly')?.value) || 150000;
+  const balance = parseFloat(document.getElementById('ssyBalance')?.value) || 0;
+  const res     = document.getElementById('ssyResult');
+  if (!res) return;
+
+  const rate = 0.082; // 8.2% current rate
+  const fmtI = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  const openDate = open ? new Date(open) : new Date();
+  const dobDate  = dob  ? new Date(dob)  : null;
+
+  // Deposit years: 15 years from opening
+  const depositEndDate = new Date(openDate);
+  depositEndDate.setFullYear(depositEndDate.getFullYear() + 15);
+
+  // Maturity date: girl turns 21
+  const maturityDate = dobDate ? new Date(dobDate) : null;
+  if (maturityDate) maturityDate.setFullYear(maturityDate.getFullYear() + 21);
+
+  // Years already deposited
+  const now          = new Date();
+  const yearsElapsed = Math.max(0, Math.floor((now - openDate) / (365.25 * 86400000)));
+  const yearsLeft    = Math.max(0, 15 - yearsElapsed);
+
+  // Project maturity corpus: compound balance + future deposits
+  let corpus = balance;
+  for (let i = 0; i < yearsLeft; i++) {
+    corpus = (corpus + yearly) * (1 + rate);
+  }
+  // Then corpus stays invested (no new deposits) until maturity
+  const maturityYears = maturityDate ? Math.max(0, Math.floor((maturityDate - depositEndDate) / (365.25 * 86400000))) : 6;
+  const maturityCorpus = corpus * Math.pow(1 + rate, maturityYears);
+
+  // Partial withdrawal at 18 (max 50% for education)
+  const partialDate = dobDate ? new Date(dobDate) : null;
+  if (partialDate) partialDate.setFullYear(partialDate.getFullYear() + 18);
+  const partialCorpus = dobDate ? corpus * Math.pow(1 + rate, Math.max(0, Math.floor((partialDate - depositEndDate) / (365.25 * 86400000)))) : corpus;
+
+  const totalDeposit = balance + yearly * Math.min(15, yearsElapsed + yearsLeft);
+
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Years Deposited</div>
+        <div style="font-size:20px;font-weight:800;">${yearsElapsed} / 15</div>
+        <div style="font-size:11px;color:var(--text-muted);">${yearsLeft} years left</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Total Deposit</div>
+        <div style="font-size:20px;font-weight:800;">${fmtI(totalDeposit)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">₹1.5L limit/year</div>
+      </div>
+      <div style="background:rgba(22,163,74,.08);border-radius:10px;padding:14px;text-align:center;border:1.5px solid #86efac;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Projected Maturity (Age 21)</div>
+        <div style="font-size:20px;font-weight:800;color:#16a34a;">${fmtI(maturityCorpus)}</div>
+        ${maturityDate ? `<div style="font-size:11px;color:var(--text-muted);">${maturityDate.toLocaleDateString('en-IN',{year:'numeric',month:'short'})}</div>` : ''}
+      </div>
+      <div style="background:rgba(59,130,246,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Partial Withdrawal (Age 18)</div>
+        <div style="font-size:20px;font-weight:800;color:#3b82f6;">${fmtI(partialCorpus * 0.5)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Max 50% for education</div>
+      </div>
+    </div>
+    <div style="height:8px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;margin-bottom:6px;">
+      <div style="width:${Math.min(100, yearsElapsed/15*100).toFixed(0)}%;height:100%;background:#16a34a;border-radius:99px;transition:width .5s;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);">Deposit period progress: ${yearsElapsed}/15 years completed</div>`;
+}
+
+// Hook init after PO loads
+const _origPoLoad = typeof PO !== 'undefined' && PO.load ? PO.load.bind(PO) : null;
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initRdTracker, 1200); // Wait for PO._schemes to populate
+});

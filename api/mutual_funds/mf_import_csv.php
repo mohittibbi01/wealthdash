@@ -273,12 +273,18 @@ try {
 // ════════════════════════════════════════════════════════════
 
 function detect_csv_format(string $content): string {
-    $first = strtolower(substr($content, 0, 500));
+    $first = strtolower(substr($content, 0, 1000));
     if (strpos($first, 'computer age management') !== false ||
         strpos($first, 'cams') !== false) return 'cams';
-    if (strpos($first, 'kfintech') !== false ||
-        strpos($first, 'karvy') !== false) return 'kfintech';
+    // t188: KFintech — detect CSV export (has header row with scheme/folio columns)
+    if (strpos($first, 'kfintech') !== false || strpos($first, 'karvy') !== false) return 'kfintech';
+    // KFintech CSV export detection by header columns (no brand name in file)
+    $firstLine = strtolower(trim(explode("\n", $content)[0]));
+    if (strpos($firstLine, 'folio no') !== false && strpos($firstLine, 'scheme') !== false &&
+        (strpos($firstLine, 'transaction type') !== false || strpos($firstLine, 'narration') !== false)) return 'kfintech_csv';
     if (strpos($first, 'groww') !== false) return 'groww';
+    // t189: Detect new Groww CSV format by column headers
+    if (strpos($firstLine, 'scheme name') !== false && strpos($firstLine, 'transaction date') !== false) return 'groww';
     if (strpos($first, 'zerodha') !== false || strpos($first, 'coin') !== false) return 'zerodha';
     if (strpos($first, 'kuvera') !== false) return 'kuvera';
     if (strpos($first, 'mfcentral') !== false || strpos($first, 'paytm') !== false) return 'mfcentral';
@@ -291,14 +297,15 @@ function parse_csv(string $content, string $format): array {
     $lines = array_filter(array_map('trim', explode("\n", $content)));
 
     return match($format) {
-        'cams'       => parse_cams($lines),
-        'kfintech'   => parse_kfintech($lines),
-        'groww'      => parse_groww($lines),
-        'zerodha'    => parse_zerodha($lines),    // t90
-        'kuvera'     => parse_kuvera($lines),     // t90
-        'mfcentral'  => parse_mfcentral($lines),  // t90
-        'wealthdash' => parse_wealthdash($lines),
-        default      => parse_wealthdash($lines),
+        'cams'         => parse_cams($lines),
+        'kfintech'     => parse_kfintech($lines),
+        'kfintech_csv' => parse_kfintech_csv($lines),  // t188: CSV export format
+        'groww'        => parse_groww($lines),
+        'zerodha'      => parse_zerodha($lines),
+        'kuvera'       => parse_kuvera($lines),
+        'mfcentral'    => parse_mfcentral($lines),
+        'wealthdash'   => parse_wealthdash($lines),
+        default        => parse_wealthdash($lines),
     };
 }
 
@@ -359,22 +366,26 @@ function parse_cams(array $lines): array {
 }
 
 function parse_kfintech(array $lines): array {
+    // t188: KFintech CAS statement format (text-based)
     $result = []; $currentFund = ''; $currentFolio = '';
     foreach ($lines as $line) {
-        if (preg_match('/Folio\s*:\s*([0-9\/\s]+)/i', $line, $m)) {
-            $currentFolio = trim($m[1]); continue;
+        if (preg_match('/Folio\s*(?:No)?\s*:\s*([0-9\/\s]+)/i', $line, $m)) {
+            $currentFolio = trim(preg_replace('/\s+/', '', $m[1])); continue;
         }
         if (preg_match('/^Scheme\s*:\s*(.+)$/i', $line, $m)) {
             $currentFund = trim($m[1]); continue;
         }
-        if (preg_match('/^(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+(.+?)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)/', $line, $m)) {
+        if (preg_match('/^(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+(.+?)\s+([\d,]+\.?\d*)\s+([\d,]+\.\d+)\s+([\d,]+\.\d+)/', $line, $m)) {
+            $units = (float)str_replace(',', '', $m[4]);
+            $nav   = (float)str_replace(',', '', $m[5]);
+            if ($units <= 0 || $nav <= 0) continue;
             $result[] = [
                 'fund_name' => $currentFund,
                 'folio'     => $currentFolio,
                 'txn_type'  => map_cams_type($m[2]),
                 'txn_date'  => $m[1],
-                'units'     => str_replace(',', '', $m[3]),
-                'nav'       => str_replace(',', '', $m[4]),
+                'units'     => $units,
+                'nav'       => $nav,
                 'platform'  => 'KFintech',
             ];
         }
@@ -382,25 +393,86 @@ function parse_kfintech(array $lines): array {
     return $result;
 }
 
-function parse_groww(array $lines): array {
-    // Groww export: Fund Name, Date, Type, Units, NAV, Amount
+// t188: KFintech CSV export format (downloaded from MFU / KFintech portal)
+function parse_kfintech_csv(array $lines): array {
     $result = []; $header = null;
     foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line) || $line[0] === '#') continue;
+        $cols = str_getcsv($line);
+        if (!$header) {
+            $lower = strtolower(implode(',', $cols));
+            if (strpos($lower, 'scheme') === false && strpos($lower, 'folio') === false) continue;
+            $header = array_map('strtolower', array_map('trim', $cols)); continue;
+        }
+        if (count($cols) < 4) continue;
+        $r = array_combine($header, array_pad($cols, count($header), ''));
+        $fundName = trim($r['scheme name'] ?? $r['scheme'] ?? $r['fund name'] ?? '');
+        $folio    = trim($r['folio no']    ?? $r['folio number'] ?? $r['folio'] ?? '');
+        $txnDate  = trim($r['transaction date'] ?? $r['date'] ?? $r['txn date'] ?? '');
+        $txnType  = trim($r['transaction type'] ?? $r['narration'] ?? $r['type'] ?? '');
+        $units    = (float)str_replace(',', '', $r['units'] ?? $r['quantity'] ?? '0');
+        $nav      = (float)str_replace(',', '', $r['nav'] ?? $r['nav (rs.)'] ?? $r['price'] ?? '0');
+        if (empty($fundName) || $units == 0 || $nav == 0) continue;
+        $result[] = [
+            'fund_name' => $fundName,
+            'folio'     => $folio,
+            'txn_type'  => map_cams_type($txnType),
+            'txn_date'  => $txnDate,
+            'units'     => abs($units),
+            'nav'       => $nav,
+            'platform'  => 'KFintech',
+        ];
+    }
+    return $result;
+}
+
+function parse_groww(array $lines): array {
+    // t189: Both old and new Groww CSV export formats
+    // Old: Fund Name, Date, Type, Units, NAV, Amount
+    // New: Scheme Name, Transaction Date, Transaction Type, Amount, Units, NAV, Folio No
+    $result = []; $header = null;
+    foreach ($lines as $line) {
+        $line = trim($line);
         if (empty($line)) continue;
         $cols = str_getcsv($line);
-        if (!$header) { $header = array_map('strtolower', array_map('trim', $cols)); continue; }
-        $r = array_combine($header, array_pad($cols, count($header), ''));
+        if (!$header) {
+            $header = array_map('strtolower', array_map('trim', $cols)); continue;
+        }
+        if (count($cols) < 4) continue;
+        $r        = array_combine($header, array_pad($cols, count($header), ''));
+        $fundName = trim($r['scheme name'] ?? $r['fund name'] ?? $r['schemename'] ?? '');
+        $txnDate  = trim($r['transaction date'] ?? $r['date'] ?? '');
+        $txnType  = trim($r['transaction type'] ?? $r['type'] ?? 'BUY');
+        $units    = (float)str_replace(',', '', $r['units'] ?? $r['quantity'] ?? '0');
+        $nav      = (float)str_replace(',', '', $r['nav'] ?? $r['price'] ?? '0');
+        $folio    = trim($r['folio no'] ?? $r['folio'] ?? '');
+        if (empty($fundName) || $units == 0) continue;
         $result[] = [
-            'fund_name' => $r['fund name'] ?? $r['scheme name'] ?? '',
-            'txn_type'  => $r['type'] ?? $r['transaction type'] ?? 'BUY',
-            'txn_date'  => $r['date'] ?? '',
-            'units'     => $r['units'] ?? 0,
-            'nav'       => $r['nav'] ?? 0,
+            'fund_name' => $fundName,
+            'folio'     => $folio,
+            'txn_type'  => map_groww_type($txnType),
+            'txn_date'  => $txnDate,
+            'units'     => abs($units),
+            'nav'       => $nav,
             'platform'  => 'Groww',
         ];
     }
     return $result;
 }
+
+// t189: Groww verbose type names mapper
+function map_groww_type(string $type): string {
+    $type = strtolower(trim($type));
+    if (strpos($type, 'redeem') !== false || strpos($type, 'sell') !== false ||
+        strpos($type, 'withdrawal') !== false) return 'SELL';
+    if (strpos($type, 'switch out') !== false) return 'SWITCH_OUT';
+    if (strpos($type, 'switch in')  !== false) return 'SWITCH_IN';
+    if (strpos($type, 'reinvest') !== false || strpos($type, 'reinvestment') !== false) return 'DIV_REINVEST';
+    if (strpos($type, 'dividend') !== false || strpos($type, 'idcw') !== false) return 'DIV_REINVEST';
+    return 'BUY';
+}
+
 
 function map_cams_type(string $type): string {
     $type = strtolower(trim($type));

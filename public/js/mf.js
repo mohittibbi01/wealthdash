@@ -2119,6 +2119,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cgTab) cgTab.style.display = which === 'capgains' ? '' : 'none';
       const calTab = document.getElementById('tabCalendarWrap');
       if (calTab) calTab.style.display = which === 'calendar' ? '' : 'none';
+      const epTab = document.getElementById('tabExitPlanner');
+      if (epTab) epTab.style.display = which === 'exitplanner' ? '' : 'none';
 
       // Load data on first switch
       if (which === 'realized') {
@@ -2137,6 +2139,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // t75: Investment Calendar
       if (which === 'calendar') {
         initCalendarTab();
+      }
+      // t173: Exit Strategy Planner
+      if (which === 'exitplanner') {
+        initExitPlanner();
       }
     });
   });
@@ -4224,6 +4230,10 @@ function renderMfAnalytics() {
     renderTWRR();
     renderCorrelationMatrix();
     runStressTest('2008', null); // default scenario
+    renderPortfolioReportCard();   // t183
+    renderFactorExposure();        // t131
+    renderNomineeTracker();        // t158
+    renderCashDrag();              // t130
   }, 500);
 }
 
@@ -6497,4 +6507,595 @@ function calPrevYear() {
 function calNextYear() {
   MF.calYear = Math.min(new Date().getFullYear(), MF.calYear + 1);
   renderCalendar();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t173 — EXIT STRATEGY PLANNER
+   Tax-optimal exit planning: LTCG eligibility, HIFO/FIFO, tax harvesting
+═══════════════════════════════════════════════════════════════════════════ */
+const EP = { loaded: false, method: 'FIFO' };
+const LTCG_EXEMPTION = 125000; // ₹1.25L per FY (Budget 2024)
+const EQUITY_LTCG_HOLD_DAYS = 365;  // 1 year for equity
+const DEBT_LTCG_HOLD_DAYS   = 1095; // 3 years for debt
+
+function initExitPlanner() {
+  if (EP.loaded) return;
+  renderExitPlanner();
+}
+
+async function renderExitPlanner() {
+  const tbody = document.getElementById('epTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding:32px;"><div class="spinner"></div></td></tr>';
+
+  const holdings = MF.data || [];
+  if (!holdings.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding:32px;color:var(--text-muted);">No holdings found.</td></tr>';
+    return;
+  }
+
+  // Use transaction data for lot-level calculations
+  const pid = window.WD?.selectedPortfolio || 0;
+  let txns = [];
+  try {
+    const r = await API.get(`/api/mutual_funds/mf_list.php?view=transactions&portfolio_id=${pid}&per_page=9999&sort_col=txn_date&sort_dir=asc`);
+    txns = r.data || [];
+  } catch(e) { /* use holdings-level fallback */ }
+
+  const today = new Date();
+  const fmtI = v => { v = Math.abs(v); return v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0}); };
+
+  // Compute lot-level LTCG for each holding
+  let totalLtcgValue = 0, totalLtcgGain = 0, totalHarvestable = 0;
+  const rows = [];
+
+  for (const h of holdings) {
+    const fundId    = h.fund_id || h.id;
+    const nav       = parseFloat(h.nav_current || h.nav || 0);
+    const invested  = parseFloat(h.invested || 0);
+    const valueNow  = parseFloat(h.value_now || 0);
+    const units     = parseFloat(h.units || 0);
+    const avgNav    = units > 0 ? invested / units : 0;
+    const cat       = (h.category || '').toLowerCase();
+    const isDebt    = cat.includes('debt') || cat.includes('liquid') || cat.includes('gilt') || cat.includes('money market');
+    const holdDays  = isDebt ? DEBT_LTCG_HOLD_DAYS : EQUITY_LTCG_HOLD_DAYS;
+
+    // Get transactions for this fund
+    const fundTxns = txns.filter(t =>
+      String(t.fund_id) === String(fundId) &&
+      ['BUY','SWITCH_IN','DIV_REINVEST'].includes(t.transaction_type)
+    );
+
+    // Build lots: each buy = one lot
+    let lots = fundTxns.map(t => ({
+      date  : new Date(t.txn_date),
+      units : parseFloat(t.units || 0),
+      nav   : parseFloat(t.nav || 0),
+      cost  : parseFloat(t.value_at_cost || (parseFloat(t.units)*parseFloat(t.nav)) || 0),
+    })).filter(l => l.units > 0);
+
+    // If no lot data, synthesize one lot from holdings
+    if (!lots.length && units > 0) {
+      const buyDate = h.first_purchase_date ? new Date(h.first_purchase_date) : new Date(today - 400*86400*1000);
+      lots = [{ date: buyDate, units, nav: avgNav, cost: invested }];
+    }
+
+    // Apply SELL transactions (FIFO deduction)
+    const sells = txns.filter(t => String(t.fund_id) === String(fundId) && ['SELL','SWITCH_OUT'].includes(t.transaction_type));
+    let remainSells = sells.reduce((s, t) => s + parseFloat(t.units || 0), 0);
+    lots = lots.map(l => {
+      if (remainSells <= 0) return l;
+      const deduct = Math.min(l.units, remainSells);
+      remainSells -= deduct;
+      return { ...l, units: l.units - deduct };
+    }).filter(l => l.units > 0.0001);
+
+    // HIFO: sort by highest cost first to minimise gain
+    const lotsForMethod = EP.method === 'HIFO'
+      ? [...lots].sort((a, b) => b.nav - a.nav)
+      : lots; // FIFO: already chronological
+
+    // Partition LTCG eligible lots
+    const ltcgLots  = lotsForMethod.filter(l => (today - l.date) / 86400000 >= holdDays);
+    const stcgLots  = lotsForMethod.filter(l => (today - l.date) / 86400000 <  holdDays);
+
+    const ltcgUnits = ltcgLots.reduce((s, l) => s + l.units, 0);
+    const ltcgCost  = ltcgLots.reduce((s, l) => s + l.cost,  0);
+    const ltcgVal   = ltcgUnits * nav;
+    const ltcgGain  = ltcgVal - ltcgCost;
+
+    const totalGain = valueNow - invested;
+    const unrealGain= valueNow - invested;
+    const gainPct   = invested > 0 ? ((valueNow - invested) / invested * 100).toFixed(1) : '0';
+    const gainColor = unrealGain >= 0 ? 'var(--gain)' : 'var(--loss)';
+
+    // Next LTCG date: earliest STCG lot that will become LTCG
+    const nextLtcg  = stcgLots.length
+      ? new Date(stcgLots[0].date.getTime() + holdDays * 86400000)
+      : null;
+    const daysToLtcg= nextLtcg ? Math.ceil((nextLtcg - today) / 86400000) : 0;
+
+    // Recommendation logic
+    let rec = '', recColor = 'var(--text-muted)';
+    if (ltcgGain > 0 && ltcgGain <= LTCG_EXEMPTION * 0.9) {
+      rec = '✅ Tax harvest eligible'; recColor = '#16a34a'; totalHarvestable += ltcgGain;
+    } else if (ltcgGain > LTCG_EXEMPTION) {
+      rec = `⚠️ ₹${((ltcgGain - LTCG_EXEMPTION)/1e5).toFixed(1)}L taxable LTCG`; recColor = '#d97706';
+    } else if (daysToLtcg > 0 && daysToLtcg <= 30) {
+      rec = `⏰ LTCG in ${daysToLtcg}d`; recColor = '#2563eb';
+    } else if (daysToLtcg > 0) {
+      rec = `${daysToLtcg}d to LTCG`; recColor = 'var(--text-muted)';
+    } else if (ltcgUnits > 0) {
+      rec = '📈 LTCG eligible'; recColor = '#16a34a';
+    }
+
+    totalLtcgValue += ltcgVal;
+    totalLtcgGain  += Math.max(0, ltcgGain);
+
+    rows.push({ h, nav, units, avgNav, invested, valueNow, unrealGain, gainPct, gainColor,
+      ltcgUnits, ltcgVal, ltcgGain, rec, recColor, daysToLtcg });
+  }
+
+  // Update summary cards
+  const setEl = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  setEl('epLtcgValue', fmtI(totalLtcgValue));
+  setEl('epLtcgGain',  fmtI(totalLtcgGain));
+  setEl('epExemptLeft', fmtI(Math.max(0, LTCG_EXEMPTION - totalHarvestable)));
+  setEl('epHarvestable', fmtI(totalHarvestable));
+
+  // Tax harvest banner
+  const banner = document.getElementById('epHarvestBanner');
+  if (banner && totalHarvestable > 5000) {
+    banner.style.display = '';
+    const tax = Math.max(0, totalLtcgGain - LTCG_EXEMPTION) * 0.125;
+    banner.innerHTML = `<strong>💡 Tax Harvesting Opportunity:</strong> You can book <strong>${fmtI(totalHarvestable)}</strong> in LTCG gains within ₹1.25L annual exemption — saving ~<strong>${fmtI(tax)}</strong> in taxes. Redeem eligible units, wait 1 day, reinvest.`;
+  } else if (banner) { banner.style.display = 'none'; }
+
+  // Build table rows
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>
+        <div style="font-weight:600;font-size:13px;">${escHtml(r.h.scheme_name || r.h.fund_name || '—')}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${escHtml(r.h.category||'')}</div>
+      </td>
+      <td class="text-center" style="font-size:12px;">${r.units.toFixed(4)}</td>
+      <td class="text-center" style="font-size:12px;color:${r.ltcgUnits > 0 ? '#16a34a' : 'var(--text-muted)'};">${r.ltcgUnits.toFixed(4)}</td>
+      <td class="text-center" style="font-size:12px;">₹${r.avgNav.toFixed(4)}</td>
+      <td class="text-center" style="font-size:12px;">₹${r.nav.toFixed(4)}</td>
+      <td class="text-center" style="font-size:12px;color:${r.gainColor};font-weight:600;">
+        ${fmtI(r.unrealGain)} <span style="font-size:10px;">(${r.gainPct}%)</span>
+      </td>
+      <td class="text-center" style="font-size:12px;">
+        ${r.ltcgGain > 0
+          ? `<span style="color:#16a34a;">LTCG: ${fmtI(r.ltcgGain)}</span>`
+          : r.ltcgGain < 0
+            ? `<span style="color:#dc2626;">LTCG Loss: ${fmtI(r.ltcgGain)}</span>`
+            : '<span style="color:var(--text-muted);">—</span>'}
+      </td>
+      <td class="text-center" style="font-size:11px;font-weight:600;color:${r.recColor};">${r.rec || '—'}</td>
+    </tr>`).join('');
+
+  EP.loaded = true;
+}
+
+function toggleExitMethod(method, btn) {
+  EP.method = method;
+  EP.loaded = false;
+  document.querySelectorAll('#epBtnFIFO,#epBtnHIFO').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderExitPlanner();
+}
+
+function calcSWP() {
+  const monthly   = parseFloat(document.getElementById('swpAmount')?.value || 0);
+  const annualRet = parseFloat(document.getElementById('swpReturn')?.value || 10) / 100;
+  const corpus    = (MF.data || []).reduce((s, h) => s + parseFloat(h.value_now || 0), 0);
+  const res       = document.getElementById('swpResult');
+  if (!res || monthly <= 0 || corpus <= 0) return;
+
+  const monthlyRet = annualRet / 12;
+  // Months until corpus depletes: -log(1 - C*r/W) / log(1+r)
+  let months = Infinity;
+  if (monthly > corpus * monthlyRet) {
+    months = monthlyRet > 0
+      ? -Math.log(1 - corpus * monthlyRet / monthly) / Math.log(1 + monthlyRet)
+      : corpus / monthly;
+  }
+
+  // Also calc: what monthly SWP sustains corpus forever
+  const sustainableSWP = corpus * monthlyRet;
+  const fmtI = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:14px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Current Corpus</div>
+        <div style="font-size:20px;font-weight:800;">${fmtI(corpus)}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Corpus Lasts</div>
+        <div style="font-size:20px;font-weight:800;color:${months === Infinity ? '#16a34a' : months > 240 ? '#16a34a' : months > 120 ? '#d97706' : '#dc2626'};">
+          ${months === Infinity ? '∞ Forever' : months > 1200 ? '100+ yrs' : `${Math.floor(months/12)}y ${Math.round(months%12)}m`}
+        </div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Sustainable SWP</div>
+        <div style="font-size:20px;font-weight:800;color:#16a34a;">${fmtI(sustainableSWP)}/mo</div>
+        <div style="font-size:11px;color:var(--text-muted);">Corpus stays intact forever</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);padding:8px 12px;background:rgba(99,102,241,.06);border-radius:6px;">
+      💡 At ${annualRet*100}% annual return, withdrawing <strong>${fmtI(monthly)}/month</strong>: 
+      corpus ${months === Infinity ? 'never depletes' : `depletes in ${Math.floor(months/12)} years`}.
+      To sustain corpus forever, keep SWP ≤ <strong>${fmtI(sustainableSWP)}/month</strong>.
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t183 — PORTFOLIO REPORT CARD
+   Grade: A+ to F based on XIRR, SIP consistency, expense ratio, diversification
+═══════════════════════════════════════════════════════════════════════════ */
+function renderPortfolioReportCard() {
+  const wrap = document.getElementById('reportCardWrap');
+  if (!wrap) return;
+  const holdings = MF.data || [];
+  if (!holdings.length) { wrap.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No holdings data.</div>'; return; }
+
+  // 1. XIRR grade (40% weight) — read from DOM
+  const xirrEl  = document.getElementById('portfolioXirr');
+  const xirr    = xirrEl ? parseFloat(xirrEl.textContent) : null;
+  let xirrScore = 50; // default
+  if (xirr !== null && !isNaN(xirr)) {
+    if      (xirr >= 18) xirrScore = 100;
+    else if (xirr >= 14) xirrScore = 85;
+    else if (xirr >= 11) xirrScore = 70;
+    else if (xirr >= 8)  xirrScore = 55;
+    else if (xirr >= 5)  xirrScore = 35;
+    else                  xirrScore = 15;
+  }
+
+  // 2. Expense ratio score (20% weight) — from holdings data
+  const ersArr = holdings.map(h => parseFloat(h.expense_ratio || h.ter || 0)).filter(e => e > 0);
+  const avgER  = ersArr.length ? ersArr.reduce((a, b) => a + b, 0) / ersArr.length : 0.8;
+  let erScore  = 0;
+  if      (avgER <= 0.3) erScore = 100;
+  else if (avgER <= 0.5) erScore = 85;
+  else if (avgER <= 0.8) erScore = 70;
+  else if (avgER <= 1.2) erScore = 50;
+  else if (avgER <= 1.8) erScore = 30;
+  else                    erScore = 15;
+
+  // 3. Diversification score (20% weight) — re-use correlation matrix logic
+  const catMap = {
+    'Equity — Large Cap':'LCE','Equity — Mid Cap':'MCE','Equity — Small Cap':'SCE',
+    'Equity — Multi Cap':'MCE','Equity — Flexi Cap':'MCE','Index Fund':'IDX',
+    'ELSS':'LCE','Debt — Short Duration':'SD','Debt — Long Duration':'LD',
+    'Hybrid — Aggressive':'HYB','Hybrid — Conservative':'HYB',
+  };
+  const corrTable2 = { 'LCE-LCE':0.95,'LCE-MCE':0.78,'LCE-IDX':0.92,'MCE-MCE':0.95,'MCE-SCE':0.82,'SCE-SCE':0.95,'IDX-IDX':0.99,'HYB-HYB':0.90,'SD-SD':0.95,'LD-LD':0.95,'LCE-SD':0.10,'MCE-SD':0.08 };
+  const funds  = holdings.slice(0, 8);
+  let totalC2  = 0, pairs2 = 0;
+  for (let i = 0; i < funds.length; i++)
+    for (let j = i+1; j < funds.length; j++) {
+      const ca = catMap[funds[i].category || ''] || 'OT', cb = catMap[funds[j].category || ''] || 'OT';
+      const c  = corrTable2[`${ca}-${cb}`] ?? corrTable2[`${cb}-${ca}`] ?? (ca===cb ? 0.95 : 0.35);
+      totalC2 += c; pairs2++;
+    }
+  const divScore2 = pairs2 > 0 ? Math.round((1 - totalC2 / pairs2) * 100) : 60;
+
+  // 4. Fund count penalty (too many or too few)
+  const fundCount = holdings.length;
+  let countScore  = 70;
+  if      (fundCount >= 4 && fundCount <= 8)  countScore = 100;
+  else if (fundCount >= 3 && fundCount <= 10) countScore = 80;
+  else if (fundCount === 2)                   countScore = 60;
+  else if (fundCount > 10)                    countScore = 50;
+  else if (fundCount === 1)                   countScore = 40;
+
+  // Weighted total
+  const total = Math.round(xirrScore * 0.40 + erScore * 0.20 + divScore2 * 0.20 + countScore * 0.20);
+
+  const gradeMap = [
+    [92, 'A+', '#16a34a', '🏆 Excellent — Top tier portfolio!'],
+    [80, 'A',  '#22c55e', '✅ Very Good — Minor tweaks will perfect it.'],
+    [68, 'B+', '#84cc16', '👍 Good — On track, small improvements possible.'],
+    [56, 'B',  '#eab308', '⚠️ Average — Review your strategy.'],
+    [44, 'C',  '#f97316', '🔶 Below average — Action needed.'],
+    [0,  'F',  '#dc2626', '🚨 Poor — Major restructuring needed.'],
+  ];
+  const [, grade, gradeColor, gradeMsg] = gradeMap.find(([min]) => total >= min) || gradeMap.at(-1);
+
+  const bar = (score, color='var(--accent)') =>
+    `<div style="height:6px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+      <div style="width:${score}%;height:100%;background:${color};border-radius:99px;transition:width .6s;"></div>
+     </div>`;
+
+  wrap.innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+      <!-- Grade circle -->
+      <div style="flex-shrink:0;width:110px;height:110px;border-radius:50%;background:${gradeColor}18;border:3px solid ${gradeColor};display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+        <div style="font-size:36px;font-weight:900;color:${gradeColor};line-height:1;">${grade}</div>
+        <div style="font-size:12px;font-weight:700;color:${gradeColor};">${total}/100</div>
+      </div>
+      <!-- Score breakdown -->
+      <div style="flex:1;min-width:220px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">${gradeMsg}</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${[
+            ['XIRR vs Benchmark (40%)', xirrScore, xirr !== null ? `${xirr?.toFixed(1) || '—'}% annualised` : 'No data'],
+            ['Expense Ratio (20%)',     erScore,   avgER > 0 ? `Avg ${avgER.toFixed(2)}% TER` : 'No ER data'],
+            ['Diversification (20%)',   divScore2, `Score: ${divScore2}/100`],
+            ['Portfolio Structure (20%)', countScore, `${fundCount} fund${fundCount !== 1 ? 's' : ''} in portfolio`],
+          ].map(([label, score, detail]) => `
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span style="font-size:11px;font-weight:600;color:var(--text-primary);">${label}</span>
+                <span style="font-size:11px;color:${score >= 70 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626'};font-weight:700;">${score}/100 · ${detail}</span>
+              </div>
+              ${bar(score, score >= 70 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626')}
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t131 — FACTOR EXPOSURE
+   Large/Mid/Small · Value/Growth/Blend · Quality · Momentum
+═══════════════════════════════════════════════════════════════════════════ */
+function renderFactorExposure() {
+  const wrap = document.getElementById('factorExposureWrap');
+  if (!wrap) return;
+  const holdings = MF.data || [];
+  if (!holdings.length) { wrap.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No holdings data.</div>'; return; }
+
+  // Factor mapping from category
+  const factorMap = {
+    'Equity — Large Cap'     : { mc:'Large',  style:'Blend',  quality:70, momentum:55 },
+    'Equity — Mid Cap'       : { mc:'Mid',    style:'Growth', quality:55, momentum:70 },
+    'Equity — Small Cap'     : { mc:'Small',  style:'Growth', quality:40, momentum:80 },
+    'Equity — Multi Cap'     : { mc:'Multi',  style:'Blend',  quality:60, momentum:65 },
+    'Equity — Flexi Cap'     : { mc:'Flexi',  style:'Blend',  quality:65, momentum:60 },
+    'Index Fund'             : { mc:'Large',  style:'Blend',  quality:65, momentum:50 },
+    'ELSS'                   : { mc:'Multi',  style:'Growth', quality:60, momentum:65 },
+    'Hybrid — Aggressive'    : { mc:'Large',  style:'Blend',  quality:65, momentum:50 },
+    'Hybrid — Conservative'  : { mc:'Large',  style:'Value',  quality:70, momentum:40 },
+    'Debt — Short Duration'  : { mc:'Debt',   style:'Value',  quality:80, momentum:30 },
+    'Debt — Long Duration'   : { mc:'Debt',   style:'Value',  quality:75, momentum:35 },
+    'Debt — Liquid'          : { mc:'Debt',   style:'Value',  quality:90, momentum:20 },
+    'Gold'                   : { mc:'Gold',   style:'Value',  quality:60, momentum:50 },
+  };
+
+  // Weighted by value
+  let totalVal = 0;
+  const mcBuckets  = {};
+  let wtQuality = 0, wtMomentum = 0;
+  let wtGrowth = 0, wtValue = 0, wtBlend = 0;
+
+  holdings.forEach(h => {
+    const val  = parseFloat(h.value_now || 0);
+    const cat  = h.category || 'Equity — Multi Cap';
+    const f    = factorMap[cat] || { mc:'Multi', style:'Blend', quality:55, momentum:55 };
+    totalVal += val;
+    mcBuckets[f.mc] = (mcBuckets[f.mc] || 0) + val;
+    wtQuality  += f.quality  * val;
+    wtMomentum += f.momentum * val;
+    if      (f.style === 'Growth') wtGrowth += val;
+    else if (f.style === 'Value')  wtValue  += val;
+    else                           wtBlend  += val;
+  });
+  if (totalVal <= 0) { wrap.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">Insufficient data.</div>'; return; }
+
+  const qualityScore  = Math.round(wtQuality  / totalVal);
+  const momentumScore = Math.round(wtMomentum / totalVal);
+  const growthPct  = Math.round(wtGrowth / totalVal * 100);
+  const valuePct   = Math.round(wtValue  / totalVal * 100);
+  const blendPct   = Math.round(wtBlend  / totalVal * 100);
+
+  // Cap allocation breakdown
+  const mcOrder = ['Large','Multi','Flexi','Mid','Small','Debt','Gold'];
+  const capRows = mcOrder
+    .filter(mc => mcBuckets[mc])
+    .map(mc => ({ mc, pct: Math.round(mcBuckets[mc] / totalVal * 100) }));
+
+  const bar2 = (pct, color) =>
+    `<div style="display:flex;align-items:center;gap:8px;">
+      <div style="flex:1;height:8px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:99px;"></div>
+      </div>
+      <span style="font-size:11px;font-weight:700;min-width:32px;text-align:right;">${pct}%</span>
+    </div>`;
+
+  const mcColors = { Large:'#3b82f6', Mid:'#8b5cf6', Small:'#f59e0b', Multi:'#06b6d4', Flexi:'#10b981', Debt:'#6b7280', Gold:'#d97706' };
+
+  wrap.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap;">
+      <!-- Cap Allocation -->
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">📊 Market Cap Allocation</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${capRows.map(r => `
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span style="font-size:12px;font-weight:600;">${r.mc} Cap</span>
+              </div>
+              ${bar2(r.pct, mcColors[r.mc] || '#64748b')}
+            </div>`).join('')}
+        </div>
+      </div>
+      <!-- Style & Quality -->
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">🎭 Investment Style</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          ${[['Growth',growthPct,'#8b5cf6'],['Blend',blendPct,'#3b82f6'],['Value',valuePct,'#16a34a']].map(([s,p,c]) =>
+            `<div style="flex:1;min-width:70px;background:${c}18;border:1.5px solid ${c}40;border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:20px;font-weight:800;color:${c};">${p}%</div>
+              <div style="font-size:11px;font-weight:600;color:${c};">${s}</div>
+            </div>`).join('')}
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">⚡ Factor Scores</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-size:12px;font-weight:600;">Quality <i class="wd-info-btn" data-tip="High quality = stable earnings, low debt, strong ROE. Debt funds score high.">i</i></span></div>${bar2(qualityScore,'#16a34a')}</div>
+          <div><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-size:12px;font-weight:600;">Momentum <i class="wd-info-btn" data-tip="Momentum = how strongly this portfolio benefits from trending/growing sectors. Small cap = higher momentum.">i</i></span></div>${bar2(momentumScore,'#8b5cf6')}</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:12px;padding:8px 12px;background:rgba(99,102,241,.06);border-radius:6px;">
+      ⚠️ Factor scores are estimated from fund categories. For precise factor analysis, use AMFI portfolio disclosure data.
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t158 — NOMINEE TRACKER (localStorage-based)
+═══════════════════════════════════════════════════════════════════════════ */
+const NOMINEE_KEY = 'wd_nominee_status_v2';
+const NOMINEE_ASSETS = [
+  { id:'mf',       label:'Mutual Funds',      icon:'📊', desc:'All MF folios' },
+  { id:'nps',      label:'NPS Account',       icon:'🏛️', desc:'PRAN-wise nominee' },
+  { id:'fd',       label:'Fixed Deposits',    icon:'🏦', desc:'FD certificates' },
+  { id:'stocks',   label:'Demat / Stocks',    icon:'📈', desc:'DP nominee' },
+  { id:'epf',      label:'EPF / PF',          icon:'🏭', desc:'Form 2 nominee' },
+  { id:'ppf',      label:'PPF',               icon:'📋', desc:'PPF passbook nominee' },
+  { id:'insurance',label:'Life Insurance',    icon:'🛡️', desc:'Policy nominee' },
+  { id:'bank',     label:'Bank Accounts',     icon:'🏛️', desc:'Savings & current A/C' },
+  { id:'postoffice',label:'Post Office',      icon:'📮', desc:'NSC / KVP / MIS' },
+];
+const NOMINEE_STATES = ['missing', 'done', 'minor'];
+const NOMINEE_LABELS = { missing:'❌ Missing', done:'✅ Done', minor:'⚠️ Minor Nominee' };
+const NOMINEE_COLORS = { missing:'#dc2626', done:'#16a34a', minor:'#d97706' };
+
+function getNomineeData() {
+  try { return JSON.parse(localStorage.getItem(NOMINEE_KEY) || '{}'); } catch { return {}; }
+}
+
+function renderNomineeTracker() {
+  const body = document.getElementById('nomineeTrackerBody');
+  if (!body) return;
+  const data = getNomineeData();
+  let missing = 0, done = 0, minor = 0;
+
+  const grid = NOMINEE_ASSETS.map(asset => {
+    const state = data[asset.id] || 'missing';
+    if (state === 'missing') missing++;
+    else if (state === 'done') done++;
+    else minor++;
+    const color = NOMINEE_COLORS[state];
+    const label = NOMINEE_LABELS[state];
+    return `
+      <div onclick="cycleNominee('${asset.id}')" style="cursor:pointer;background:var(--bg-secondary);border-radius:10px;padding:12px 14px;border:1.5px solid ${color}30;transition:all .15s;" class="nominee-tile" data-id="${asset.id}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:18px;">${asset.icon}</span>
+          <span style="font-size:13px;font-weight:700;color:var(--text-primary);">${asset.label}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">${asset.desc}</div>
+        <div style="font-size:11px;font-weight:700;color:${color};padding:3px 8px;background:${color}15;border-radius:99px;display:inline-block;">${label}</div>
+      </div>`;
+  }).join('');
+
+  // Summary alert
+  const total = NOMINEE_ASSETS.length;
+  const alertColor = missing > 0 ? '#dc2626' : minor > 0 ? '#d97706' : '#16a34a';
+  const alertMsg = missing > 0
+    ? `🚨 ${missing} asset${missing>1?'s':''} have NO nominee. Update immediately!`
+    : minor > 0
+      ? `⚠️ ${minor} asset${minor>1?'s':''} have minor nominee — ensure guardian name is filled.`
+      : '✅ All assets have nominees on file. Review every 2 years.';
+
+  body.innerHTML = `
+    <div style="padding:10px 14px;border-radius:8px;background:${alertColor}12;border:1.5px solid ${alertColor}40;font-size:12px;font-weight:600;color:${alertColor};margin-bottom:14px;">${alertMsg}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;">${grid}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">${done}/${total} complete · ${minor} minor nominee · ${missing} missing</div>`;
+}
+
+function cycleNominee(id) {
+  const data  = getNomineeData();
+  const cur   = data[id] || 'missing';
+  const next  = NOMINEE_STATES[(NOMINEE_STATES.indexOf(cur) + 1) % NOMINEE_STATES.length];
+  data[id]    = next;
+  localStorage.setItem(NOMINEE_KEY, JSON.stringify(data));
+  renderNomineeTracker();
+}
+
+function resetNomineeData() {
+  if (confirm('Nominee tracker data reset karo? Sab "Missing" ho jayega.')) {
+    localStorage.removeItem(NOMINEE_KEY);
+    renderNomineeTracker();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t130 — CASH DRAG ANALYSIS
+   Idle cash opportunity cost calculator
+═══════════════════════════════════════════════════════════════════════════ */
+async function renderCashDrag() {
+  const wrap = document.getElementById('cashDragWrap');
+  if (!wrap) return;
+
+  // Try to fetch savings balance
+  let savingsBalance = 0;
+  try {
+    const r = await API.get('/api/?action=savings_summary');
+    savingsBalance = parseFloat(r.data?.total_balance || r.total_balance || 0);
+  } catch { /* fallback: use 0 */ }
+
+  // Emergency fund (heuristic: 6 months of monthly investment amount as proxy)
+  const holdings     = MF.data || [];
+  const totalInvested= holdings.reduce((s, h) => s + parseFloat(h.invested || 0), 0);
+  const sipTxns      = (MF.calTxns || []).filter(t => t.transaction_type === 'BUY');
+  // Monthly SIP estimate from last 6 months
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const recentSip    = sipTxns.filter(t => new Date(t.txn_date) > sixMonthsAgo);
+  const monthlySip   = recentSip.length ? recentSip.reduce((s, t) => s + parseFloat(t.amount || 0), 0) / 6 : 10000;
+  const emergencyFund= monthlySip * 6;
+
+  // Opportunity cost (savings rate ~4%, liquid fund ~7%)
+  const savingsRate   = 0.04;
+  const liquidRate    = 0.07;
+  const idle          = Math.max(0, savingsBalance - emergencyFund);
+  const savingsReturn = idle * savingsRate;
+  const liquidReturn  = idle * liquidRate;
+  const opportunityCost = liquidReturn - savingsReturn;
+
+  const fmtI = v => { v = Math.abs(v); return v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0}); };
+
+  if (savingsBalance <= 0) {
+    wrap.innerHTML = `
+      <div style="color:var(--text-muted);font-size:13px;padding:12px;">
+        <strong>💡 Cash Drag Analysis</strong><br><br>
+        Add your savings account balance in the <strong>Savings</strong> section to see idle cash analysis.
+        <br><br>
+        <strong>How it works:</strong> If you have more than 6× monthly expenses in a savings account (earning ~4%), the excess could earn more in a liquid mutual fund (~7%). The difference is your "cash drag" — money lost to sub-optimal placement.
+      </div>`;
+    return;
+  }
+
+  const adequacy = savingsBalance >= emergencyFund;
+  wrap.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:16px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Savings Balance</div>
+        <div style="font-size:18px;font-weight:800;">${fmtI(savingsBalance)}</div>
+      </div>
+      <div style="background:${adequacy?'rgba(22,163,74,.08)':'rgba(220,38,38,.08)'};border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Emergency Fund (6mo)</div>
+        <div style="font-size:18px;font-weight:800;color:${adequacy?'#16a34a':'#dc2626'};">${fmtI(emergencyFund)}</div>
+        <div style="font-size:11px;color:${adequacy?'#16a34a':'#dc2626'};">${adequacy?'✅ Adequate':'⚠️ Insufficient'}</div>
+      </div>
+      <div style="background:${idle>0?'rgba(234,179,8,.08)':'var(--bg-secondary)'};border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Idle Cash</div>
+        <div style="font-size:18px;font-weight:800;color:${idle>0?'#d97706':'var(--text-primary)'};">${idle>0?fmtI(idle):'₹0'}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Above emergency fund</div>
+      </div>
+      <div style="background:${opportunityCost>0?'rgba(220,38,38,.08)':'var(--bg-secondary)'};border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Annual Opportunity Cost</div>
+        <div style="font-size:18px;font-weight:800;color:${opportunityCost>0?'#dc2626':'#16a34a'};">${opportunityCost>0?'-'+fmtI(opportunityCost):'₹0'}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Savings vs Liquid Fund</div>
+      </div>
+    </div>
+    ${idle > 5000 ? `
+    <div style="padding:12px 16px;border-radius:10px;background:rgba(234,179,8,.08);border:1.5px solid rgba(234,179,8,.3);font-size:12px;">
+      💡 <strong>Suggestion:</strong> Move <strong>${fmtI(idle)}</strong> from savings (~4%/yr) to a liquid fund (~7%/yr).
+      This can earn an extra <strong>${fmtI(opportunityCost)}/year</strong> with minimal risk and instant redemption (T+1).
+      Recommended: <em>Nippon India Liquid Fund, HDFC Liquid Fund, SBI Liquid Fund</em>.
+    </div>` : `<div style="padding:12px;font-size:12px;color:var(--text-muted);background:rgba(22,163,74,.06);border-radius:8px;">✅ Cash allocation looks optimal. Emergency fund is adequately funded.</div>`}`;
 }

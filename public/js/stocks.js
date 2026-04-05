@@ -379,3 +379,108 @@ function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}
 function escHtml(t){ const d=document.createElement('div'); d.appendChild(document.createTextNode(t||'')); return d.innerHTML; }
 
 document.addEventListener('DOMContentLoaded', () => STOCKS.init());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t216 — SECTOR-WISE ANALYTICS
+   t217 — DIVIDEND TRACKER
+═══════════════════════════════════════════════════════════════════════════ */
+
+async function renderStockSectorAnalytics(holdings) {
+  const wrap = document.getElementById('stockSectorWrap');
+  if (!wrap) return;
+  if (!holdings || !holdings.length) {
+    wrap.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;font-size:13px;">No holdings data.</div>';
+    return;
+  }
+
+  // Group by sector
+  const sectors = {};
+  let totalVal = 0;
+  holdings.forEach(h => {
+    const sector = h.sector || 'Unknown';
+    const val    = parseFloat(h.current_value || (h.quantity * h.current_price) || 0);
+    sectors[sector] = (sectors[sector] || 0) + val;
+    totalVal += val;
+  });
+  if (totalVal <= 0) { wrap.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No value data.</div>'; return; }
+
+  const sorted = Object.entries(sectors).sort((a,b) => b[1] - a[1]);
+  const colors = ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#f97316','#6366f1','#14b8a6','#e879f9'];
+  const fmtI = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(1)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  wrap.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${sorted.map(([sector, val], i) => {
+        const pct = (val / totalVal * 100).toFixed(1);
+        const color = colors[i % colors.length];
+        return `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+              <span style="font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block;"></span>
+                ${escHtml(sector)}
+              </span>
+              <span style="font-size:11px;color:var(--text-muted);">${fmtI(val)} &nbsp;<strong>${pct}%</strong></span>
+            </div>
+            <div style="height:6px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${color};border-radius:99px;transition:width .5s;"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function renderStockDividendTracker() {
+  const body    = document.getElementById('stockDivBody');
+  const summary = document.getElementById('stockDivSummary');
+  const fyLabel = document.getElementById('stockDivFyLabel');
+  if (!body) return;
+
+  body.innerHTML = '<tr><td colspan="4" class="text-center" style="padding:20px;"><span class="spinner"></span></td></tr>';
+  try {
+    const pid = window.WD?.selectedPortfolio || 0;
+    const res  = await fetch(`${window.APP_URL||''}/api/?action=stocks_list&type=transactions&txn_type=DIV&portfolio_id=${pid}&per_page=500`);
+    const json = await res.json();
+    const divs = (json.data || json.transactions || []).filter(t => (t.txn_type||t.transaction_type) === 'DIV');
+
+    if (!divs.length) {
+      body.innerHTML = '<tr><td colspan="4" class="text-center" style="padding:20px;color:var(--text-muted);">No dividend records found. Add DIV transactions to track dividends.</td></tr>';
+      if (summary) summary.innerHTML = '';
+      return;
+    }
+
+    // FY grouping
+    const now = new Date(); const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear()-1;
+    const curFy = `${fyYear}-${String(fyYear+1).slice(2)}`;
+    if (fyLabel) fyLabel.textContent = `FY ${curFy}`;
+
+    const totalAll  = divs.reduce((s, d) => s + parseFloat(d.total_amount||d.amount||0), 0);
+    const totalThisFy = divs.filter(d => (d.dividend_fy||d.fy||'') === curFy).reduce((s,d) => s + parseFloat(d.total_amount||d.amount||0), 0);
+    const fmtI = v => v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fmtDate = d => { if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}-${m}-${y}`; };
+
+    if (summary) summary.innerHTML = `
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;flex:1;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Total Dividends</div>
+        <div style="font-size:16px;font-weight:800;color:#16a34a;">${fmtI(totalAll)}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;flex:1;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">This FY</div>
+        <div style="font-size:16px;font-weight:800;color:#3b82f6;">${fmtI(totalThisFy)}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;flex:1;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Entries</div>
+        <div style="font-size:16px;font-weight:800;">${divs.length}</div>
+      </div>`;
+
+    body.innerHTML = divs.slice(0,50).map(d => `
+      <tr>
+        <td style="font-weight:600;">${escHtml(d.symbol||d.company_name||'—')}</td>
+        <td class="text-center" style="color:var(--text-muted);">${fmtDate(d.div_date||d.txn_date)}</td>
+        <td class="text-right" style="font-weight:700;color:#16a34a;">${fmtI(parseFloat(d.total_amount||d.amount||0))}</td>
+        <td class="text-center" style="font-size:11px;color:var(--text-muted);">${escHtml(d.dividend_fy||d.fy||'—')}</td>
+      </tr>`).join('');
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="4" class="text-center" style="color:var(--text-muted);padding:16px;">Error: ${escHtml(e.message)}</td></tr>`;
+  }
+}

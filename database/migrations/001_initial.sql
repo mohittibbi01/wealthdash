@@ -1,3 +1,0 @@
--- WealthDash Migration 001 — Initial Schema
--- Already applied via schema.sql
--- Future changes: 002_xxx.sql, 003_xxx.sql

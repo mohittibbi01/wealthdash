@@ -1,4 +1,0 @@
-
-Run following command in command prompt
-cd\
-C:\xampp\php\php.exe C:\xampp\htdocs\wealthdash\cron\calculate_returns.php

@@ -390,6 +390,11 @@ ob_start();
     RETURNS
     <span class="tab-cnt" id="tcnt_ret" style="display:none;"></span>
   </div>
+  <div class="sc-filter-tab" data-tab="sortino" onclick="toggleTab('sortino',this)">
+    <span class="tab-check" id="tck_sortino">✓</span>
+    SORTINO
+    <span class="tab-cnt" id="tcnt_sortino" style="display:none;"></span>
+  </div>
   <div class="sc-filter-btn" id="scFilterBtn" onclick="SC.applyFilters()">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
     FILTER
@@ -598,6 +603,25 @@ ob_start();
       <span class="fp-type-pill" onclick="SC.setRetPreset(10,10,10)">🟢 All &gt;10%</span>
       <span class="fp-type-pill" onclick="SC.setRetPreset(15,12,10)">🏆 Top Performers</span>
       <span class="fp-type-pill" onclick="SC.setRetPreset(20,15,12)">⭐ Exceptional</span>
+    </div>
+  </div>
+
+  <!-- t126: Sortino Ratio Filter -->
+  <div id="fp_sortino" style="display:none;">
+    <div class="fp-section-title">SORTINO RATIO</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Sortino = (Return − Risk-Free) ÷ Downside Deviation. Better than Sharpe for equity funds. &gt;1 = good.</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:4px;display:block;">Min Sortino ≥</label>
+        <input type="number" id="fpSortinoMin" min="0" max="5" step="0.1" placeholder="e.g. 1.0"
+          style="width:100px;padding:5px 8px;font-size:12px;border-radius:6px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);"
+          oninput="SC.setSortino()">
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+        <span class="fp-type-pill" onclick="document.getElementById('fpSortinoMin').value=0.5;SC.setSortino()">Acceptable (&gt;0.5)</span>
+        <span class="fp-type-pill" onclick="document.getElementById('fpSortinoMin').value=1;SC.setSortino()">Good (&gt;1.0)</span>
+        <span class="fp-type-pill" onclick="document.getElementById('fpSortinoMin').value=2;SC.setSortino()">Excellent (&gt;2.0)</span>
+      </div>
     </div>
   </div>
 
@@ -874,7 +898,7 @@ ob_start();
    STATE
 ══════════════════════════════════════════════════ */
 const SC = {
-  state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,manager:'',fundAge:'',
+  state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null,manager:'',fundAge:'',
     manager:'', fundAge:'' },  // t67 + t98
   facets:{ fund_houses:{},categories:[],ltcg_days:{} },
   _db:null, loading:false,
@@ -952,6 +976,13 @@ const SC = {
   // t98: Fund Age filter
   setFundAge(val){
     this.state.fundAge = val;
+    updTabBadge();
+  },
+
+  // t126: Sortino Ratio filter
+  setSortino(){
+    const v=document.getElementById('fpSortinoMin')?.value;
+    this.state.sortinoMin=v?parseFloat(v):null;
     updTabBadge();
   },
 
@@ -1071,7 +1102,7 @@ const SC = {
   },
 
   reset(){
-    this.state={q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null};
+    this.state={q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null};
     document.getElementById('scQ').value='';
     document.getElementById('scSort').value='name';
     document.getElementById('scPP').value='50';
@@ -1117,6 +1148,7 @@ const SC = {
     if(s.retMin5y!==null&&s.retMin5y!==undefined) p.set('ret_min_5y',s.retMin5y);
     if(s.manager)   p.set('manager', s.manager);    // t67
     if(s.fundAge)   p.set('fund_age', s.fundAge);   // t98
+    if(s.sortinoMin!==null&&s.sortinoMin!==undefined) p.set('sortino_min', s.sortinoMin); // t126
     p.set('sort',s.sort);p.set('page',s.page);p.set('per_page',s.perPage);
     Object.entries(extra).forEach(([k,v])=>p.set(k,v));
     return p.toString();
@@ -1198,7 +1230,7 @@ const FP = {
 let _openTab = null;
 function toggleTab(name, el) {
   const panel = document.getElementById('scFilterPanel');
-  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns','fp_manager','fp_age'];
+  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns','fp_sortino','fp_manager','fp_age'];
   const tabs = document.querySelectorAll('.sc-filter-tab');
 
   if (_openTab === name) {
@@ -1262,6 +1294,10 @@ function updTabBadge(){
   const retOn=s.retMin1y!==null||s.retMin3y!==null||s.retMin5y!==null;
   if(retEl)retEl.classList.toggle('show',retOn);
   if(retCnt){retCnt.style.display=retOn?'inline-block':'none';retCnt.textContent=retOn?'✓':'';}
+  // Sortino (t126)
+  const soEl=document.getElementById('tck_sortino'),soCnt=document.getElementById('tcnt_sortino');
+  if(soEl)soEl.classList.toggle('show',s.sortinoMin!==null);
+  if(soCnt){soCnt.style.display=s.sortinoMin!==null?'inline-block':'none';soCnt.textContent=s.sortinoMin!==null?s.sortinoMin:'';}
   updFpSummary();
 }
 
@@ -1278,6 +1314,7 @@ function updFpSummary(){
   if(s.retMin1y!==null) parts.push(`1Y≥${s.retMin1y}%`);
   if(s.retMin3y!==null) parts.push(`3Y≥${s.retMin3y}%`);
   if(s.retMin5y!==null) parts.push(`5Y≥${s.retMin5y}%`);
+  if(s.sortinoMin!==null) parts.push(`Sortino≥${s.sortinoMin}`);
   document.getElementById('fpFilterSummary').textContent=parts.length?'Filters: '+parts.join(' · '):'No filters applied';
 }
 

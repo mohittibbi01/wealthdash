@@ -436,6 +436,217 @@ ob_start();
 .po-scheme-card .sc-rate { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 </style>
 
+
+<!-- t201: RD Monthly Installment Tracker -->
+<div class="card" style="margin-top:20px;margin-bottom:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h3 class="card-title">🔄 RD Monthly Installment Tracker</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Track paid/missed months</span>
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Select an RD scheme below to track monthly installments. Click a month to toggle Paid/Missed.</p>
+    <div id="rdTrackerSchemeList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="color:var(--text-muted);font-size:13px;">Loading RD schemes…</div>
+    </div>
+    <div id="rdTrackerGrid" style="display:none;">
+      <div id="rdTrackerHeader" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div id="rdTrackerTitle" style="font-size:14px;font-weight:700;"></div>
+        <div id="rdTrackerStats" style="display:flex;gap:12px;font-size:12px;"></div>
+      </div>
+      <div id="rdMonthGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- t204: SSY Complete Tracker -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h3 class="card-title">👧 SSY (Sukanya Samriddhi Yojana) Tracker</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Account details + maturity projection</span>
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Girl's Date of Birth</div>
+        <input type="date" id="ssyDob" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" onchange="calcSSY()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Account Opening Date</div>
+        <input type="date" id="ssyOpen" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" onchange="calcSSY()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Yearly Deposit (₹)</div>
+        <input type="number" id="ssyYearly" placeholder="150000" value="150000" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcSSY()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Current Balance (₹)</div>
+        <input type="number" id="ssyBalance" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcSSY()">
+      </div>
+    </div>
+    <div id="ssyResult" style="display:none;"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
+      Interest rate: <strong>8.2% p.a.</strong> (Q1 FY25-26, compounded yearly). Deposit for 15 years, matures at girl's age 21. Partial withdrawal at 18 for education. Max ₹1.5L/year (80C eligible).
+    </div>
+  </div>
+</div>
+
+<!-- t203: PPF Annual Deposit Tracker -->
+<?php
+// Fetch user's PPF accounts from po_schemes
+$ppfAccounts = DB::fetchAll(
+    "SELECT po.id, po.holder_name, po.account_number, po.principal,
+            po.opening_date, po.interest_rate, po.maturity_date,
+            po.deposit_amount, po.notes
+     FROM po_schemes po
+     JOIN portfolios p ON p.id = po.portfolio_id
+     WHERE p.user_id = ? AND po.scheme_type = 'ppf' AND po.status = 'active'
+     ORDER BY po.opening_date ASC",
+    [$currentUser['id']]
+);
+
+$fyStart = date('Y') . '-04-01';
+if (date('m') < 4) $fyStart = (date('Y')-1) . '-04-01';
+$fyEnd   = date('Y-m-d', strtotime($fyStart . ' +1 year -1 day'));
+$fyLabel = substr($fyStart, 0, 4) . '-' . substr((string)((int)substr($fyStart,0,4)+1), 2);
+$PPF_LIMIT = 150000;
+?>
+<div class="card" style="margin-top:20px;margin-bottom:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <span class="card-title">🛡️ PPF Annual Deposit Tracker — FY <?= $fyLabel ?></span>
+    <span style="font-size:11px;color:var(--text-muted);">Limit: ₹1,50,000/year · Min: ₹500/year · Section 80C</span>
+  </div>
+  <div class="card-body" style="padding:16px 20px;">
+
+  <?php if (empty($ppfAccounts)): ?>
+    <div style="text-align:center;padding:24px;color:var(--text-muted);">
+      <div style="font-size:32px;margin-bottom:8px;">🛡️</div>
+      <div style="font-size:13px;">No active PPF accounts found. Add a PPF account above to track deposits.</div>
+    </div>
+  <?php else: ?>
+    <?php foreach ($ppfAccounts as $ppf):
+      $openDate    = $ppf['opening_date'] ?? date('Y-m-d');
+      $yearsOpen   = max(1, (int)ceil((time() - strtotime($openDate)) / (365.25*86400)));
+      $lockYear    = date('Y', strtotime($openDate . ' +15 years'));
+      $partialYear = date('Y', strtotime($openDate . ' +5 years'));
+      $acNo        = $ppf['account_number'] ? '••••'.substr($ppf['account_number'],-4) : '—';
+
+      // This FY deposit = sum of transactions tagged to this PPF (from notes field JSON or simple estimate)
+      // Since PO schemes don't have transaction table, use deposit_amount as monthly proxy
+      $monthlyDep  = (float)($ppf['deposit_amount'] ?? 0);
+      // Estimate FY deposit: if monthly deposit set, annualise (months remaining in FY)
+      $fyDeposited = 0;
+      if ($monthlyDep > 0) {
+          $monthsInFy = 12;
+          $fyDeposited = min($monthlyDep * $monthsInFy, $PPF_LIMIT);
+      }
+      // Allow manual override via app_settings key
+      $overrideKey = 'ppf_fy_deposit_' . $ppf['id'] . '_' . substr($fyStart,0,4);
+      $override = DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key=?", [$overrideKey]);
+      if ($override !== false && $override !== null) $fyDeposited = (float)$override;
+
+      $remaining   = max(0, $PPF_LIMIT - $fyDeposited);
+      $pct         = min(100, round($fyDeposited / $PPF_LIMIT * 100));
+      $barColor    = $pct >= 100 ? '#15803d' : ($pct >= 50 ? '#2563eb' : '#d97706');
+      $deadline    = date('Y') . '-03-31'; // FY end
+      $daysLeft    = max(0, (int)ceil((strtotime($deadline) - time()) / 86400));
+      $interestRate = (float)($ppf['interest_rate'] ?? 7.1);
+
+      // Interest estimate for current balance
+      $balance     = (float)($ppf['principal'] ?? 0);
+      $annualInt   = round($balance * $interestRate / 100);
+    ?>
+    <div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+      <!-- Header row -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <div>
+          <div style="font-size:14px;font-weight:700;"><?= e($ppf['holder_name'] ?: 'PPF Account') ?></div>
+          <div style="font-size:11px;color:var(--text-muted);">A/c: <?= $acNo ?> · Opened: <?= fmt_date($openDate) ?> · Rate: <?= $interestRate ?>%</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:12px;color:var(--text-muted);">Balance</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text-primary);"><?= inr($balance) ?></div>
+        </div>
+      </div>
+
+      <!-- Deposit progress -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+          <span style="font-size:12px;font-weight:700;">FY <?= $fyLabel ?> Deposits</span>
+          <span style="font-size:13px;font-weight:800;color:<?= $barColor ?>;"><?= inr($fyDeposited) ?> / ₹1,50,000</span>
+        </div>
+        <div style="height:12px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:5px;">
+          <div style="height:100%;width:<?= $pct ?>%;background:<?= $barColor ?>;border-radius:99px;transition:width .5s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
+          <span><?= $pct ?>% deposited</span>
+          <span style="color:<?= $remaining>0?'#d97706':'#15803d';?>;">
+            <?= $remaining > 0 ? '₹'.number_format($remaining,0).' more deposit kar sakte ho' : '✅ Annual limit reached!' ?>
+          </span>
+        </div>
+      </div>
+
+      <!-- Manual entry for this FY's deposit -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <input type="number" id="ppfDep_<?= $ppf['id'] ?>" placeholder="This FY total deposit (₹)"
+          value="<?= $fyDeposited > 0 ? (int)$fyDeposited : '' ?>"
+          style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;background:var(--bg-secondary);color:var(--text-primary);">
+        <button onclick="savePpfDeposit(<?= $ppf['id'] ?>, '<?= substr($fyStart,0,4) ?>')"
+          style="padding:7px 14px;border-radius:7px;border:1.5px solid var(--accent);background:rgba(37,99,235,.07);color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+          💾 Save
+        </button>
+      </div>
+
+      <!-- Info grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:11px;">
+        <div style="background:var(--bg-secondary);border-radius:7px;padding:8px 10px;">
+          <div style="color:var(--text-muted);font-weight:600;margin-bottom:2px;">Est. Interest (FY)</div>
+          <div style="font-weight:800;color:#15803d;">+<?= inr($annualInt) ?></div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:7px;padding:8px 10px;">
+          <div style="color:var(--text-muted);font-weight:600;margin-bottom:2px;">Days to FY End</div>
+          <div style="font-weight:800;color:<?= $daysLeft < 30 ? '#dc2626' : '#d97706' ?>;"><?= $daysLeft ?> days</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:7px;padding:8px 10px;">
+          <div style="color:var(--text-muted);font-weight:600;margin-bottom:2px;">Partial Withdrawal</div>
+          <div style="font-weight:800;"><?= $yearsOpen >= 5 ? '✅ Eligible (from '.$partialYear.')' : '🔒 '.max(0,5-$yearsOpen).' yrs left' ?></div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:7px;padding:8px 10px;">
+          <div style="color:var(--text-muted);font-weight:600;margin-bottom:2px;">Lock-in Ends</div>
+          <div style="font-weight:800;"><?= $lockYear ?> (15 yr maturity)</div>
+        </div>
+      </div>
+
+      <?php if ($daysLeft < 30 && $remaining > 0): ?>
+      <div style="margin-top:10px;padding:8px 12px;border-radius:7px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.2);font-size:12px;font-weight:600;color:#dc2626;">
+        🚨 March deadline close hai! <?= inr($remaining) ?> aur deposit karo to maximize 80C benefit.
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+
+    <div style="font-size:11px;color:var(--text-muted);padding:8px;border-radius:6px;background:var(--bg-secondary);">
+      💡 <strong>PPF Rules:</strong> Min ₹500/year · Max ₹1,50,000/year · 15yr lock-in · Interest tax-free · Compounded annually (1 April pe) · Partial withdrawal from year 6 onwards (50% of balance 4yr ago).
+    </div>
+  <?php endif; ?>
+  </div>
+</div>
+
+<script>
+// t203: Save PPF FY deposit amount
+function savePpfDeposit(ppfId, fy) {
+  const val = parseFloat(document.getElementById('ppfDep_' + ppfId)?.value);
+  if (!val || val < 0 || val > 150000) {
+    showToast('Valid amount enter karo (₹0 – ₹1,50,000)', 'warning'); return;
+  }
+  const key = 'ppf_fy_deposit_' + ppfId + '_' + fy;
+  apiPost({ action: 'save_setting', key, value: val })
+    .then(r => {
+      if (r && r.success) { showToast('PPF deposit saved ✅', 'success'); setTimeout(() => location.reload(), 700); }
+      else showToast('Save failed', 'error');
+    }).catch(() => showToast('Network error', 'error'));
+}
+</script>
+
 <script src="<?= APP_URL ?>/public/js/post_office.js?v=<?= ASSET_VERSION ?>"></script>
 <?php
 $pageContent = ob_get_clean();

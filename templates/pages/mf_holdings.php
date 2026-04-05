@@ -218,6 +218,10 @@ ob_start();
   <button class="mf-tab" data-tab="calendar" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
     📅 Calendar
   </button>
+  <!-- t173: Exit Strategy Planner tab -->
+  <button class="mf-tab" data-tab="exitplanner" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🎯 Exit Planner
+  </button>
 </div>
 
 <!-- ═══ TAB: HOLDINGS ═══ -->
@@ -510,6 +514,57 @@ ob_start();
     </div>
   </div>
 
+  <!-- t183: Portfolio Report Card -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">📝 Portfolio Report Card</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Monthly performance grade</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="reportCardWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- t131: Factor Exposure -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">⚗️ Factor Exposure</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Large/Mid/Small · Value/Growth · Quality · Momentum</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="factorExposureWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- t158: Nominee Tracker -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <h3 class="card-title">👤 Nominee Tracker</h3>
+      <button onclick="resetNomineeData()" class="btn btn-ghost btn-xs" style="font-size:11px;">↺ Reset</button>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Click any asset to cycle status: <strong>Missing</strong> → <strong>Done</strong> → <strong>Minor Nominee</strong>. Data saved locally.</p>
+      <div id="nomineeTrackerBody"></div>
+    </div>
+  </div>
+
+  <!-- t130: Cash Drag Analysis -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">💤 Cash Drag Analysis</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Idle cash opportunity cost</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="cashDragWrap">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══ TAB: REALIZED GAINS ═══ -->
@@ -760,6 +815,87 @@ ob_start();
     </div>
   </div>
 </div>
+
+
+
+<!-- ═══ TAB: EXIT PLANNER (t173) ═══ -->
+<div id="tabExitPlanner" style="display:none;">
+
+  <!-- Summary cards -->
+  <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:20px;">
+    <div class="stat-card">
+      <div class="stat-label">LTCG Eligible Value</div>
+      <div class="stat-value" id="epLtcgValue">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unrealised LTCG Gain</div>
+      <div class="stat-value" id="epLtcgGain">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">LTCG Exemption Left (FY)</div>
+      <div class="stat-value" id="epExemptLeft">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Tax Harvestable Today</div>
+      <div class="stat-value" id="epHarvestable">—</div>
+    </div>
+  </div>
+
+  <!-- Tax harvesting banner -->
+  <div id="epHarvestBanner" style="display:none;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:rgba(22,163,74,.08);border:1.5px solid rgba(22,163,74,.25);"></div>
+
+  <!-- Fund-level exit analysis table -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <h3 class="card-title" style="margin:0;">🎯 Fund-Level Exit Analysis</h3>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-xs active" id="epBtnFIFO" onclick="toggleExitMethod('FIFO',this)">FIFO</button>
+        <button class="btn btn-ghost btn-xs" id="epBtnHIFO" onclick="toggleExitMethod('HIFO',this)">HIFO (Tax Optimal)</button>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="table table-hover" id="epTable">
+        <thead>
+          <tr>
+            <th>Fund</th>
+            <th class="text-center">Units Held</th>
+            <th class="text-center">LTCG Units</th>
+            <th class="text-center">Avg Cost NAV</th>
+            <th class="text-center">Current NAV</th>
+            <th class="text-center">Unrealised Gain</th>
+            <th class="text-center">If Exited Today</th>
+            <th class="text-center">Recommendation</th>
+          </tr>
+        </thead>
+        <tbody id="epTableBody">
+          <tr><td colspan="8" class="text-center" style="padding:40px;color:var(--text-muted);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SWP Calculator -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title" style="margin:0;">💸 SWP Calculator — Monthly Withdrawal vs Corpus Depletion</h3>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+        <div class="form-group" style="margin:0;flex:1;min-width:160px;">
+          <label class="form-label">Monthly Withdrawal (₹)</label>
+          <input type="number" id="swpAmount" class="form-control" value="10000" min="1000" step="1000">
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:160px;">
+          <label class="form-label">Expected Return (%/yr)</label>
+          <input type="number" id="swpReturn" class="form-control" value="10" min="1" max="30" step="0.5">
+        </div>
+        <button onclick="calcSWP()" class="btn btn-primary btn-sm" style="margin-bottom:0;">Calculate</button>
+      </div>
+      <div id="swpResult"></div>
+    </div>
+  </div>
+
+</div><!-- end tabExitPlanner -->
 
 <!-- ═══ ADD/EDIT TRANSACTION MODAL ═══ -->
 <div class="modal-overlay" id="modalAddTxn" style="display:none;">

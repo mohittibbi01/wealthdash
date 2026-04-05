@@ -45,6 +45,7 @@ $perPage    = min(max(1,(int)($_GET['per_page'] ?? 50)), 100);
 $offset     = ($page - 1) * $perPage;
 $manager    = trim($_GET['manager']   ?? '');  // t67
 $fundAge    = trim($_GET['fund_age']  ?? '');  // t98
+$sortinoMin = isset($_GET['sortino_min']) && is_numeric($_GET['sortino_min']) ? (float)$_GET['sortino_min'] : null; // t126
 
 // ── WHERE builder ───────────────────────────────────────
 $where  = ['f.is_active = 1'];
@@ -116,6 +117,16 @@ if ($fundAge !== '') {
         } elseif ($fundAge === '5+') {
             $where[] = "f.inception_date <= DATE_SUB(?, INTERVAL 5 YEAR)"; $params[] = $today;
         }
+        $whereSQL = 'WHERE ' . implode(' AND ', $where);
+    } catch(Exception $e) {}
+}
+
+// t126: Sortino Ratio filter (only if column exists)
+if ($sortinoMin !== null) {
+    try {
+        $db->query("SELECT sortino_ratio FROM funds LIMIT 1");
+        $where[]  = 'f.sortino_ratio >= ?';
+        $params[] = $sortinoMin;
         $whereSQL = 'WHERE ' . implode(' AND ', $where);
     } catch(Exception $e) {}
 }

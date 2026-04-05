@@ -688,6 +688,424 @@ function calcIndexation() {
 }
 </script>
 
+
+<!-- t132: Grandfathering Calculator (Jan 31 2018 FMV) -->
+<div class="card mb-4" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <h3 class="card-title">⚡ Grandfathering Calculator — Jan 31, 2018 FMV Rule</h3>
+    <span class="badge badge-warning">LTCG Budget 2018</span>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(245,158,11,.07);border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">
+      💡 <strong>Grandfathering Rule:</strong> For equity/equity MF bought <strong>before Jan 31, 2018</strong>, the cost basis is the <em>higher</em> of actual purchase price or the Jan 31, 2018 FMV (Fair Market Value). This reduces your taxable LTCG.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Purchase Price (₹/unit)</div>
+        <input type="number" id="gfPurchase" placeholder="e.g. 50" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcGrandfathering()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Jan 31, 2018 FMV (₹/unit)</div>
+        <input type="number" id="gfFmv" placeholder="e.g. 120" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcGrandfathering()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Sale Price (₹/unit)</div>
+        <input type="number" id="gfSale" placeholder="e.g. 180" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcGrandfathering()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Number of Units</div>
+        <input type="number" id="gfUnits" placeholder="e.g. 1000" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcGrandfathering()">
+      </div>
+    </div>
+    <div id="gfResult" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- t133: HIFO / Lot Selector — Tax-Optimal Cost Basis -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">📦 HIFO Lot Selector — Tax-Optimal Cost Basis</h3>
+    <span class="badge badge-info">Highest-In First-Out</span>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(99,102,241,.06);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">
+      💡 <strong>HIFO</strong> = sell the lots with the <em>highest purchase price first</em>. This minimises your capital gain (and thus tax). Compare vs FIFO to see savings.
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end;">
+      <div style="flex:1;min-width:140px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Sale Price (₹/unit)</div>
+        <input type="number" id="hifoSalePrice" placeholder="e.g. 200" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcHifo()">
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Units to Sell</div>
+        <input type="number" id="hifoSellUnits" placeholder="e.g. 500" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcHifo()">
+      </div>
+      <button onclick="addHifoLot()" class="btn btn-outline btn-sm" style="height:38px;">+ Add Lot</button>
+    </div>
+    <!-- Lot Table -->
+    <div style="overflow-x:auto;margin-bottom:14px;">
+      <table class="data-table" id="hifoLotTable" style="font-size:12px;">
+        <thead><tr><th>Lot #</th><th>Purchase Date</th><th>Cost/Unit (₹)</th><th>Units</th><th>Remove</th></tr></thead>
+        <tbody id="hifoLotBody">
+          <tr id="hifoEmptyRow"><td colspan="5" class="text-center" style="padding:16px;color:var(--text-muted);font-size:12px;">Click "+ Add Lot" to add purchase lots</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="hifoResult" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- t135: Capital Loss Set-Off & 8-Year Carry Forward -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">📉 Capital Loss Set-Off & 8-Year Carry Forward</h3>
+    <span class="badge badge-warning">Section 70–74</span>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(99,102,241,.06);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">
+      💡 <strong>Rules:</strong> STCL can set off against STCG + LTCG. LTCL can set off only against LTCG. Unadjusted losses can be carried forward for <strong>8 assessment years</strong> if ITR is filed on time.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">This FY LTCG (₹)</div>
+        <input type="number" id="lossLtcg" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">This FY STCG (₹)</div>
+        <input type="number" id="lossStcg" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Brought-Fwd LTCL (₹)</div>
+        <input type="number" id="lossBfLtcl" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Brought-Fwd STCL (₹)</div>
+        <input type="number" id="lossBfStcl" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Current FY LTCL (₹)</div>
+        <input type="number" id="lossCurrentLtcl" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Current FY STCL (₹)</div>
+        <input type="number" id="lossCurrentStcl" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcLossSetoff()">
+      </div>
+    </div>
+    <div id="lossSetoffResult" style="display:none;"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
+      ⚠️ File ITR before due date to carry forward losses. Losses lapse if ITR is filed late.
+    </div>
+  </div>
+</div>
+
+<!-- t137: Advance Tax Calculator -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">📅 Advance Tax Calculator — Quarterly Estimates</h3>
+    <span class="badge badge-info">Section 207–209</span>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(99,102,241,.06);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;">
+      💡 <strong>Advance Tax</strong> is due if total tax liability exceeds ₹10,000. Pay 15% by Jun 15, 45% by Sep 15, 75% by Dec 15, 100% by Mar 15. Interest @1%/month applies on shortfall.
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Estimated Annual Income (₹)</div>
+        <input type="number" id="atxIncome" placeholder="1200000" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcAdvTax()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">LTCG (equity, ₹)</div>
+        <input type="number" id="atxLtcg" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcAdvTax()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">STCG (equity, ₹)</div>
+        <input type="number" id="atxStcg" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcAdvTax()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Tax Regime</div>
+        <select id="atxRegime" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" onchange="calcAdvTax()">
+          <option value="new">New Regime (default)</option>
+          <option value="old">Old Regime</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Deductions 80C etc (₹)</div>
+        <input type="number" id="atxDeductions" placeholder="150000" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcAdvTax()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Tax Already Paid (₹)</div>
+        <input type="number" id="atxPaid" placeholder="0" value="0" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg-secondary);color:var(--text-primary);box-sizing:border-box;" oninput="calcAdvTax()">
+      </div>
+    </div>
+    <div id="atxResult" style="display:none;"></div>
+  </div>
+</div>
+
+
+<script>
+/* ── t132: Grandfathering Calculator ─────────────────────────────────────── */
+function calcGrandfathering() {
+  const purchase = parseFloat(document.getElementById('gfPurchase')?.value) || 0;
+  const fmv      = parseFloat(document.getElementById('gfFmv')?.value)      || 0;
+  const sale     = parseFloat(document.getElementById('gfSale')?.value)      || 0;
+  const units    = parseFloat(document.getElementById('gfUnits')?.value)     || 0;
+  const res      = document.getElementById('gfResult');
+  if (!res || !sale || !units) { if(res) res.style.display='none'; return; }
+
+  // Grandfathered cost = max(purchase, min(fmv, sale))
+  const effectiveCost = Math.max(purchase, Math.min(fmv || purchase, sale));
+  const ltcgWithGF    = Math.max(0, sale - effectiveCost) * units;
+  const ltcgWithout   = Math.max(0, sale - purchase) * units;
+  const taxSaving     = Math.max(0, ltcgWithout - ltcgWithGF) * 0.125;
+  const fmtI = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(1)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  const noFmv = !fmv;
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Without Grandfathering</div>
+        <div style="font-size:11px;color:var(--text-muted);">Cost basis: ₹${purchase}/unit</div>
+        <div style="font-size:14px;font-weight:800;">LTCG: ${fmtI(ltcgWithout)}</div>
+        <div style="font-size:13px;color:#dc2626;">Tax: ${fmtI(ltcgWithout * 0.125)}</div>
+      </div>
+      <div style="background:${taxSaving > 0 ? 'rgba(22,163,74,.08)' : 'var(--bg-secondary)'};border-radius:10px;padding:14px;border:${taxSaving > 0 ? '1.5px solid #86efac' : '1.5px solid var(--border)'};">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">With Grandfathering</div>
+        <div style="font-size:11px;color:var(--text-muted);">Cost basis: ₹${effectiveCost.toFixed(2)}/unit ${noFmv ? '(FMV not entered)' : ''}</div>
+        <div style="font-size:14px;font-weight:800;">LTCG: ${fmtI(ltcgWithGF)}</div>
+        <div style="font-size:13px;color:#16a34a;">Tax: ${fmtI(ltcgWithGF * 0.125)}</div>
+      </div>
+    </div>
+    ${taxSaving > 0
+      ? `<div style="padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;">💰 <strong>Grandfathering saves ₹${fmtI(taxSaving)} in tax</strong> — your effective cost basis is raised from ₹${purchase} to ₹${effectiveCost.toFixed(2)} using the Jan 31 2018 FMV.</div>`
+      : `<div style="padding:10px;background:var(--bg-secondary);border-radius:7px;font-size:12px;">ℹ️ ${noFmv ? 'Enter Jan 31, 2018 FMV to calculate grandfathering benefit.' : 'Grandfathering has no benefit here — your purchase price is higher than or equal to the FMV.'}</div>`}`;
+}
+
+/* ── t133: HIFO Lot Selector ──────────────────────────────────────────────── */
+let _hifoLots = [];
+function addHifoLot() {
+  const n    = _hifoLots.length + 1;
+  const lot  = { id: n, date: '', cost: 0, units: 0 };
+  _hifoLots.push(lot);
+  renderHifoLotTable();
+}
+function removeHifoLot(id) {
+  _hifoLots = _hifoLots.filter(l => l.id !== id);
+  renderHifoLotTable();
+  calcHifo();
+}
+function renderHifoLotTable() {
+  const body = document.getElementById('hifoLotBody');
+  if (!body) return;
+  const empty = document.getElementById('hifoEmptyRow');
+  if (empty) empty.remove();
+  body.innerHTML = _hifoLots.map((l, i) => `
+    <tr>
+      <td style="font-weight:700;color:var(--text-muted);">#${i+1}</td>
+      <td><input type="date" value="${l.date}" style="padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg-secondary);color:var(--text-primary);" onchange="_hifoLots[${i}].date=this.value; calcHifo()"></td>
+      <td><input type="number" placeholder="Cost/unit" value="${l.cost||''}" style="width:90px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg-secondary);color:var(--text-primary);" oninput="_hifoLots[${i}].cost=+this.value; calcHifo()"></td>
+      <td><input type="number" placeholder="Units" value="${l.units||''}" style="width:80px;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;background:var(--bg-secondary);color:var(--text-primary);" oninput="_hifoLots[${i}].units=+this.value; calcHifo()"></td>
+      <td><button onclick="removeHifoLot(${l.id})" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:16px;">✕</button></td>
+    </tr>`).join('');
+}
+function calcHifo() {
+  const salePrice  = parseFloat(document.getElementById('hifoSalePrice')?.value) || 0;
+  const sellUnits  = parseFloat(document.getElementById('hifoSellUnits')?.value) || 0;
+  const res        = document.getElementById('hifoResult');
+  if (!res || !salePrice || !sellUnits || !_hifoLots.length) { if(res) res.style.display='none'; return; }
+
+  const fmtI = v => v >= 1e7 ? '₹'+(v/1e7).toFixed(2)+'Cr' : v >= 1e5 ? '₹'+(v/1e5).toFixed(1)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  // FIFO: oldest first
+  const fifo = [..._hifoLots].filter(l => l.units > 0 && l.cost >= 0).sort((a,b) => (a.date||'9999') < (b.date||'9999') ? -1 : 1);
+  // HIFO: highest cost first
+  const hifo = [..._hifoLots].filter(l => l.units > 0 && l.cost >= 0).sort((a,b) => b.cost - a.cost);
+
+  function calcGain(lots) {
+    let remain = sellUnits, totalCost = 0, usedUnits = 0;
+    for (const l of lots) {
+      if (remain <= 0) break;
+      const use = Math.min(l.units, remain);
+      totalCost += use * l.cost;
+      usedUnits += use;
+      remain -= use;
+    }
+    if (remain > 0) return null; // not enough units
+    return { cost: totalCost, gain: salePrice * usedUnits - totalCost };
+  }
+
+  const fifoRes = calcGain(fifo);
+  const hifoRes = calcGain(hifo);
+  if (!fifoRes || !hifoRes) { res.style.display='none'; return; }
+
+  const saving = Math.max(0, fifoRes.gain - hifoRes.gain) * 0.125;
+
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">FIFO (Default)</div>
+        <div style="font-size:11px;color:var(--text-muted);">Total cost: ${fmtI(fifoRes.cost)}</div>
+        <div style="font-size:16px;font-weight:800;">Gain: ${fmtI(fifoRes.gain)}</div>
+        <div style="font-size:13px;color:#dc2626;">Tax ~${fmtI(fifoRes.gain * 0.125)}</div>
+      </div>
+      <div style="background:rgba(22,163,74,.08);border-radius:10px;padding:14px;border:1.5px solid #86efac;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">HIFO (Tax Optimal) ✅</div>
+        <div style="font-size:11px;color:var(--text-muted);">Total cost: ${fmtI(hifoRes.cost)}</div>
+        <div style="font-size:16px;font-weight:800;">Gain: ${fmtI(hifoRes.gain)}</div>
+        <div style="font-size:13px;color:#16a34a;">Tax ~${fmtI(hifoRes.gain * 0.125)}</div>
+      </div>
+    </div>
+    ${saving > 0 ? `<div style="padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;">💰 <strong>HIFO saves ~${fmtI(saving)} in tax</strong> by selling highest-cost lots first. India FIFO is the default, but HIFO is better for tax planning — consult your CA.</div>` : '<div style="padding:10px;background:var(--bg-secondary);border-radius:7px;font-size:12px;">Both methods give the same result for these lots.</div>'}`;
+}
+
+/* ── t135: Capital Loss Set-Off ───────────────────────────────────────────── */
+function calcLossSetoff() {
+  const ltcg     = parseFloat(document.getElementById('lossLtcg')?.value)      || 0;
+  const stcg     = parseFloat(document.getElementById('lossStcg')?.value)      || 0;
+  const bfLtcl   = parseFloat(document.getElementById('lossBfLtcl')?.value)    || 0;
+  const bfStcl   = parseFloat(document.getElementById('lossBfStcl')?.value)    || 0;
+  const curLtcl  = parseFloat(document.getElementById('lossCurrentLtcl')?.value)|| 0;
+  const curStcl  = parseFloat(document.getElementById('lossCurrentStcl')?.value)|| 0;
+  const res      = document.getElementById('lossSetoffResult');
+  if (!res) return;
+
+  const fmtI = v => { const abs = Math.abs(v); return (v < 0 ? '-' : '') + (abs >= 1e5 ? '₹'+(abs/1e5).toFixed(1)+'L' : '₹'+abs.toLocaleString('en-IN',{maximumFractionDigits:0})); };
+
+  // Step 1: Current year STCL sets off STCG first, then LTCG
+  let netStcg = stcg - curStcl;
+  let remainStcl = 0;
+  let ltcgAfterStcl = ltcg;
+  if (netStcg < 0) { remainStcl = -netStcg; netStcg = 0; ltcgAfterStcl = Math.max(0, ltcg - remainStcl); remainStcl = Math.max(0, remainStcl - ltcg); }
+
+  // Step 2: Current year LTCL sets off only LTCG
+  let netLtcg = ltcgAfterStcl - curLtcl;
+  let remainLtcl = 0;
+  if (netLtcg < 0) { remainLtcl = -netLtcg; netLtcg = 0; }
+
+  // Step 3: Brought-forward STCL sets off remaining STCG, then LTCG
+  let afterBfStcl_stcg = Math.max(0, netStcg - bfStcl);
+  let bfStcl_excessToLtcg = Math.max(0, bfStcl - netStcg);
+  let afterBfStcl_ltcg = Math.max(0, netLtcg - bfStcl_excessToLtcg);
+
+  // Step 4: Brought-forward LTCL sets off only LTCG
+  let finalLtcg = Math.max(0, afterBfStcl_ltcg - bfLtcl);
+  let finalStcg = afterBfStcl_stcg;
+
+  // LTCG exemption
+  const EXEMPTION = 125000;
+  const taxableLtcg = Math.max(0, finalLtcg - EXEMPTION);
+  const ltcgTax = taxableLtcg * 0.125;
+  const stcgTax = finalStcg * 0.20;
+  const totalTax = ltcgTax + stcgTax;
+
+  // Carry forward
+  const cfLtcl = remainLtcl;
+  const cfStcl = remainStcl;
+
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px;">
+      ${[
+        ['Net Taxable LTCG', fmtI(finalLtcg), finalLtcg > 0 ? '#dc2626' : '#16a34a'],
+        ['Net Taxable STCG', fmtI(finalStcg), finalStcg > 0 ? '#dc2626' : '#16a34a'],
+        ['LTCG Tax (@12.5%)', fmtI(ltcgTax), '#d97706'],
+        ['STCG Tax (@20%)', fmtI(stcgTax), '#d97706'],
+        ['Total Tax', fmtI(totalTax), '#dc2626'],
+        ['Carry Fwd LTCL', cfLtcl > 0 ? fmtI(cfLtcl) : '₹0', cfLtcl > 0 ? '#16a34a' : 'var(--text-muted)'],
+      ].map(([label, val, color]) => `
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">${label}</div>
+          <div style="font-size:15px;font-weight:800;color:${color};">${val}</div>
+        </div>`).join('')}
+    </div>
+    ${(cfLtcl > 0 || cfStcl > 0) ? `
+    <div style="padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;">
+      ✅ <strong>Carry Forward:</strong> 
+      ${cfLtcl > 0 ? `LTCL ${fmtI(cfLtcl)} can be carried forward for 8 years.` : ''}
+      ${cfStcl > 0 ? `STCL ${fmtI(cfStcl)} can be carried forward for 8 years.` : ''}
+      <strong>File ITR before due date</strong> to preserve this benefit.
+    </div>` : ''}`;
+}
+
+/* ── t137: Advance Tax Calculator ────────────────────────────────────────── */
+function calcAdvTax() {
+  const income     = parseFloat(document.getElementById('atxIncome')?.value)     || 0;
+  const ltcg       = parseFloat(document.getElementById('atxLtcg')?.value)       || 0;
+  const stcg       = parseFloat(document.getElementById('atxStcg')?.value)       || 0;
+  const regime     = document.getElementById('atxRegime')?.value || 'new';
+  const deductions = parseFloat(document.getElementById('atxDeductions')?.value) || 0;
+  const paid       = parseFloat(document.getElementById('atxPaid')?.value)       || 0;
+  const res        = document.getElementById('atxResult');
+  if (!res || !income) { if(res) res.style.display='none'; return; }
+
+  const fmtI = v => v >= 1e5 ? '₹'+(v/1e5).toFixed(1)+'L' : '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  // Slab tax (simplified)
+  function slabTax(inc, r) {
+    if (r === 'new') {
+      if (inc <= 300000) return 0;
+      if (inc <= 700000) return (inc - 300000) * 0.05;
+      if (inc <= 1000000) return 20000 + (inc - 700000) * 0.10;
+      if (inc <= 1200000) return 50000 + (inc - 1000000) * 0.15;
+      if (inc <= 1500000) return 80000 + (inc - 1200000) * 0.20;
+      return 140000 + (inc - 1500000) * 0.30;
+    } else {
+      if (inc <= 250000) return 0;
+      if (inc <= 500000) return (inc - 250000) * 0.05;
+      if (inc <= 1000000) return 12500 + (inc - 500000) * 0.20;
+      return 112500 + (inc - 1000000) * 0.30;
+    }
+  }
+
+  const taxableIncome = Math.max(0, income - (regime === 'old' ? deductions : 75000)); // 75K std deduction new regime
+  const slabT  = slabTax(taxableIncome, regime);
+  const ltcgTax = Math.max(0, ltcg - 125000) * 0.125;
+  const stcgTax = stcg * 0.20;
+  const grossTax = slabT + ltcgTax + stcgTax;
+  const cess    = grossTax * 0.04;
+  const totalTax = grossTax + cess;
+  const netDue  = Math.max(0, totalTax - paid);
+
+  // Quarterly installments (% of total liability)
+  const quarters = [
+    { name: 'Q1 (by Jun 15)', pct: 0.15, due: '15-Jun' },
+    { name: 'Q2 (by Sep 15)', pct: 0.30, due: '15-Sep' },
+    { name: 'Q3 (by Dec 15)', pct: 0.30, due: '15-Dec' },
+    { name: 'Q4 (by Mar 15)', pct: 0.25, due: '15-Mar' },
+  ];
+
+  res.style.display = '';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Tax Liability</div>
+        <div style="font-size:16px;font-weight:800;">${fmtI(totalTax)}</div>
+        <div style="font-size:10px;color:var(--text-muted);">incl. 4% cess</div>
+      </div>
+      <div style="background:rgba(220,38,38,.07);border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Balance Due</div>
+        <div style="font-size:16px;font-weight:800;color:${netDue > 0 ? '#dc2626' : '#16a34a'};">${fmtI(netDue)}</div>
+      </div>
+      ${totalTax < 10000 ? '<div style="grid-column:1/-1;padding:10px;background:rgba(22,163,74,.07);border-radius:7px;font-size:12px;">✅ Total tax &lt; ₹10,000 — Advance tax not applicable.</div>' : ''}
+    </div>
+    ${totalTax >= 10000 ? `
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Quarterly Advance Tax Schedule</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      ${quarters.map(q => {
+        const amt = Math.round(netDue * q.pct);
+        return `<div style="background:var(--bg-secondary);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">${q.name}</div>
+          <div style="font-size:15px;font-weight:800;color:#3b82f6;">${fmtI(amt)}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${(q.pct*100).toFixed(0)}% of due</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:10px;padding:8px;background:rgba(220,38,38,.06);border-radius:6px;font-size:11px;color:var(--text-muted);">
+      ⚠️ Late payment interest: 1% per month (Section 234C) on shortfall per quarter.
+    </div>` : ''}`;
+}
+</script>
 <?php
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';
