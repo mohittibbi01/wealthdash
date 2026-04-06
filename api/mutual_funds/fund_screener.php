@@ -46,6 +46,7 @@ $offset     = ($page - 1) * $perPage;
 $manager    = trim($_GET['manager']   ?? '');  // t67
 $fundAge    = trim($_GET['fund_age']  ?? '');  // t98
 $sortinoMin = isset($_GET['sortino_min']) && is_numeric($_GET['sortino_min']) ? (float)$_GET['sortino_min'] : null; // t126
+$styleBoxes = (array)($_GET['style_box'] ?? []);  // t179
 
 // ── WHERE builder ───────────────────────────────────────
 $where  = ['f.is_active = 1'];
@@ -131,6 +132,25 @@ if ($sortinoMin !== null) {
     } catch(Exception $e) {}
 }
 
+// t179: Style Box filter (only if column exists)
+if (!empty($styleBoxes)) {
+    $styleBoxes = array_filter($styleBoxes, fn($s) => preg_match('/^(large|mid|small)_(value|blend|growth)$/', $s));
+    if (!empty($styleBoxes)) {
+        try {
+            $db->query("SELECT style_size FROM funds LIMIT 1");
+            // Build OR conditions: (style_size='large' AND style_value='growth') OR ...
+            $styleConds = [];
+            foreach ($styleBoxes as $sb) {
+                [$sz, $sv] = explode('_', $sb, 2);
+                $styleConds[] = "(f.style_size = ? AND f.style_value = ?)";
+                $params[] = $sz; $params[] = $sv;
+            }
+            $where[]  = '(' . implode(' OR ', $styleConds) . ')';
+            $whereSQL = 'WHERE ' . implode(' AND ', $where);
+        } catch(Exception $e) {}
+    }
+}
+
 // ── ORDER BY ─────────────────────────────────────────────
 $sortMap = [
     'name'          => 'IF(f.latest_nav IS NULL OR f.latest_nav=0,1,0) ASC, f.scheme_name ASC',
@@ -193,12 +213,16 @@ $hasRetCol = false; try { $db->query("SELECT returns_1y FROM funds LIMIT 1"); $h
 $hasSharpCol  = false; try { $db->query("SELECT sharpe_ratio  FROM funds LIMIT 1"); $hasSharpCol=true;  } catch(Exception $e){}
 $hasSortinoCol= false; try { $db->query("SELECT sortino_ratio FROM funds LIMIT 1"); $hasSortinoCol=true;} catch(Exception $e){}
 $hasCatAvgCol = false; try { $db->query("SELECT category_avg_1y FROM funds LIMIT 1"); $hasCatAvgCol=true;} catch(Exception $e){}
+// t179: Style Box columns
+$hasStyleCol  = false; try { $db->query("SELECT style_size FROM funds LIMIT 1"); $hasStyleCol=true; } catch(Exception $e){}
+$styleColSQL  = $hasStyleCol ? ', f.style_size, f.style_value, f.style_drift_note' : '';
 $mgrColSQL   = $hasMgrCol   ? ', f.fund_manager, f.manager_since' : '';
 $incColSQL   = $hasIncCol   ? ', f.inception_date' : '';
 $retColSQL   = $hasRetCol   ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
 $sharpColSQL = ($hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '')
              . ($hasSortinoCol ? ', f.sortino_ratio' : '')
-             . ($hasCatAvgCol  ? ', f.category_avg_1y, f.category_avg_3y' : '');
+             . ($hasCatAvgCol  ? ', f.category_avg_1y, f.category_avg_3y' : '')
+             . $styleColSQL;
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
@@ -303,6 +327,10 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         // t167: Category Averages for peer comparison
         'category_avg_1y' => ($hasCatAvgCol  && isset($r['category_avg_1y']) && $r['category_avg_1y'] !== null) ? round((float)$r['category_avg_1y'], 2) : null,
         'category_avg_3y' => ($hasCatAvgCol  && isset($r['category_avg_3y']) && $r['category_avg_3y'] !== null) ? round((float)$r['category_avg_3y'], 2) : null,
+        // t179: Style Box
+        'style_size'       => ($hasStyleCol && isset($r['style_size']))       ? $r['style_size']       : null,
+        'style_value'      => ($hasStyleCol && isset($r['style_value']))      ? $r['style_value']      : null,
+        'style_drift_note' => ($hasStyleCol && isset($r['style_drift_note'])) ? $r['style_drift_note'] : null,
     ];
 }, $rows);
 

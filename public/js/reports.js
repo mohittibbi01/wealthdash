@@ -460,6 +460,104 @@ if (document.getElementById('fySummaryBody')) {
         });
     }
 
+    // t74: PDF Print — ITR-ready Capital Gains Summary
+    const pdfPrintBtn = document.getElementById('printCapGainsPdfBtn');
+    if (pdfPrintBtn) {
+        pdfPrintBtn.addEventListener('click', () => {
+            if (!reportData) { window.showToast?.('Load the report first', 'warning'); return; }
+            const fyVal = fyFilterEl?.value || 'All FYs';
+            printCapGainsPdf(reportData, fyVal);
+        });
+    }
+
+    function printCapGainsPdf(data, fy) {
+        const fmtI = n => '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+        const summary = data.fy_summary || [];
+        const mfGains = data.mf_gains_detail || [];
+        const stGains = data.stock_gains_detail || [];
+
+        // Build summary rows
+        const summaryRows = summary.map(r => `
+            <tr>
+                <td>${r.fy}</td>
+                <td class="amt">${fmtI(r.ltcg_equity)}</td>
+                <td class="amt">${fmtI(r.ltcg_debt)}</td>
+                <td class="amt">${fmtI(r.stcg_equity)}</td>
+                <td class="amt">${fmtI(r.stcg_debt)}</td>
+                <td class="amt">${fmtI(r.total_dividends)}</td>
+                <td class="amt tax">${fmtI(r.total_tax_approx)}</td>
+            </tr>`).join('');
+
+        // MF detail rows (top 50)
+        const mfRows = mfGains.slice(0, 50).map(g => `
+            <tr>
+                <td>${g.fy}</td>
+                <td>${(g.scheme_name||'').substring(0,40)}</td>
+                <td class="amt">${Number(g.units_sold||0).toFixed(4)}</td>
+                <td class="amt">${fmtI(g.sell_nav||g.nav)}</td>
+                <td class="amt">${fmtI(g.proceeds)}</td>
+                <td class="amt">${fmtI(g.cost)}</td>
+                <td class="amt ${(g.gain||0)>=0?'pos':'neg'}">${fmtI(g.gain)}</td>
+                <td>${g.gain_type||''}</td>
+                <td class="amt tax">${fmtI(g.tax_amount)}</td>
+            </tr>`).join('');
+
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Capital Gains Summary ${fy} — WealthDash</title>
+        <style>
+            *{box-sizing:border-box;margin:0;padding:0}
+            body{font-family:system-ui,Arial,sans-serif;font-size:11px;color:#111;padding:24px}
+            h1{font-size:18px;font-weight:800;margin-bottom:4px}
+            h2{font-size:13px;font-weight:700;margin:20px 0 8px;color:#374151;border-bottom:2px solid #e5e7eb;padding-bottom:4px}
+            .meta{font-size:11px;color:#6b7280;margin-bottom:16px}
+            table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:10.5px}
+            th{background:#f3f4f6;padding:6px 8px;text-align:left;font-weight:700;border:1px solid #d1d5db}
+            td{padding:5px 8px;border:1px solid #e5e7eb}
+            .amt{text-align:right;font-variant-numeric:tabular-nums}
+            .tax{color:#dc2626;font-weight:700}
+            .pos{color:#16a34a;font-weight:700}
+            .neg{color:#dc2626;font-weight:700}
+            .notice{background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 14px;margin-top:16px;font-size:11px}
+            @media print{body{padding:12px}.no-print{display:none}}
+        </style></head><body>
+        <h1>📊 Capital Gains Summary — ${fy}</h1>
+        <p class="meta">Generated: ${new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'})} &nbsp;|&nbsp; WealthDash &nbsp;|&nbsp; For personal reference only. Not a financial statement.</p>
+
+        <h2>FY-wise Summary</h2>
+        <table>
+            <thead><tr>
+                <th>FY</th><th>LTCG Equity</th><th>LTCG Debt</th>
+                <th>STCG Equity</th><th>STCG Debt</th>
+                <th>Dividends</th><th>Est. Tax</th>
+            </tr></thead>
+            <tbody>${summaryRows || '<tr><td colspan="7">No data</td></tr>'}</tbody>
+        </table>
+
+        <h2>Mutual Fund Gains — LTCG/STCG Detail ${mfGains.length > 50 ? '(Top 50 shown — download CSV for full data)' : ''}</h2>
+        <table>
+            <thead><tr>
+                <th>FY</th><th>Fund Name</th><th>Units Sold</th><th>Sell NAV</th>
+                <th>Proceeds</th><th>Cost</th><th>Gain/Loss</th><th>Type</th><th>Tax (Est.)</th>
+            </tr></thead>
+            <tbody>${mfRows || '<tr><td colspan="9">No MF gains</td></tr>'}</tbody>
+        </table>
+
+        <div class="notice">
+            <strong>⚖️ ITR Filing Notes:</strong><br>
+            • LTCG (equity/MF) → Schedule 112A | STCG (equity/MF) → Schedule CG<br>
+            • LTCG exempt up to ₹1,25,000 per FY (Budget 2024). Above that: 12.5% flat.<br>
+            • STCG on equity: 20% flat. Debt MF gains: as per income slab (from FY 2023-24).<br>
+            • This is an estimate only. Consult your CA/tax advisor for ITR filing.<br>
+            • For grandfathering (pre-Jan 31 2018 purchases), use FMV as cost basis.
+        </div>
+        <script>window.onload=()=>window.print();</script>
+        </body></html>`;
+
+        const w = window.open('', '_blank', 'width=900,height=700');
+        if (w) { w.document.write(html); w.document.close(); }
+        else window.showToast?.('Popup blocked — allow popups and try again', 'warning');
+    }
+
     // Always attempt load — portId fallback handles missing WD object
     loadFyReport();
     window.addEventListener('portfolioChanged', () => loadFyReport(fyFilterEl?.value || ''));
@@ -488,10 +586,31 @@ if (document.getElementById('harvestBody')) {
         }
     }
 
+    // t83: Store harvest data for calculator
+    window._harvestData = null;
+
     function renderTaxSummaryCards(d) {
         const el = document.getElementById('taxSummaryCards');
         if (!el) return;
         const pct = d.ltcg_exemption_limit > 0 ? Math.min(100, (d.ltcg_realised / d.ltcg_exemption_limit) * 100).toFixed(0) : 0;
+
+        // t83: March 31 deadline countdown
+        const today = new Date();
+        const curY  = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+        const fyEnd = new Date(curY + 1, 2, 31); // March 31 next year
+        const msLeft = fyEnd - today;
+        const daysLeft = Math.max(0, Math.ceil(msLeft / 86400000));
+        const deadlineEl = document.getElementById('deadlineCountdown');
+        if (deadlineEl) {
+            const urgCls = daysLeft <= 7  ? 'background:rgba(220,38,38,.12);color:#b91c1c' :
+                           daysLeft <= 30 ? 'background:rgba(245,158,11,.12);color:#b45309' :
+                                            'background:rgba(91,94,244,.10);color:#4f46e5';
+            deadlineEl.style.cssText = `font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;${urgCls}`;
+            deadlineEl.textContent = daysLeft === 0 ? '🚨 FY ends TODAY!'
+                                   : daysLeft === 1 ? '🚨 1 day left!'
+                                   : `📅 ${daysLeft} days to Mar 31`;
+        }
+
         el.innerHTML = `
         <div class="stat-card">
             <div class="stat-label">LTCG Realised (FY ${d.fy})</div>
@@ -510,7 +629,6 @@ if (document.getElementById('harvestBody')) {
             <div class="stat-value text-primary">${d.harvest_suggestions?.length || 0} <small>funds/stocks</small></div>
         </div>`;
 
-        // Update progress bar
         const fyBadge = document.getElementById('taxFyBadge');
         if (fyBadge) fyBadge.textContent = d.fy;
         const bar = document.getElementById('taxProgressBar');
@@ -521,7 +639,7 @@ if (document.getElementById('harvestBody')) {
         const msgEl = document.getElementById('ltcgHarvestMsg');
         if (msgEl) {
             if (d.ltcg_exemption_remaining > 0) {
-                msgEl.textContent = `You can book ₹${Number(d.ltcg_exemption_remaining).toLocaleString('en-IN')} more in LTCG gains tax-free this FY.`;
+                msgEl.textContent = `You can book ₹${Number(d.ltcg_exemption_remaining).toLocaleString('en-IN')} more in LTCG gains tax-free this FY. ${daysLeft} days remaining.`;
             } else {
                 msgEl.textContent = '⚠️ LTCG exemption exhausted. Further LTCG gains will be taxed @ 12.5%.';
                 msgEl.className = 'text-sm text-warning mt-2';
@@ -532,31 +650,167 @@ if (document.getElementById('harvestBody')) {
             const el2 = document.getElementById(id);
             if (el2) el2.textContent = inrFmt(map[id]);
         });
+
+        // t83: render 80C dashboard
+        render80CDashboard(d);
     }
 
+    // t83: Populate 80C dashboard elements (already in HTML, just needed wiring)
+    function render80CDashboard(d) {
+        const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+        const setW = (id, w) => { const e = document.getElementById(id); if (e) e.style.width = Math.min(100,w).toFixed(1) + '%'; };
+
+        const total80C = d['80c_elss'] + d['80c_nps'] + d['80c_ppf'];
+        const limit80C = 150000;
+        const rem80C   = Math.max(0, limit80C - total80C);
+        const pct80C   = total80C / limit80C * 100;
+
+        set('amt80C',    inrFmt(total80C));
+        set('rem80C',    inrFmt(rem80C));
+        set('amt80cElss', inrFmt(d['80c_elss'] || 0));
+        set('amt80cPpf',  inrFmt(d['80c_ppf']  || 0));
+        set('amt80cNps',  inrFmt(d['80c_nps']  || 0));
+        setW('bar80C',    pct80C);
+
+        const nps1b = d['80ccd1b_nps'] || d['nps_80ccd1b'] || 0;
+        set('amt80ccd1b', inrFmt(nps1b));
+        setW('bar80ccd1b', nps1b / 50000 * 100);
+        const msg1b = document.getElementById('msg80ccd1b');
+        if (msg1b) msg1b.textContent = nps1b >= 50000
+            ? '✅ 80CCD(1B) fully utilised — extra ₹50,000 saved.'
+            : `₹${Number(Math.max(0,50000-nps1b)).toLocaleString('en-IN')} more NPS contribution unlocks extra ₹${Math.round(Math.max(0,50000-nps1b)*0.30).toLocaleString('en-IN')} tax saving (30% slab).`;
+
+        const msg80c = document.getElementById('msg80C');
+        if (msg80c) {
+            if (rem80C <= 0) {
+                msg80c.textContent = '✅ 80C limit fully utilised.';
+                msg80c.style.cssText = 'background:rgba(22,163,74,.08);color:#166534;border-radius:6px;padding:8px 12px;font-size:12px;margin-top:10px;';
+            } else {
+                msg80c.textContent = `💡 Invest ₹${Number(rem80C).toLocaleString('en-IN')} more in ELSS/PPF/NPS to fully utilise 80C. Saves ₹${Math.round(rem80C*0.30).toLocaleString('en-IN')} at 30% slab.`;
+                msg80c.style.cssText = 'background:rgba(37,99,235,.07);color:#1e40af;border-radius:6px;padding:8px 12px;font-size:12px;margin-top:10px;';
+            }
+        }
+    }
+
+    // t83: Interactive Harvest Calculator — per-row units input
     function renderHarvestTable(d) {
         const body = document.getElementById('harvestBody');
+        window._harvestData = d;
         const suggestions = d.harvest_suggestions || [];
+        const remaining   = d.ltcg_exemption_remaining || 0;
+
         if (!suggestions.length) {
-            body.innerHTML = `<tr><td colspan="11" class="text-center text-secondary">
-                ${d.ltcg_exemption_remaining <= 0 ? '⚠️ LTCG exemption already exhausted for this FY.' : 'No LTCG-eligible holdings with gains found.'}
+            body.innerHTML = `<tr><td colspan="12" class="text-center text-secondary" style="padding:32px">
+                ${remaining <= 0 ? '⚠️ LTCG exemption already exhausted for this FY.' : '✅ No LTCG-eligible holdings found. Hold investments until LTCG threshold.'}
             </td></tr>`;
             return;
         }
-        body.innerHTML = suggestions.map(s => `
-        <tr>
+
+        body.innerHTML = suggestions.map((s, idx) => {
+            const price   = s.type === 'MF' ? (s.latest_nav || 0) : (s.latest_price || 0);
+            const maxUnits= s.type === 'MF' ? (s.total_units || 0) : (s.quantity || 0);
+            const costPU  = maxUnits > 0 ? ((s.total_cost || 0) / maxUnits) : 0;
+            const sugUnits= s.units_to_sell || 0;
+            const dec     = s.type === 'MF' ? 4 : 0;
+            return `
+        <tr id="hrow_${idx}">
             <td><span class="badge ${s.type === 'MF' ? 'badge-primary' : 'badge-success'}">${s.type}</span></td>
-            <td title="${s.name}">${truncate(s.name, 35)}</td>
-            <td><small>${s.category || s.exchange || ''}</small></td>
-            <td class="text-right">${s.type === 'MF' ? numFmt(s.total_units, 4) : s.quantity}</td>
-            <td class="text-right">${inrFmt(s.type === 'MF' ? s.latest_nav : s.latest_price)}</td>
-            <td class="text-right text-success fw-600">${inrFmt(s.total_gain)}</td>
-            <td>${s.ltcg_date} <small class="text-secondary">(${s.days_since_ltcg}d ago)</small></td>
-            <td class="text-right text-primary fw-600">${numFmt(s.units_to_sell, s.type === 'MF' ? 4 : 0)}</td>
-            <td class="text-right text-success">${inrFmt(s.gain_if_sell)}</td>
-            <td class="text-right">${inrFmt(s.value_if_sell)}</td>
-            <td class="text-right">${numFmt(s.cagr)}%</td>
-        </tr>`).join('');
+            <td title="${s.name || ''}">${truncate(s.name || '', 32)}</td>
+            <td><small class="text-secondary">${s.category || s.exchange || ''}</small></td>
+            <td class="text-right">${s.type === 'MF' ? numFmt(maxUnits, 4) : numFmt(maxUnits, 0)}</td>
+            <td class="text-right">${inrFmt(price)}</td>
+            <td class="text-right text-success" style="font-weight:700">${inrFmt(s.total_gain || 0)}</td>
+            <td><small>${s.ltcg_date || ''}</small></td>
+            <td class="text-right">
+                <input type="number" class="harvest-units-inp"
+                    id="hinp_${idx}"
+                    value="${numFmt(sugUnits, dec)}"
+                    min="0" max="${maxUnits}" step="${s.type === 'MF' ? '0.001' : '1'}"
+                    style="width:90px;padding:4px 7px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;text-align:right;background:var(--bg-secondary);color:var(--text-primary);"
+                    data-idx="${idx}"
+                    data-price="${price}"
+                    data-cost-pu="${costPU}"
+                    data-max="${maxUnits}"
+                    oninput="calcHarvestRow(${idx})"
+                    title="Max: ${numFmt(maxUnits, dec)}">
+            </td>
+            <td class="text-right text-success" id="hgain_${idx}" style="font-weight:700">${inrFmt(s.gain_if_sell || 0)}</td>
+            <td class="text-right" id="hval_${idx}">${inrFmt(s.value_if_sell || 0)}</td>
+            <td class="text-right" id="htax_${idx}" style="color:#dc2626">—</td>
+            <td class="text-right">${numFmt(s.cagr || 0)}%</td>
+        </tr>`;
+        }).join('');
+
+        // Add tax column header if not there
+        const hdrRow = document.querySelector('#harvestTable thead tr');
+        if (hdrRow && hdrRow.children.length < 12) {
+            const th = document.createElement('th');
+            th.className = 'text-right';
+            th.textContent = 'Tax @ 12.5%';
+            // Insert before last CAGR column
+            hdrRow.insertBefore(th, hdrRow.lastElementChild);
+        }
+
+        // Render harvest total bar
+        renderHarvestTotals(d);
+    }
+
+    // t83: Live calculate gain/tax for a harvest row when user changes units
+    window.calcHarvestRow = function(idx) {
+        const inp    = document.getElementById(`hinp_${idx}`);
+        if (!inp) return;
+        const units  = Math.min(parseFloat(inp.value) || 0, parseFloat(inp.dataset.max) || 0);
+        const price  = parseFloat(inp.dataset.price) || 0;
+        const costPU = parseFloat(inp.dataset.costPu) || 0;
+        const proceeds = units * price;
+        const cost     = units * costPU;
+        const gain     = proceeds - cost;
+        const tax      = gain > 0 ? gain * 0.125 : 0; // 12.5% LTCG
+
+        const gainEl = document.getElementById(`hgain_${idx}`);
+        const valEl  = document.getElementById(`hval_${idx}`);
+        const taxEl  = document.getElementById(`htax_${idx}`);
+        if (gainEl) { gainEl.textContent = inrFmt(gain); gainEl.style.color = gain >= 0 ? '#16a34a' : '#dc2626'; }
+        if (valEl)  valEl.textContent = inrFmt(proceeds);
+        if (taxEl)  { taxEl.textContent = gain > 0 ? inrFmt(tax) : '₹0'; }
+
+        renderHarvestTotals(window._harvestData);
+    };
+
+    // t83: Show running total of all harvest rows
+    function renderHarvestTotals(d) {
+        let totalGain = 0, totalVal = 0, totalTax = 0;
+        document.querySelectorAll('.harvest-units-inp').forEach(inp => {
+            const idx    = inp.dataset.idx;
+            const units  = Math.min(parseFloat(inp.value) || 0, parseFloat(inp.dataset.max) || 0);
+            const price  = parseFloat(inp.dataset.price) || 0;
+            const costPU = parseFloat(inp.dataset.costPu) || 0;
+            const gain   = units * price - units * costPU;
+            totalGain += gain;
+            totalVal  += units * price;
+            totalTax  += gain > 0 ? gain * 0.125 : 0;
+        });
+
+        const remaining = d.ltcg_exemption_remaining || 0;
+        const taxIfEx   = Math.max(0, totalGain - remaining) * 0.125;
+
+        let totBar = document.getElementById('harvestTotalsBar');
+        if (!totBar) {
+            totBar = document.createElement('div');
+            totBar.id = 'harvestTotalsBar';
+            totBar.style.cssText = 'padding:12px 16px;border-top:2px solid var(--border);background:var(--bg-secondary);display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;';
+            const tableWrap = document.getElementById('harvestTable')?.closest('.table-wrap') || document.getElementById('harvestTable')?.parentElement;
+            if (tableWrap) tableWrap.after(totBar);
+        }
+        totBar.innerHTML = `
+            <span style="font-weight:700;color:var(--text-muted)">📊 Selection Total:</span>
+            <span>Gain: <strong style="color:${totalGain>=0?'#16a34a':'#dc2626'}">${inrFmt(totalGain)}</strong></span>
+            <span>Value: <strong>${inrFmt(totalVal)}</strong></span>
+            <span>Tax (full @12.5%): <strong style="color:#dc2626">${inrFmt(totalTax)}</strong></span>
+            ${remaining > 0 ? `<span style="background:rgba(22,163,74,.1);padding:3px 10px;border-radius:99px;color:#166534;font-size:12px;font-weight:700;">
+                After exemption: <strong>${inrFmt(taxIfEx)}</strong> tax
+            </span>` : ''}
+            <span style="margin-left:auto;font-size:11px;color:var(--text-muted)">Adjust units ↑ to customise harvest amount</span>`;
     }
 
     function renderWaitLtcg(d) {

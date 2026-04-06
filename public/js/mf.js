@@ -472,6 +472,20 @@ function renderHoldings() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             Delete
           </button>
+          <!-- t112: Swap Fund -->
+          <button onclick="openSwapFundModal(${fundId},'${escAttr(h.scheme_name)}',${h.total_units||0},${h.latest_nav||0})" title="Swap: exit this fund, enter another with same amount"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.06);cursor:pointer;font-size:11px;color:#b45309;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(245,158,11,.15)';this.style.borderColor='#d97706'"
+            onmouseout="this.style.background='rgba(245,158,11,.06)';this.style.borderColor='rgba(245,158,11,.35)'">
+            🔄 Swap
+          </button>
+          <!-- t112: Similar Better Funds -->
+          <button onclick="openSimilarFundsModal(${fundId},'${escAttr(h.scheme_name)}','${escAttr(h.category||'')}',${h.cagr_since_start||0})" title="Find similar or better-performing funds in same category"
+            style="display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid rgba(139,92,246,.35);background:rgba(139,92,246,.06);cursor:pointer;font-size:11px;color:#7c3aed;font-weight:600;transition:all .15s;"
+            onmouseover="this.style.background='rgba(139,92,246,.15)';this.style.borderColor='#7c3aed'"
+            onmouseout="this.style.background='rgba(139,92,246,.06)';this.style.borderColor='rgba(139,92,246,.35)'">
+            💡 Similar
+          </button>
         </div>
       </td>
     </tr>`;
@@ -507,6 +521,9 @@ function renderHoldings() {
   // Stat card sync: recalculate 1D total against currently visible (filtered) funds.
   // Runs on every re-render so sort/filter/page never leaves the tile stale.
   inject1DayStatCard();
+
+  // t112: Portfolio Health Score — fire event with all holdings data
+  window.dispatchEvent(new CustomEvent('mf:holdingsLoaded', { detail: { holdings: MF.filtered } }));
 }
 
 async function load1DayChange() {
@@ -3675,6 +3692,170 @@ function ffSelectFund(fundId, fundName) {
     if (fs) fs.value = fundName;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t112 — SWAP FUND (Exit one, Enter another — same amount)
+═══════════════════════════════════════════════════════════════════════════ */
+let _swapSourceFundId = null, _swapSourceFundName = '', _swapSourceUnits = 0, _swapSourceNav = 0;
+
+function openSwapFundModal(fundId, fundName, units, nav) {
+  _swapSourceFundId   = fundId;
+  _swapSourceFundName = fundName;
+  _swapSourceUnits    = parseFloat(units) || 0;
+  _swapSourceNav      = parseFloat(nav)   || 0;
+
+  // Reuse Fund Finder modal — change title & button label
+  const title = document.querySelector('#modalFundFinder .modal-title');
+  if (title) title.textContent = `🔄 Swap: ${fundName.substring(0, 30)}… → New Fund`;
+
+  // Update the filter pills label
+  const pills = document.getElementById('ffFilterPills');
+  if (pills && !document.getElementById('swapBanner')) {
+    const banner = document.createElement('div');
+    banner.id = 'swapBanner';
+    banner.style.cssText = 'width:100%;padding:8px 10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:7px;font-size:12px;color:#b45309;margin-bottom:6px;';
+    banner.innerHTML = `🔄 <strong>Swap mode:</strong> Select the fund to switch INTO. We'll SELL <strong>${_swapSourceUnits.toFixed(4)} units</strong> of <em>${fundName.substring(0,25)}</em> and BUY equivalent value in new fund.`;
+    pills.parentNode.insertBefore(banner, pills);
+  }
+
+  // Change + Add buttons to + Swap Into
+  openFundFinderModal();
+  // Re-render results if any query active
+  const q = document.getElementById('ffSearch')?.value || '';
+  if (q.length >= 2 || _ffCat) doFfSearch(q, true);
+}
+
+// Override ffSelectFund when in swap mode
+function ffSelectFundOrSwap(fundId, fundName) {
+  if (_swapSourceFundId) {
+    // Swap mode — close modal, open sell txn for source, then buy for target
+    hideFundFinderModal();
+    _doSwapFlow(fundId, fundName);
+  } else {
+    ffSelectFund(fundId, fundName);
+  }
+}
+
+async function _doSwapFlow(targetFundId, targetFundName) {
+  const sellAmt = _swapSourceUnits * _swapSourceNav;
+  if (!confirm(`Swap Plan:\n\n• SELL ${_swapSourceUnits.toFixed(4)} units of ${_swapSourceFundName}\n  (≈ ₹${Number(sellAmt).toLocaleString('en-IN', {maximumFractionDigits:0})})\n\n• BUY equivalent amount in ${targetFundName}\n\nTwo separate transactions will be created. Continue?`)) return;
+
+  // Step 1: Pre-fill SELL transaction for source fund
+  openAddTxnForFund(_swapSourceFundId, _swapSourceFundName);
+  setTimeout(() => {
+    const typeEl = document.getElementById('txnType');
+    if (typeEl) { typeEl.value = 'SELL'; typeEl.dispatchEvent(new Event('change')); }
+    const unitsEl = document.getElementById('txnUnits');
+    if (unitsEl) unitsEl.value = _swapSourceUnits.toFixed(4);
+    showToast(`Step 1: Record SELL for ${_swapSourceFundName.substring(0,25)}. Then Step 2 will open BUY for ${targetFundName.substring(0,25)}.`, 'info');
+    // Reset swap mode
+    _swapSourceFundId = null;
+    const banner = document.getElementById('swapBanner');
+    if (banner) banner.remove();
+    const title = document.querySelector('#modalFundFinder .modal-title');
+    if (title) title.textContent = '🔍 Find & Add Fund';
+  }, 300);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t112 — SIMILAR / BETTER FUNDS (suggest alternatives for underperformers)
+═══════════════════════════════════════════════════════════════════════════ */
+let _similarContext = null;
+
+async function openSimilarFundsModal(fundId, fundName, category, cagr) {
+  _similarContext = { fundId, fundName, category, cagr: parseFloat(cagr) || 0 };
+
+  const title = document.querySelector('#modalFundFinder .modal-title');
+  if (title) title.textContent = `💡 Similar Funds — Better than ${fundName.substring(0, 25)}…`;
+
+  // Show banner
+  const pills = document.getElementById('ffFilterPills');
+  if (pills && !document.getElementById('similarBanner')) {
+    const banner = document.createElement('div');
+    banner.id = 'similarBanner';
+    banner.style.cssText = 'width:100%;padding:8px 10px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);border-radius:7px;font-size:12px;color:#1e40af;margin-bottom:6px;';
+    banner.innerHTML = `💡 Showing funds in <strong>${category}</strong> category — sorted by 1Y returns. Your fund CAGR: <strong>${Number(cagr).toFixed(1)}%</strong>`;
+    pills.parentNode.insertBefore(banner, pills);
+  }
+
+  openFundFinderModal();
+  // Auto-search similar category
+  const searchEl = document.getElementById('ffSearch');
+  if (searchEl) searchEl.value = '';
+  setFfFilter(category, document.querySelector(`.ff-pill[data-cat="${category}"]`));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t112 — PORTFOLIO HEALTH SCORE
+═══════════════════════════════════════════════════════════════════════════ */
+function calcPortfolioHealthScore(holdings) {
+  if (!holdings || !holdings.length) return null;
+
+  let score = 100;
+  const issues = [], positives = [];
+
+  // 1. Diversification (too concentrated in one fund?)
+  const totalVal = holdings.reduce((s, h) => s + (h.value_now || 0), 0);
+  holdings.forEach(h => {
+    const pct = totalVal > 0 ? (h.value_now / totalVal * 100) : 0;
+    if (pct > 40) { score -= 15; issues.push(`${h.scheme_name?.substring(0,25)} is ${pct.toFixed(0)}% of portfolio — too concentrated.`); }
+  });
+
+  // 2. Too many funds?
+  if (holdings.length > 15) { score -= 10; issues.push(`${holdings.length} funds is too many — consider consolidating.`); }
+  else if (holdings.length <= 6) positives.push(`Good — ${holdings.length} funds is focused and manageable.`);
+
+  // 3. Expense ratio check
+  const avgExp = holdings.reduce((s, h) => s + (h.expense_ratio || 0), 0) / holdings.length;
+  if (avgExp > 1.5) { score -= 10; issues.push(`Avg expense ratio ${avgExp.toFixed(2)}% is high — prefer index/direct funds.`); }
+  else if (avgExp < 0.5) positives.push(`Low avg expense ratio ${avgExp.toFixed(2)}% — great for long-term compounding.`);
+
+  // 4. Returns check — any fund with negative 1Y return?
+  const negFunds = holdings.filter(h => (h.returns_1y || 0) < 0);
+  if (negFunds.length) { score -= negFunds.length * 5; issues.push(`${negFunds.length} fund(s) have negative 1Y returns.`); }
+
+  // 5. Direct plan check
+  const regularFunds = holdings.filter(h => (h.plan_type || '').toLowerCase().includes('regular'));
+  if (regularFunds.length) { score -= regularFunds.length * 8; issues.push(`${regularFunds.length} Regular plan fund(s) — switch to Direct for 0.5–1% more p.a.`); }
+  else positives.push('All Direct plans — saving on commission every year.');
+
+  score = Math.max(0, Math.min(100, score));
+  const grade = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : 'D';
+  const color = score >= 85 ? '#16a34a' : score >= 70 ? '#2563eb' : score >= 55 ? '#b45309' : '#dc2626';
+
+  return { score, grade, color, issues, positives };
+}
+
+function renderPortfolioHealthScore(holdings) {
+  const el = document.getElementById('portfolioHealthScore');
+  if (!el) return;
+  const result = calcPortfolioHealthScore(holdings);
+  if (!result) { el.style.display = 'none'; return; }
+
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:12px;">
+      <div style="text-align:center;flex-shrink:0;">
+        <div style="font-size:32px;font-weight:900;color:${result.color};line-height:1;">${result.grade}</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted)">HEALTH</div>
+        <div style="font-size:11px;font-weight:700;color:${result.color}">${result.score}/100</div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">Portfolio Health Score</div>
+        <div style="height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:8px;">
+          <div style="height:100%;width:${result.score}%;background:${result.color};border-radius:99px;transition:width .6s;"></div>
+        </div>
+        ${result.issues.length ? `<div style="font-size:11px;color:#b91c1c;margin-bottom:4px;">${result.issues.slice(0,2).map(i=>`⚠ ${i}`).join('<br>')}</div>` : ''}
+        ${result.positives.length ? `<div style="font-size:11px;color:#15803d;">${result.positives.slice(0,2).map(p=>`✓ ${p}`).join('<br>')}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// Hook portfolio health into holdings load
+const _origRenderHoldings = typeof renderHoldings === 'function' ? renderHoldings : null;
+window.addEventListener('mf:holdingsLoaded', (e) => {
+  if (e.detail?.holdings) renderPortfolioHealthScore(e.detail.holdings);
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    t77 + t78 + t79 — PRICE ALERTS, DRAWDOWN ALERTS, SIP REMINDERS

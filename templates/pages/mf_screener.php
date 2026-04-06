@@ -395,6 +395,11 @@ ob_start();
     SORTINO
     <span class="tab-cnt" id="tcnt_sortino" style="display:none;"></span>
   </div>
+  <div class="sc-filter-tab" data-tab="style_box" onclick="toggleTab('style_box',this)">
+    <span class="tab-check" id="tck_style_box">✓</span>
+    STYLE BOX
+    <span class="tab-cnt" id="tcnt_style_box" style="display:none;"></span>
+  </div>
   <div class="sc-filter-btn" id="scFilterBtn" onclick="SC.applyFilters()">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
     FILTER
@@ -661,6 +666,24 @@ ob_start();
     </div>
   </div>
 
+  <!-- t179: Style Box Filter -->
+  <div id="fp_style_box" style="display:none;">
+    <div class="fp-section-title">STYLE BOX</div>
+    <div style="margin-bottom:8px;font-size:11px;color:var(--text-muted);">Size × Style (Morningstar-style)</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px;">
+      <?php foreach(['large_value'=>'Large Value','large_blend'=>'Large Blend','large_growth'=>'Large Growth','mid_value'=>'Mid Value','mid_blend'=>'Mid Blend','mid_growth'=>'Mid Growth','small_value'=>'Small Value','small_blend'=>'Small Blend','small_growth'=>'Small Growth'] as $val=>$label): ?>
+      <label style="cursor:pointer;text-align:center;">
+        <input type="checkbox" name="styleBox" value="<?= $val ?>" onchange="SC.toggleStyleBox('<?= $val ?>')" style="display:none;" class="sb-check-<?= $val ?>">
+        <div class="sb-cell" data-val="<?= $val ?>" onclick="SC.toggleStyleBox('<?= $val ?>')"
+          style="padding:5px 3px;border-radius:4px;border:1.5px solid var(--border-color);font-size:9px;font-weight:600;color:var(--text-muted);background:var(--bg-secondary);cursor:pointer;transition:.15s;">
+          <?= $label ?>
+        </div>
+      </label>
+      <?php endforeach; ?>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);">Cells mein click karo select karne ke liye</div>
+  </div>
+
   <!-- Panel footer -->
   <div class="fp-footer">
     <div style="font-size:12px;color:var(--text-muted);" id="fpFilterSummary">No filters applied</div>
@@ -899,7 +922,7 @@ ob_start();
 ══════════════════════════════════════════════════ */
 const SC = {
   state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null,manager:'',fundAge:'',
-    manager:'', fundAge:'' },  // t67 + t98
+    manager:'', fundAge:'', styleBoxes:[] },  // t67 + t98 + t179
   facets:{ fund_houses:{},categories:[],ltcg_days:{} },
   _db:null, loading:false,
 
@@ -940,6 +963,22 @@ const SC = {
 
   // t98: Fund Age filter
   setFundAge(v) { this.state.fundAge = v; updTabBadge(); this.trigger(); },
+
+  // t179: Style Box filter
+  toggleStyleBox(val) {
+    const idx = this.state.styleBoxes.indexOf(val);
+    if (idx >= 0) this.state.styleBoxes.splice(idx, 1);
+    else this.state.styleBoxes.push(val);
+    // Update visual state of cells
+    document.querySelectorAll('.sb-cell').forEach(c => {
+      const active = this.state.styleBoxes.includes(c.dataset.val);
+      c.style.background = active ? 'var(--accent)' : 'var(--bg-secondary)';
+      c.style.color       = active ? '#fff' : 'var(--text-muted)';
+      c.style.borderColor = active ? 'var(--accent)' : 'var(--border-color)';
+      c.style.fontWeight  = active ? '800' : '600';
+    });
+    updTabBadge(); this.trigger();
+  },
 
   // t63: AUM filter
   setAum(){
@@ -1149,6 +1188,7 @@ const SC = {
     if(s.manager)   p.set('manager', s.manager);    // t67
     if(s.fundAge)   p.set('fund_age', s.fundAge);   // t98
     if(s.sortinoMin!==null&&s.sortinoMin!==undefined) p.set('sortino_min', s.sortinoMin); // t126
+    if(s.styleBoxes&&s.styleBoxes.length) s.styleBoxes.forEach(sb=>p.append('style_box[]',sb)); // t179
     p.set('sort',s.sort);p.set('page',s.page);p.set('per_page',s.perPage);
     Object.entries(extra).forEach(([k,v])=>p.set(k,v));
     return p.toString();
@@ -1230,7 +1270,7 @@ const FP = {
 let _openTab = null;
 function toggleTab(name, el) {
   const panel = document.getElementById('scFilterPanel');
-  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns','fp_sortino','fp_manager','fp_age'];
+  const allFps = ['fp_fund_house','fp_category','fp_ltcg','fp_plan','fp_lockin','fp_expense','fp_aum','fp_risk','fp_returns','fp_sortino','fp_manager','fp_age','fp_style_box'];
   const tabs = document.querySelectorAll('.sc-filter-tab');
 
   if (_openTab === name) {
@@ -1298,6 +1338,11 @@ function updTabBadge(){
   const soEl=document.getElementById('tck_sortino'),soCnt=document.getElementById('tcnt_sortino');
   if(soEl)soEl.classList.toggle('show',s.sortinoMin!==null);
   if(soCnt){soCnt.style.display=s.sortinoMin!==null?'inline-block':'none';soCnt.textContent=s.sortinoMin!==null?s.sortinoMin:'';}
+  // Style Box (t179)
+  const sbEl=document.getElementById('tck_style_box'),sbCnt=document.getElementById('tcnt_style_box');
+  const sbOn=(s.styleBoxes||[]).length>0;
+  if(sbEl)sbEl.classList.toggle('show',sbOn);
+  if(sbCnt){sbCnt.style.display=sbOn?'inline-block':'none';sbCnt.textContent=sbOn?(s.styleBoxes||[]).length:'';}
   updFpSummary();
 }
 
@@ -1315,6 +1360,7 @@ function updFpSummary(){
   if(s.retMin3y!==null) parts.push(`3Y≥${s.retMin3y}%`);
   if(s.retMin5y!==null) parts.push(`5Y≥${s.retMin5y}%`);
   if(s.sortinoMin!==null) parts.push(`Sortino≥${s.sortinoMin}`);
+  if((s.styleBoxes||[]).length) parts.push(`Style: ${s.styleBoxes.join('/')}`);
   document.getElementById('fpFilterSummary').textContent=parts.length?'Filters: '+parts.join(' · '):'No filters applied';
 }
 
@@ -1361,46 +1407,54 @@ function renderTable(funds,total){
 
   // t111: WD Star Rating — calculated from returns + expense + drawdown
   function _calcWdRating(f) {
-    let score = 0;
-    // Returns score (0-3 pts)
+    return _calcWdRatingBreakdown(f).stars;
+  }
+
+  function _calcWdRatingBreakdown(f) {
+    // Returns full breakdown for explanation popup (t111)
+    const breakdown = { returns: 0, expense: 0, drawdown: 0, direct: 0 };
     const ret = f.returns_3y ?? f.returns_1y ?? null;
+    const retLabel = f.returns_3y !== null && f.returns_3y !== undefined ? '3Y CAGR' : '1Y Return';
     if (ret !== null) {
-      if (ret >= 20) score += 3;
-      else if (ret >= 15) score += 2.5;
-      else if (ret >= 10) score += 2;
-      else if (ret >= 5)  score += 1;
+      if (ret >= 20)      breakdown.returns = 3;
+      else if (ret >= 15) breakdown.returns = 2.5;
+      else if (ret >= 10) breakdown.returns = 2;
+      else if (ret >= 5)  breakdown.returns = 1;
     }
-    // Expense ratio score (0-1 pt)
     const exp = f.expense_ratio;
     if (exp !== null && exp !== undefined) {
-      if (exp < 0.5) score += 1;
-      else if (exp < 1) score += 0.75;
-      else if (exp < 1.5) score += 0.5;
-    } else { score += 0.5; } // no data = neutral
-    // Drawdown score (0-1 pt)
+      if (exp < 0.5)      breakdown.expense = 1;
+      else if (exp < 1)   breakdown.expense = 0.75;
+      else if (exp < 1.5) breakdown.expense = 0.5;
+    } else { breakdown.expense = 0.5; }
     if (f.drawdown_pct !== null && f.drawdown_pct !== undefined) {
-      if (f.drawdown_pct <= 0) score += 1;
-      else if (f.drawdown_pct < 10) score += 0.75;
-      else if (f.drawdown_pct < 20) score += 0.5;
+      if (f.drawdown_pct <= 0)       breakdown.drawdown = 1;
+      else if (f.drawdown_pct < 10)  breakdown.drawdown = 0.75;
+      else if (f.drawdown_pct < 20)  breakdown.drawdown = 0.5;
     }
-    // Direct plan bonus
-    if (f.plan_type === 'direct') score += 0.2;
-    // Normalise to 1-5
-    const stars = Math.min(5, Math.max(1, Math.round(score)));
-    return stars;
+    if (f.plan_type === 'direct') breakdown.direct = 0.2;
+    const total = breakdown.returns + breakdown.expense + breakdown.drawdown + breakdown.direct;
+    const stars = Math.min(5, Math.max(1, Math.round(total)));
+    return { breakdown, total, stars, ret, retLabel, exp };
   }
+
   function _ratingCell(f) {
     // Check if user has manually set rating
     const manualKey = 'wd_ratings_v1';
     let manual = null;
     try { const m = JSON.parse(localStorage.getItem(manualKey)||'{}'); manual = m[f.id] ?? null; } catch(e) {}
-    const stars = manual !== null ? manual : _calcWdRating(f);
+    const { stars: calcStars } = _calcWdRatingBreakdown(f);
+    const stars = manual !== null ? manual : calcStars;
     const colors = {1:'#dc2626',2:'#d97706',3:'#ca8a04',4:'#16a34a',5:'#15803d'};
     const starsHtml = Array.from({length:5},(_,i) =>
       `<span style="color:${i < stars ? colors[stars] : '#d1d5db'};font-size:11px;cursor:pointer;"
              onclick="setFundRating(${f.id},${i+1},this)">★</span>`
     ).join('');
-    return `<div style="display:flex;gap:1px;justify-content:center;" title="WD Rating: ${stars}/5 — Click to rate">${starsHtml}</div>`;
+    const isManual = manual !== null ? ' title="Manual rating — click ℹ to see WD formula"' : '';
+    return `<div style="display:flex;gap:2px;align-items:center;justify-content:center;">
+      <div style="display:flex;gap:1px;"${isManual}>${starsHtml}</div>
+      <span style="font-size:9px;color:var(--text-muted);cursor:pointer;margin-left:1px;" onclick="showRatingExplain(${f.id},event)" title="Yeh fund ${stars} star kyun mila?">ℹ</span>
+    </div>`;
   }
   const rows=funds.map((f,i)=>{
     const bc=bm[f.broad_type]||'ot';
@@ -1757,6 +1811,43 @@ function drOpenFund(f){
     <div style="font-size:12px;line-height:1.8;color:var(--text-muted);background:var(--bg-secondary);padding:10px 12px;border-radius:8px;">
       ${f.broad_type==='Equity'?`<strong style="color:var(--text-primary);">Equity Fund</strong> — LTCG @ 12.5% (above ₹1.25L) after ${ltcgLbl}. STCG @ 20%.`:f.broad_type==='Debt'?`<strong style="color:var(--text-primary);">Debt Fund</strong> — Gains at slab rate (post Apr 2023).`:`<strong style="color:var(--text-primary);">${f.broad_type}</strong> — Check with your tax advisor.`}
       ${f.lock_in_days>0?`<br><br><strong style="color:#b45309;">⚠️ Lock-in:</strong> Cannot redeem for ${lockLbl}.`:''}
+    </div>
+
+    <!-- t169: TER Trend -->
+    <div class="d-sec" style="margin-top:12px;">💸 Expense Ratio Trend
+      <span style="float:right;font-size:10px;font-weight:400;color:var(--accent);cursor:pointer;" onclick="drLoadTerTrend(${f.id})">Load</span>
+    </div>
+    <div id="drTerTrend" style="min-height:52px;background:var(--bg-secondary);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text-muted);">
+      <span style="cursor:pointer;color:var(--accent);" onclick="drLoadTerTrend(${f.id})">📊 TER trend load karo →</span>
+    </div>
+
+    <!-- t179: Style Box -->
+    ${(()=>{
+      const sz=f.style_size, sv=f.style_value;
+      if(!sz && !sv) return '<div class="d-sec" style="margin-top:4px;">🎯 Style Box <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— data pending (cron se aayega)</span></div><div style="height:8px;"></div>';
+      const sizes=['large','mid','small'], styles=['value','blend','growth'];
+      const szL={large:'Large',mid:'Mid',small:'Small'}, svL={value:'Value',blend:'Blend',growth:'Growth'};
+      const cells=sizes.flatMap(s=>styles.map(v=>{
+        const active=s===sz&&v===sv;
+        return `<div style="background:${active?'var(--accent)':'var(--bg-card)'};color:${active?'#fff':'var(--text-muted)'};border-radius:4px;padding:5px 2px;text-align:center;font-size:9px;font-weight:${active?800:500};border:1px solid var(--border-color);">${active?'●':''}</div>`;
+      }));
+      const drift=f.style_drift_note?`<div style="margin-top:6px;font-size:11px;color:#d97706;padding:6px 8px;background:#fef9c3;border-radius:5px;border:1px solid #fde047;">⚠️ ${f.style_drift_note}</div>`:'';
+      return `<div class="d-sec" style="margin-top:4px;">🎯 Style Box — ${szL[sz]||sz} ${svL[sv]||sv}</div>
+        <div style="margin-bottom:14px;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:120px;margin-bottom:4px;">${cells.join('')}</div>
+          <div style="display:flex;gap:6px;max-width:120px;margin-top:2px;">
+            ${styles.map(v=>`<span style="font-size:9px;color:var(--text-muted);flex:1;text-align:center;">${svL[v]}</span>`).join('')}
+          </div>
+          ${drift}
+        </div>`;
+    })()}
+
+    <!-- t180: Fund Manager Track Record -->
+    <div class="d-sec" style="margin-top:4px;">👤 Fund Manager
+      ${f.fund_manager?`<span style="float:right;font-size:10px;font-weight:400;color:var(--accent);cursor:pointer;" onclick="drLoadFundManagers(${f.id})">History</span>`:''}
+    </div>
+    <div id="drFundManagers" style="background:var(--bg-secondary);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text-muted);">
+      ${f.fund_manager?`<div style="font-weight:700;color:var(--text-primary);font-size:13px;">${f.fund_manager}</div>${f.manager_since?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Since ${f.manager_since}</div>`:''}<span style="cursor:pointer;color:var(--accent);font-size:11px;" onclick="drLoadFundManagers(${f.id})">📋 Full track record dekhein →</span>`:'<span style="cursor:pointer;color:var(--accent);" onclick="drLoadFundManagers(${f.id})">👤 Manager history load karo →</span>'}
     </div>`;
 
   document.getElementById('scOv').classList.add('open');
@@ -1840,6 +1931,137 @@ function drCalcSip(ret1y,ret3y,ret5y){
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Invested</div><div class="d-val" style="font-size:12px;">${fmtInr(invested)}</div><div class="d-sub">${n}mo</div></div>
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Est. Value</div><div class="d-val" style="font-size:12px;color:var(--accent);">${fmtInr(fv)}</div><div class="d-sub">@${rate.toFixed(1)}%</div></div>
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Gains</div><div class="d-val" style="font-size:12px;color:${isPos?'#16a34a':'#dc2626'};">${isPos?'+':''}${fmtInr(gains)}</div><div class="d-sub">${isPos?'+':''}${gainPct}%</div></div>`;
+}
+
+/* ══════════════════════════════════════════════════
+   t169 — TER TREND DRAWER LOADER
+══════════════════════════════════════════════════ */
+async function drLoadTerTrend(fundId) {
+  const el = document.getElementById('drTerTrend');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">⏳ Loading TER history...</div>';
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${appUrl}/api/router.php?action=ter_trend&fund_id=${fundId}`, { headers: {'X-Requested-With':'XMLHttpRequest'} });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed');
+
+    const hist = data.history || [];
+    const ter  = data.current_ter;
+    const terFmt = ter ? `${Number(ter).toFixed(2)}%` : '—';
+
+    // Trend icon
+    const trendIcon = data.trend === 'rising' ? '📈 Rising' : data.trend === 'falling' ? '📉 Falling' : '➡️ Stable';
+    const trendColor = data.trend === 'rising' ? '#dc2626' : data.trend === 'falling' ? '#16a34a' : '#d97706';
+
+    // Mini sparkline using inline SVG
+    let sparkHtml = '';
+    if (hist.length >= 2) {
+      const vals = hist.map(h => h.expense_ratio);
+      const min = Math.min(...vals), max = Math.max(...vals);
+      const range = max - min || 0.01;
+      const W = 120, H = 30;
+      const pts = vals.map((v, i) => {
+        const x = (i / (vals.length - 1)) * W;
+        const y = H - ((v - min) / range) * (H - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      const lineColor = data.trend === 'rising' ? '#dc2626' : data.trend === 'falling' ? '#16a34a' : '#d97706';
+      sparkHtml = `<svg width="${W}" height="${H}" style="vertical-align:middle;margin:4px 0;">
+        <polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="${(hist.length-1)/(hist.length-1)*W}" cy="${H - ((vals[vals.length-1]-min)/range)*(H-4)-2}" r="2.5" fill="${lineColor}"/>
+      </svg>`;
+    }
+
+    // SEBI badge
+    const sebiBadge = data.sebi_msg
+      ? `<div style="margin-top:6px;font-size:11px;padding:5px 8px;border-radius:5px;background:${data.sebi_breach?'#fee2e2':'#dcfce7'};color:${data.sebi_breach?'#991b1b':'#166534'};border:1px solid ${data.sebi_breach?'#fca5a5':'#86efac'};">${data.sebi_msg}</div>`
+      : '';
+
+    const alertBadge = data.alert
+      ? `<div style="margin-top:6px;font-size:11px;padding:5px 8px;border-radius:5px;background:#fef9c3;color:#713f12;border:1px solid #fde047;">${data.alert}</div>`
+      : '';
+
+    const histRows = hist.length > 0
+      ? `<div style="margin-top:8px;max-height:90px;overflow-y:auto;">
+          <table style="width:100%;font-size:10px;border-collapse:collapse;">
+            ${hist.slice(-6).reverse().map(h =>
+              `<tr><td style="color:var(--text-muted);padding:1px 0;">${h.date.slice(0,7)}</td>
+               <td style="font-weight:700;text-align:right;color:var(--text-primary);">${Number(h.expense_ratio).toFixed(2)}%</td></tr>`
+            ).join('')}
+          </table>
+         </div>`
+      : '';
+
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span style="font-size:15px;font-weight:800;color:var(--text-primary);">${terFmt}</span>
+          <span style="font-size:11px;color:${trendColor};font-weight:700;margin-left:8px;">${trendIcon}</span>
+        </div>
+        <div>${sparkHtml}</div>
+      </div>
+      ${!data.table_exists ? '<div style="font-size:10px;color:#d97706;margin-top:4px;">⚠️ History table not yet created — run DB migration 17</div>' : ''}
+      ${sebiBadge}${alertBadge}${histRows}`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#dc2626;font-size:11px;">⚠ TER load failed: ${e.message}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   t180 — FUND MANAGER DRAWER LOADER
+══════════════════════════════════════════════════ */
+async function drLoadFundManagers(fundId) {
+  const el = document.getElementById('drFundManagers');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">⏳ Loading manager history...</div>';
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${appUrl}/api/router.php?action=fund_managers&fund_id=${fundId}`, { headers: {'X-Requested-With':'XMLHttpRequest'} });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed');
+
+    const mgrs = data.managers || [];
+    if (!mgrs.length) {
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">Manager data available nahi hai</div>';
+      return;
+    }
+
+    const alertBadge = data.recent_change_alert
+      ? `<div style="margin-bottom:8px;font-size:11px;padding:6px 8px;border-radius:5px;background:#fef9c3;color:#713f12;border:1px solid #fde047;">${data.recent_change_alert}</div>`
+      : '';
+
+    const mgrsHtml = mgrs.map(m => {
+      const isCurrent = m.is_current;
+      const tenure = m.tenure_days
+        ? (m.tenure_days >= 365 ? `${(m.tenure_days/365).toFixed(1)}yr` : `${Math.round(m.tenure_days/30)}mo`)
+        : '—';
+      const retStr = m.returns_3y !== null
+        ? `${m.returns_3y > 0 ? '+' : ''}${Number(m.returns_3y).toFixed(1)}% (3Y)`
+        : m.returns_1y !== null
+        ? `${m.returns_1y > 0 ? '+' : ''}${Number(m.returns_1y).toFixed(1)}% (1Y)`
+        : null;
+      const retColor = retStr && parseFloat(retStr) >= 10 ? '#16a34a' : retStr ? '#d97706' : 'var(--text-muted)';
+      return `<div style="padding:7px 0;border-bottom:1px solid var(--border-color);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <span style="font-weight:700;font-size:12px;color:var(--text-primary);">${m.manager_name}</span>
+            ${isCurrent ? '<span style="font-size:9px;background:#dcfce7;color:#166534;padding:1px 5px;border-radius:10px;margin-left:5px;font-weight:700;">Current</span>' : ''}
+          </div>
+          ${retStr ? `<span style="font-size:11px;font-weight:700;color:${retColor};">${retStr}</span>` : ''}
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
+          ${m.from_date ? m.from_date.slice(0,7) : '?'} → ${m.to_date ? m.to_date.slice(0,7) : 'Present'}
+          <span style="margin-left:6px;color:var(--text-primary);font-weight:600;">${tenure}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = `${alertBadge}${mgrsHtml}
+      ${!data.table_exists ? '<div style="font-size:10px;color:#d97706;margin-top:6px;">ℹ️ Detailed history ke liye DB migration 16 run karo</div>' : ''}`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#dc2626;font-size:11px;">⚠ Manager load failed: ${e.message}</div>`;
+  }
 }
 
 function drClose(){
@@ -2792,6 +3014,137 @@ function setFundRating(fundId, stars, el) {
     }
   } catch(e) {}
 }
+
+/* ══════════════════════════════════════════════════
+   t111 — RATING EXPLANATION POPUP
+══════════════════════════════════════════════════ */
+function showRatingExplain(fundId, e) {
+  e && e.stopPropagation();
+  // Find fund from last loaded data
+  const f = (typeof SC !== 'undefined' && SC._lastFunds ? SC._lastFunds : []).find(x => x.id === fundId);
+  if (!f) return;
+
+  const manualKey = 'wd_ratings_v1';
+  let manual = null;
+  try { const m = JSON.parse(localStorage.getItem(manualKey)||'{}'); manual = m[fundId] ?? null; } catch(er) {}
+
+  const { breakdown, total, stars: calcStars, ret, retLabel, exp } = _calcWdRatingBreakdown(f);
+  const stars = manual !== null ? manual : calcStars;
+  const colors = {1:'#dc2626',2:'#d97706',3:'#ca8a04',4:'#16a34a',5:'#15803d'};
+  const starColor = colors[stars] || '#ca8a04';
+
+  function scoreBar(score, max) {
+    const pct = Math.round((score / max) * 100);
+    const color = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+    return `<div style="flex:1;height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .3s;"></div>
+    </div>`;
+  }
+
+  const retVal = ret !== null ? `${ret > 0 ? '+' : ''}${Number(ret).toFixed(1)}%` : 'No data';
+  const expVal = exp !== null && exp !== undefined ? `${Number(exp).toFixed(2)}%` : 'No data';
+  const ddVal  = f.drawdown_pct !== null && f.drawdown_pct !== undefined
+    ? (f.drawdown_pct <= 0 ? 'At ATH 🏆' : `▼${Number(f.drawdown_pct).toFixed(1)}% from ATH`)
+    : 'No data';
+
+  const manualNote = manual !== null
+    ? `<div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border-radius:6px;border:1px solid #fde047;font-size:11px;color:#713f12;">
+        ✏️ Aapne manually <strong>${manual} star</strong> set kiya hai. WD formula ka score: <strong>${calcStars} star</strong>.
+        <span style="cursor:pointer;color:#1d4ed8;margin-left:6px;" onclick="clearManualRating(${fundId})">Reset to formula</span>
+       </div>` : '';
+
+  const html = `
+    <div style="padding:16px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <div style="font-size:28px;color:${starColor};">
+          ${'★'.repeat(stars)}${'☆'.repeat(5-stars)}
+        </div>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:${starColor};">${stars}/5 Stars</div>
+          <div style="font-size:11px;color:var(--text-muted);">WealthDash Internal Rating</div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Score Breakdown</div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:600;">📈 Returns (40%)</span>
+            <span style="font-size:12px;font-weight:700;color:${starColor};">${breakdown.returns}/3 pts</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${scoreBar(breakdown.returns, 3)}
+            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${retLabel}: <b style="color:var(--text-primary);">${retVal}</b></span>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:600;">💸 Expense Ratio (15%)</span>
+            <span style="font-size:12px;font-weight:700;color:${starColor};">${breakdown.expense}/1 pt</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${scoreBar(breakdown.expense, 1)}
+            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">TER: <b style="color:var(--text-primary);">${expVal}</b></span>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;font-weight:600;">📉 Drawdown (20%)</span>
+            <span style="font-size:12px;font-weight:700;color:${starColor};">${breakdown.drawdown}/1 pt</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${scoreBar(breakdown.drawdown, 1)}
+            <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;"><b style="color:var(--text-primary);">${ddVal}</b></span>
+          </div>
+        </div>
+        ${breakdown.direct > 0 ? `<div style="font-size:11px;color:#15803d;">✅ Direct Plan bonus: +0.2 pts</div>` : ''}
+      </div>
+
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--text-muted);margin-bottom:10px;">
+        <strong>Formula:</strong> Returns×40% + Consistency×25% + Risk×20% + Expense×15%<br>
+        Total raw score: <strong>${total.toFixed(2)}</strong> → Rounded to <strong>${stars} stars</strong>
+      </div>
+
+      <div style="font-size:10px;color:var(--text-muted);">⭐ Click kisi bhi star pe apna manual rating set karo</div>
+      ${manualNote}
+    </div>`;
+
+  // Show in a small floating modal near the cursor
+  let modal = document.getElementById('ratingExplainModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'ratingExplainModal';
+    modal.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);max-width:340px;width:90vw;max-height:80vh;overflow-y:auto;';
+    modal.innerHTML = '<div style="position:relative;"><button onclick="document.getElementById(\'ratingExplainModal\').remove()" style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:16px;cursor:pointer;color:var(--text-muted);">✕</button></div><div id="ratingExplainContent"></div>';
+    document.body.appendChild(modal);
+  }
+  document.getElementById('ratingExplainContent').innerHTML = html;
+
+  // Position near click
+  const rect = e ? { x: Math.min(e.clientX, window.innerWidth - 360), y: Math.min(e.clientY + 10, window.innerHeight - 400) } : { x: window.innerWidth/2 - 170, y: window.innerHeight/2 - 200 };
+  modal.style.left = Math.max(8, rect.x) + 'px';
+  modal.style.top  = Math.max(8, rect.y) + 'px';
+  modal.style.display = 'block';
+
+  // Click outside to close
+  setTimeout(() => {
+    const close = (ev) => { if (!modal.contains(ev.target)) { modal.remove(); document.removeEventListener('click', close); } };
+    document.addEventListener('click', close);
+  }, 100);
+}
+
+function clearManualRating(fundId) {
+  try {
+    const ratings = JSON.parse(localStorage.getItem('wd_ratings_v1') || '{}');
+    delete ratings[fundId];
+    localStorage.setItem('wd_ratings_v1', JSON.stringify(ratings));
+    document.getElementById('ratingExplainModal')?.remove();
+    if (typeof SC !== 'undefined') SC.trigger();
+  } catch(e) {}
+}
+
+// Store last loaded funds for rating explain lookup
+// _lastFunds: SC._lastFunds se milta hai (t67 se already maintained)
 
 /* ══════════════════════════════════════════════════
    t110 — SAVED SEARCHES / CUSTOM SCREENS

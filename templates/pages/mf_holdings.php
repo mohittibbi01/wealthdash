@@ -246,6 +246,9 @@ ob_start();
 
 </div>
 
+<!-- t112: Portfolio Health Score — rendered by JS when holdings load -->
+<div id="portfolioHealthScore" style="display:none;margin-bottom:12px;"></div>
+
 <div class="card">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
     <div style="display:flex;align-items:center;gap:10px;">

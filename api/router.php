@@ -165,6 +165,10 @@ try {
             require APP_ROOT . '/api/mutual_funds/mf_search.php'; exit;
         case 'fund_house_rankings':  // t168
             require APP_ROOT . '/api/mutual_funds/fund_house_rankings.php'; exit;
+        case 'ter_trend':            // t169
+            require APP_ROOT . '/api/mutual_funds/ter_trend.php'; exit;
+        case 'fund_managers':        // t180
+            require APP_ROOT . '/api/mutual_funds/fund_managers.php'; exit;
         case 'import_history':       // t190
             require APP_ROOT . '/api/mutual_funds/import_history.php'; exit;
         case 'mf_add':
