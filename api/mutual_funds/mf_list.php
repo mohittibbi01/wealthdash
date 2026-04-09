@@ -210,6 +210,8 @@ try {
                    f.scheme_name, f.scheme_code, f.category, f.sub_category,
                    f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
                    f.min_ltcg_days, f.lock_in_days,
+                   f.exit_load_pct, f.exit_load_days, f.exit_load_text,
+                   f.expense_ratio,
                    fh.name AS fund_house_name, fh.short_name AS fund_house_short,
                    port.name AS portfolio_name,
                    (SELECT COUNT(*) FROM sip_schedules s
@@ -339,6 +341,12 @@ try {
                 'active_swp_amount'    => $r['active_swp_amount'] !== null ? (float)$r['active_swp_amount'] : null,
                 'active_sip_id'        => isset($r['active_sip_id']) && $r['active_sip_id'] !== null ? (int)$r['active_sip_id'] : null,
                 'active_swp_id'        => isset($r['active_swp_id']) && $r['active_swp_id'] !== null ? (int)$r['active_swp_id'] : null,
+                // t367: Exit Load Calculator
+                'exit_load_pct'        => $r['exit_load_pct'] !== null ? (float)$r['exit_load_pct'] : null,
+                'exit_load_days'       => $r['exit_load_days'] !== null ? (int)$r['exit_load_days'] : null,
+                'exit_load_text'       => $r['exit_load_text'] ?? null,
+                // t269: Direct vs Regular
+                'expense_ratio'        => $r['expense_ratio'] !== null ? (float)$r['expense_ratio'] : null,
             ];
         }, $rows);
 
@@ -360,6 +368,8 @@ try {
                 f.fund_type, f.option_type, f.latest_nav, f.latest_nav_date,
                 f.highest_nav, f.highest_nav_date,
                 f.min_ltcg_days, f.lock_in_days,
+                f.exit_load_pct, f.exit_load_days, f.exit_load_text,
+                f.expense_ratio,
                 fh.name AS fund_house_name, fh.short_name AS fund_house_short,
                 SUM(h.total_units) AS total_units,
                 SUM(h.total_invested) AS total_invested,
@@ -497,6 +507,13 @@ try {
                 'active_swp_amount'    => isset($r['active_swp_amount']) && $r['active_swp_amount'] !== null ? (float)$r['active_swp_amount'] : null,
                 'active_sip_id'        => isset($r['active_sip_id']) && $r['active_sip_id'] !== null ? (int)$r['active_sip_id'] : null,
                 'active_swp_id'        => isset($r['active_swp_id']) && $r['active_swp_id'] !== null ? (int)$r['active_swp_id'] : null,
+                // t367: Exit Load Calculator
+                'exit_load_pct'        => $r['exit_load_pct'] !== null ? (float)$r['exit_load_pct'] : null,
+                'exit_load_days'       => $r['exit_load_days'] !== null ? (int)$r['exit_load_days'] : null,
+                'exit_load_text'       => $r['exit_load_text'] ?? null,
+                // t269: Direct vs Regular cost
+                'expense_ratio'        => $r['expense_ratio'] !== null ? (float)$r['expense_ratio'] : null,
+                'lock_in_days'         => (int)($r['lock_in_days'] ?? 0),
             ];
         }, $rows);
 

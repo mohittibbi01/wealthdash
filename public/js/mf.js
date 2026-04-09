@@ -160,6 +160,32 @@ async function loadHoldings() {
   }
 }
 
+// t481: Refresh NAV for a single fund (stale NAV badge click)
+async function refreshSingleNav(fundId) {
+  const toast = (msg, color='#1e293b') => {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2);transition:opacity .4s;`;
+    t.textContent = msg; document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
+  };
+  toast('🔄 NAV refresh ho raha hai…', '#3b82f6');
+  try {
+    const base = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${base}/api/nav/update_amfi.php?fund_id=${fundId}`, {
+      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const d = await res.json();
+    if (d.success || d.updated > 0) {
+      toast('✅ NAV updated! Reloading…', '#16a34a');
+      setTimeout(() => loadHoldings(), 1000);
+    } else {
+      toast('⚠ NAV source se data nahi mila', '#d97706');
+    }
+  } catch (e) {
+    toast('❌ Refresh failed: ' + e.message, '#dc2626');
+  }
+}
+
 function applyHoldingsFilter() {
   MF.categoryFilter  = document.getElementById('filterCategory')?.value || '';
   MF.gainTypeFilter  = document.getElementById('filterGainType')?.value || '';
@@ -267,8 +293,46 @@ function renderHoldings() {
       ? cell(h.cagr, false, 2)
       : '<span style="color:var(--text-muted);">—</span>';
 
+    // t481: Stale NAV detection (> 2 business days old)
+    let navStaleBadge = '';
+    if (h.latest_nav_date) {
+      const navDt   = new Date(h.latest_nav_date);
+      const diffMs  = new Date() - navDt;
+      const diffDays = diffMs / 86400000;
+      // Skip weekends — if today is Mon/Tue allow up to 3/4 days back
+      const todayDay = new Date().getDay(); // 0=Sun,6=Sat
+      const staleDays = (todayDay === 1) ? 3 : (todayDay === 2) ? 4 : 2;
+      if (diffDays > staleDays) {
+        navStaleBadge = `<span title="NAV ${Math.floor(diffDays)} days purana hai — refresh karo" style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(239,68,68,.1);color:#dc2626;border:1px solid rgba(239,68,68,.25);margin-left:3px;cursor:pointer;" onclick="event.stopPropagation();refreshSingleNav(${fundId})">⚠ Stale NAV</span>`;
+      }
+    }
+
+    // t367: Exit Load badge
+    let exitLoadBadge = '';
+    if (h.exit_load_pct > 0 && h.exit_load_days > 0 && h.first_purchase_date) {
+      const purchDate  = new Date(h.first_purchase_date);
+      const freeDate   = new Date(purchDate.getTime() + h.exit_load_days * 86400000);
+      const today2     = new Date();
+      const daysToFree = Math.ceil((freeDate - today2) / 86400000);
+      if (daysToFree > 0) {
+        const urgColor = daysToFree < 30 ? '#dc2626' : daysToFree < 90 ? '#d97706' : '#7c3aed';
+        exitLoadBadge = `<span title="Exit load ${h.exit_load_pct}% if sold before ${freeDate.toLocaleDateString('en-IN')} · Free in ${daysToFree} days" style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(124,58,237,.08);color:${urgColor};border:1px solid rgba(124,58,237,.2);margin-left:3px;">🚪 ${daysToFree}d to free exit</span>`;
+      } else {
+        exitLoadBadge = `<span title="No exit load (held > ${h.exit_load_days} days)" style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(22,163,74,.08);color:#15803d;border:1px solid rgba(22,163,74,.2);margin-left:3px;">✓ Free Exit</span>`;
+      }
+    }
+
+    // t269: Regular plan cost badge
+    let regularCostBadge = '';
+    const isRegular = (h.scheme_name||'').toLowerCase().includes('regular') || (h.option_type||'').toLowerCase() === 'regular';
+    if (isRegular && h.expense_ratio > 0 && h.total_invested > 0) {
+      const dragPct   = Math.min(h.expense_ratio * 0.5, 0.75); // avg 0.5–0.75% drag vs direct
+      const annualDrag = Math.round(h.value_now * dragPct / 100);
+      regularCostBadge = `<span title="Regular plan: ~₹${annualDrag.toLocaleString('en-IN')}/yr extra cost vs Direct (est. ${dragPct.toFixed(2)}% drag)" style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(234,179,8,.1);color:#b45309;border:1px solid rgba(234,179,8,.3);cursor:help;">💸 Reg ~₹${annualDrag >= 1000 ? (annualDrag/1000).toFixed(1)+'K' : annualDrag}/yr</span>`;
+    }
+
     // NAV
-    const nav     = h.latest_nav ? `<div style="font-weight:600;">₹${Number(h.latest_nav).toFixed(4)}</div>` : '—';
+    const nav     = h.latest_nav ? `<div style="font-weight:600;">₹${Number(h.latest_nav).toFixed(4)}</div>${navStaleBadge}` : '—';
     const navDate = h.latest_nav_date ? `<small style="color:var(--text-muted);">${formatDateDisplay(h.latest_nav_date)}</small>` : '';
 
     // Peak NAV
@@ -351,7 +415,7 @@ function renderHoldings() {
               : '';
             return catBadge + planBadge + optBadge;
           })()}
-          ${lockBadge}
+          ${lockBadge}${ltcgBadge}${exitLoadBadge}${regularCostBadge}
         </div>
       </td>
       <td class="text-center" style="padding:6px 8px;">
@@ -3459,28 +3523,63 @@ function renderDirectVsRegular() {
   }
 
   const totalRegInvested = regularFunds.reduce((s,h) => s + (h.total_invested||0), 0);
-  // Estimate commission drag: avg ~0.6% extra expense ratio in regular plans
-  const annualDrag = totalRegInvested * 0.006;
-  const tenYrDrag  = totalRegInvested * (Math.pow(1.006, 10) - 1);
+  const totalRegValue    = regularFunds.reduce((s,h) => s + (h.value_now||0), 0);
+  // t269: Use actual expense_ratio if available, else estimate 0.6% drag
+  const annualDrag = regularFunds.reduce((s,h) => {
+    const drag = h.expense_ratio ? Math.min(h.expense_ratio * 0.45, 0.8) : 0.6; // ~45% of TER is commission
+    return s + (h.value_now||0) * drag / 100;
+  }, 0);
+  const fiveYrDrag  = totalRegValue * (Math.pow(1.006, 5)  - 1);
+  const tenYrDrag   = totalRegValue * (Math.pow(1.006, 10) - 1);
+
+  // Per-fund breakdown rows
+  const fundRows = regularFunds.map(h => {
+    const drag     = h.expense_ratio ? Math.min(h.expense_ratio * 0.45, 0.8) : 0.6;
+    const annCost  = Math.round((h.value_now||0) * drag / 100);
+    const tenCost  = Math.round((h.value_now||0) * (Math.pow(1 + drag/100, 10) - 1));
+    const expStr   = h.expense_ratio ? `${Number(h.expense_ratio).toFixed(2)}%` : '?';
+    return `<tr style="border-bottom:1px solid rgba(251,146,60,.2);">
+      <td style="padding:5px 8px;font-size:11px;font-weight:600;color:#9a3412;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${h.scheme_name}">${(h.scheme_name||'').replace(/\bregular\b/gi,'<b>Regular</b>')}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right;">${fmtFull(h.value_now||0)}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right;color:#d97706;">${expStr}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right;color:#c2410c;font-weight:700;">~₹${annCost.toLocaleString('en-IN')}/yr</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right;color:#9f1239;font-weight:700;">~₹${tenCost >= 100000 ? (tenCost/100000).toFixed(1)+'L' : tenCost.toLocaleString('en-IN')} (10yr)</td>
+    </tr>`;
+  }).join('');
+
+  const tableHtml = `
+    <div style="margin-top:10px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr style="background:rgba(251,146,60,.15);">
+            <th style="padding:5px 8px;text-align:left;font-size:10px;color:#9a3412;">Fund</th>
+            <th style="padding:5px 8px;text-align:right;font-size:10px;color:#9a3412;">Value</th>
+            <th style="padding:5px 8px;text-align:right;font-size:10px;color:#9a3412;">TER</th>
+            <th style="padding:5px 8px;text-align:right;font-size:10px;color:#9a3412;">Annual Cost</th>
+            <th style="padding:5px 8px;text-align:right;font-size:10px;color:#9a3412;">10-yr Loss</th>
+          </tr>
+        </thead>
+        <tbody>${fundRows}</tbody>
+      </table>
+    </div>`;
 
   banner.innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:14px;">
       <span style="font-size:24px;flex-shrink:0;">⚠️</span>
       <div style="flex:1;">
         <div style="font-weight:700;color:#c2410c;font-size:13px;margin-bottom:4px;">
-          ${regularFunds.length} Regular Plan Fund${regularFunds.length>1?'s':''} Detected — You May Be Overpaying
+          ${regularFunds.length} Regular Plan Fund${regularFunds.length>1?'s':''} — You Are Overpaying
         </div>
         <div style="font-size:12px;color:#9a3412;line-height:1.6;">
-          Estimated extra commission: <strong>~₹${Math.round(annualDrag).toLocaleString('en-IN')}/year</strong> on ₹${fmtFull(totalRegInvested)} invested.
-          Over 10 years: <strong style="color:#c2410c;">~₹${Math.round(tenYrDrag).toLocaleString('en-IN')} lost</strong> to distributor commission.
+          Estimated annual drag: <strong>~₹${Math.round(annualDrag).toLocaleString('en-IN')}/year</strong> on ₹${fmtFull(totalRegValue)} current value.
+          <br>5-year loss: <strong>~₹${Math.round(fiveYrDrag).toLocaleString('en-IN')}</strong> &nbsp;·&nbsp;
+          10-year loss: <strong style="color:#c2410c;">~₹${Math.round(tenYrDrag).toLocaleString('en-IN')}</strong>
         </div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-          ${regularFunds.slice(0,3).map(h => `<span style="font-size:11px;background:rgba(251,146,60,.15);color:#c2410c;padding:2px 8px;border-radius:99px;font-weight:600;">${(h.scheme_name||'').slice(0,30)}</span>`).join('')}
-          ${regularFunds.length > 3 ? `<span style="font-size:11px;color:#c2410c;">+${regularFunds.length-3} more</span>` : ''}
-        </div>
-        <div style="font-size:11px;color:#9a3412;margin-top:6px;">💡 Consider switching to Direct plans via MF Central or your AMC website.</div>
+        ${tableHtml}
+        <div style="font-size:11px;color:#9a3412;margin-top:8px;">💡 Switch to Direct plans via <a href="https://www.mfcentral.com" target="_blank" style="color:#c2410c;font-weight:700;">MF Central</a> or your AMC website. Same fund, lower cost.</div>
       </div>
     </div>`;
+}
 }
 
 // Hook into renderMfAnalytics
