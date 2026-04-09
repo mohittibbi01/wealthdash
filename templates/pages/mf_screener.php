@@ -910,7 +910,7 @@ ob_start();
   </div>
   <div class="sc-dr-body" id="drBody"></div>
   <div class="sc-dr-footer">
-    <button class="btn btn-primary btn-sm" id="drAddBtn">+ Add Transaction</button>
+    <button class="btn btn-primary btn-sm" id="drAddBtn">➕ Add to Holdings</button>
     <button class="btn btn-ghost btn-sm" id="drAlertBtn" onclick="" style="color:#f59e0b;border-color:#fcd34d;">🔔 Alert</button>
     <button class="btn btn-ghost btn-sm" onclick="drClose()">Close</button>
   </div>
@@ -1793,6 +1793,48 @@ function drOpenFund(f){
       </div>
       <div id="sipCalcResult" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;"></div>
     </div>
+
+    <!-- t267: SIP Step-Up (Top-Up) Calculator -->
+    <div class="d-sec" style="margin-top:4px;">📈 SIP Step-Up Calculator
+      <span style="float:right;font-size:10px;font-weight:400;color:var(--text-muted);">Har saal SIP badhao</span>
+    </div>
+    <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;">Initial SIP (₹)</div>
+          <input id="stepupSipAmt" type="number" value="5000" min="500" step="500"
+            style="width:100%;padding:7px 9px;border:1.5px solid var(--border-color);border-radius:6px;font-size:13px;font-weight:600;background:var(--bg-card);color:var(--text-primary);outline:none;box-sizing:border-box;"
+            oninput="drCalcStepUp(${f.returns_3y||f.returns_1y||12})">
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;">Annual Step-Up %</div>
+          <input id="stepupPct" type="number" value="10" min="0" max="50" step="1"
+            style="width:100%;padding:7px 9px;border:1.5px solid var(--border-color);border-radius:6px;font-size:13px;font-weight:600;background:var(--bg-card);color:var(--text-primary);outline:none;box-sizing:border-box;"
+            oninput="drCalcStepUp(${f.returns_3y||f.returns_1y||12})">
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;">Duration (Years)</div>
+          <select id="stepupYrs"
+            style="width:100%;padding:7px 9px;border:1.5px solid var(--border-color);border-radius:6px;font-size:13px;background:var(--bg-card);color:var(--text-primary);outline:none;box-sizing:border-box;"
+            onchange="drCalcStepUp(${f.returns_3y||f.returns_1y||12})">
+            <option value="5">5 Years</option>
+            <option value="10" selected>10 Years</option>
+            <option value="15">15 Years</option>
+            <option value="20">20 Years</option>
+            <option value="25">25 Years</option>
+            <option value="30">30 Years</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);margin-bottom:4px;text-transform:uppercase;">Expected Return</div>
+          <input id="stepupRet" type="number" value="${(f.returns_3y||f.returns_1y||12).toFixed(1)}" min="1" max="40" step="0.5"
+            style="width:100%;padding:7px 9px;border:1.5px solid var(--border-color);border-radius:6px;font-size:13px;font-weight:600;background:var(--bg-card);color:var(--text-primary);outline:none;box-sizing:border-box;"
+            oninput="drCalcStepUp(parseFloat(this.value)||12)">
+        </div>
+      </div>
+      <div id="stepupResult"></div>
+    </div>
+
     <div class="d-sec">Fund Details</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse;">
       ${[
@@ -1857,6 +1899,7 @@ function drOpenFund(f){
   if (alertBtn) alertBtn.onclick = () => openAlertModal(f.id, f.scheme_name, f.latest_nav);
   drLoadChart(f.id,'1Y',document.querySelector('.dr-period-btn.dr-active'));
   drCalcSip(f.returns_1y,f.returns_3y,f.returns_5y);
+  setTimeout(() => drCalcStepUp(f.returns_3y||f.returns_1y||12), 50); // t267
 }
 
 async function drLoadChart(fundId,period,btn){
@@ -1931,6 +1974,76 @@ function drCalcSip(ret1y,ret3y,ret5y){
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Invested</div><div class="d-val" style="font-size:12px;">${fmtInr(invested)}</div><div class="d-sub">${n}mo</div></div>
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Est. Value</div><div class="d-val" style="font-size:12px;color:var(--accent);">${fmtInr(fv)}</div><div class="d-sub">@${rate.toFixed(1)}%</div></div>
     <div class="d-box" style="text-align:center;"><div class="d-lbl">Gains</div><div class="d-val" style="font-size:12px;color:${isPos?'#16a34a':'#dc2626'};">${isPos?'+':''}${fmtInr(gains)}</div><div class="d-sub">${isPos?'+':''}${gainPct}%</div></div>`;
+}
+
+// t267: SIP Step-Up Calculator
+function drCalcStepUp(retRate) {
+  const initSip  = parseFloat(document.getElementById('stepupSipAmt')?.value) || 5000;
+  const stepPct  = parseFloat(document.getElementById('stepupPct')?.value) || 10;
+  const years    = parseInt(document.getElementById('stepupYrs')?.value) || 10;
+  const rate     = parseFloat(document.getElementById('stepupRet')?.value) || retRate || 12;
+  const resEl    = document.getElementById('stepupResult');
+  if (!resEl) return;
+
+  function fmtInr(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(2) + ' L';
+    return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+
+  // Step-up SIP: each year SIP amount increases by stepPct%
+  // Monthly compounding, SIP at start of month
+  const monthlyRate = rate / 100 / 12;
+  let totalInvested = 0, fvStepUp = 0;
+  let currentSip = initSip;
+  for (let yr = 0; yr < years; yr++) {
+    for (let mo = 0; mo < 12; mo++) {
+      const monthsRemaining = (years - yr) * 12 - mo;
+      totalInvested += currentSip;
+      fvStepUp += currentSip * Math.pow(1 + monthlyRate, monthsRemaining);
+    }
+    currentSip = currentSip * (1 + stepPct / 100);
+  }
+
+  // Compare: flat SIP (no step-up) with same initial amount
+  const n = years * 12, r = monthlyRate;
+  const fvFlat = r === 0 ? initSip * n : initSip * ((Math.pow(1+r,n)-1)/r)*(1+r);
+  const flatInvested = initSip * n;
+
+  const gainsStepUp = fvStepUp - totalInvested;
+  const gainsFlat   = fvFlat - flatInvested;
+  const extra       = fvStepUp - fvFlat;
+  const finalSip    = Math.round(initSip * Math.pow(1 + stepPct/100, years - 1));
+
+  resEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div class="d-box" style="text-align:center;border:1.5px solid rgba(99,102,241,.25);background:rgba(99,102,241,.04);">
+        <div class="d-lbl">Step-Up Value</div>
+        <div class="d-val" style="font-size:12px;color:#6366f1;">${fmtInr(fvStepUp)}</div>
+        <div class="d-sub">Invested ${fmtInr(totalInvested)}</div>
+      </div>
+      <div class="d-box" style="text-align:center;">
+        <div class="d-lbl">Flat SIP Value</div>
+        <div class="d-val" style="font-size:12px;color:var(--accent);">${fmtInr(fvFlat)}</div>
+        <div class="d-sub">Invested ${fmtInr(flatInvested)}</div>
+      </div>
+    </div>
+    <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:10px 12px;font-size:12px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="color:var(--text-muted);font-weight:600;">Step-up advantage</span>
+        <span style="color:#6366f1;font-weight:800;">+${fmtInr(extra)} more 💪</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="color:var(--text-muted);">Gains (Step-Up)</span>
+        <span style="color:#16a34a;font-weight:700;">+${fmtInr(gainsStepUp)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;">
+        <span style="color:var(--text-muted);">Final year SIP</span>
+        <span style="font-weight:700;">₹${finalSip.toLocaleString('en-IN')}/mo</span>
+      </div>
+    </div>`;
+}
 }
 
 /* ══════════════════════════════════════════════════
@@ -2527,9 +2640,38 @@ function checkPriceAlerts(funds) {
 
 
 
-function scAdd(id,name,house){
-  try{sessionStorage.setItem('sc_add_fund_id',id);sessionStorage.setItem('sc_add_fund_name',name);}catch(e){}
-  window.location.href=(window.APP_URL||window.WD?.appUrl||'')+'/templates/pages/mf_holdings.php?add_fund='+id+'&fund_name='+encodeURIComponent(name);
+// tv02: Fund Finder Quick Add — screener se directly holdings add karo
+function scAdd(id, name, house) {
+  const base = window._SCBASE || window.WD?.appUrl || window.APP_URL || '';
+  // Show a quick confirmation modal with two options
+  const existing = document.getElementById('_scAddModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_scAddModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  modal.innerHTML = `
+    <div style="background:var(--bg-card,#fff);border-radius:14px;padding:24px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text-primary);">➕ Add to My Holdings</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:18px;line-height:1.5;">${name}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onclick="
+          sessionStorage.setItem('sc_add_fund_id','${id}');
+          sessionStorage.setItem('sc_add_fund_name','${name.replace(/'/g,'\\')}');
+          window.location.href='${base}/templates/pages/mf_holdings.php?add_fund=${id}&fund_name='+encodeURIComponent('${name.replace(/'/g,'\\')}');
+        " style="padding:11px 16px;background:var(--accent,#3b82f6);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;text-align:left;">
+          📋 Holdings page pe jao aur transaction add karo
+        </button>
+        <button onclick="
+          document.getElementById('_scAddModal').remove();
+          drClose();
+        " style="padding:9px 16px;background:var(--bg-secondary,#f8fafc);color:var(--text-primary);border:1.5px solid var(--border-color);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          Cancel
+        </button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }
 
 // t69: Export screener results as CSV with active filters

@@ -14,27 +14,27 @@ $navItems = [
         'label'    => 'Mutual Funds',
         'icon'     => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 16 4-8 4 6 4-4"/></svg>',
         'children' => [
-            'mf_holdings'     => ['label' => 'Holdings',     'href' => APP_URL . '/templates/pages/mf_holdings.php'],
-            'mf_transactions' => ['label' => 'Transactions', 'href' => APP_URL . '/templates/pages/mf_transactions.php'],
-            'mf_screener'     => ['label' => '🔍 Find Funds', 'href' => APP_URL . '/templates/pages/mf_screener.php'],
-            'mf_report'       => ['label' => '📊 Report & Tools', 'href' => APP_URL . '/templates/pages/mf_report.php'],
+            'mf_holdings'     => ['label' => 'Holdings',     'href' => APP_URL . '/templates/pages/mf_holdings.php',     'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'],
+            'mf_transactions' => ['label' => 'Transactions', 'href' => APP_URL . '/templates/pages/mf_transactions.php', 'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4 4 4"/><path d="M17 8v12m0 0 4-4m-4 4-4-4"/></svg>'],
+            'mf_screener'     => ['label' => 'Find Funds',   'href' => APP_URL . '/templates/pages/mf_screener.php',     'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'],
+            'mf_report'       => ['label' => 'Report & Tools','href' => APP_URL . '/templates/pages/mf_report.php',      'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>'],
         ],
     ],
     'nps' => [
         'label' => 'NPS',
         'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
         'children' => [
-            'nps'          => ['label' => 'Holdings',           'href' => APP_URL . '/templates/pages/nps.php'],
-            'nps_screener' => ['label' => '🔍 Find NPS Scheme', 'href' => APP_URL . '/templates/pages/nps_screener.php'],
+            'nps'          => ['label' => 'Holdings',        'href' => APP_URL . '/templates/pages/nps.php',           'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'],
+            'nps_screener' => ['label' => 'Find NPS Scheme', 'href' => APP_URL . '/templates/pages/nps_screener.php',  'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'],
         ],
     ],
     'stocks' => [
         'label'    => 'Stocks & ETF',
         'icon'     => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
         'children' => [
-            'stocks'  => ['label' => 'Stocks',       'href' => APP_URL . '/templates/pages/stocks.php'],
-            'etf'     => ['label' => 'ETF Holdings',  'href' => APP_URL . '/templates/pages/etf.php'],
-            'nfo'     => ['label' => '📋 NFO Tracker', 'href' => APP_URL . '/templates/pages/nfo.php'],
+            'stocks'  => ['label' => 'Stocks',      'href' => APP_URL . '/templates/pages/stocks.php', 'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>'],
+            'etf'     => ['label' => 'ETF Holdings', 'href' => APP_URL . '/templates/pages/etf.php',    'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>'],
+            'nfo'     => ['label' => 'NFO Tracker',  'href' => APP_URL . '/templates/pages/nfo.php',    'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>'],
         ],
     ],
         'market_indexes' => [
@@ -66,8 +66,8 @@ $navItems = [
         'label'    => 'Banking & Loans',
         'icon'     => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
         'children' => [
-            'banks'     => ['label' => '🏦 Bank Accounts', 'href' => APP_URL . '/templates/banks.php'],
-            'loans'     => ['label' => '💳 Loans',          'href' => APP_URL . '/templates/loans.php'],
+            'banks'     => ['label' => 'Bank Accounts', 'href' => APP_URL . '/templates/banks.php', 'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="5 10 5 3 19 3 19 10"/><line x1="7" y1="21" x2="7" y2="10"/><line x1="17" y1="21" x2="17" y2="10"/></svg>'],
+            'loans'     => ['label' => 'Loans',          'href' => APP_URL . '/templates/loans.php', 'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>'],
         ],
     ],
     'insurance' => [
@@ -84,11 +84,11 @@ $navItems = [
         'label' => 'Reports',
         'icon'  => '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
         'children' => [
-            'report_fy'        => ['label' => 'FY Gains',      'href' => APP_URL . '/templates/pages/report_fy.php'],
-            'report_tax'       => ['label' => 'Tax Planning',  'href' => APP_URL . '/templates/pages/report_tax.php'],
-            'report_networth'  => ['label' => 'Net Worth',     'href' => APP_URL . '/templates/pages/report_networth.php'],
-            'report_rebalance' => ['label' => 'Rebalancing',   'href' => APP_URL . '/templates/pages/report_rebalancing.php'],
-            'report_sip'       => ['label' => 'MF SIP/SWP',    'href' => APP_URL . '/templates/pages/report_sip.php'],
+            'report_fy'        => ['label' => 'FY Gains',     'href' => APP_URL . '/templates/pages/report_fy.php',          'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>'],
+            'report_tax'       => ['label' => 'Tax Planning', 'href' => APP_URL . '/templates/pages/report_tax.php',         'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="9" y1="14" x2="15" y2="14"/><line x1="9" y1="18" x2="15" y2="18"/></svg>'],
+            'report_networth'  => ['label' => 'Net Worth',    'href' => APP_URL . '/templates/pages/report_networth.php',    'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'],
+            'report_rebalance' => ['label' => 'Rebalancing',  'href' => APP_URL . '/templates/pages/report_rebalancing.php', 'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>'],
+            'report_sip'       => ['label' => 'MF SIP/SWP',   'href' => APP_URL . '/templates/pages/report_sip.php',         'icon' => '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 12 3-3 3 3 5-5"/></svg>'],
         ],
     ],
 ];
@@ -105,9 +105,9 @@ if (is_admin()) {
 <div class="sidebar-header">
   <a href="<?= APP_URL ?>/index.php" class="sidebar-brand">
     <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
-      <rect width="40" height="40" rx="10" fill="#2563EB"/>
+      <rect width="40" height="40" rx="10" fill="#4f46e5"/>
       <path d="M10 28L18 16L24 22L30 12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="30" cy="12" r="2" fill="#34D399"/>
+      <circle cx="30" cy="12" r="2" fill="#a5b4fc"/>
     </svg>
     <span class="sidebar-brand-text"><?= e(APP_NAME) ?></span>
   </a>
@@ -137,6 +137,9 @@ if (is_admin()) {
               <li class="nav-item">
                 <a href="<?= e($child['href']) ?>"
                    class="nav-link nav-child-link <?= $activePage === $childKey ? 'active' : '' ?>">
+                  <?php if (!empty($child['icon'])): ?>
+                    <span class="nav-icon nav-child-icon"><?= $child['icon'] ?></span>
+                  <?php endif; ?>
                   <span class="nav-label"><?= e($child['label']) ?></span>
                 </a>
               </li>
