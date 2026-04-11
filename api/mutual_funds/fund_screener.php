@@ -47,6 +47,7 @@ $manager    = trim($_GET['manager']   ?? '');  // t67
 $fundAge    = trim($_GET['fund_age']  ?? '');  // t98
 $sortinoMin = isset($_GET['sortino_min']) && is_numeric($_GET['sortino_min']) ? (float)$_GET['sortino_min'] : null; // t126
 $styleBoxes = (array)($_GET['style_box'] ?? []);  // t179
+$minStars   = isset($_GET['min_stars']) && is_numeric($_GET['min_stars']) ? (int)$_GET['min_stars'] : null; // t111
 
 // ── WHERE builder ───────────────────────────────────────
 $where  = ['f.is_active = 1'];
@@ -151,6 +152,18 @@ if (!empty($styleBoxes)) {
     }
 }
 
+// t111: WD Star Rating filter (uses denorm wd_stars column on funds)
+if ($minStars !== null && $minStars >= 1 && $minStars <= 5) {
+    try {
+        $db->query("SELECT wd_stars FROM funds LIMIT 1");
+        $where[]  = 'f.wd_stars >= ?';
+        $params[] = $minStars;
+        $whereSQL = 'WHERE ' . implode(' AND ', $where);
+    } catch(Exception $e) {
+        // wd_stars column not yet created — run migration 23_fund_ratings.sql
+    }
+}
+
 // ── ORDER BY ─────────────────────────────────────────────
 $sortMap = [
     'name'          => 'IF(f.latest_nav IS NULL OR f.latest_nav=0,1,0) ASC, f.scheme_name ASC',
@@ -178,6 +191,8 @@ $sortMap = [
     'ret3y_asc'     => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y ASC',
     'ret5y_desc'    => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y DESC',
     'ret5y_asc'     => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y ASC',
+    'wd_stars_desc' => 'IF(f.wd_stars IS NULL,1,0) ASC, f.wd_stars DESC, f.scheme_name ASC',  // t111
+    'wd_stars_asc'  => 'IF(f.wd_stars IS NULL,1,0) ASC, f.wd_stars ASC, f.scheme_name ASC',   // t111
 ];
 // expense/risk/returns sort only if column exists
 if (!$hasExpCol   && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
@@ -216,13 +231,17 @@ $hasCatAvgCol = false; try { $db->query("SELECT category_avg_1y FROM funds LIMIT
 // t179: Style Box columns
 $hasStyleCol  = false; try { $db->query("SELECT style_size FROM funds LIMIT 1"); $hasStyleCol=true; } catch(Exception $e){}
 $styleColSQL  = $hasStyleCol ? ', f.style_size, f.style_value, f.style_drift_note' : '';
+// t111: WD Star Rating column
+$hasStarsCol  = false; try { $db->query("SELECT wd_stars FROM funds LIMIT 1"); $hasStarsCol=true; } catch(Exception $e){}
+$starsColSQL  = $hasStarsCol ? ', f.wd_stars' : '';
 $mgrColSQL   = $hasMgrCol   ? ', f.fund_manager, f.manager_since' : '';
 $incColSQL   = $hasIncCol   ? ', f.inception_date' : '';
 $retColSQL   = $hasRetCol   ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
 $sharpColSQL = ($hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '')
              . ($hasSortinoCol ? ', f.sortino_ratio' : '')
              . ($hasCatAvgCol  ? ', f.category_avg_1y, f.category_avg_3y' : '')
-             . $styleColSQL;
+             . $styleColSQL
+             . $starsColSQL;
 
 $mainSQL = "
     SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
@@ -331,6 +350,8 @@ $funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasA
         'style_size'       => ($hasStyleCol && isset($r['style_size']))       ? $r['style_size']       : null,
         'style_value'      => ($hasStyleCol && isset($r['style_value']))      ? $r['style_value']      : null,
         'style_drift_note' => ($hasStyleCol && isset($r['style_drift_note'])) ? $r['style_drift_note'] : null,
+        // t111: WD Star Rating (from cron-calculated fund_ratings table)
+        'wd_stars'         => ($hasStarsCol && isset($r['wd_stars']) && $r['wd_stars'] !== null) ? (int)$r['wd_stars'] : null,
     ];
 }, $rows);
 

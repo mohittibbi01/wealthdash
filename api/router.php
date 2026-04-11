@@ -165,6 +165,16 @@ try {
             require APP_ROOT . '/api/mutual_funds/mf_search.php'; exit;
         case 'fund_house_rankings':  // t168
             require APP_ROOT . '/api/mutual_funds/fund_house_rankings.php'; exit;
+        case 'user_profile_save':    // t54 — User Settings
+        case 'user_change_password':
+            require APP_ROOT . '/api/user_settings.php'; exit;
+
+        case 'pa_list':              // t77 — DB-persistent price alerts
+        case 'pa_add':
+        case 'pa_delete':
+        case 'pa_toggle':
+            require APP_ROOT . '/api/mutual_funds/price_alerts.php'; exit;
+
         case 'ter_trend':            // t169
             require APP_ROOT . '/api/mutual_funds/ter_trend.php'; exit;
         case 'fund_managers':        // t180
@@ -303,6 +313,15 @@ try {
         case 'goal_delete':
         case 'goal_mark_achieved':
         case 'goal_contribute':
+        case 'notif_list':           // t57/t81 — Notifications Center
+        case 'notif_unread_count':
+        case 'notif_mark_read':
+        case 'notif_mark_all_read':
+        case 'notif_clear_all':
+        case 'notif_prefs_get':
+        case 'notif_prefs_save':
+            require APP_ROOT . '/api/notifications.php'; exit;
+
         case 'goal_projection':
             require APP_ROOT . '/api/reports/goal_planning.php'; exit;
 

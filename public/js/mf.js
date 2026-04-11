@@ -392,7 +392,13 @@ function renderHoldings() {
       </td>
       <td class="fund-name-cell" style="text-align:center;">
         <div class="fund-title" title="${escHtml(h.scheme_name)}">${escHtml(h.scheme_name)}</div>
-        <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')}${folioInfo ? ' · ' + h.folio_number : ''}</div>
+        <div class="fund-sub">${escHtml(h.fund_house_short||h.fund_house||'')}${folioInfo ? ' · ' + h.folio_number : ''}${
+          h.wd_stars ? (() => {
+            const colors = {1:'#9ca3af',2:'#f59e0b',3:'#f59e0b',4:'#16a34a',5:'#16a34a'};
+            const labels = {1:'Poor',2:'Below Avg',3:'Average',4:'Good',5:'Excellent'};
+            return ` · <span title="WD Rating: ${h.wd_stars}/5 — ${labels[h.wd_stars]} (Returns+Consistency+Risk+Expense formula)" style="color:${colors[h.wd_stars]};font-weight:700;font-size:11px;cursor:help;">${'★'.repeat(h.wd_stars)}${'☆'.repeat(5-h.wd_stars)}</span>`;
+          })() : ''
+        }</div>
         <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center;">
           ${(() => {
             const name = (h.scheme_name||'').toLowerCase();

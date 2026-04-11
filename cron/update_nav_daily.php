@@ -114,6 +114,101 @@ $elapsed = round(microtime(true) - $start, 2);
 $log[] = "[$date] Updated: $updated NAVs, Skipped: $skipped. Time: {$elapsed}s";
 $log[] = "[$date] Done.";
 
+// ── t79: SIP Due Reminder — 3 days pehle notify karo ──────────────────────
+try {
+    require_once APP_ROOT . '/includes/notification.php';
+    $targetDate = date('Y-m-d', strtotime('+3 days'));
+    $sipsDue = DB::fetchAll("
+        SELECT ss.id, ss.user_id, ss.amount, ss.next_date, f.scheme_name, f.id AS fund_id
+        FROM sip_schedules ss
+        JOIN funds f ON f.id = ss.fund_id
+        WHERE ss.status = 'active'
+          AND ss.next_date = ?
+    ", [$targetDate]);
+    foreach ($sipsDue as $sip) {
+        // Check if already notified for this SIP+date
+        $already = DB::fetchOne("
+            SELECT id FROM notifications
+            WHERE user_id=? AND type='sip_reminder'
+              AND body LIKE ? AND triggered_at >= CURDATE()
+        ", [(int)$sip['user_id'], '%' . $sip['id'] . '%']);
+        if ($already) continue;
+        $amt = '₹' . number_format((float)$sip['amount'], 0);
+        Notification::create(
+            (int)$sip['user_id'],
+            'sip_reminder',
+            "🔄 SIP Due in 3 Days",
+            "SIP #{$sip['id']} — {$sip['scheme_name']} — {$amt} due on {$sip['next_date']}",
+            APP_URL . '/templates/pages/report_sip.php'
+        );
+    }
+    if (count($sipsDue)) $log[] = "[" . date('Y-m-d H:i:s') . "] SIP reminders created: " . count($sipsDue);
+} catch (Exception $e) {
+    $log[] = "[WARN] SIP reminder failed: " . $e->getMessage();
+}
+
+// ── t78: Drawdown Alert — ATH se 10%+ gire to notify ─────────────────────
+try {
+    $drawdownFunds = DB::fetchAll("
+        SELECT DISTINCT h.user_id, f.id AS fund_id, f.scheme_name,
+               f.latest_nav, f.highest_nav,
+               ROUND((f.highest_nav - f.latest_nav) / f.highest_nav * 100, 1) AS drawdown_pct
+        FROM mf_holdings h
+        JOIN funds f ON f.id = h.fund_id
+        WHERE h.is_active = 1
+          AND f.highest_nav > 0
+          AND f.latest_nav > 0
+          AND ((f.highest_nav - f.latest_nav) / f.highest_nav * 100) >= 10
+    ");
+    foreach ($drawdownFunds as $dd) {
+        // Only notify once per fund per week
+        $already = DB::fetchOne("
+            SELECT id FROM notifications
+            WHERE user_id=? AND type='drawdown'
+              AND body LIKE ? AND triggered_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        ", [(int)$dd['user_id'], '%fund_id=' . $dd['fund_id'] . '%']);
+        if ($already) continue;
+        $ddPct = $dd['drawdown_pct'];
+        Notification::create(
+            (int)$dd['user_id'],
+            'drawdown',
+            "📉 Drawdown Alert: {$dd['scheme_name']}",
+            "{$dd['scheme_name']} is {$ddPct}% below its all-time high. NAV: ₹" . number_format($dd['latest_nav'], 2) . " | ATH: ₹" . number_format($dd['highest_nav'], 2) . " | fund_id={$dd['fund_id']}",
+            APP_URL . '/templates/pages/mf_holdings.php'
+        );
+    }
+    if (count($drawdownFunds)) $log[] = "[" . date('Y-m-d H:i:s') . "] Drawdown alerts created: " . count($drawdownFunds);
+} catch (Exception $e) {
+    $log[] = "[WARN] Drawdown alert failed: " . $e->getMessage();
+}
+
+// ── t77: DB Price Alerts — target NAV crossed check ──────────────────────
+try {
+    $alerts = DB::fetchAll("
+        SELECT pa.id, pa.user_id, pa.fund_id, pa.type, pa.target_nav, pa.note,
+               f.scheme_name, f.latest_nav
+        FROM price_alerts pa
+        JOIN funds f ON f.id = pa.fund_id
+        WHERE pa.is_active = 1 AND pa.triggered_at IS NULL
+    ");
+    foreach ($alerts as $al) {
+        $hit = ($al['type'] === 'above' && $al['latest_nav'] >= $al['target_nav'])
+            || ($al['type'] === 'below' && $al['latest_nav'] <= $al['target_nav']);
+        if (!$hit) continue;
+        $dir = $al['type'] === 'above' ? 'crossed above' : 'dropped below';
+        Notification::create(
+            (int)$al['user_id'],
+            'nav_alert',
+            "🔔 Price Alert: {$al['scheme_name']}",
+            "NAV has {$dir} your target of ₹" . number_format($al['target_nav'], 2) . ". Current: ₹" . number_format($al['latest_nav'], 2),
+            APP_URL . '/templates/pages/mf_screener.php'
+        );
+        DB::execute("UPDATE price_alerts SET is_active=0, triggered_at=NOW() WHERE id=?", [$al['id']]);
+    }
+} catch (Exception $e) {
+    $log[] = "[WARN] Price alert check failed: " . $e->getMessage();
+}
+
 $out = implode("\n", $log);
 echo $out . "\n";
 @file_put_contents(APP_ROOT . '/logs/nav_update_' . date('Y-m') . '.log', $out . "\n", FILE_APPEND | LOCK_EX);

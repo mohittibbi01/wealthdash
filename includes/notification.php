@@ -287,3 +287,46 @@ class Notification {
     }
 }
 
+
+
+    // -------------------------------------------------------
+    // DB Notification — store in notifications table (t57/t81)
+    // -------------------------------------------------------
+
+    /**
+     * Create an in-app notification for a user.
+     * $type: nav_alert | fd_maturity | sip_reminder | drawdown | nfo_closing | system | goal | tax
+     */
+    public static function create(
+        int    $userId,
+        string $type,
+        string $title,
+        string $body,
+        string $linkUrl = null
+    ): bool {
+        try {
+            $db   = DB::conn();
+            $stmt = $db->prepare("
+                INSERT INTO notifications (user_id, type, title, body, link_url, triggered_at)
+                VALUES (?, ?, ?, ?, ?, NOW())
+            ");
+            return $stmt->execute([$userId, $type, $title, $body, $linkUrl]);
+        } catch (\Throwable $e) {
+            error_log('[WealthDash] Notification::create failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get unread count for a user.
+     */
+    public static function unread_count(int $userId): int {
+        try {
+            $db   = DB::conn();
+            $stmt = $db->prepare("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0");
+            $stmt->execute([$userId]);
+            return (int)$stmt->fetchColumn();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }

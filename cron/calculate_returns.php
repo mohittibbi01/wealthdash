@@ -236,6 +236,111 @@ try {
     echo "⚠️  Category averages failed: {$e->getMessage()}\n";
 }
 
+// ── t111: Fund Ratings — WealthDash internal star rating (1-5 ⭐) ──────────
+// Formula: Returns(40%) + Consistency(25%) + Risk(20%) + Expense(15%)
+echo "Calculating WD star ratings (t111)...\n";
+try {
+    // Check if fund_ratings table exists
+    $db->query("SELECT 1 FROM fund_ratings LIMIT 1");
+
+    $rateFunds = $db->query("
+        SELECT f.id, f.scheme_name, f.returns_1y, f.returns_3y, f.returns_5y,
+               f.expense_ratio, f.max_drawdown_pct, f.sharpe_ratio,
+               f.category_avg_1y, f.category_avg_3y
+        FROM funds f
+        WHERE f.is_active = 1
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $rateStmt = $db->prepare("
+        INSERT INTO fund_ratings (fund_id, stars, score_total, score_breakdown)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            stars=VALUES(stars),
+            score_total=VALUES(score_total),
+            score_breakdown=VALUES(score_breakdown),
+            rated_at=NOW()
+    ");
+    $starStmt = $db->prepare("UPDATE funds SET wd_stars=? WHERE id=?");
+
+    $rated = 0;
+    foreach ($rateFunds as $f) {
+        // -- Returns score (0–3): use 3Y if available, else 1Y
+        $ret       = $f['returns_3y'] ?? $f['returns_1y'] ?? null;
+        $retScore  = 0;
+        $retLabel  = 'No data';
+        if ($ret !== null) {
+            if ($ret >= 20)     { $retScore = 3;   $retLabel = '≥20% excellent'; }
+            elseif ($ret >= 15) { $retScore = 2.5; $retLabel = '≥15% very good'; }
+            elseif ($ret >= 10) { $retScore = 2;   $retLabel = '≥10% good'; }
+            elseif ($ret >= 5)  { $retScore = 1;   $retLabel = '≥5% below avg'; }
+            else                { $retScore = 0.5; $retLabel = '<5% weak'; }
+        }
+
+        // -- Consistency score (0–1): vs category average, or sharpe proxy
+        $conScore = 0.5; // neutral default
+        $catAvg   = $f['returns_3y'] !== null ? ($f['category_avg_3y'] ?? null) : ($f['category_avg_1y'] ?? null);
+        if ($catAvg !== null && $ret !== null) {
+            $diff = $ret - $catAvg;
+            if ($diff >= 5)       $conScore = 1;
+            elseif ($diff >= 2)   $conScore = 0.75;
+            elseif ($diff >= 0)   $conScore = 0.5;
+            elseif ($diff >= -3)  $conScore = 0.25;
+            else                  $conScore = 0;
+        } elseif ($f['sharpe_ratio'] !== null) {
+            $sh = (float)$f['sharpe_ratio'];
+            if ($sh >= 1.5)      $conScore = 1;
+            elseif ($sh >= 1)    $conScore = 0.75;
+            elseif ($sh >= 0.5)  $conScore = 0.5;
+            else                 $conScore = 0.25;
+        }
+
+        // -- Risk/Drawdown score (0–1): lower drawdown = better
+        $ddScore = 0.5; // neutral
+        if ($f['max_drawdown_pct'] !== null) {
+            $dd = (float)$f['max_drawdown_pct'];
+            if ($dd <= 5)        $ddScore = 1;
+            elseif ($dd <= 10)   $ddScore = 0.75;
+            elseif ($dd <= 20)   $ddScore = 0.5;
+            elseif ($dd <= 35)   $ddScore = 0.25;
+            else                 $ddScore = 0;
+        }
+
+        // -- Expense score (0–0.5): Direct plan bonus + low TER
+        $expScore = 0.25; // neutral
+        $isDirect = stripos($f['scheme_name'], 'direct') !== false;
+        if ($f['expense_ratio'] !== null) {
+            $exp = (float)$f['expense_ratio'];
+            if ($exp < 0.5)      $expScore = 0.5;
+            elseif ($exp < 1)    $expScore = 0.4;
+            elseif ($exp < 1.5)  $expScore = 0.3;
+            else                 $expScore = 0.15;
+        }
+        if ($isDirect) $expScore = min(0.5, $expScore + 0.1); // Direct plan bonus
+
+        // -- Weighted total: Returns(40%→max3) + Consistency(25%→max1) + Risk(20%→max1) + Expense(15%→max0.5)
+        // Normalised to 0–5 scale
+        $total = ($retScore * (40/60)) + ($conScore * 1.25) + ($ddScore * 1.0) + ($expScore * 1.5);
+        $stars = min(5, max(1, (int)round($total)));
+
+        $breakdown = json_encode([
+            'returns'     => round($retScore, 3),
+            'consistency' => round($conScore, 3),
+            'drawdown'    => round($ddScore, 3),
+            'expense'     => round($expScore, 3),
+            'ret_label'   => $retLabel,
+            'is_direct'   => $isDirect,
+        ], JSON_UNESCAPED_UNICODE);
+
+        $rateStmt->execute([$f['id'], $stars, round($total, 4), $breakdown]);
+        $starStmt->execute([$stars, $f['id']]);
+        $rated++;
+    }
+    echo "✅ Fund ratings updated: {$rated} funds rated\n";
+} catch (Exception $e) {
+    echo "⚠️  Fund ratings skipped: {$e->getMessage()}\n";
+    echo "   Run database/23_fund_ratings.sql first to create fund_ratings table\n";
+}
+
 $elapsed = round(microtime(true) - $start, 1);
 echo "\n=== DONE ===\n";
 echo "Funds processed : {$done}\n";

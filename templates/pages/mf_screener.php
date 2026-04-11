@@ -400,6 +400,11 @@ ob_start();
     STYLE BOX
     <span class="tab-cnt" id="tcnt_style_box" style="display:none;"></span>
   </div>
+  <div class="sc-filter-tab" data-tab="wd_rating" onclick="toggleTab('wd_rating',this)">
+    <span class="tab-check" id="tck_wd_rating">✓</span>
+    ⭐ WD RATING
+    <span class="tab-cnt" id="tcnt_wd_rating" style="display:none;"></span>
+  </div>
   <div class="sc-filter-btn" id="scFilterBtn" onclick="SC.applyFilters()">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
     FILTER
@@ -684,6 +689,32 @@ ob_start();
     <div style="font-size:10px;color:var(--text-muted);">Cells mein click karo select karne ke liye</div>
   </div>
 
+  <!-- t111: WD Rating Filter -->
+  <div id="fp_wd_rating" style="display:none;">
+    <div class="fp-section-title">WD STAR RATING (MINIMUM)</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">WealthDash ka internal rating — Returns(40%) + Consistency(25%) + Risk(20%) + Expense(15%) formula se calculate hota hai.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;" id="fpStarBtns">
+      <?php foreach([1,2,3,4,5] as $s): ?>
+      <button onclick="SC.setMinStars(<?= $s ?>)" data-stars="<?= $s ?>"
+        style="padding:8px 16px;border-radius:8px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:4px;"
+        class="fp-star-btn">
+        <?= str_repeat('★', $s) ?><?= str_repeat('☆', 5-$s) ?>
+        <span style="font-size:11px;font-weight:600;opacity:.7;"><?= $s ?>+</span>
+      </button>
+      <?php endforeach; ?>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <span class="fp-type-pill" onclick="SC.setMinStars(3)">🥉 Good (3+⭐)</span>
+      <span class="fp-type-pill" onclick="SC.setMinStars(4)">🥈 Very Good (4+⭐)</span>
+      <span class="fp-type-pill" onclick="SC.setMinStars(5)">🥇 Excellent (5⭐)</span>
+      <span class="fp-type-pill" onclick="SC.setMinStars(null)">Show All</span>
+    </div>
+    <div style="margin-top:10px;padding:8px 10px;background:var(--bg-secondary);border-radius:6px;font-size:11px;color:var(--text-muted);border:1px solid var(--border-color);">
+      ℹ️ Rating weekly cron se update hoti hai. Agar fund ka rating data nahi hai to unrated funds bhi dikhenge jab tak DB se data na aaye.<br>
+      <span style="color:var(--accent);font-weight:600;">Cron run karo:</span> <code style="font-family:monospace;background:rgba(0,0,0,.05);padding:1px 5px;border-radius:3px;">php cron/calculate_returns.php</code>
+    </div>
+  </div>
+
   <!-- Panel footer -->
   <div class="fp-footer">
     <div style="font-size:12px;color:var(--text-muted);" id="fpFilterSummary">No filters applied</div>
@@ -741,6 +772,8 @@ ob_start();
     <option value="nav_asc">NAV ↑</option>
     <option value="ltcg">LTCG Period</option>
     <option value="house">AMC</option>
+    <option value="wd_stars_desc">⭐ WD Rating ↓</option>
+    <option value="wd_stars_asc">⭐ WD Rating ↑</option>
   </select>
   <select class="sc-sel" id="scPP" onchange="SC.setPerPage(+this.value)">
     <option value="25">25</option>
@@ -922,7 +955,7 @@ ob_start();
 ══════════════════════════════════════════════════ */
 const SC = {
   state:{ q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',sortDir:'asc',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null,manager:'',fundAge:'',
-    manager:'', fundAge:'', styleBoxes:[] },  // t67 + t98 + t179
+    manager:'', fundAge:'', styleBoxes:[], minStars:null },  // t67 + t98 + t179 + t111
   facets:{ fund_houses:{},categories:[],ltcg_days:{} },
   _db:null, loading:false,
 
@@ -1023,6 +1056,13 @@ const SC = {
     const v=document.getElementById('fpSortinoMin')?.value;
     this.state.sortinoMin=v?parseFloat(v):null;
     updTabBadge();
+  },
+
+  // t111: WD Star Rating filter
+  setMinStars(n){
+    this.state.minStars = (n===null||n===undefined||this.state.minStars===n) ? null : n;
+    updTabBadge();
+    this.trigger();
   },
 
   // t67: Fund Manager search
@@ -1141,7 +1181,7 @@ const SC = {
   },
 
   reset(){
-    this.state={q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null};
+    this.state={q:'',categories:[],fundHouses:[],optionType:'all',planType:'all',ltcgDays:0,hasLockin:-1,expMin:null,expMax:null,hasTer:false,sort:'name',page:1,perPage:50,quickType:'',aumMin:null,aumMax:null,riskLevels:[],retMin1y:null,retMin3y:null,retMin5y:null,sortinoMin:null,manager:'',fundAge:'',styleBoxes:[],minStars:null};
     document.getElementById('scQ').value='';
     document.getElementById('scSort').value='name';
     document.getElementById('scPP').value='50';
@@ -1164,6 +1204,12 @@ const SC = {
     ['tck_aum','tck_risk','tck_ret'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('show');});
     ['tcnt_aum','tcnt_risk','tcnt_ret'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
     document.getElementById('fpFilterSummary').textContent='No filters applied';
+    // t111: reset star rating buttons
+    document.querySelectorAll('.fp-star-btn').forEach(b=>{
+      b.style.background='var(--bg-secondary)';b.style.color='var(--text-primary)';b.style.borderColor='var(--border-color)';
+    });
+    const wrEl2=document.getElementById('tck_wd_rating');if(wrEl2)wrEl2.classList.remove('show');
+    const wrCnt2=document.getElementById('tcnt_wd_rating');if(wrCnt2)wrCnt2.style.display='none';
     this.trigger();
   },
 
@@ -1189,6 +1235,7 @@ const SC = {
     if(s.fundAge)   p.set('fund_age', s.fundAge);   // t98
     if(s.sortinoMin!==null&&s.sortinoMin!==undefined) p.set('sortino_min', s.sortinoMin); // t126
     if(s.styleBoxes&&s.styleBoxes.length) s.styleBoxes.forEach(sb=>p.append('style_box[]',sb)); // t179
+    if(s.minStars!==null&&s.minStars!==undefined) p.set('min_stars',s.minStars); // t111
     p.set('sort',s.sort);p.set('page',s.page);p.set('per_page',s.perPage);
     Object.entries(extra).forEach(([k,v])=>p.set(k,v));
     return p.toString();
@@ -1343,6 +1390,17 @@ function updTabBadge(){
   const sbOn=(s.styleBoxes||[]).length>0;
   if(sbEl)sbEl.classList.toggle('show',sbOn);
   if(sbCnt){sbCnt.style.display=sbOn?'inline-block':'none';sbCnt.textContent=sbOn?(s.styleBoxes||[]).length:'';}
+  // WD Rating (t111)
+  const wrEl=document.getElementById('tck_wd_rating'),wrCnt=document.getElementById('tcnt_wd_rating');
+  if(wrEl)wrEl.classList.toggle('show',s.minStars!==null&&s.minStars!==undefined);
+  if(wrCnt){wrCnt.style.display=(s.minStars!==null&&s.minStars!==undefined)?'inline-block':'none';wrCnt.textContent=s.minStars!==null?'★'.repeat(s.minStars):'';}
+  // highlight active star button
+  document.querySelectorAll('.fp-star-btn').forEach(b=>{
+    const active=parseInt(b.dataset.stars)===s.minStars;
+    b.style.background=active?'var(--accent)':'var(--bg-secondary)';
+    b.style.color=active?'#fff':'var(--text-primary)';
+    b.style.borderColor=active?'var(--accent)':'var(--border-color)';
+  });
   updFpSummary();
 }
 
@@ -1361,6 +1419,7 @@ function updFpSummary(){
   if(s.retMin5y!==null) parts.push(`5Y≥${s.retMin5y}%`);
   if(s.sortinoMin!==null) parts.push(`Sortino≥${s.sortinoMin}`);
   if((s.styleBoxes||[]).length) parts.push(`Style: ${s.styleBoxes.join('/')}`);
+  if(s.minStars!==null&&s.minStars!==undefined) parts.push(`WD Rating ≥${'★'.repeat(s.minStars)}`);
   document.getElementById('fpFilterSummary').textContent=parts.length?'Filters: '+parts.join(' · '):'No filters applied';
 }
 
@@ -1439,20 +1498,25 @@ function renderTable(funds,total){
   }
 
   function _ratingCell(f) {
-    // Check if user has manually set rating
+    // Priority: 1) manual override (localStorage), 2) DB wd_stars from cron, 3) client-side calculated
     const manualKey = 'wd_ratings_v1';
     let manual = null;
     try { const m = JSON.parse(localStorage.getItem(manualKey)||'{}'); manual = m[f.id] ?? null; } catch(e) {}
     const { stars: calcStars } = _calcWdRatingBreakdown(f);
-    const stars = manual !== null ? manual : calcStars;
+    // Use DB stars if available and no manual override
+    const dbStars = (f.wd_stars !== null && f.wd_stars !== undefined) ? f.wd_stars : null;
+    const stars = manual !== null ? manual : (dbStars !== null ? dbStars : calcStars);
+    const source = manual !== null ? 'manual' : (dbStars !== null ? 'db' : 'calc');
     const colors = {1:'#dc2626',2:'#d97706',3:'#ca8a04',4:'#16a34a',5:'#15803d'};
     const starsHtml = Array.from({length:5},(_,i) =>
       `<span style="color:${i < stars ? colors[stars] : '#d1d5db'};font-size:11px;cursor:pointer;"
              onclick="setFundRating(${f.id},${i+1},this)">★</span>`
     ).join('');
-    const isManual = manual !== null ? ' title="Manual rating — click ℹ to see WD formula"' : '';
+    const titleAttr = source==='manual' ? 'Manual override — click ℹ for formula'
+                    : source==='db'     ? 'WD Rating (weekly cron) — click ℹ for details'
+                    : 'WD Rating (estimated) — click ℹ for formula';
     return `<div style="display:flex;gap:2px;align-items:center;justify-content:center;">
-      <div style="display:flex;gap:1px;"${isManual}>${starsHtml}</div>
+      <div style="display:flex;gap:1px;" title="${titleAttr}">${starsHtml}</div>
       <span style="font-size:9px;color:var(--text-muted);cursor:pointer;margin-left:1px;" onclick="showRatingExplain(${f.id},event)" title="Yeh fund ${stars} star kyun mila?">ℹ</span>
     </div>`;
   }

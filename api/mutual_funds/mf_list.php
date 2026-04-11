@@ -212,7 +212,7 @@ try {
                    f.min_ltcg_days, f.lock_in_days,
                    f.exit_load_pct, f.exit_load_days, f.exit_load_text,
                    f.expense_ratio,
-                   fh.name AS fund_house_name, fh.short_name AS fund_house_short,
+                   COALESCE(fr.stars, f.wd_stars) AS wd_stars,
                    port.name AS portfolio_name,
                    (SELECT COUNT(*) FROM sip_schedules s
                     WHERE s.fund_id = h.fund_id AND s.portfolio_id = h.portfolio_id
@@ -252,6 +252,7 @@ try {
             JOIN fund_houses fh ON fh.id = f.fund_house_id
             JOIN portfolios port ON port.id = h.portfolio_id
             JOIN portfolios p ON p.id = h.portfolio_id
+            LEFT JOIN fund_ratings fr ON fr.fund_id = h.fund_id
             WHERE $whereBase AND h.is_active = 1
             ORDER BY h.total_invested DESC
         ");
@@ -347,6 +348,8 @@ try {
                 'exit_load_text'       => $r['exit_load_text'] ?? null,
                 // t269: Direct vs Regular
                 'expense_ratio'        => $r['expense_ratio'] !== null ? (float)$r['expense_ratio'] : null,
+                // t111: WD Star Rating
+                'wd_stars'             => $r['wd_stars'] !== null ? (int)$r['wd_stars'] : null,
             ];
         }, $rows);
 
@@ -370,6 +373,7 @@ try {
                 f.min_ltcg_days, f.lock_in_days,
                 f.exit_load_pct, f.exit_load_days, f.exit_load_text,
                 f.expense_ratio,
+                COALESCE(fr.stars, f.wd_stars) AS wd_stars,
                 fh.name AS fund_house_name, fh.short_name AS fund_house_short,
                 SUM(h.total_units) AS total_units,
                 SUM(h.total_invested) AS total_invested,
@@ -414,6 +418,7 @@ try {
             JOIN fund_houses fh ON fh.id = f.fund_house_id
             JOIN portfolios port ON port.id = h.portfolio_id
             JOIN portfolios p ON p.id = h.portfolio_id
+            LEFT JOIN fund_ratings fr ON fr.fund_id = h.fund_id
             WHERE $whereBase AND h.is_active = 1
             GROUP BY h.fund_id
             ORDER BY SUM(h.total_invested) DESC
@@ -514,6 +519,8 @@ try {
                 // t269: Direct vs Regular cost
                 'expense_ratio'        => $r['expense_ratio'] !== null ? (float)$r['expense_ratio'] : null,
                 'lock_in_days'         => (int)($r['lock_in_days'] ?? 0),
+                // t111: WD Star Rating
+                'wd_stars'             => $r['wd_stars'] !== null ? (int)$r['wd_stars'] : null,
             ];
         }, $rows);
 
