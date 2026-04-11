@@ -68,6 +68,9 @@ $csrfExempt = [
     'nps_statement',
     'admin_nps_nav_trigger',
     'fund_notes_get',
+    'data_quality_report',   // tv13
+    'nfo_list',              // tv08
+    'wl_alerts_list',        // tv10
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -386,6 +389,22 @@ try {
         case 'admin_settings_save':
         case 'admin_audit_log':
             require APP_ROOT . '/api/admin/settings.php'; exit;
+
+        // ── tv13: Admin — Data Quality ───────────────────────
+        case 'data_quality_report':
+        case 'data_quality_fix_nav':
+            require APP_ROOT . '/api/admin/data_quality.php'; exit;
+
+        // ── tv08: NFO Tracker ────────────────────────────────
+        case 'nfo_list':
+            require APP_ROOT . '/api/mutual_funds/nfo_list.php'; exit;
+
+        // ── tv10: Watchlist Alerts ───────────────────────────
+        case 'wl_alerts_list':
+        case 'wl_alert_save':
+        case 'wl_alert_delete':
+        case 'wl_alerts_check':
+            require APP_ROOT . '/api/mutual_funds/wl_alerts.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

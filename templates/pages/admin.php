@@ -281,6 +281,26 @@ ob_start();
     </div>
   </div>
 
+  <!-- ── tv13: Data Quality ── -->
+  <div class="ov-section-label" style="margin-top:1.5rem;">🔍 Data Quality</div>
+  <div class="card" id="dqCard" style="margin-bottom:1.5rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:14px;font-weight:800;letter-spacing:-.2px;">MF Data Quality Dashboard</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Stale NAVs, missing returns, and data gaps detection</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="dqRun()" id="dqRunBtn">🔍 Run Check</button>
+        <button class="btn btn-ghost btn-sm" onclick="dqFixNav()" id="dqFixBtn" style="display:none;">⚡ Queue NAV Fix</button>
+      </div>
+    </div>
+    <div id="dqBody">
+      <div style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;">
+        Click <strong>Run Check</strong> to analyse data quality
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══════ TAB: USERS ═══════ -->
@@ -3254,6 +3274,142 @@ function deleteBackup(file) {
       if (r && r.success) { showToast('Backup deleted', 'success'); loadBackupList(); }
       else showToast('Delete failed: ' + (r?.message || ''), 'error');
     });
+}
+
+/* ════════════════════════════════════════════════════════════
+   tv13 — DATA QUALITY DASHBOARD
+════════════════════════════════════════════════════════════ */
+async function dqRun() {
+  const btn  = document.getElementById('dqRunBtn');
+  const body = document.getElementById('dqBody');
+  const fixBtn = document.getElementById('dqFixBtn');
+  if (!body) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Checking...';
+  body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;"><span class="spinner"></span> Analysing data quality...</div>';
+
+  try {
+    const r = await apiGet({ action: 'data_quality_report' });
+    if (!r || !r.success) throw new Error(r?.message || 'Failed');
+
+    const d = r.data || {};
+    const meta = d._meta || {};
+
+    const severityColor = { high: '#dc2626', medium: '#d97706', low: '#16a34a' };
+    const severityBg    = { high: '#fef2f2', medium: '#fffbeb', low: '#f0fdf4' };
+    const severityIcon  = { high: '🔴', medium: '🟡', low: '🟢' };
+
+    // Summary bar
+    const checks = [
+      d.stale_nav, d.stale_holding_navs, d.missing_returns_1y,
+      d.missing_returns_3y, d.missing_ter, d.missing_sharpe,
+      d.missing_style_box, d.no_nav_history
+    ].filter(Boolean);
+
+    const highCount   = checks.filter(c => c.severity === 'high').length;
+    const mediumCount = checks.filter(c => c.severity === 'medium').length;
+    const totalIssues = checks.reduce((sum, c) => sum + (c.count > 0 ? 1 : 0), 0);
+
+    const summaryColor = highCount > 0 ? '#dc2626' : mediumCount > 0 ? '#d97706' : '#16a34a';
+    const summaryBg    = highCount > 0 ? '#fef2f2' : mediumCount > 0 ? '#fffbeb' : '#f0fdf4';
+    const summaryIcon  = highCount > 0 ? '🔴' : mediumCount > 0 ? '⚠️' : '✅';
+    const summaryText  = highCount > 0 ? `${highCount} high-severity issues found` :
+                         mediumCount > 0 ? `${mediumCount} medium issues found` :
+                         'All checks passed!';
+
+    const rows = [
+      d.stale_nav,
+      d.stale_holding_navs,
+      d.missing_returns_1y,
+      d.missing_returns_3y,
+      d.missing_ter,
+      d.missing_sharpe,
+      d.missing_style_box,
+      d.no_nav_history,
+    ].filter(Boolean).map(c => {
+      const col = severityColor[c.severity] || '#6b7280';
+      const bg  = severityBg[c.severity]    || '#f9fafb';
+      const ico = severityIcon[c.severity]  || '⚪';
+      const sampleHtml = c.sample && c.sample.length
+        ? `<div style="font-size:10px;color:#6b7280;margin-top:3px;">${c.sample.map(s => `<span style="background:#f3f4f6;padding:1px 5px;border-radius:3px;margin-right:3px;">${s.length > 40 ? s.slice(0,40)+'…' : s}</span>`).join('')}</div>`
+        : '';
+      const fixHtml = c.fix
+        ? `<div style="font-size:10px;color:#6366f1;margin-top:4px;font-family:monospace;">${c.fix}</div>`
+        : '';
+      return `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:10px 14px;border-radius:8px;background:${c.count > 0 ? bg : '#f9fafb'};border:1px solid ${c.count > 0 ? col + '44' : '#e5e7eb'};gap:12px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:700;color:${c.count > 0 ? col : '#374151'};">
+              ${ico} ${c.label}
+            </div>
+            ${sampleHtml}${fixHtml}
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:22px;font-weight:900;color:${c.count > 0 ? col : '#16a34a'};line-height:1;">${c.count > 0 ? c.count.toLocaleString('en-IN') : '✓'}</div>
+            <div style="font-size:10px;color:#9ca3af;margin-top:1px;">${c.count > 0 ? 'issues' : 'ok'}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <!-- Summary banner -->
+      <div style="padding:12px 16px;border-radius:8px;background:${summaryBg};border:1px solid ${summaryColor}44;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">${summaryIcon}</span>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:${summaryColor};">${summaryText}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+            Active funds: <strong>${(meta.total_active_funds || 0).toLocaleString('en-IN')}</strong> ·
+            Latest NAV: <strong>${meta.latest_nav_date || '—'}</strong> ·
+            Checked at: <strong>${meta.checked_at ? meta.checked_at.slice(11,16) : '—'}</strong>
+          </div>
+        </div>
+      </div>
+      <!-- Checks grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        ${rows}
+      </div>`;
+
+    // Show fix button if stale NAVs found
+    if ((d.stale_nav?.count || 0) > 0) {
+      fixBtn.style.display = 'inline-flex';
+    }
+
+  } catch(e) {
+    body.innerHTML = `<div style="padding:16px;color:#dc2626;font-size:13px;">⚠️ Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Run Check';
+  }
+}
+
+async function dqFixNav() {
+  const btn = document.getElementById('dqFixBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Queuing...';
+  try {
+    const r = await apiPost({ action: 'data_quality_fix_nav' });
+    if (r && r.success) {
+      showToast('✅ ' + r.message, 'success');
+    } else {
+      showToast('❌ ' + (r?.message || 'Failed'), 'error');
+    }
+  } catch(e) {
+    showToast('❌ Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Queue NAV Fix';
+  }
+}
+
+// Helper for GET requests in admin (uses fetch directly)
+async function apiGet(params) {
+  const appUrl = window.WD?.appUrl || window.APP_URL || '';
+  const qs = new URLSearchParams(params).toString();
+  const resp = await fetch(`${appUrl}/api/router.php?${qs}`, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  });
+  return resp.json();
 }
 </script>
 

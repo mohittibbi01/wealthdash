@@ -350,3 +350,88 @@ echo "Finished        : " . date('Y-m-d H:i:s') . "\n";
 
 $logMsg = date('Y-m-d H:i:s') . " | calculate_returns | Processed:{$done} Updated:{$updated} Time:{$elapsed}s\n";
 @file_put_contents(APP_ROOT . '/logs/returns_calc_' . date('Y-m') . '.log', $logMsg, FILE_APPEND | LOCK_EX);
+// ── t179: Style Box Classification ─────────────────────────────────────────
+// Category-based heuristic (no AMFI holdings dependency)
+echo "\nClassifying Style Boxes (t179)...\n";
+try {
+    // Ensure columns exist (migration 24_style_box.sql may not have run)
+    $db->exec("ALTER TABLE funds ADD COLUMN IF NOT EXISTS style_size  ENUM('large','mid','small') DEFAULT NULL");
+    $db->exec("ALTER TABLE funds ADD COLUMN IF NOT EXISTS style_value ENUM('value','blend','growth') DEFAULT NULL");
+    $db->exec("ALTER TABLE funds ADD COLUMN IF NOT EXISTS style_drift_note VARCHAR(500) DEFAULT NULL");
+    $db->exec("ALTER TABLE funds ADD COLUMN IF NOT EXISTS style_updated_at DATETIME DEFAULT NULL");
+
+    $styleFunds = $db->query("SELECT id, scheme_name, category FROM funds WHERE is_active=1")->fetchAll(PDO::FETCH_ASSOC);
+
+    $styleStmt = $db->prepare(
+        "UPDATE funds SET style_size=?, style_value=?, style_drift_note=?, style_updated_at=NOW() WHERE id=?"
+    );
+
+    // ── Size classification ──────────────────────────────────────────────
+    function classify_size(string $cat): ?string {
+        $c = strtolower($cat);
+        if (str_contains($c, 'large cap') || str_contains($c, 'large-cap'))          return 'large';
+        if (str_contains($c, 'mid cap')   || str_contains($c, 'mid-cap'))             return 'mid';
+        if (str_contains($c, 'small cap') || str_contains($c, 'small-cap'))           return 'small';
+        if (str_contains($c, 'large & mid') || str_contains($c, 'large and mid'))     return 'large';
+        // Index funds — guess from index name
+        if (str_contains($c, 'nifty 50') || str_contains($c, 'sensex'))              return 'large';
+        if (str_contains($c, 'midcap') || str_contains($c, 'nifty mid'))             return 'mid';
+        if (str_contains($c, 'smallcap') || str_contains($c, 'nifty small'))         return 'small';
+        if (str_contains($c, 'multi cap') || str_contains($c, 'flexi cap'))          return 'mid';
+        if (str_contains($c, 'elss') || str_contains($c, 'tax sav'))                 return 'large';
+        if (str_contains($c, 'focused'))                                              return 'large';
+        if (str_contains($c, 'equity') || str_contains($c, 'hybrid'))                return 'large';
+        return null; // Debt, Gold, FoF etc — no size
+    }
+
+    // ── Style (value/blend/growth) classification ───────────────────────
+    function classify_style(string $cat, string $name): ?string {
+        $c = strtolower($cat); $n = strtolower($name);
+        if (str_contains($c, 'value') || str_contains($c, 'contra') ||
+            str_contains($c, 'dividend yield'))                                        return 'value';
+        if (str_contains($c, 'index') || str_contains($c, 'etf') ||
+            str_contains($c, 'passive'))                                               return 'blend';
+        if (str_contains($c, 'momentum') || str_contains($c, 'thematic') ||
+            str_contains($c, 'sectoral') || str_contains($c, 'technology') ||
+            str_contains($n, 'technology') || str_contains($n, 'innovation') ||
+            str_contains($n, 'momentum') || str_contains($n, 'opportunities'))        return 'growth';
+        if (str_contains($c, 'equity') || str_contains($c, 'hybrid') ||
+            str_contains($c, 'elss') || str_contains($c, 'tax sav') ||
+            str_contains($c, 'flexi') || str_contains($c, 'multi cap') ||
+            str_contains($c, 'large') || str_contains($c, 'mid cap') ||
+            str_contains($c, 'small cap') || str_contains($c, 'focused'))             return 'blend';
+        return null;
+    }
+
+    // ── Drift detection ──────────────────────────────────────────────────
+    function detect_drift(string $cat, string $name): ?string {
+        $c = strtolower($cat); $n = strtolower($name);
+        // Fund says Large Cap but name suggests mid/small exposure
+        if (str_contains($c, 'large cap')) {
+            if (str_contains($n, 'mid') || str_contains($n, 'small'))
+                return 'Declared Large Cap but name suggests blended exposure — verify holdings';
+        }
+        // Index fund — no drift possible by definition
+        if (str_contains($c, 'index') || str_contains($c, 'etf')) return null;
+        // Regular plan of a value fund
+        if (str_contains($c, 'value') && !str_contains($n, 'direct') &&
+            str_contains($n, 'opportunities'))
+            return 'Category: Value Fund but name suggests growth tilt';
+        return null;
+    }
+
+    $styleUpdated = 0; $styleSkipped = 0;
+    foreach ($styleFunds as $f) {
+        $sz    = classify_size($f['category'] ?? '');
+        $sv    = classify_style($f['category'] ?? '', $f['scheme_name'] ?? '');
+        $drift = detect_drift($f['category'] ?? '', $f['scheme_name'] ?? '');
+
+        if ($sz === null && $sv === null) { $styleSkipped++; continue; }
+
+        $styleStmt->execute([$sz, $sv, $drift, $f['id']]);
+        $styleUpdated++;
+    }
+    echo "✅ Style Box classified: {$styleUpdated} funds updated, {$styleSkipped} skipped (debt/other)\n";
+} catch (Exception $e) {
+    echo "⚠️  Style Box classification failed: {$e->getMessage()}\n";
+}

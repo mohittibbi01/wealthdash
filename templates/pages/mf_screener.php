@@ -848,6 +848,17 @@ ob_start();
       <div style="font-size:12px;margin-top:6px;">Star any fund in the screener to add it here</div>
     </div>
   </div>
+  <!-- tv10: Watchlist Alerts Panel -->
+  <div id="wlAlertsPanel" style="display:none;width:300px;flex-shrink:0;border-left:1.5px solid var(--border-color,#e5e7eb);background:var(--bg-card,#fff);padding:14px 16px;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:800;">🔔 Watchlist Alerts</div>
+      <button onclick="document.getElementById('wlAlertsPanel').style.display='none'"
+        style="background:none;border:none;font-size:14px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+    <div id="wlAlertsBody">
+      <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Loading...</div>
+    </div>
+  </div>
 </div>
 
 <!-- t64: NFO Tracker panel -->
@@ -1580,6 +1591,13 @@ function renderTable(funds,total){
           ${catShortLabel?`<span style="font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border-color);white-space:nowrap;">${catShortLabel}</span>`:''}
           <span class="${f.plan_type==='direct'?'b-direct':'b-regular'}" style="font-size:10px;padding:2px 6px;white-space:nowrap;">${f.plan_type==='direct'?'Direct':'Regular'}</span>
           <span class="${f.option_type==='growth'?'b-growth':'b-idcw'}" style="font-size:10px;padding:2px 6px;white-space:nowrap;">${f.option_type==='growth'?'Growth':'IDCW'}</span>
+          ${(()=>{
+            if(!f.style_size||!f.style_value) return '';
+            const szShort={large:'L',mid:'M',small:'S'}, svShort={value:'Val',blend:'Bln',growth:'Grw'};
+            const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
+            const col=svColor[f.style_value]||'#6366f1';
+            return `<span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:${col}18;color:${col};border:1px solid ${col}44;white-space:nowrap;" title="Style Box: ${f.style_size} ${f.style_value}">${szShort[f.style_size]}/${svShort[f.style_value]}</span>`;
+          })()}
         </div>
       </td>
       <td style="width:110px;"><div style="font-weight:700;font-size:13px;">${nav}</div>${f.latest_nav?`<div style="font-size:10px;color:var(--text-muted);">${f.latest_nav_date||''}</div>`:''}</td>
@@ -1930,20 +1948,31 @@ function drOpenFund(f){
     <!-- t179: Style Box -->
     ${(()=>{
       const sz=f.style_size, sv=f.style_value;
-      if(!sz && !sv) return '<div class="d-sec" style="margin-top:4px;">🎯 Style Box <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— data pending (cron se aayega)</span></div><div style="height:8px;"></div>';
+      if(!sz && !sv) return '<div class="d-sec" style="margin-top:4px;">🎯 Style Box <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— data pending (run cron/calculate_returns.php)</span></div><div style="height:8px;"></div>';
       const sizes=['large','mid','small'], styles=['value','blend','growth'];
-      const szL={large:'Large',mid:'Mid',small:'Small'}, svL={value:'Value',blend:'Blend',growth:'Growth'};
-      const cells=sizes.flatMap(s=>styles.map(v=>{
-        const active=s===sz&&v===sv;
-        return `<div style="background:${active?'var(--accent)':'var(--bg-card)'};color:${active?'#fff':'var(--text-muted)'};border-radius:4px;padding:5px 2px;text-align:center;font-size:9px;font-weight:${active?800:500};border:1px solid var(--border-color);">${active?'●':''}</div>`;
-      }));
-      const drift=f.style_drift_note?`<div style="margin-top:6px;font-size:11px;color:#d97706;padding:6px 8px;background:#fef9c3;border-radius:5px;border:1px solid #fde047;">⚠️ ${f.style_drift_note}</div>`:'';
-      return `<div class="d-sec" style="margin-top:4px;">🎯 Style Box — ${szL[sz]||sz} ${svL[sv]||sv}</div>
+      const szL={large:'Large Cap',mid:'Mid Cap',small:'Small Cap'};
+      const svL={value:'Value',blend:'Blend',growth:'Growth'};
+      const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
+      const activeColor=svColor[sv]||'var(--accent)';
+      // Build grid rows with size labels on left
+      const gridRows=sizes.map(s=>{
+        const rowLabel=`<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:9px;font-weight:700;color:${s===sz?'var(--text-primary)':'var(--text-muted)'};white-space:nowrap;">${szL[s]}</div>`;
+        const cells=styles.map(v=>{
+          const active=s===sz&&v===sv;
+          const col=svColor[v]||'#6366f1';
+          return `<div style="background:${active?col:'var(--bg-secondary)'};color:${active?'#fff':'var(--text-muted)'};border-radius:5px;padding:7px 4px;text-align:center;font-size:9px;font-weight:${active?800:500};border:2px solid ${active?col:'var(--border-color)'};cursor:default;transition:.15s;" title="${szL[s]} ${svL[v]}">${active?`<span style="font-size:12px;line-height:1;">◉</span><br><span style="font-size:8px;">${svL[v]}</span>`:'<span style="opacity:.25;">&middot;</span>'}</div>`;
+        }).join('');
+        return rowLabel+cells;
+      }).join('');
+      const colHeaders=styles.map(v=>`<div style="text-align:center;font-size:9px;font-weight:700;color:${svColor[v]};padding-bottom:3px;">${svL[v]}</div>`).join('');
+      const drift=f.style_drift_note?`<div style="margin-top:8px;font-size:11px;color:#d97706;padding:6px 10px;background:#fef9c3;border-radius:6px;border:1px solid #fde047;">⚠️ ${f.style_drift_note}</div>`:'';
+      return `<div class="d-sec" style="margin-top:4px;">🎯 Style Box — <span style="font-weight:800;color:${activeColor};">${szL[sz]||sz} ${svL[sv]||sv}</span></div>
         <div style="margin-bottom:14px;">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:120px;margin-bottom:4px;">${cells.join('')}</div>
-          <div style="display:flex;gap:6px;max-width:120px;margin-top:2px;">
-            ${styles.map(v=>`<span style="font-size:9px;color:var(--text-muted);flex:1;text-align:center;">${svL[v]}</span>`).join('')}
+          <div style="display:grid;grid-template-columns:54px repeat(3,1fr);gap:4px;margin-bottom:4px;">
+            <div></div>${colHeaders}
+            ${gridRows}
           </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Category-based classification — run cron for live data</div>
           ${drift}
         </div>`;
     })()}
@@ -2568,6 +2597,14 @@ function renderCompareTable() {
     {label:'Category',      vals: funds.map(f => f.category_short||f.category||'—')},
     {label:'Plan',          vals: funds.map(f => f.plan_type==='direct'?'<span style="color:#16a34a;font-weight:700;">✅ Direct</span>':'<span style="color:#d97706;">Regular</span>')},
     {label:'Fund Manager',  vals: funds.map(f => f.fund_manager||'—')},  // t96
+    {label:'Style Box',      vals: funds.map(f => {
+      if(!f.style_size||!f.style_value) return '—';
+      const szL={large:'Large Cap',mid:'Mid Cap',small:'Small Cap'};
+      const svL={value:'Value',blend:'Blend',growth:'Growth'};
+      const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
+      const col=svColor[f.style_value]||'#6366f1';
+      return `<span style="font-weight:700;color:${col};">${szL[f.style_size]||f.style_size} ${svL[f.style_value]||f.style_value}</span>`;
+    })},
     {label:'Risk Level',    vals: funds.map(f => f.risk_level||'—')},
     {label:'Latest NAV',    vals: funds.map(f => fmtNav(f.latest_nav))},
     {label:'Peak NAV',      vals: funds.map(f => fmtNav(f.highest_nav))},
@@ -2979,7 +3016,10 @@ function renderWatchlistView() {
   body.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div style="font-size:13px;font-weight:700;">${wl.length} Watchlisted Fund${wl.length>1?'s':''}</div>
-      <button onclick="clearWatchlist()" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;">✕ Clear All</button>
+      <div style="display:flex;gap:6px;">
+        <button onclick="openWlAlerts()" style="font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">🔔 Alerts</button>
+        <button onclick="clearWatchlist()" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;">✕ Clear All</button>
+      </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
     ${wl.map(w => {
@@ -3527,6 +3567,359 @@ async function loadFhrRankings() {
     body.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">⚠ Failed to load rankings: ${e.message}</div>`;
   }
 }
+
+/* ══════════════════════════════════════════════════
+   tv08 — NFO TRACKER (Enhanced Cards)
+══════════════════════════════════════════════════ */
+let _nfoLoaded = false;
+
+async function loadNfoTracker(targetId) {
+  const wrap = document.getElementById(targetId || 'scNfoBody');
+  if (!wrap) return;
+  if (_nfoLoaded) return;
+
+  wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span> Loading NFO data...</div>`;
+
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${appUrl}/api/router.php?action=nfo_list`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed');
+
+    const d = data.data || {};
+    const counts = d.counts || {};
+    const isDerived = (d.source || '').includes('derived');
+
+    // Tab state
+    let activeNfoTab = 'open_now';
+
+    const tabs = [
+      { key: 'open_now',        label: '🟢 Open Now',        count: counts.open_now        || 0 },
+      { key: 'closing_soon',    label: '⚠️ Closing Soon',    count: counts.closing_soon    || 0 },
+      { key: 'upcoming',        label: '🔜 Upcoming',        count: counts.upcoming        || 0 },
+      { key: 'recently_closed', label: '🔒 Recently Closed', count: counts.recently_closed || 0 },
+    ];
+
+    function renderNfoCard(nfo) {
+      const daysLeft = nfo.days_left !== undefined ? parseInt(nfo.days_left) : null;
+      const urgency  = daysLeft !== null && daysLeft <= 2
+        ? `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 7px;border-radius:99px;border:1px solid #fca5a5;">⏰ Closes in ${daysLeft}d</span>`
+        : daysLeft !== null && daysLeft >= 0
+        ? `<span style="font-size:10px;color:#d97706;background:#fef3c7;padding:2px 7px;border-radius:99px;border:1px solid #fcd34d;">${daysLeft}d left</span>`
+        : '';
+
+      const planBadge = nfo.plan_type
+        ? `<span style="font-size:9px;background:${nfo.plan_type==='Direct'?'#eff6ff':'#f5f3ff'};color:${nfo.plan_type==='Direct'?'#2563eb':'#7c3aed'};padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid ${nfo.plan_type==='Direct'?'#bfdbfe':'#ddd6fe'};">${nfo.plan_type}</span>`
+        : '';
+
+      const catBadge = nfo.category
+        ? `<span style="font-size:9px;background:var(--bg-secondary,#f8f9fc);color:var(--text-muted,#6b7280);padding:2px 6px;border-radius:4px;border:1px solid var(--border-color,#e5e7eb);">${nfo.category}</span>`
+        : '';
+
+      const navHtml = nfo.latest_nav
+        ? `<div style="font-size:12px;font-weight:700;color:var(--text-primary);">₹${parseFloat(nfo.latest_nav).toFixed(2)}</div><div style="font-size:10px;color:var(--text-muted);">Latest NAV</div>`
+        : `<div style="font-size:12px;font-weight:700;color:var(--text-muted);">₹10.00</div><div style="font-size:10px;color:var(--text-muted);">NFO Price</div>`;
+
+      const expHtml = nfo.expense_ratio
+        ? `<div style="font-size:12px;font-weight:700;color:var(--text-primary);">${parseFloat(nfo.expense_ratio).toFixed(2)}%</div><div style="font-size:10px;color:var(--text-muted);">Expense Ratio</div>`
+        : `<div style="font-size:12px;color:var(--text-muted);">—</div><div style="font-size:10px;color:var(--text-muted);">Expense Ratio</div>`;
+
+      const openDate  = nfo.open_date  ? nfo.open_date.slice(0,10)  : '—';
+      const closeDate = nfo.close_date ? nfo.close_date.slice(0,10) : '—';
+
+      return `
+        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-color,#e5e7eb);border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:.15s;"
+             onmouseover="this.style.borderColor='var(--accent,#4f46e5)'"
+             onmouseout="this.style.borderColor='var(--border-color,#e5e7eb)'">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:800;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">${nfo.fund_name || '—'}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${nfo.amc_short || '—'}</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">${planBadge}${catBadge}${urgency}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">${navHtml}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color,#e5e7eb);">
+            <div>${expHtml}</div>
+            <div style="text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:var(--text-primary);">${openDate}</div>
+              <div style="font-size:10px;color:var(--text-muted);">Open Date</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px;font-weight:700;color:${daysLeft !== null && daysLeft <= 2 ? '#dc2626' : 'var(--text-primary)'};">${closeDate}</div>
+              <div style="font-size:10px;color:var(--text-muted);">Close Date</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderNfoTab(key) {
+      activeNfoTab = key;
+      const items = d[key] || [];
+      const panelEl = document.getElementById('nfoPanelBody');
+      if (!panelEl) return;
+
+      // Update tab active states
+      document.querySelectorAll('.nfo-tab-btn').forEach(b => {
+        const isActive = b.dataset.tab === key;
+        b.style.background    = isActive ? 'var(--accent,#4f46e5)' : 'transparent';
+        b.style.color         = isActive ? '#fff' : 'var(--text-muted,#6b7280)';
+        b.style.borderColor   = isActive ? 'var(--accent,#4f46e5)' : 'var(--border-color,#e5e7eb)';
+      });
+
+      if (!items.length) {
+        panelEl.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:8px;">📭</div>
+          <div style="font-size:13px;font-weight:600;">No ${key.replace(/_/g,' ')} NFOs</div>
+          <div style="font-size:12px;margin-top:4px;">${isDerived ? 'Based on fund inception dates. Link nfo_tracker table for live data.' : 'Check back soon.'}</div>
+        </div>`;
+        return;
+      }
+
+      panelEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">
+        ${items.map(renderNfoCard).join('')}
+      </div>`;
+    }
+
+    // Build tab bar
+    const tabBar = tabs.map(t => `
+      <button class="nfo-tab-btn" data-tab="${t.key}"
+        onclick="renderNfoTab('${t.key}')"
+        style="display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;border:1.5px solid var(--border-color,#e5e7eb);background:transparent;color:var(--text-muted);cursor:pointer;transition:.15s;white-space:nowrap;font-family:inherit;">
+        ${t.label}
+        <span style="font-size:10px;background:rgba(0,0,0,.1);padding:1px 6px;border-radius:99px;">${t.count}</span>
+      </button>`).join('');
+
+    const sourceBadge = isDerived
+      ? `<div style="font-size:11px;color:#d97706;background:#fef3c7;padding:4px 10px;border-radius:6px;border:1px solid #fcd34d;">
+           ℹ️ Showing funds launched in last 90 days (derived from inception date). For live NFO tracking, create <code>nfo_tracker</code> table.
+         </div>`
+      : '';
+
+    wrap.innerHTML = `
+      <div style="padding:4px 2px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div>
+            <div style="font-size:15px;font-weight:800;letter-spacing:-.3px;">🆕 NFO Tracker</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">New Fund Offers — Open, Upcoming & Recently Closed</div>
+          </div>
+          <button onclick="_nfoLoaded=false;loadNfoTracker('${targetId || 'scNfoBody'}')"
+            style="font-size:11px;padding:5px 11px;border-radius:7px;border:1.5px solid var(--border-color,#e5e7eb);background:none;color:var(--text-muted);cursor:pointer;font-weight:600;">
+            🔄 Refresh
+          </button>
+        </div>
+        ${sourceBadge ? `<div style="margin-bottom:10px;">${sourceBadge}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="nfoTabBar">${tabBar}</div>
+        <div id="nfoPanelBody"></div>
+      </div>`;
+
+    // Make renderNfoTab global so onclick works
+    window.renderNfoTab = renderNfoTab;
+
+    // Render first tab
+    renderNfoTab('open_now');
+    _nfoLoaded = true;
+
+  } catch(e) {
+    if (wrap) wrap.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">⚠ NFO load failed: ${e.message}</div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   tv10 — WATCHLIST ALERTS (DB-based)
+══════════════════════════════════════════════════ */
+let _wlAlertsLoaded = false;
+let _wlAlertsData   = [];
+
+// Expose a tab/button to open the WL Alerts panel from the Watchlist view
+function openWlAlerts() {
+  const panel = document.getElementById('wlAlertsPanel');
+  if (panel) { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; }
+  if (!_wlAlertsLoaded) loadWlAlerts();
+}
+
+async function loadWlAlerts() {
+  const body = document.getElementById('wlAlertsBody');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);"><span class="spinner"></span></div>';
+
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${appUrl}/api/router.php?action=wl_alerts_list`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Failed');
+
+    _wlAlertsData = data.data?.alerts || [];
+    _wlAlertsLoaded = true;
+    renderWlAlerts();
+  } catch(e) {
+    if (body) body.innerHTML = `<div style="color:#dc2626;font-size:12px;padding:10px;">⚠ ${e.message}</div>`;
+  }
+}
+
+function renderWlAlerts() {
+  const body = document.getElementById('wlAlertsBody');
+  if (!body) return;
+
+  if (!_wlAlertsData.length) {
+    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);">
+      <div style="font-size:24px;margin-bottom:8px;">🔔</div>
+      <div style="font-size:13px;font-weight:600;">No alerts set</div>
+      <div style="font-size:12px;margin-top:4px;">Open a fund drawer and click <strong>🔔 Alert</strong> to add one</div>
+    </div>`;
+    return;
+  }
+
+  const typeLabel = {
+    nav_above: 'NAV ≥ ₹', nav_below: 'NAV ≤ ₹',
+    return_1y_above: '1Y Return ≥ ', drawdown_below: 'Drawdown ≤ '
+  };
+  const typeSuffix = {
+    nav_above: '', nav_below: '',
+    return_1y_above: '%', drawdown_below: '%'
+  };
+
+  body.innerHTML = _wlAlertsData.map(al => {
+    const triggered = al.currently_triggered;
+    const tLabel    = typeLabel[al.alert_type]   || al.alert_type;
+    const tSuffix   = typeSuffix[al.alert_type]  || '';
+    const thr       = parseFloat(al.threshold).toFixed(al.alert_type.includes('nav') ? 2 : 1);
+
+    const statusBadge = triggered
+      ? `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 7px;border-radius:99px;border:1px solid #fca5a5;">🔥 Triggered</span>`
+      : al.triggered_at
+      ? `<span style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:2px 7px;border-radius:99px;">✓ Was triggered</span>`
+      : `<span style="font-size:10px;color:#6366f1;background:#eef2ff;padding:2px 7px;border-radius:99px;border:1px solid #c7d2fe;">⏳ Watching</span>`;
+
+    const currentVal = al.alert_type.includes('nav')
+      ? al.latest_nav ? `Current: ₹${parseFloat(al.latest_nav).toFixed(2)}` : ''
+      : al.alert_type === 'return_1y_above'
+      ? al.returns_1y !== null ? `Current: ${parseFloat(al.returns_1y).toFixed(1)}%` : ''
+      : al.drawdown_pct !== null ? `Current: ${parseFloat(al.drawdown_pct).toFixed(1)}%` : '';
+
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-color,#e5e7eb);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${al.scheme_name}">
+            ${al.scheme_name}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);">
+            ${tLabel}<strong>${thr}</strong>${tSuffix}
+            ${currentVal ? ` · <span style="color:${triggered?'#dc2626':'var(--text-muted)'};">${currentVal}</span>` : ''}
+          </div>
+          <div style="margin-top:4px;">${statusBadge}</div>
+        </div>
+        <button onclick="deleteWlAlert(${al.id})"
+          style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;font-size:10px;font-weight:700;padding:3px 8px;cursor:pointer;flex-shrink:0;margin-top:2px;">
+          ✕
+        </button>
+      </div>`;
+  }).join('');
+}
+
+async function saveWlAlert(fundId, alertType, threshold) {
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const csrf   = document.querySelector('meta[name="csrf-token"]')?.content || window.WD?.csrf || '';
+    const fd = new FormData();
+    fd.append('action', 'wl_alert_save');
+    fd.append('fund_id', fundId);
+    fd.append('alert_type', alertType);
+    fd.append('threshold', threshold);
+    if (csrf) fd.append('_csrf', csrf);
+
+    const res  = await fetch(`${appUrl}/api/router.php`, { method: 'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+    const data = await res.json();
+
+    if (data.success) {
+      if (typeof showToast === 'function') showToast('🔔 Alert set!', 'success');
+      _wlAlertsLoaded = false;
+      loadWlAlerts();
+      return true;
+    } else {
+      if (typeof showToast === 'function') showToast('❌ ' + data.message, 'error');
+      return false;
+    }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('❌ Error: ' + e.message, 'error');
+    return false;
+  }
+}
+
+async function deleteWlAlert(alertId) {
+  if (!confirm('Delete this alert?')) return;
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const csrf   = document.querySelector('meta[name="csrf-token"]')?.content || window.WD?.csrf || '';
+    const fd = new FormData();
+    fd.append('action', 'wl_alert_delete');
+    fd.append('alert_id', alertId);
+    if (csrf) fd.append('_csrf', csrf);
+
+    const res  = await fetch(`${appUrl}/api/router.php`, { method: 'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
+    const data = await res.json();
+    if (data.success) {
+      if (typeof showToast === 'function') showToast('Alert deleted', 'success');
+      _wlAlertsLoaded = false;
+      loadWlAlerts();
+    }
+  } catch(e) {}
+}
+
+// Enhanced openAlertModal — now wires to DB-based save (replaces localStorage fallback)
+const _origOpenAlertModal = typeof openAlertModal === 'function' ? openAlertModal : null;
+function openAlertModal(fundId, schemeName, currentNav) {
+  // Use existing modal HTML but override save
+  const ov = document.getElementById('alertModalOv');
+  if (!ov) return;
+  const nameEl = document.getElementById('alertFundName');
+  const navEl  = document.getElementById('alertCurrentNav');
+  const navInp = document.getElementById('alertTargetNav');
+  if (nameEl) nameEl.textContent = schemeName || '';
+  if (navEl && currentNav) navEl.textContent = `Current NAV: ₹${parseFloat(currentNav).toFixed(2)}`;
+  if (navInp && currentNav) navInp.value = parseFloat(currentNav).toFixed(2);
+  ov.classList.add('open');
+
+  // Override save button
+  const saveBtn = ov.querySelector('button[onclick="saveAlert()"]');
+  if (saveBtn) {
+    saveBtn.onclick = async function() {
+      const type  = document.querySelector('input[name="alertType"]:checked')?.value || 'above';
+      const thr   = parseFloat(document.getElementById('alertTargetNav')?.value || 0);
+      if (!thr || thr <= 0) { alert('Valid target NAV enter karo'); return; }
+      const alertType = type === 'above' ? 'nav_above' : 'nav_below';
+      const ok = await saveWlAlert(fundId, alertType, thr);
+      if (ok) { ov.classList.remove('open'); }
+    };
+  }
+}
+
+function closeAlertModal() {
+  const ov = document.getElementById('alertModalOv');
+  if (ov) ov.classList.remove('open');
+}
+
+// Check alerts on page load (after 2s to not block render)
+setTimeout(async () => {
+  try {
+    const appUrl = window.WD?.appUrl || window.APP_URL || '';
+    const res  = await fetch(`${appUrl}/api/router.php?action=wl_alerts_check`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (data.success && data.data?.count > 0) {
+      const count = data.data.count;
+      const names = data.data.triggered.map(t => t.fund_name).join(', ');
+      if (typeof showToast === 'function') {
+        showToast(`🔔 ${count} watchlist alert${count>1?'s':''} triggered: ${names.slice(0,60)}${names.length>60?'…':''}`, 'success', 6000);
+      }
+    }
+  } catch(e) {}
+}, 2000);
 </script>
 <?php
 $pageContent = ob_get_clean();

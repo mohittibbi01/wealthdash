@@ -568,6 +568,102 @@ ob_start();
     </div>
   </div>
 
+  <!-- ═══ PHASE 79 — MF INTELLIGENCE ENGINE ═══ -->
+
+  <!-- tmfi04: Smart Insight Cards -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <h3 class="card-title">🧠 Smart Insights</h3>
+        <span style="font-size:11px;color:var(--text-muted);">Actionable portfolio alerts · auto-detected</span>
+      </div>
+      <button onclick="(function(){localStorage.removeItem('wd_mfi_dismissed');renderMfiInsightCards(MF.data||[]);})()" class="btn btn-ghost btn-xs" style="font-size:11px;">↺ Reset dismissed</button>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiInsightCards" style="display:flex;flex-direction:column;gap:8px;">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading insights…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi01: Portfolio Health Score (SVG Gauge) -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🏥 Portfolio Health Score</h3>
+      <span style="font-size:11px;color:var(--text-muted);">0–100 · Returns 30% + Diversification 25% + Risk 20% + Cost 15% + Consistency 10%</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiHealthGauge">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi02: Fund Recommendation Engine -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🎯 Fund Recommendations</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Age &amp; risk-profile based · auto-detected from your portfolio</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiRecommendations">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi03: Portfolio Risk Analysis -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">📐 Portfolio Risk Analysis</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Beta · VaR 95%/99% · Downside Capture · Risk-Return Map</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiRiskAnalysis">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi05: Tax Loss Harvesting Engine -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🌾 Tax Loss Harvesting</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Identify funds to sell for tax savings · FY deadline tracker</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiTaxHarvest">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi06: What-If Simulator -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🔮 What-If Simulator</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Market crash · SIP step-up projector</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiWhatIf">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tmfi07: Auto Portfolio Cleanup -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">🧹 Auto Portfolio Cleanup</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Dust positions · Regular plans · Duplicates · Underperformers</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiCleanup">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══ TAB: REALIZED GAINS ═══ -->
