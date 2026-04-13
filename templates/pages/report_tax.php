@@ -234,6 +234,78 @@ ob_start();
     </div>
 </div>
 
+<!-- t438: HRA Exemption Calculator ─────────────────────────────────── -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h3 class="card-title">🏠 HRA Exemption Calculator
+      <span style="font-size:11px;font-weight:600;color:var(--text-muted);margin-left:6px;">Section 10(13A)</span>
+    </h3>
+  </div>
+  <div class="card-body">
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">
+      HRA exemption = <strong>minimum</strong> of three components below.
+      Whichever is lowest becomes your exempt amount.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Basic Salary — Annual (₹)</div>
+        <input type="number" id="hraBasic" class="form-input" placeholder="e.g. 600000" oninput="calcHRA()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">HRA Received — Annual (₹)</div>
+        <input type="number" id="hraReceived" class="form-input" placeholder="e.g. 240000" oninput="calcHRA()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">Rent Paid — Annual (₹)</div>
+        <input type="number" id="hraRentPaid" class="form-input" placeholder="e.g. 300000" oninput="calcHRA()">
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">City Type</div>
+        <select id="hraCity" class="form-select" onchange="calcHRA()">
+          <option value="50">Metro (Delhi/Mumbai/Kolkata/Chennai) — 50%</option>
+          <option value="40">Non-Metro — 40%</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Three component breakdown -->
+    <div id="hraComponents" style="display:none;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+        <div id="hraComp1Card" style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;border:1.5px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">① Actual HRA</div>
+          <div id="hraComp1Val" style="font-size:15px;font-weight:800;">—</div>
+        </div>
+        <div id="hraComp2Card" style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;border:1.5px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">② Rent − 10% Basic</div>
+          <div id="hraComp2Val" style="font-size:15px;font-weight:800;">—</div>
+        </div>
+        <div id="hraComp3Card" style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;border:1.5px solid var(--border);">
+          <div id="hraComp3Label" style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">③ 50% of Basic</div>
+          <div id="hraComp3Val" style="font-size:15px;font-weight:800;">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div id="hraExemptCard" style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:14px;">
+          <div style="font-size:11px;font-weight:700;color:#065f46;text-transform:uppercase;margin-bottom:4px;">✅ HRA Exempt (Min of ①②③)</div>
+          <div id="hraExemptVal" style="font-size:22px;font-weight:800;color:#065f46;">₹0</div>
+          <div id="hraWinnerLabel" style="font-size:11px;color:#047857;margin-top:3px;">—</div>
+        </div>
+        <div id="hraTaxableCard" style="border-radius:8px;padding:14px;border:1px solid var(--border);background:var(--bg-secondary);">
+          <div id="hraTaxableLabel" style="font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:4px;color:var(--text-muted);">Taxable HRA</div>
+          <div id="hraTaxableVal" style="font-size:22px;font-weight:800;">₹0</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Added to gross income</div>
+        </div>
+      </div>
+      <div id="hraPanNote" style="display:none;padding:9px 12px;background:rgba(245,158,11,.1);border-radius:6px;font-size:12px;color:#92400e;">
+        ⚠️ Rent &gt; ₹1,00,000/year — <strong>Landlord PAN is mandatory.</strong> Submit Form 12BB to your employer with the PAN.
+      </div>
+      <div style="margin-top:10px;padding:9px 12px;background:var(--bg-secondary);border-radius:6px;font-size:12px;color:var(--text-muted);">
+        💡 <strong>Home loan vs HRA:</strong> If you pay both rent and home loan, compare: HRA exemption here vs u/s 24b interest deduction (₹2L limit) — only one set applies; choose whichever gives more benefit.
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // t85: New vs Old Tax Regime Calculator
 function calcTaxRegime() {
@@ -275,6 +347,52 @@ function calcTaxRegime() {
       💰 <strong>${better==='new'?'New':'Old'} Regime saves ${fmtI(savings)}/year.</strong>
       ${better==='old'?'Your deductions are high — old regime is better.':'New regime works better. Consider reducing deductions complexity.'}
     </div>`;
+}
+
+// t438: HRA Exemption Calculator
+function calcHRA() {
+  const basic    = parseFloat(document.getElementById('hraBasic')?.value)    || 0;
+  const received = parseFloat(document.getElementById('hraReceived')?.value) || 0;
+  const rent     = parseFloat(document.getElementById('hraRentPaid')?.value)  || 0;
+  const cityPct  = parseFloat(document.getElementById('hraCity')?.value)     || 50;
+  const fmtI     = v => '₹' + Math.round(v).toLocaleString('en-IN');
+  const wrap     = document.getElementById('hraComponents');
+  if (!wrap) return;
+  if (!basic || !received || !rent) { wrap.style.display = 'none'; return; }
+
+  const comp1   = received;
+  const comp2   = Math.max(0, rent - 0.10 * basic);
+  const comp3   = (cityPct / 100) * basic;
+  const exempt  = Math.min(comp1, comp2, comp3);
+  const taxable = Math.max(0, received - exempt);
+  const winIdx  = [comp1, comp2, comp3].indexOf(exempt);
+  const labels  = ['Actual HRA received', 'Rent − 10% of Basic', `${cityPct}% of Basic`];
+  const highlight = 'border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);';
+
+  document.getElementById('hraComp1Val').textContent  = fmtI(comp1);
+  document.getElementById('hraComp2Val').textContent  = fmtI(comp2);
+  document.getElementById('hraComp3Val').textContent  = fmtI(comp3);
+  document.getElementById('hraComp3Label').textContent = `③ ${cityPct}% of Basic`;
+  document.getElementById('hraComp1Card').style.cssText += winIdx===0 ? highlight : '';
+  document.getElementById('hraComp2Card').style.cssText += winIdx===1 ? highlight : '';
+  document.getElementById('hraComp3Card').style.cssText += winIdx===2 ? highlight : '';
+  document.getElementById('hraExemptVal').textContent   = fmtI(exempt);
+  document.getElementById('hraWinnerLabel').textContent = `Limited by: ${labels[winIdx]}`;
+  document.getElementById('hraTaxableVal').textContent  = fmtI(taxable);
+
+  const taxCard = document.getElementById('hraTaxableCard');
+  const taxLbl  = document.getElementById('hraTaxableLabel');
+  if (taxable > 0) {
+    taxCard.style.background = '#fee2e2'; taxCard.style.borderColor = '#fca5a5';
+    taxLbl.style.color = '#b91c1c'; taxLbl.textContent = '⚠ Taxable HRA';
+    document.getElementById('hraTaxableVal').style.color = '#dc2626';
+  } else {
+    taxCard.style.background = '#f0fdf4'; taxCard.style.borderColor = '#6ee7b7';
+    taxLbl.style.color = '#065f46'; taxLbl.textContent = '✓ Fully Exempt';
+    document.getElementById('hraTaxableVal').style.color = '#16a34a';
+  }
+  document.getElementById('hraPanNote').style.display = rent > 100000 ? 'block' : 'none';
+  wrap.style.display = 'block';
 }
 
 // t47: Gratuity Calculator

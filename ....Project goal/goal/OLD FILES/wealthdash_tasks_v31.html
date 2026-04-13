@@ -686,7 +686,7 @@ const DESIGN_STEPS = [];
     <span class="logo-ver">Dev v31</span>
   </div>
   <div class="topbar-right">
-    <span class="last-saved" id="lastSaved">📅 11 Apr 2026</span>
+    <span class="last-saved" id="lastSaved">📅 10 Apr 2026</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">⊟ Collapse</button>
     <button class="tbtn tbtn-gray" onclick="expandAll()">⊞ Expand</button>
     <button class="tbtn tbtn-indigo" onclick="exportStatus()">📤 Export MD</button>
@@ -935,7 +935,7 @@ const DESIGN_STEPS = [];
       <div style="font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.4px">⚠️ Code Issues — Errors &amp; Warnings (v21 Audit)</div>
       <div style="font-size:11px;color:var(--muted);margin-top:3px">File health analysis — task-wise list of bugs, warnings &amp; fixes in wealthdash_tasks.html</div>
       <div style="margin-top:8px;font-size:11px;padding:8px 12px;background:var(--accent-bg);border:1px solid var(--accent-border);border-radius:8px;color:var(--accent)">
-        ✨ <b>v31 Changes:</b> Removed family/portfolio concept → Individual-only mode. Added Phases 76-78 (Personal Tax, Finance Habits, Goals Engine). Fixed Bug#1 updatePhaseHeader. Fixed Bug#2 duplicate renderAiGrid. 15+ new individual-focused tasks added.
+        ✨ <b>v21 Changes:</b> Removed family/portfolio concept → Individual-only mode. Added Phases 76-78 (Personal Tax, Finance Habits, Goals Engine). Fixed Bug#1 updatePhaseHeader. Fixed Bug#2 duplicate renderAiGrid. 15+ new individual-focused tasks added.
       </div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2198,9 +2198,9 @@ const NEW_PHASES = [
    files:['templates/pages/mf_screener.php'],
    desc:'✅ DONE — api/mutual_funds/fund_holdings.php: action=top_holdings added. fund_id + disclosure_month → top 10 by weight_pct. Also returns other_funds: which user-held funds share the same stocks (overlap insight). Ready for screener drawer Portfolio tab.',
    sub:['fund_stock_holdings se top 10 by weight','Screener drawer mein "Portfolio" tab add karo','Stock name, weight%, sector','"As of [month] disclosure"','Click on stock → all funds holding that stock dikhao']},
-  {id:'t179',title:'✅ Style Box — Large/Mid/Small + Value/Blend/Growth',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
+  {id:'t179',title:'Style Box — Large/Mid/Small + Value/Blend/Growth',pr:'p2',type:'feat',eff:'2-3 hr',db:true,
    files:['cron/calculate_returns.php','templates/pages/mf_screener.php'],
-   desc:'✅ DONE — cron/calculate_returns.php: category-based style classification (size + value/blend/growth + drift detection). Screener: filter UI (3x3 checkboxes), drawer: visual 3x3 grid with row/col labels + color coding, table row: size/style badge. Comparison modal mein Style Box row add hua.',
+   desc:'Morningstar-style 3x3 style box. Fund actually kahan invest karta hai.',
    sub:['DB: style_box ENUM in funds','Calculate from actual holdings: avg market cap, P/E ratio','3x3 grid: Large/Mid/Small × Value/Blend/Growth','Style drift: fund says Large Cap but 40% Mid Cap exposure','Filter: "Style Box = Mid Value"']},
   {id:'t180',title:'✅ Fund Manager Track Record — Manager track record router path fixed',pr:'p2',type:'feat',eff:'3-4 hr',db:true,
    files:['database/migrations/029_managers.sql'],
@@ -2460,7 +2460,7 @@ const GODMODE_PHASES = [
    files:['api/community/ (NEW)'],
    desc:'No fund names shared. Only anonymous behavior metrics for benchmarking.',
    sub:['Opt-in: user chooses to participate','Age bracket comparison: XIRR, savings rate, SIP consistency','Anonymous aggregate: "Users your age have avg 45% equity"','Privacy: no personal data, no fund names, just percentages','Weekly insight: one comparison stat','Leaderboard: top 10% consistency badge'],cat:'general'},
-  {id:'t407',title:'Shared Screens — Screener filters share karo',pr:'p3',type:'feat',eff:'1-2 hr',
+  {id:'t407',title:'✅ Shared Screens — URL-based filter sharing, scShareScreen() + _scRestoreFromURL()',pr:'p3',type:'feat',eff:'1-2 hr',
    files:['templates/pages/mf_screener.php'],
    sub:['Encode current filters in URL','Share button: copy link','Preset public screens: "Top Consistency Funds", "Low Cost Index"','Friend can open link → same filters pre-applied','No personal data in URL'],cat:'mf'},
   {id:'t408',title:'Investment Journal — Daily market notes',pr:'p3',type:'feat',eff:'2-3 hr',db:true,
@@ -3968,7 +3968,7 @@ _completedTasks.forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
     // April 4 session completions
     't207','t177','t178','t215',
     // v19.1 confirmed done
-    't201','t203','t204','t205','t211','t216','t217','t54','t57','t77','t78','t79','t81','t169','t180',
+    't201','t203','t204','t205','t211','t216','t217','t54','t57','t77','t78','t79','t81','t169','t180','t262','t407',
   ];
   const FLAG = 'wd_v28_prefilled';
   if (!localStorage.getItem(FLAG)) {
@@ -3976,8 +3976,8 @@ _completedTasks.forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
     localStorage.setItem(FLAG, '1');
   } else {
     // Even if already prefilled, ensure these are set (for new tasks added in v17)
-    ['t168','t190','t75','t182','t207','t177','t178','t215','t201','t203','t204','t205','t211','t216','t217','t54','t57','t77','t78','t79','t81','t169','t180',
-  't54','t57','t77','t78','t79','t81','t169','t180'].forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
+    ['t168','t190','t75','t182','t207','t177','t178','t215','t201','t203','t204','t205','t211','t216','t217','t54','t57','t77','t78','t79','t81','t169','t180','t262','t407',
+  't54','t57','t77','t78','t79','t81','t169','t180','t262'].forEach(tid => { if(!S[tid+'_m']) S[tid+'_m']=true; });
   }
 })();
 
@@ -4355,7 +4355,7 @@ CLAUDE_NEW_PHASES.forEach(ph => { if(ph && ph.id) PHASES.push(ph); });
 // ===== MEGA PHASES (v18.2 — 500+ Task God Mode) =====
 const MEGA_PHASES = [
 {id:'p_mf_deep1',ico:'📈',color:'#4f46e5',title:'Phase 48 — MF Advanced Analytics Deep Dive',cat:'mf',tasks:[
-  {id:'t262',title:'Rolling Returns Chart — 1Y/3Y/5Y rolling windows ka line chart',pr:'p1',type:'feat',eff:'3-4 hr',db:true,
+  {id:'t262',title:'✅ Rolling Returns Chart — 1Y/3Y/5Y rolling windows ka line chart',pr:'p1',type:'feat',eff:'3-4 hr',db:true,
    files:['templates/pages/mf_screener.php','public/js/mf.js'],
    desc:'Static returns misleading hoti hain. Rolling returns dikhao — kaunsi 1-year window mein kitna return mila. Chart mein best/worst/median lines.',
    sub:['nav_history se calculate: har date pe pichle 365 din ka return','Chart.js line chart: x=date, y=return%','3 lines: Best rolling period | Worst rolling period | Median','Screener drawer mein dikhao','Consistency insight: "87% of 1Y windows positive"'],cat:'mf'},
@@ -4798,35 +4798,35 @@ MEGA_PHASES.forEach(ph => { if(ph && ph.id) PHASES.push(ph); });
 // PHASE 79 -- MF Intelligence Engine (v22 new)
 // ============================================================
 const MF_INTELLIGENCE_PHASE = [{id:'p_mf_intelligence',ico:'🧠',color:'#7c3aed',title:'Phase 79 — MF Intelligence Engine',cat:'mf',tasks:[
-  {id:'tmfi01',title:'✅ Portfolio Health Score — 0-100 score based on diversification, overlap, risk, cost',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
+  {id:'tmfi01',title:'Portfolio Health Score — 0-100 score based on diversification, overlap, risk, cost',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
    files:['api/mutual_funds/mf_list.php','templates/pages/mf_holdings.php','public/js/mf.js'],
    desc:'Single 0-100 score jo portfolio ki overall health batata hai. Components: Returns 30% + Diversification 25% + Risk 20% + Cost 15% + Consistency 10%.',
    sub:['PHP calculate_portfolio_health() in mf_list.php','Score from returns vs category avg, fund count, overlap pct, expense ratio','SVG circular gauge in MF holdings header','Color: 0-40 Red, 41-70 Yellow, 71-100 Green','Breakdown modal on click','Trend vs last month'],cat:'mf'},
-  {id:'tmfi02',title:'✅ Fund Recommendation Engine — Age/Risk/Goal based top fund suggestions',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
+  {id:'tmfi02',title:'Fund Recommendation Engine — Age/Risk/Goal based top fund suggestions',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
    files:['api/mutual_funds/fund_screener.php','templates/pages/mf_screener.php','public/js/mf.js'],
    desc:'Screener mein smart recommendation tab. Input: age, risk appetite, goal. Output: top 3 fund suggestions with reasoning.',
    sub:['UI: age slider, risk toggle (Conservative/Moderate/Aggressive), goal dropdown','PHP recommend_funds(): returns > cat avg, expense < 1%, AUM > 500Cr, Sharpe > 1','Age-based allocation: under 30 = aggressive 70% eq, 30-50 = moderate 60%, 50+ = conservative 40%','Output: 3 fund cards with category, why recommended, key metrics','Add to Watchlist and Compare buttons on each card'],cat:'mf'},
-  {id:'tmfi03',title:'✅ Portfolio Risk Analysis — Volatility, Beta, Downside Risk at portfolio level',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
+  {id:'tmfi03',title:'Portfolio Risk Analysis — Volatility, Beta, Downside Risk at portfolio level',pr:'p0',type:'feat',eff:'3-4 hr',db:false,
    files:['api/mutual_funds/mf_list.php','templates/pages/mf_holdings.php','public/js/mf.js'],
    desc:'Fund-level Sharpe/Sortino done. Now add portfolio-level risk metrics — weighted average across all holdings.',
    sub:['Portfolio Beta: weighted avg of individual fund betas vs Nifty 50','Portfolio Volatility: weighted std dev of daily returns','VaR 95%: in worst 5% scenarios portfolio could drop X amount','Risk-return scatter plot: each fund as dot, portfolio as star','Downside capture ratio: how much of market drops does portfolio capture'],cat:'mf'},
-  {id:'tmfi04',title:'✅ Smart Insight Cards — Dynamic actionable insights in MF dashboard',pr:'p0',type:'feat',eff:'2-3 hr',db:false,
+  {id:'tmfi04',title:'Smart Insight Cards — Dynamic actionable insights in MF dashboard',pr:'p0',type:'feat',eff:'2-3 hr',db:false,
    files:['templates/pages/mf_holdings.php','api/mutual_funds/mf_list.php','public/js/mf.js'],
    desc:'Instead of raw data, show 3-5 insight cards with actions: too many funds, high overlap, underperforming SIP alerts.',
    sub:['PHP generate_insights() rules engine checking 8 conditions','Insight: too many funds (more than 6 = warning, more than 8 = error)','Insight: high overlap (more than 50% same stocks across 2+ funds)','Insight: underperforming SIP (fund XIRR less than category avg for 12+ months)','Insight: uneven allocation (one fund more than 40% of portfolio)','UI: card stack with icon, severity, actionable CTA','Dismiss: localStorage per insight type'],cat:'mf'},
-  {id:'tmfi05',title:'✅ Tax Loss Harvesting Engine — Identify funds to sell for tax savings',pr:'p1',type:'feat',eff:'3-4 hr',db:false,
+  {id:'tmfi05',title:'Tax Loss Harvesting Engine — Identify funds to sell for tax savings',pr:'p1',type:'feat',eff:'3-4 hr',db:false,
    files:['templates/pages/mf_holdings.php','api/reports/fy_gains.php','public/js/mf.js'],
    desc:'Auto-identify funds where unrealised loss can be harvested to offset STCG/LTCG. Show: Sell X of Fund Y to save Z in tax.',
    sub:['Identify holdings with unrealised loss (current < cost)','Calculate if sold today what STCG/LTCG loss is generated','Net tax saving calculation','Same-category fund buy-back suggestion','FY timeline: alert if FY ending soon before March 31','Table: fund name, invested, current, loss, tax saved, action button'],cat:'mf'},
-  {id:'tmfi06',title:'✅ What-If Simulator — Market crash, SIP stop, inflation change scenarios',pr:'p1',type:'feat',eff:'3-4 hr',db:false,
+  {id:'tmfi06',title:'What-If Simulator — Market crash, SIP stop, inflation change scenarios',pr:'p1',type:'feat',eff:'3-4 hr',db:false,
    files:['templates/pages/mf_holdings.php','api/mutual_funds/mf_list.php','public/js/mf.js'],
    desc:'Power user feature: simulate different scenarios and see impact on portfolio.',
    sub:['Scenario 1: Market crash — slider -5% to -50%, show new portfolio value','Scenario 2: SIP stop — corpus at target date if all SIPs stopped','Scenario 3: Step-up SIP — increase SIP by X% each year, new corpus','Chart: current trajectory vs scenario overlay','Recovery time from historical nav_history data'],cat:'mf'},
-  {id:'tmfi07',title:'✅ Auto Portfolio Cleanup — Duplicate fund detection and consolidation suggestions',pr:'p1',type:'feat',eff:'2-3 hr',db:false,
+  {id:'tmfi07',title:'Auto Portfolio Cleanup — Duplicate fund detection and consolidation suggestions',pr:'p1',type:'feat',eff:'2-3 hr',db:false,
    files:['templates/pages/mf_holdings.php','api/mutual_funds/mf_list.php','public/js/mf.js'],
    desc:'Identify cleanup: duplicate funds same category high overlap, underperformers, too many small holdings.',
    sub:['Detect funds in same sub-category with more than 60% overlap','Detect holdings less than ₹5K','Detect funds underperforming category for 2+ years','Detect expense ratio more than 1.5% when direct plan exists','Cleanup wizard step-by-step','Export cleanup plan as text'],cat:'mf'},
-  {id:'tmfi08',title:'✅ SIP Optimization Engine — Smart SIP increase/stop/switch suggestions',pr:'p2',type:'feat',eff:'2-3 hr',db:false,
+  {id:'tmfi08',title:'SIP Optimization Engine — Smart SIP increase/stop/switch suggestions',pr:'p2',type:'feat',eff:'2-3 hr',db:false,
    files:['templates/pages/report_sip.php','api/reports/sip_tracker.php','public/js/mf.js'],
    desc:'SIP Manager mein optimization: which SIPs to increase, pause, or switch to better fund.',
    sub:['Rank SIPs by XIRR performance','Suggest increase in top 2 performers','Suggest stop for consistently underperforming fund (bottom quartile 2yr)','Suggest switch from regular to direct plan','Annual review April reminder','Goal alignment: SIP contribution vs goal requirement shortfall alert'],cat:'mf'},

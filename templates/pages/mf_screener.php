@@ -796,6 +796,15 @@ ob_start();
     title="Saved searches / custom screens">
     🔖 Saved <span id="savedSearchCount" style="display:none;background:var(--accent);color:#fff;border-radius:99px;font-size:10px;padding:0 5px;margin-left:2px;"></span>
   </button>
+  <!-- t407: Share Screen -->
+  <button onclick="scShareScreen()"
+    style="display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;border:1.5px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;"
+    onmouseover="this.style.borderColor='#7c3aed';this.style.color='#7c3aed'"
+    onmouseout="this.style.borderColor='var(--border-color)';this.style.color='var(--text-muted)'"
+    title="Share current filters as URL — anyone with this link gets same screener view">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    Share
+  </button>
 </div>
 
 <!-- Active chips -->
@@ -848,17 +857,6 @@ ob_start();
       <div style="font-size:12px;margin-top:6px;">Star any fund in the screener to add it here</div>
     </div>
   </div>
-  <!-- tv10: Watchlist Alerts Panel -->
-  <div id="wlAlertsPanel" style="display:none;width:300px;flex-shrink:0;border-left:1.5px solid var(--border-color,#e5e7eb);background:var(--bg-card,#fff);padding:14px 16px;overflow-y:auto;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div style="font-size:13px;font-weight:800;">🔔 Watchlist Alerts</div>
-      <button onclick="document.getElementById('wlAlertsPanel').style.display='none'"
-        style="background:none;border:none;font-size:14px;cursor:pointer;color:var(--text-muted);">✕</button>
-    </div>
-    <div id="wlAlertsBody">
-      <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Loading...</div>
-    </div>
-  </div>
 </div>
 
 <!-- t64: NFO Tracker panel -->
@@ -888,7 +886,7 @@ ob_start();
 
 <!-- Compare floating bar -->
 <div class="cmp-bar" id="cmpBar">
-  <span style="font-size:13px;font-weight:700;white-space:nowrap;">Compare:</span>
+  <span style="font-size:13px;font-weight:700;white-space:nowrap;">Compare <span id="cmpCount" style="font-size:11px;color:rgba(255,255,255,.7);">(0/5)</span>:</span>
   <div id="cmpChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
   <div class="cmp-actions">
     <button class="cmp-go-btn" onclick="openCompareModal()">Compare →</button>
@@ -898,10 +896,16 @@ ob_start();
 
 <!-- Compare modal -->
 <div class="cmp-modal-ov" id="cmpModalOv" onclick="if(event.target===this)closeCompareModal()">
-  <div class="cmp-modal">
+  <div class="cmp-modal" style="max-width:1100px;">
     <div class="cmp-modal-hdr">
-      <span style="font-size:14px;font-weight:800;">⚖️ Fund Comparison</span>
-      <button onclick="closeCompareModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:14px;font-weight:800;">⚖️ Fund Comparison</span>
+        <span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:2px 8px;border-radius:99px;">Max 5 funds</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="exportCompareCSV()" style="padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;cursor:pointer;">⬇ Export CSV</button>
+        <button onclick="closeCompareModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">✕</button>
+      </div>
     </div>
     <div class="cmp-modal-body" id="cmpModalBody">
       <div style="padding:40px;text-align:center;color:var(--text-muted);">Select funds to compare</div>
@@ -1591,13 +1595,6 @@ function renderTable(funds,total){
           ${catShortLabel?`<span style="font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border-color);white-space:nowrap;">${catShortLabel}</span>`:''}
           <span class="${f.plan_type==='direct'?'b-direct':'b-regular'}" style="font-size:10px;padding:2px 6px;white-space:nowrap;">${f.plan_type==='direct'?'Direct':'Regular'}</span>
           <span class="${f.option_type==='growth'?'b-growth':'b-idcw'}" style="font-size:10px;padding:2px 6px;white-space:nowrap;">${f.option_type==='growth'?'Growth':'IDCW'}</span>
-          ${(()=>{
-            if(!f.style_size||!f.style_value) return '';
-            const szShort={large:'L',mid:'M',small:'S'}, svShort={value:'Val',blend:'Bln',growth:'Grw'};
-            const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
-            const col=svColor[f.style_value]||'#6366f1';
-            return `<span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:${col}18;color:${col};border:1px solid ${col}44;white-space:nowrap;" title="Style Box: ${f.style_size} ${f.style_value}">${szShort[f.style_size]}/${svShort[f.style_value]}</span>`;
-          })()}
         </div>
       </td>
       <td style="width:110px;"><div style="font-weight:700;font-size:13px;">${nav}</div>${f.latest_nav?`<div style="font-size:10px;color:var(--text-muted);">${f.latest_nav_date||''}</div>`:''}</td>
@@ -1850,6 +1847,27 @@ function drOpenFund(f){
       </div>
     </div>
     <div id="drChartInfo" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:14px;min-height:16px;"></div>
+
+    <!-- t262: Rolling Returns Chart -->
+    <div class="d-sec" style="margin-top:4px;">📊 Rolling Returns
+      <span style="float:right;font-size:10px;font-weight:400;color:var(--accent);cursor:pointer;" onclick="drLoadRolling(${f.id}, this)">Load</span>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:8px;">
+      ${['1Y','3Y','5Y'].map(p=>`<button class="dr-period-btn dr-roll-btn${p==='3Y'?' dr-active':''}" data-rp="${p}" onclick="drSwitchRolling('${p}',this)">${p} Rolling</button>`).join('')}
+    </div>
+    <div id="drRollingWrap" style="min-height:88px;">
+      <div id="drRollingPlaceholder" style="padding:16px;text-align:center;color:var(--text-muted);font-size:11px;background:var(--bg-secondary);border-radius:8px;">
+        ↑ Load karo — kitne time positive returns mile yeh dikhega
+      </div>
+      <div id="drRollingCanvas" style="display:none;">
+        <div style="position:relative;height:130px;">
+          <canvas id="drRollChart" style="height:130px;"></canvas>
+        </div>
+        <div id="drRollStats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;"></div>
+      </div>
+    </div>
+    <div style="height:14px;"></div>
+
     <div class="d-sec">🧮 SIP Calculator</div>
     <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;margin-bottom:14px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
@@ -1937,42 +1955,31 @@ function drOpenFund(f){
       ${f.lock_in_days>0?`<br><br><strong style="color:#b45309;">⚠️ Lock-in:</strong> Cannot redeem for ${lockLbl}.`:''}
     </div>
 
-    <!-- t169: TER Trend -->
+    <!-- t169: TER Trend (tv03 — auto-loaded on drawer open) -->
     <div class="d-sec" style="margin-top:12px;">💸 Expense Ratio Trend
-      <span style="float:right;font-size:10px;font-weight:400;color:var(--accent);cursor:pointer;" onclick="drLoadTerTrend(${f.id})">Load</span>
+      <span style="float:right;font-size:10px;font-weight:400;color:var(--accent);cursor:pointer;" onclick="drLoadTerTrend(${f.id})">↻ Refresh</span>
     </div>
     <div id="drTerTrend" style="min-height:52px;background:var(--bg-secondary);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text-muted);">
-      <span style="cursor:pointer;color:var(--accent);" onclick="drLoadTerTrend(${f.id})">📊 TER trend load karo →</span>
+      <span style="color:var(--text-muted);font-size:11px;">⏳ Loading TER history...</span>
     </div>
 
     <!-- t179: Style Box -->
     ${(()=>{
       const sz=f.style_size, sv=f.style_value;
-      if(!sz && !sv) return '<div class="d-sec" style="margin-top:4px;">🎯 Style Box <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— data pending (run cron/calculate_returns.php)</span></div><div style="height:8px;"></div>';
+      if(!sz && !sv) return '<div class="d-sec" style="margin-top:4px;">🎯 Style Box <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— data pending (cron se aayega)</span></div><div style="height:8px;"></div>';
       const sizes=['large','mid','small'], styles=['value','blend','growth'];
-      const szL={large:'Large Cap',mid:'Mid Cap',small:'Small Cap'};
-      const svL={value:'Value',blend:'Blend',growth:'Growth'};
-      const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
-      const activeColor=svColor[sv]||'var(--accent)';
-      // Build grid rows with size labels on left
-      const gridRows=sizes.map(s=>{
-        const rowLabel=`<div style="display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:9px;font-weight:700;color:${s===sz?'var(--text-primary)':'var(--text-muted)'};white-space:nowrap;">${szL[s]}</div>`;
-        const cells=styles.map(v=>{
-          const active=s===sz&&v===sv;
-          const col=svColor[v]||'#6366f1';
-          return `<div style="background:${active?col:'var(--bg-secondary)'};color:${active?'#fff':'var(--text-muted)'};border-radius:5px;padding:7px 4px;text-align:center;font-size:9px;font-weight:${active?800:500};border:2px solid ${active?col:'var(--border-color)'};cursor:default;transition:.15s;" title="${szL[s]} ${svL[v]}">${active?`<span style="font-size:12px;line-height:1;">◉</span><br><span style="font-size:8px;">${svL[v]}</span>`:'<span style="opacity:.25;">&middot;</span>'}</div>`;
-        }).join('');
-        return rowLabel+cells;
-      }).join('');
-      const colHeaders=styles.map(v=>`<div style="text-align:center;font-size:9px;font-weight:700;color:${svColor[v]};padding-bottom:3px;">${svL[v]}</div>`).join('');
-      const drift=f.style_drift_note?`<div style="margin-top:8px;font-size:11px;color:#d97706;padding:6px 10px;background:#fef9c3;border-radius:6px;border:1px solid #fde047;">⚠️ ${f.style_drift_note}</div>`:'';
-      return `<div class="d-sec" style="margin-top:4px;">🎯 Style Box — <span style="font-weight:800;color:${activeColor};">${szL[sz]||sz} ${svL[sv]||sv}</span></div>
+      const szL={large:'Large',mid:'Mid',small:'Small'}, svL={value:'Value',blend:'Blend',growth:'Growth'};
+      const cells=sizes.flatMap(s=>styles.map(v=>{
+        const active=s===sz&&v===sv;
+        return `<div style="background:${active?'var(--accent)':'var(--bg-card)'};color:${active?'#fff':'var(--text-muted)'};border-radius:4px;padding:5px 2px;text-align:center;font-size:9px;font-weight:${active?800:500};border:1px solid var(--border-color);">${active?'●':''}</div>`;
+      }));
+      const drift=f.style_drift_note?`<div style="margin-top:6px;font-size:11px;color:#d97706;padding:6px 8px;background:#fef9c3;border-radius:5px;border:1px solid #fde047;">⚠️ ${f.style_drift_note}</div>`:'';
+      return `<div class="d-sec" style="margin-top:4px;">🎯 Style Box — ${szL[sz]||sz} ${svL[sv]||sv}</div>
         <div style="margin-bottom:14px;">
-          <div style="display:grid;grid-template-columns:54px repeat(3,1fr);gap:4px;margin-bottom:4px;">
-            <div></div>${colHeaders}
-            ${gridRows}
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;max-width:120px;margin-bottom:4px;">${cells.join('')}</div>
+          <div style="display:flex;gap:6px;max-width:120px;margin-top:2px;">
+            ${styles.map(v=>`<span style="font-size:9px;color:var(--text-muted);flex:1;text-align:center;">${svL[v]}</span>`).join('')}
           </div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Category-based classification — run cron for live data</div>
           ${drift}
         </div>`;
     })()}
@@ -1993,6 +2000,8 @@ function drOpenFund(f){
   drLoadChart(f.id,'1Y',document.querySelector('.dr-period-btn.dr-active'));
   drCalcSip(f.returns_1y,f.returns_3y,f.returns_5y);
   setTimeout(() => drCalcStepUp(f.returns_3y||f.returns_1y||12), 50); // t267
+  // tv03: Auto-load TER trend & tv05: Fund manager on drawer open
+  setTimeout(() => { drLoadTerTrend(f.id); drLoadFundManagers(f.id); }, 200);
 }
 
 async function drLoadChart(fundId,period,btn){
@@ -2137,6 +2146,232 @@ function drCalcStepUp(retRate) {
       </div>
     </div>`;
 }
+}
+
+/* ══════════════════════════════════════════════════
+   t262 — ROLLING RETURNS CHART
+   Calculates rolling period returns from nav_history
+   and shows: min/max/avg + % time positive + line chart
+══════════════════════════════════════════════════ */
+let _drRollFundId   = null;
+let _drRollPeriod   = '3Y';
+let _drRollData     = {};   // cache: {fundId: {1Y:[...], 3Y:[...], 5Y:[...]}}
+let _drRollChartInst = null;
+
+async function drLoadRolling(fundId, triggerEl) {
+  _drRollFundId = fundId;
+  if (triggerEl) { triggerEl.textContent = '⏳'; triggerEl.style.pointerEvents = 'none'; }
+
+  const placeholder = document.getElementById('drRollingPlaceholder');
+  const canvas      = document.getElementById('drRollingCanvas');
+  if (placeholder) placeholder.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:11px;">⏳ NAV history fetch ho rahi hai…</div>';
+
+  try {
+    const base = window.WD?.appUrl || window.APP_URL || '';
+    // Use nav_proxy (same as NAV chart) — DB cache first, MFAPI fallback
+    const schemeCode = window._scFunds?.find(sf => sf.id === fundId)?.scheme_code || '';
+    const res  = await fetch(
+      `${base}/api/router.php?action=nav_proxy&fund_id=${fundId}&period=ALL&scheme_code=${schemeCode}`,
+      { headers: {'X-Requested-With': 'XMLHttpRequest'} }
+    );
+    const json = await res.json();
+    if (!json.success || !json.data?.length) throw new Error('Not enough NAV history');
+
+    // json.data = [{date, nav}] sorted oldest→newest
+    const hist = json.data.map(h => ({ date: h.date, nav: parseFloat(h.nav) }))
+                          .sort((a, b) => a.date.localeCompare(b.date));
+    if (hist.length < 30) throw new Error(`Only ${hist.length} NAV points — insufficient`);
+
+    // Compute rolling returns for all three periods
+    _drRollData[fundId] = {};
+    for (const period of ['1Y','3Y','5Y']) {
+      _drRollData[fundId][period] = computeRolling(hist, period);
+    }
+
+    if (triggerEl) { triggerEl.textContent = 'Loaded ✓'; triggerEl.style.color = '#16a34a'; }
+    renderRollingChart(fundId, _drRollPeriod);
+
+  } catch(e) {
+    if (placeholder) {
+      placeholder.innerHTML = `<div style="padding:16px;text-align:center;color:#dc2626;font-size:11px;">⚠️ ${e.message}</div>`;
+      placeholder.style.display = '';
+    }
+    if (canvas) canvas.style.display = 'none';
+    if (triggerEl) { triggerEl.textContent = 'Load'; triggerEl.style.pointerEvents = ''; }
+  }
+}
+
+function drSwitchRolling(period, btn) {
+  _drRollPeriod = period;
+  document.querySelectorAll('.dr-roll-btn').forEach(b => b.classList.remove('dr-active'));
+  if (btn) btn.classList.add('dr-active');
+  if (_drRollFundId && _drRollData[_drRollFundId]) {
+    renderRollingChart(_drRollFundId, period);
+  } else if (_drRollFundId) {
+    drLoadRolling(_drRollFundId, null);
+  }
+}
+
+function computeRolling(hist, period) {
+  // period → days offset
+  const daysMap = {'1Y': 365, '3Y': 1095, '5Y': 1825};
+  const days = daysMap[period];
+  if (!days || hist.length < 30) return null;
+
+  const results = [];
+  for (let i = 0; i < hist.length; i++) {
+    const endDate   = new Date(hist[i].date);
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - days);
+    const startStr = startDate.toISOString().slice(0, 10);
+
+    // Find closest start point
+    let startIdx = -1;
+    for (let j = i - 1; j >= 0; j--) {
+      if (hist[j].date <= startStr) { startIdx = j; break; }
+    }
+    if (startIdx < 0) continue;
+
+    const startNav = hist[startIdx].nav;
+    const endNav   = hist[i].nav;
+    if (!startNav || startNav <= 0) continue;
+
+    const years = (endDate - new Date(hist[startIdx].date)) / (365.25 * 86400000);
+    if (years < 0.8) continue; // need at least 80% of the period
+
+    // CAGR formula
+    const cagr = (Math.pow(endNav / startNav, 1 / years) - 1) * 100;
+    if (isFinite(cagr) && Math.abs(cagr) < 200) {
+      results.push({ date: hist[i].date, ret: parseFloat(cagr.toFixed(2)) });
+    }
+  }
+
+  if (results.length < 5) return null;
+
+  const rets  = results.map(r => r.ret);
+  const posCount = rets.filter(r => r > 0).length;
+  return {
+    points:   results,
+    min:      Math.min(...rets),
+    max:      Math.max(...rets),
+    avg:      rets.reduce((s, r) => s + r, 0) / rets.length,
+    positive: posCount,
+    total:    rets.length,
+    posPct:   Math.round((posCount / rets.length) * 100),
+  };
+}
+
+function renderRollingChart(fundId, period) {
+  const data = _drRollData[fundId]?.[period];
+  const placeholder = document.getElementById('drRollingPlaceholder');
+  const canvasWrap  = document.getElementById('drRollingCanvas');
+  const statsEl     = document.getElementById('drRollStats');
+
+  if (!data || !data.points?.length) {
+    if (placeholder) placeholder.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:11px;">📉 ${period} rolling data ke liye insufficient history hai</div>`;
+    if (placeholder) placeholder.style.display = '';
+    if (canvasWrap)  canvasWrap.style.display   = 'none';
+    return;
+  }
+
+  if (placeholder) placeholder.style.display = 'none';
+  if (canvasWrap)  canvasWrap.style.display   = '';
+
+  // Stats strip
+  const avgColor = data.avg >= 12 ? '#16a34a' : data.avg >= 8 ? '#d97706' : '#dc2626';
+  const posColor = data.posPct >= 80 ? '#16a34a' : data.posPct >= 60 ? '#d97706' : '#dc2626';
+  if (statsEl) statsEl.innerHTML = `
+    <div style="background:var(--bg-secondary);border-radius:7px;padding:7px 10px;text-align:center;">
+      <div style="font-size:13px;font-weight:800;color:${avgColor};">${data.avg >= 0 ? '+' : ''}${data.avg.toFixed(1)}%</div>
+      <div style="font-size:10px;color:var(--text-muted);">Avg ${period} Return</div>
+    </div>
+    <div style="background:var(--bg-secondary);border-radius:7px;padding:7px 10px;text-align:center;">
+      <div style="font-size:13px;font-weight:800;color:${posColor};">${data.posPct}%</div>
+      <div style="font-size:10px;color:var(--text-muted);">% Time Positive</div>
+    </div>
+    <div style="background:var(--bg-secondary);border-radius:7px;padding:7px 10px;text-align:center;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary);">
+        <span style="color:#16a34a;">+${data.max.toFixed(1)}%</span> /
+        <span style="color:#dc2626;">${data.min.toFixed(1)}%</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);">Best / Worst</div>
+    </div>
+  `;
+
+  // Line chart — sample every Nth point to keep it fast
+  const pts    = data.points;
+  const step   = Math.max(1, Math.floor(pts.length / 80));
+  const labels = pts.filter((_, i) => i % step === 0).map(p => p.date.slice(0, 7));
+  const values = pts.filter((_, i) => i % step === 0).map(p => p.ret);
+
+  const ctx = document.getElementById('drRollChart');
+  if (!ctx) return;
+
+  if (_drRollChartInst) { _drRollChartInst.destroy(); _drRollChartInst = null; }
+
+  // Colors for each point: green if positive, red if negative
+  const pointColors = values.map(v => v >= 0 ? 'rgba(22,163,74,.7)' : 'rgba(220,38,38,.7)');
+  const lineColor   = data.avg >= 10 ? '#16a34a' : data.avg >= 5 ? '#d97706' : '#dc2626';
+
+  _drRollChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: `${period} Rolling CAGR`,
+          data: values,
+          borderColor: lineColor,
+          borderWidth: 1.5,
+          pointRadius: 0,
+          pointHoverRadius: 3,
+          fill: {
+            target: { value: 0 },
+            above: 'rgba(22,163,74,.12)',
+            below: 'rgba(220,38,38,.12)',
+          },
+          tension: 0.3,
+        },
+        {
+          // Zero line
+          label: '0%',
+          data: labels.map(() => 0),
+          borderColor: 'rgba(100,116,139,.35)',
+          borderWidth: 1,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          fill: false,
+        }
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label !== '0%' ? (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(1) + '%' : ''}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { maxTicksLimit: 5, font: { size: 9 }, color: '#94a3b8' },
+          grid:  { display: false },
+        },
+        y: {
+          ticks: {
+            font: { size: 9 }, color: '#94a3b8',
+            callback: v => v.toFixed(0) + '%',
+          },
+          grid: { color: 'rgba(100,116,139,.1)' },
+        }
+      }
+    }
+  });
 }
 
 /* ══════════════════════════════════════════════════
@@ -2501,7 +2736,7 @@ function toggleCompare(id, name) {
   if (existing >= 0) {
     _cmpFunds.splice(existing, 1);
   } else {
-    if (_cmpFunds.length >= 3) {
+    if (_cmpFunds.length >= 5) {
       // Flash warning
       const bar = document.getElementById('cmpBar');
       bar.style.background = '#dc2626';
@@ -2527,8 +2762,10 @@ function resetCmpBtnStyle(id) {
 function renderCmpBar() {
   const bar = document.getElementById('cmpBar');
   const chips = document.getElementById('cmpChips');
+  const countEl = document.getElementById('cmpCount');
   if (!_cmpFunds.length) { bar.classList.remove('visible'); return; }
   bar.classList.add('visible');
+  if (countEl) countEl.textContent = `(${_cmpFunds.length}/5)`;
   chips.innerHTML = _cmpFunds.map(f =>
     `<div class="cmp-fund-chip">${f.name.length>25?f.name.slice(0,24)+'…':f.name}<button onclick="removeCmpFund(${f.id})">✕</button></div>`
   ).join('');
@@ -2554,6 +2791,47 @@ function openCompareModal() {
 }
 
 function closeCompareModal() { document.getElementById('cmpModalOv').classList.remove('open'); }
+
+// tv12 — Export comparison as CSV
+function exportCompareCSV() {
+  const funds = _cmpFunds.map(cf => window._scFunds?.find(f => f.id === cf.id)).filter(Boolean);
+  if (!funds.length) return;
+
+  const RISK_FREE = 6.5;
+  const mktRet = funds.filter(f=>!((f.category||'').toLowerCase().includes('debt'))).reduce((s,f,_,a)=>(s+(parseFloat(f.returns_3y)||12)/a.length),12);
+  function calcAlpha(f){const r=parseFloat(f.returns_3y)||0,b=mktRet>0?(r/mktRet).toFixed(2):1,a=(r-(RISK_FREE+parseFloat(b)*(mktRet-RISK_FREE))).toFixed(2);return{alpha:parseFloat(a),beta:parseFloat(b)};}
+
+  const headers = ['Parameter', ...funds.map(f => f.scheme_name.replace(/,/g,''))];
+  const rows = [
+    ['Fund House',    ...funds.map(f=>f.fund_house||'—')],
+    ['Category',      ...funds.map(f=>f.category||'—')],
+    ['Plan Type',     ...funds.map(f=>f.plan_type==='direct'?'Direct':'Regular')],
+    ['Fund Manager',  ...funds.map(f=>f.fund_manager||'—')],
+    ['Risk Level',    ...funds.map(f=>f.risk_level||'—')],
+    ['Latest NAV',    ...funds.map(f=>f.latest_nav?'₹'+Number(f.latest_nav).toFixed(4):'—')],
+    ['AUM (Cr)',      ...funds.map(f=>f.aum_crore?Number(f.aum_crore).toLocaleString('en-IN'):'—')],
+    ['1Y Return %',   ...funds.map(f=>f.returns_1y!=null?f.returns_1y+'%':'—')],
+    ['3Y CAGR %',     ...funds.map(f=>f.returns_3y!=null?f.returns_3y+'%':'—')],
+    ['5Y CAGR %',     ...funds.map(f=>f.returns_5y!=null?f.returns_5y+'%':'—')],
+    ['Expense Ratio', ...funds.map(f=>f.expense_ratio!=null?f.expense_ratio+'%':'—')],
+    ['Sharpe Ratio',  ...funds.map(f=>f.sharpe_ratio!=null?Number(f.sharpe_ratio).toFixed(3):'—')],
+    ['Sortino Ratio', ...funds.map(f=>f.sortino_ratio!=null?Number(f.sortino_ratio).toFixed(3):'—')],
+    ['Alpha %',       ...funds.map(f=>{const{alpha}=calcAlpha(f);return alpha+'%';})],
+    ['Beta',          ...funds.map(f=>{const{beta}=calcAlpha(f);return beta;})],
+    ['Max Drawdown %',...funds.map(f=>f.max_drawdown!=null?'▼'+Number(f.max_drawdown).toFixed(2)+'%':'—')],
+    ['Drawdown %',    ...funds.map(f=>f.drawdown_pct!=null?'▼'+f.drawdown_pct+'%':'—')],
+    ['Exit Load',     ...funds.map(f=>f.exit_load_pct>0?f.exit_load_pct+'%/'+f.exit_load_days+'d':f.exit_load_pct===0?'Nil':'—')],
+    ['LTCG Period',   ...funds.map(f=>f.min_ltcg_days?f.min_ltcg_days+' days':'—')],
+    ['Lock-in',       ...funds.map(f=>f.lock_in_days>0?f.lock_in_days+'d':'None')],
+    ['Inception',     ...funds.map(f=>f.inception_date||'—')],
+  ];
+
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `WealthDash_MF_Compare_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
 
 function renderCompareTable() {
   const funds = _cmpFunds.map(cf => window._scFunds?.find(f => f.id === cf.id)).filter(Boolean);
@@ -2597,14 +2875,6 @@ function renderCompareTable() {
     {label:'Category',      vals: funds.map(f => f.category_short||f.category||'—')},
     {label:'Plan',          vals: funds.map(f => f.plan_type==='direct'?'<span style="color:#16a34a;font-weight:700;">✅ Direct</span>':'<span style="color:#d97706;">Regular</span>')},
     {label:'Fund Manager',  vals: funds.map(f => f.fund_manager||'—')},  // t96
-    {label:'Style Box',      vals: funds.map(f => {
-      if(!f.style_size||!f.style_value) return '—';
-      const szL={large:'Large Cap',mid:'Mid Cap',small:'Small Cap'};
-      const svL={value:'Value',blend:'Blend',growth:'Growth'};
-      const svColor={value:'#0891b2',blend:'#6366f1',growth:'#16a34a'};
-      const col=svColor[f.style_value]||'#6366f1';
-      return `<span style="font-weight:700;color:${col};">${szL[f.style_size]||f.style_size} ${svL[f.style_value]||f.style_value}</span>`;
-    })},
     {label:'Risk Level',    vals: funds.map(f => f.risk_level||'—')},
     {label:'Latest NAV',    vals: funds.map(f => fmtNav(f.latest_nav))},
     {label:'Peak NAV',      vals: funds.map(f => fmtNav(f.highest_nav))},
@@ -2700,6 +2970,19 @@ function saveAlert() {
     setTimeout(() => document.getElementById('alertTargetNav').style.borderColor = '', 1500);
     return;
   }
+  // t77: Save to DB (pa_add) + localStorage fallback
+  const base = window.WD?.appUrl || window.APP_URL || '';
+  fetch(`${base}/api/router.php`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({action: 'pa_add', fund_id: _alertFundId, type, target_nav: targetNav})
+  }).then(r => r.json()).then(d => {
+    if (!d.success && d.message?.includes('migration')) {
+      // DB not set up — fall back to localStorage only
+    }
+  }).catch(() => {});
+
+  // Always keep localStorage copy as fallback
   const alerts = getAlerts().filter(a => a.fund_id !== _alertFundId);
   alerts.push({
     fund_id: _alertFundId, type, target_nav: targetNav,
@@ -2710,7 +2993,6 @@ function saveAlert() {
   // Visual feedback — update alert button in drawer
   const alertBtn = document.getElementById('drAlertBtn');
   if (alertBtn) { alertBtn.textContent = '🔔 Alert Set ✓'; alertBtn.style.color = '#16a34a'; alertBtn.style.borderColor = '#86efac'; }
-  // Show toast if available
   if (typeof showToast === 'function') {
     showToast(`Alert set: NAV ${type} ₹${targetNav.toFixed(2)}`, 'success');
   }
@@ -3016,10 +3298,7 @@ function renderWatchlistView() {
   body.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <div style="font-size:13px;font-weight:700;">${wl.length} Watchlisted Fund${wl.length>1?'s':''}</div>
-      <div style="display:flex;gap:6px;">
-        <button onclick="openWlAlerts()" style="font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:4px 10px;cursor:pointer;font-weight:700;">🔔 Alerts</button>
-        <button onclick="clearWatchlist()" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;">✕ Clear All</button>
-      </div>
+      <button onclick="clearWatchlist()" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;font-weight:600;">✕ Clear All</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;">
     ${wl.map(w => {
@@ -3460,10 +3739,90 @@ function renderSavedSearchList() {
 function _scInit() {
   var metaUrl = document.querySelector('meta[name="app-url"]');
   window._SCBASE = (metaUrl ? metaUrl.getAttribute('content') : '') || '';
+
+  // t407: Restore state from URL params (shared screen support)
+  _scRestoreFromURL();
+
   SC.fetch();
   updSortHeaders('name');
   updWlCount();           // t68: watchlist badge
   updSavedSearchCount();  // t110: saved searches badge
+}
+
+/* ══════════════════════════════════════════════════
+   t407 — SHARED SCREENS (URL-based filter sharing)
+   Share current screener state as a URL.
+   Recipients open the URL and get same filters.
+══════════════════════════════════════════════════ */
+function _scRestoreFromURL() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.has('q') && !p.has('category[]') && !p.has('fund_house[]') &&
+      !p.has('plan_type') && !p.has('sort') && !p.has('_sc')) return;
+
+  const s = SC.state;
+  if (p.has('q'))          s.q           = p.get('q');
+  if (p.has('plan_type'))  s.planType    = p.get('plan_type');
+  if (p.has('option_type')) s.optionType = p.get('option_type');
+  if (p.has('sort'))       s.sort        = p.get('sort');
+  if (p.has('per_page'))   s.perPage     = parseInt(p.get('per_page')) || 50;
+  if (p.has('ltcg_days'))  s.ltcgDays   = parseInt(p.get('ltcg_days')) || 0;
+  if (p.has('has_lockin')) s.hasLockin  = parseInt(p.get('has_lockin'));
+  if (p.has('exp_min'))    s.expMin     = parseFloat(p.get('exp_min'));
+  if (p.has('exp_max'))    s.expMax     = parseFloat(p.get('exp_max'));
+  if (p.has('aum_min'))    s.aumMin     = parseFloat(p.get('aum_min'));
+  if (p.has('aum_max'))    s.aumMax     = parseFloat(p.get('aum_max'));
+  if (p.has('ret_min_1y')) s.retMin1y   = parseFloat(p.get('ret_min_1y'));
+  if (p.has('ret_min_3y')) s.retMin3y   = parseFloat(p.get('ret_min_3y'));
+  if (p.has('ret_min_5y')) s.retMin5y   = parseFloat(p.get('ret_min_5y'));
+  if (p.has('sortino_min')) s.sortinoMin = parseFloat(p.get('sortino_min'));
+  if (p.has('manager'))    s.manager    = p.get('manager');
+  if (p.has('fund_age'))   s.fundAge    = p.get('fund_age');
+  if (p.has('min_stars'))  s.minStars   = parseInt(p.get('min_stars'));
+  if (p.has('has_ter'))    s.hasTer     = p.get('has_ter') === '1';
+
+  // Arrays
+  const cats = p.getAll('category[]');
+  if (cats.length) s.categories = cats;
+  const houses = p.getAll('fund_house[]');
+  if (houses.length) s.fundHouses = houses;
+  const risks = p.getAll('risk_level[]');
+  if (risks.length) s.riskLevels = risks;
+  const sbs = p.getAll('style_box[]');
+  if (sbs.length) s.styleBoxes = sbs;
+
+  // Show a toast that filters were loaded from a shared link
+  if (p.has('_sc')) {
+    setTimeout(() => {
+      if (typeof showToast === 'function')
+        showToast('🔗 Shared screen loaded — filters applied', 'info');
+    }, 800);
+  }
+}
+
+function scShareScreen() {
+  const base   = window.location.origin + window.location.pathname;
+  const params = SC.buildParams();
+  // Add _sc=1 marker so recipient knows it's a shared link
+  const url    = `${base}?${params}&_sc=1`;
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      if (typeof showToast === 'function')
+        showToast('🔗 Link copied! Share karo.', 'success');
+      else alert('Link copied:\n' + url);
+    });
+  } else {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (typeof showToast === 'function')
+      showToast('🔗 Link copied!', 'success');
+  }
+
+  // Also update browser URL (no page reload)
+  window.history.replaceState(null, '', url);
 }
 
 document.addEventListener('DOMContentLoaded', _scInit);
@@ -3567,359 +3926,6 @@ async function loadFhrRankings() {
     body.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">⚠ Failed to load rankings: ${e.message}</div>`;
   }
 }
-
-/* ══════════════════════════════════════════════════
-   tv08 — NFO TRACKER (Enhanced Cards)
-══════════════════════════════════════════════════ */
-let _nfoLoaded = false;
-
-async function loadNfoTracker(targetId) {
-  const wrap = document.getElementById(targetId || 'scNfoBody');
-  if (!wrap) return;
-  if (_nfoLoaded) return;
-
-  wrap.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);"><span class="spinner"></span> Loading NFO data...</div>`;
-
-  try {
-    const appUrl = window.WD?.appUrl || window.APP_URL || '';
-    const res  = await fetch(`${appUrl}/api/router.php?action=nfo_list`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.message || 'Failed');
-
-    const d = data.data || {};
-    const counts = d.counts || {};
-    const isDerived = (d.source || '').includes('derived');
-
-    // Tab state
-    let activeNfoTab = 'open_now';
-
-    const tabs = [
-      { key: 'open_now',        label: '🟢 Open Now',        count: counts.open_now        || 0 },
-      { key: 'closing_soon',    label: '⚠️ Closing Soon',    count: counts.closing_soon    || 0 },
-      { key: 'upcoming',        label: '🔜 Upcoming',        count: counts.upcoming        || 0 },
-      { key: 'recently_closed', label: '🔒 Recently Closed', count: counts.recently_closed || 0 },
-    ];
-
-    function renderNfoCard(nfo) {
-      const daysLeft = nfo.days_left !== undefined ? parseInt(nfo.days_left) : null;
-      const urgency  = daysLeft !== null && daysLeft <= 2
-        ? `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 7px;border-radius:99px;border:1px solid #fca5a5;">⏰ Closes in ${daysLeft}d</span>`
-        : daysLeft !== null && daysLeft >= 0
-        ? `<span style="font-size:10px;color:#d97706;background:#fef3c7;padding:2px 7px;border-radius:99px;border:1px solid #fcd34d;">${daysLeft}d left</span>`
-        : '';
-
-      const planBadge = nfo.plan_type
-        ? `<span style="font-size:9px;background:${nfo.plan_type==='Direct'?'#eff6ff':'#f5f3ff'};color:${nfo.plan_type==='Direct'?'#2563eb':'#7c3aed'};padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid ${nfo.plan_type==='Direct'?'#bfdbfe':'#ddd6fe'};">${nfo.plan_type}</span>`
-        : '';
-
-      const catBadge = nfo.category
-        ? `<span style="font-size:9px;background:var(--bg-secondary,#f8f9fc);color:var(--text-muted,#6b7280);padding:2px 6px;border-radius:4px;border:1px solid var(--border-color,#e5e7eb);">${nfo.category}</span>`
-        : '';
-
-      const navHtml = nfo.latest_nav
-        ? `<div style="font-size:12px;font-weight:700;color:var(--text-primary);">₹${parseFloat(nfo.latest_nav).toFixed(2)}</div><div style="font-size:10px;color:var(--text-muted);">Latest NAV</div>`
-        : `<div style="font-size:12px;font-weight:700;color:var(--text-muted);">₹10.00</div><div style="font-size:10px;color:var(--text-muted);">NFO Price</div>`;
-
-      const expHtml = nfo.expense_ratio
-        ? `<div style="font-size:12px;font-weight:700;color:var(--text-primary);">${parseFloat(nfo.expense_ratio).toFixed(2)}%</div><div style="font-size:10px;color:var(--text-muted);">Expense Ratio</div>`
-        : `<div style="font-size:12px;color:var(--text-muted);">—</div><div style="font-size:10px;color:var(--text-muted);">Expense Ratio</div>`;
-
-      const openDate  = nfo.open_date  ? nfo.open_date.slice(0,10)  : '—';
-      const closeDate = nfo.close_date ? nfo.close_date.slice(0,10) : '—';
-
-      return `
-        <div style="background:var(--bg-card,#fff);border:1.5px solid var(--border-color,#e5e7eb);border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:.15s;"
-             onmouseover="this.style.borderColor='var(--accent,#4f46e5)'"
-             onmouseout="this.style.borderColor='var(--border-color,#e5e7eb)'">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:800;color:var(--text-primary);line-height:1.3;margin-bottom:4px;">${nfo.fund_name || '—'}</div>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${nfo.amc_short || '—'}</div>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">${planBadge}${catBadge}${urgency}</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0;">${navHtml}</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-color,#e5e7eb);">
-            <div>${expHtml}</div>
-            <div style="text-align:center;">
-              <div style="font-size:11px;font-weight:700;color:var(--text-primary);">${openDate}</div>
-              <div style="font-size:10px;color:var(--text-muted);">Open Date</div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:11px;font-weight:700;color:${daysLeft !== null && daysLeft <= 2 ? '#dc2626' : 'var(--text-primary)'};">${closeDate}</div>
-              <div style="font-size:10px;color:var(--text-muted);">Close Date</div>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    function renderNfoTab(key) {
-      activeNfoTab = key;
-      const items = d[key] || [];
-      const panelEl = document.getElementById('nfoPanelBody');
-      if (!panelEl) return;
-
-      // Update tab active states
-      document.querySelectorAll('.nfo-tab-btn').forEach(b => {
-        const isActive = b.dataset.tab === key;
-        b.style.background    = isActive ? 'var(--accent,#4f46e5)' : 'transparent';
-        b.style.color         = isActive ? '#fff' : 'var(--text-muted,#6b7280)';
-        b.style.borderColor   = isActive ? 'var(--accent,#4f46e5)' : 'var(--border-color,#e5e7eb)';
-      });
-
-      if (!items.length) {
-        panelEl.innerHTML = `<div style="text-align:center;padding:48px;color:var(--text-muted);">
-          <div style="font-size:32px;margin-bottom:8px;">📭</div>
-          <div style="font-size:13px;font-weight:600;">No ${key.replace(/_/g,' ')} NFOs</div>
-          <div style="font-size:12px;margin-top:4px;">${isDerived ? 'Based on fund inception dates. Link nfo_tracker table for live data.' : 'Check back soon.'}</div>
-        </div>`;
-        return;
-      }
-
-      panelEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;">
-        ${items.map(renderNfoCard).join('')}
-      </div>`;
-    }
-
-    // Build tab bar
-    const tabBar = tabs.map(t => `
-      <button class="nfo-tab-btn" data-tab="${t.key}"
-        onclick="renderNfoTab('${t.key}')"
-        style="display:flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;border:1.5px solid var(--border-color,#e5e7eb);background:transparent;color:var(--text-muted);cursor:pointer;transition:.15s;white-space:nowrap;font-family:inherit;">
-        ${t.label}
-        <span style="font-size:10px;background:rgba(0,0,0,.1);padding:1px 6px;border-radius:99px;">${t.count}</span>
-      </button>`).join('');
-
-    const sourceBadge = isDerived
-      ? `<div style="font-size:11px;color:#d97706;background:#fef3c7;padding:4px 10px;border-radius:6px;border:1px solid #fcd34d;">
-           ℹ️ Showing funds launched in last 90 days (derived from inception date). For live NFO tracking, create <code>nfo_tracker</code> table.
-         </div>`
-      : '';
-
-    wrap.innerHTML = `
-      <div style="padding:4px 2px 16px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-          <div>
-            <div style="font-size:15px;font-weight:800;letter-spacing:-.3px;">🆕 NFO Tracker</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">New Fund Offers — Open, Upcoming & Recently Closed</div>
-          </div>
-          <button onclick="_nfoLoaded=false;loadNfoTracker('${targetId || 'scNfoBody'}')"
-            style="font-size:11px;padding:5px 11px;border-radius:7px;border:1.5px solid var(--border-color,#e5e7eb);background:none;color:var(--text-muted);cursor:pointer;font-weight:600;">
-            🔄 Refresh
-          </button>
-        </div>
-        ${sourceBadge ? `<div style="margin-bottom:10px;">${sourceBadge}</div>` : ''}
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="nfoTabBar">${tabBar}</div>
-        <div id="nfoPanelBody"></div>
-      </div>`;
-
-    // Make renderNfoTab global so onclick works
-    window.renderNfoTab = renderNfoTab;
-
-    // Render first tab
-    renderNfoTab('open_now');
-    _nfoLoaded = true;
-
-  } catch(e) {
-    if (wrap) wrap.innerHTML = `<div style="padding:40px;text-align:center;color:#dc2626;">⚠ NFO load failed: ${e.message}</div>`;
-  }
-}
-
-/* ══════════════════════════════════════════════════
-   tv10 — WATCHLIST ALERTS (DB-based)
-══════════════════════════════════════════════════ */
-let _wlAlertsLoaded = false;
-let _wlAlertsData   = [];
-
-// Expose a tab/button to open the WL Alerts panel from the Watchlist view
-function openWlAlerts() {
-  const panel = document.getElementById('wlAlertsPanel');
-  if (panel) { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; }
-  if (!_wlAlertsLoaded) loadWlAlerts();
-}
-
-async function loadWlAlerts() {
-  const body = document.getElementById('wlAlertsBody');
-  if (!body) return;
-  body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);"><span class="spinner"></span></div>';
-
-  try {
-    const appUrl = window.WD?.appUrl || window.APP_URL || '';
-    const res  = await fetch(`${appUrl}/api/router.php?action=wl_alerts_list`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.message || 'Failed');
-
-    _wlAlertsData = data.data?.alerts || [];
-    _wlAlertsLoaded = true;
-    renderWlAlerts();
-  } catch(e) {
-    if (body) body.innerHTML = `<div style="color:#dc2626;font-size:12px;padding:10px;">⚠ ${e.message}</div>`;
-  }
-}
-
-function renderWlAlerts() {
-  const body = document.getElementById('wlAlertsBody');
-  if (!body) return;
-
-  if (!_wlAlertsData.length) {
-    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);">
-      <div style="font-size:24px;margin-bottom:8px;">🔔</div>
-      <div style="font-size:13px;font-weight:600;">No alerts set</div>
-      <div style="font-size:12px;margin-top:4px;">Open a fund drawer and click <strong>🔔 Alert</strong> to add one</div>
-    </div>`;
-    return;
-  }
-
-  const typeLabel = {
-    nav_above: 'NAV ≥ ₹', nav_below: 'NAV ≤ ₹',
-    return_1y_above: '1Y Return ≥ ', drawdown_below: 'Drawdown ≤ '
-  };
-  const typeSuffix = {
-    nav_above: '', nav_below: '',
-    return_1y_above: '%', drawdown_below: '%'
-  };
-
-  body.innerHTML = _wlAlertsData.map(al => {
-    const triggered = al.currently_triggered;
-    const tLabel    = typeLabel[al.alert_type]   || al.alert_type;
-    const tSuffix   = typeSuffix[al.alert_type]  || '';
-    const thr       = parseFloat(al.threshold).toFixed(al.alert_type.includes('nav') ? 2 : 1);
-
-    const statusBadge = triggered
-      ? `<span style="font-size:10px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 7px;border-radius:99px;border:1px solid #fca5a5;">🔥 Triggered</span>`
-      : al.triggered_at
-      ? `<span style="font-size:10px;color:#6b7280;background:#f3f4f6;padding:2px 7px;border-radius:99px;">✓ Was triggered</span>`
-      : `<span style="font-size:10px;color:#6366f1;background:#eef2ff;padding:2px 7px;border-radius:99px;border:1px solid #c7d2fe;">⏳ Watching</span>`;
-
-    const currentVal = al.alert_type.includes('nav')
-      ? al.latest_nav ? `Current: ₹${parseFloat(al.latest_nav).toFixed(2)}` : ''
-      : al.alert_type === 'return_1y_above'
-      ? al.returns_1y !== null ? `Current: ${parseFloat(al.returns_1y).toFixed(1)}%` : ''
-      : al.drawdown_pct !== null ? `Current: ${parseFloat(al.drawdown_pct).toFixed(1)}%` : '';
-
-    return `
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-color,#e5e7eb);">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${al.scheme_name}">
-            ${al.scheme_name}
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);">
-            ${tLabel}<strong>${thr}</strong>${tSuffix}
-            ${currentVal ? ` · <span style="color:${triggered?'#dc2626':'var(--text-muted)'};">${currentVal}</span>` : ''}
-          </div>
-          <div style="margin-top:4px;">${statusBadge}</div>
-        </div>
-        <button onclick="deleteWlAlert(${al.id})"
-          style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;font-size:10px;font-weight:700;padding:3px 8px;cursor:pointer;flex-shrink:0;margin-top:2px;">
-          ✕
-        </button>
-      </div>`;
-  }).join('');
-}
-
-async function saveWlAlert(fundId, alertType, threshold) {
-  try {
-    const appUrl = window.WD?.appUrl || window.APP_URL || '';
-    const csrf   = document.querySelector('meta[name="csrf-token"]')?.content || window.WD?.csrf || '';
-    const fd = new FormData();
-    fd.append('action', 'wl_alert_save');
-    fd.append('fund_id', fundId);
-    fd.append('alert_type', alertType);
-    fd.append('threshold', threshold);
-    if (csrf) fd.append('_csrf', csrf);
-
-    const res  = await fetch(`${appUrl}/api/router.php`, { method: 'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
-    const data = await res.json();
-
-    if (data.success) {
-      if (typeof showToast === 'function') showToast('🔔 Alert set!', 'success');
-      _wlAlertsLoaded = false;
-      loadWlAlerts();
-      return true;
-    } else {
-      if (typeof showToast === 'function') showToast('❌ ' + data.message, 'error');
-      return false;
-    }
-  } catch(e) {
-    if (typeof showToast === 'function') showToast('❌ Error: ' + e.message, 'error');
-    return false;
-  }
-}
-
-async function deleteWlAlert(alertId) {
-  if (!confirm('Delete this alert?')) return;
-  try {
-    const appUrl = window.WD?.appUrl || window.APP_URL || '';
-    const csrf   = document.querySelector('meta[name="csrf-token"]')?.content || window.WD?.csrf || '';
-    const fd = new FormData();
-    fd.append('action', 'wl_alert_delete');
-    fd.append('alert_id', alertId);
-    if (csrf) fd.append('_csrf', csrf);
-
-    const res  = await fetch(`${appUrl}/api/router.php`, { method: 'POST', body: fd, headers: {'X-Requested-With':'XMLHttpRequest'} });
-    const data = await res.json();
-    if (data.success) {
-      if (typeof showToast === 'function') showToast('Alert deleted', 'success');
-      _wlAlertsLoaded = false;
-      loadWlAlerts();
-    }
-  } catch(e) {}
-}
-
-// Enhanced openAlertModal — now wires to DB-based save (replaces localStorage fallback)
-const _origOpenAlertModal = typeof openAlertModal === 'function' ? openAlertModal : null;
-function openAlertModal(fundId, schemeName, currentNav) {
-  // Use existing modal HTML but override save
-  const ov = document.getElementById('alertModalOv');
-  if (!ov) return;
-  const nameEl = document.getElementById('alertFundName');
-  const navEl  = document.getElementById('alertCurrentNav');
-  const navInp = document.getElementById('alertTargetNav');
-  if (nameEl) nameEl.textContent = schemeName || '';
-  if (navEl && currentNav) navEl.textContent = `Current NAV: ₹${parseFloat(currentNav).toFixed(2)}`;
-  if (navInp && currentNav) navInp.value = parseFloat(currentNav).toFixed(2);
-  ov.classList.add('open');
-
-  // Override save button
-  const saveBtn = ov.querySelector('button[onclick="saveAlert()"]');
-  if (saveBtn) {
-    saveBtn.onclick = async function() {
-      const type  = document.querySelector('input[name="alertType"]:checked')?.value || 'above';
-      const thr   = parseFloat(document.getElementById('alertTargetNav')?.value || 0);
-      if (!thr || thr <= 0) { alert('Valid target NAV enter karo'); return; }
-      const alertType = type === 'above' ? 'nav_above' : 'nav_below';
-      const ok = await saveWlAlert(fundId, alertType, thr);
-      if (ok) { ov.classList.remove('open'); }
-    };
-  }
-}
-
-function closeAlertModal() {
-  const ov = document.getElementById('alertModalOv');
-  if (ov) ov.classList.remove('open');
-}
-
-// Check alerts on page load (after 2s to not block render)
-setTimeout(async () => {
-  try {
-    const appUrl = window.WD?.appUrl || window.APP_URL || '';
-    const res  = await fetch(`${appUrl}/api/router.php?action=wl_alerts_check`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (data.success && data.data?.count > 0) {
-      const count = data.data.count;
-      const names = data.data.triggered.map(t => t.fund_name).join(', ');
-      if (typeof showToast === 'function') {
-        showToast(`🔔 ${count} watchlist alert${count>1?'s':''} triggered: ${names.slice(0,60)}${names.length>60?'…':''}`, 'success', 6000);
-      }
-    }
-  } catch(e) {}
-}, 2000);
 </script>
 <?php
 $pageContent = ob_get_clean();

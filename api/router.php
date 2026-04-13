@@ -181,7 +181,14 @@ try {
         case 'ter_trend':            // t169
             require APP_ROOT . '/api/mutual_funds/ter_trend.php'; exit;
         case 'fund_managers':        // t180
+        case 'manager_stats':        // tv05 — Fund Manager Track Record
             require APP_ROOT . '/api/mutual_funds/fund_managers.php'; exit;
+
+        case 'sector_performance':   // t502 — Sector Rotation Tracker
+        case 'sector_heatmap':
+        case 'portfolio_sector_exposure':
+        case 'sector_trend':
+            require APP_ROOT . '/api/mutual_funds/sector_rotation.php'; exit;
         case 'import_history':       // t190
             require APP_ROOT . '/api/mutual_funds/import_history.php'; exit;
         case 'mf_add':

@@ -2226,6 +2226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // t75: Investment Calendar
       if (which === 'calendar') {
         initCalendarTab();
+        if (!MF._fyDatesRendered) { renderFYDates(); MF._fyDatesRendered = true; }
       }
       // t173: Exit Strategy Planner
       if (which === 'exitplanner') {
@@ -6794,6 +6795,160 @@ function calNextYear() {
   MF.calYear = Math.min(new Date().getFullYear(), MF.calYear + 1);
   renderCalendar();
 }
+
+/* ═══════════════════════════════════════════════════════════
+   t498 — FY FINANCIAL DATES PANEL
+   Important dates: Advance Tax, 80C, ITR, SIP Cut-offs, NSE Holidays
+══════════════════════════════════════════════════════════════ */
+MF._fyDatesRendered = false;
+
+function renderFYDates() {
+  const panel = document.getElementById('fyDatesPanel');
+  if (!panel) return;
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+
+  // ── FY 2025-26 Important Dates ─────────────────────────────────────────
+  const FY_DATES = [
+    // ── Advance Tax ──
+    { date:'2025-06-15', label:'Advance Tax — 1st Instalment (15%)',     cat:'tax',     color:'#dc2626', bg:'#fff1f2', icon:'💰' },
+    { date:'2025-09-15', label:'Advance Tax — 2nd Instalment (45%)',     cat:'tax',     color:'#dc2626', bg:'#fff1f2', icon:'💰' },
+    { date:'2025-12-15', label:'Advance Tax — 3rd Instalment (75%)',     cat:'tax',     color:'#dc2626', bg:'#fff1f2', icon:'💰' },
+    { date:'2026-03-15', label:'Advance Tax — Final Instalment (100%)',  cat:'tax',     color:'#dc2626', bg:'#fff1f2', icon:'💰' },
+    // ── ITR ──
+    { date:'2025-07-31', label:'ITR Filing Deadline (Salaried, AY 25-26)', cat:'tax',  color:'#b45309', bg:'#fffbeb', icon:'📄' },
+    { date:'2025-10-31', label:'ITR Deadline (Audit cases, AY 25-26)',    cat:'tax',    color:'#b45309', bg:'#fffbeb', icon:'📄' },
+    // ── 80C / ELSS ──
+    { date:'2026-03-31', label:'80C Investment Deadline (₹1.5L limit)',  cat:'tax',     color:'#7c3aed', bg:'#f5f3ff', icon:'🛡️' },
+    { date:'2026-03-31', label:'ELSS Last Date for FY 2025-26 80C',      cat:'tax',     color:'#7c3aed', bg:'#f5f3ff', icon:'🛡️' },
+    { date:'2026-03-31', label:'PPF/NPS Contribution Deadline FY-end',   cat:'tax',     color:'#7c3aed', bg:'#f5f3ff', icon:'🛡️' },
+    // ── LTCG / Tax Harvesting ──
+    { date:'2025-04-01', label:'New FY begins — LTCG ₹1.25L fresh exemption resets', cat:'tax', color:'#0d9f57', bg:'#edfbf2', icon:'🌱' },
+    { date:'2026-03-15', label:'Tax Loss Harvesting Window closes (book losses before 31st)', cat:'tax', color:'#0d9f57', bg:'#edfbf2', icon:'🌾' },
+    // ── SIP Cut-offs ──
+    { date:'2025-04-05', label:'SIP Cut-off: 5th — Same-day NAV if submitted before 3PM', cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-04-10', label:'SIP Cut-off: 10th — Popular SIP date for many AMCs',      cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-04-15', label:'SIP Cut-off: 15th — Mid-month SIP execution',              cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-05-05', label:'SIP Cut-off: 5th May',  cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-05-10', label:'SIP Cut-off: 10th May', cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-05-15', label:'SIP Cut-off: 15th May', cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-06-05', label:'SIP Cut-off: 5th Jun',  cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    { date:'2025-06-10', label:'SIP Cut-off: 10th Jun', cat:'sip', color:'#2563eb', bg:'#eff6ff', icon:'🔄' },
+    // ── NSE/BSE Market Holidays 2025-26 ──
+    { date:'2025-04-10', label:'NSE/BSE Holiday — Mahavir Jayanti',      cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-04-14', label:'NSE/BSE Holiday — Dr. Ambedkar Jayanti', cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-04-18', label:'NSE/BSE Holiday — Good Friday',          cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-05-01', label:'NSE/BSE Holiday — Maharashtra Day',      cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-08-15', label:'NSE/BSE Holiday — Independence Day',     cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-08-27', label:'NSE/BSE Holiday — Ganesh Chaturthi',     cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-10-02', label:'NSE/BSE Holiday — Gandhi Jayanti',       cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-10-02', label:'NSE/BSE Holiday — Dussehra',             cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-10-20', label:'NSE/BSE Holiday — Diwali — Laxmi Puja (Muhurat)', cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-10-21', label:'NSE/BSE Holiday — Diwali — Balipratipada', cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-11-05', label:'NSE/BSE Holiday — Guru Nanak Jayanti',   cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2025-12-25', label:'NSE/BSE Holiday — Christmas',            cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2026-01-26', label:'NSE/BSE Holiday — Republic Day',         cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2026-02-19', label:'NSE/BSE Holiday — Chhatrapati Shivaji Maharaj Jayanti', cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2026-03-20', label:'NSE/BSE Holiday — Holi (2nd day)',       cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    { date:'2026-03-31', label:'NSE/BSE Holiday — Id-Ul-Fitr (tentative)', cat:'holiday', color:'#0f766e', bg:'#f0fdfa', icon:'🏖️' },
+    // ── Budget ──
+    { date:'2026-02-01', label:'Union Budget 2026-27 — Presented in Parliament', cat:'tax', color:'#c2410c', bg:'#fff7ed', icon:'🏛️' },
+    // ── Misc ──
+    { date:'2025-07-31', label:'SIP Review Reminder — Mid-FY portfolio check', cat:'sip', color:'#0891b2', bg:'#ecfeff', icon:'📊' },
+    { date:'2026-01-31', label:'Q3 FY End — Review portfolio allocation', cat:'sip', color:'#0891b2', bg:'#ecfeff', icon:'📊' },
+  ];
+
+  // Sort by date
+  FY_DATES.sort((a,b) => a.date.localeCompare(b.date));
+
+  MF._fyDates = FY_DATES;
+  fyDatesFilter('all', null);
+}
+
+function fyDatesFilter(cat, btn) {
+  const panel = document.getElementById('fyDatesPanel');
+  if (!panel || !MF._fyDates) return;
+
+  // Update button styles
+  document.querySelectorAll('.fy-filter-btn').forEach(b => {
+    b.style.background = '#f8f9fc'; b.style.color = '#5a6882'; b.style.borderColor = '#e2e6f0';
+  });
+  if (btn) { btn.style.background='#eef2ff'; btn.style.color='#4338ca'; btn.style.borderColor='#c7d2fe'; }
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const filtered = cat === 'all' ? MF._fyDates : MF._fyDates.filter(d => d.cat === cat);
+
+  if (!filtered.length) { panel.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No dates in this category</p>'; return; }
+
+  // Group by month
+  const byMonth = {};
+  filtered.forEach(d => {
+    const mo = d.date.slice(0,7);
+    if (!byMonth[mo]) byMonth[mo] = [];
+    byMonth[mo].push(d);
+  });
+
+  const monthNames = { '01':'January','02':'February','03':'March','04':'April','05':'May','06':'June','07':'July','08':'August','09':'September','10':'October','11':'November','12':'December' };
+  const catLabels  = { tax:'💰 Tax', sip:'🔄 SIP', holiday:'🏖️ Holiday' };
+
+  let html = '';
+  for (const [mo, dates] of Object.entries(byMonth)) {
+    const [yr, mn] = mo.split('-');
+    const moLabel  = `${monthNames[mn]} ${yr}`;
+    const rows = dates.map(d => {
+      const isPast   = d.date < todayStr;
+      const isToday  = d.date === todayStr;
+      const daysLeft = Math.ceil((new Date(d.date) - new Date(todayStr)) / 86400000);
+      const dayNum   = parseInt(d.date.slice(8));
+      const dayName  = new Date(d.date).toLocaleDateString('en-IN',{weekday:'short'});
+      const urgency  = !isPast && daysLeft <= 7  ? '🔴'
+                     : !isPast && daysLeft <= 30 ? '🟡' : '';
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;margin-bottom:6px;
+                background:${isPast?'var(--bg-secondary)':d.bg};border:1.5px solid ${isPast?'var(--border-color)':d.color+'30'};
+                opacity:${isPast?'.55':'1'};">
+        <div style="flex-shrink:0;width:36px;text-align:center;border-radius:6px;padding:2px 0;background:${isPast?'var(--border-color)':d.color};color:#fff;">
+          <div style="font-size:14px;font-weight:800;">${dayNum}</div>
+          <div style="font-size:9px;font-weight:600;">${dayName}</div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:${isPast?'var(--text-muted)':d.color};display:flex;align-items:center;gap:5px;">
+            ${d.icon} ${d.label} ${urgency}
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;display:flex;gap:8px;align-items:center;">
+            <span style="padding:1px 6px;border-radius:3px;font-weight:700;background:${d.color}18;color:${d.color};">${catLabels[d.cat]||d.cat}</span>
+            ${isPast
+              ? `<span>✓ Done (${Math.abs(daysLeft)}d ago)</span>`
+              : isToday
+              ? `<span style="color:var(--accent);font-weight:700;">🎯 TODAY</span>`
+              : `<span>In <b style="color:${daysLeft<=7?'#dc2626':daysLeft<=30?'#d97706':'var(--text-primary)'};">${daysLeft} days</b></span>`
+            }
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    html += `<div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:800;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;padding-bottom:4px;border-bottom:1.5px solid var(--border-color);">${moLabel}</div>
+      ${rows}
+    </div>`;
+  }
+
+  const upcoming = filtered.filter(d => d.date >= todayStr);
+  const next = upcoming[0];
+  const nextBanner = next
+    ? `<div style="margin-bottom:14px;padding:10px 14px;border-radius:8px;background:linear-gradient(135deg,#eef2ff,#f5f3ff);border:1.5px solid #c7d2fe;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">${next.icon}</span>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#4338ca;text-transform:uppercase;letter-spacing:.4px;">Next Important Date</div>
+          <div style="font-size:13px;font-weight:800;color:#1e1b4b;">${next.label}</div>
+          <div style="font-size:11px;color:#6366f1;margin-top:2px;">${new Date(next.date).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})} — In ${Math.ceil((new Date(next.date)-new Date(todayStr))/86400000)} days</div>
+        </div>
+       </div>`
+    : '';
+
+  panel.innerHTML = nextBanner + html;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    t173 — EXIT STRATEGY PLANNER

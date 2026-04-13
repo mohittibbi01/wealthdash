@@ -46,6 +46,23 @@ $pStmt = $db->prepare("SELECT id, name, color FROM portfolios WHERE user_id=? OR
 $pStmt->execute([$currentUser['id']]);
 $portfolios = $pStmt->fetchAll();
 
+// t423: Bank-wise diversification data (DICGC ₹5L per bank limit)
+$divStmt = $db->prepare("
+    SELECT fa.bank_name,
+           SUM(fa.principal) AS total_principal,
+           SUM(fa.maturity_amount) AS total_maturity,
+           COUNT(*) AS fd_count
+    FROM fd_accounts fa
+    JOIN portfolios p ON p.id = fa.portfolio_id
+    WHERE p.user_id = ? AND fa.status = 'active'
+    GROUP BY fa.bank_name
+    ORDER BY total_principal DESC
+");
+$divStmt->execute([$currentUser['id']]);
+$bankDiversification = $divStmt->fetchAll();
+$dicgcLimit    = 500000; // ₹5,00,000
+$overLimitBanks = array_filter($bankDiversification, fn($b) => (float)$b['total_principal'] > $dicgcLimit);
+
 ob_start();
 ?>
 <div class="page-header">
@@ -80,6 +97,152 @@ ob_start();
     <div class="stat-value text-success"><?= inr($totalInterest) ?></div>
   </div>
 </div>
+
+<?php if (!empty($bankDiversification)): ?>
+<!-- t423: FD Portfolio Diversification — DICGC Limit Check -->
+<div class="card" style="margin-bottom:24px" id="fdDivCard">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="fdToggleDiv()">
+    <h3 class="card-title">
+      🏦 FD Portfolio Diversification
+      <?php if (count($overLimitBanks) > 0): ?>
+        <span style="display:inline-block;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:20px;font-size:11px;font-weight:700;padding:2px 10px;margin-left:8px;vertical-align:middle">
+          ⚠ <?= count($overLimitBanks) ?> bank<?= count($overLimitBanks)>1?'s':'' ?> exceed DICGC limit
+        </span>
+      <?php else: ?>
+        <span style="display:inline-block;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;border-radius:20px;font-size:11px;font-weight:700;padding:2px 10px;margin-left:8px;vertical-align:middle">
+          ✓ Well Diversified
+        </span>
+      <?php endif; ?>
+    </h3>
+    <span id="fdDivToggleIcon" style="color:var(--text-muted);font-size:18px;user-select:none">▾</span>
+  </div>
+  <div id="fdDivBody">
+    <?php if (count($overLimitBanks) > 0): ?>
+    <div style="background:#fef2f2;border-bottom:1px solid #fca5a5;padding:10px 16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🚨</span>
+      <div>
+        <strong style="color:#b91c1c;font-size:13px">DICGC Insurance Limit Exceeded!</strong>
+        <p style="margin:2px 0 0;font-size:12px;color:#7f1d1d">
+          DICGC insures only <strong>₹5,00,000 per bank per depositor</strong>.
+          Amount above ₹5L is <strong>at risk</strong> if the bank fails.
+          Consider spreading your FDs across multiple banks.
+        </p>
+      </div>
+    </div>
+    <?php else: ?>
+    <div style="background:#f0fdf4;border-bottom:1px solid #6ee7b7;padding:10px 16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">✅</span>
+      <p style="margin:0;font-size:13px;color:#065f46">
+        All your FDs are within the <strong>DICGC ₹5L per bank insurance limit</strong>. Your deposits are fully covered.
+      </p>
+    </div>
+    <?php endif; ?>
+
+    <!-- Bank concentration chart + table -->
+    <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+      <!-- Left: Visual bar chart -->
+      <div>
+        <p style="margin:0 0 12px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Bank-wise Principal</p>
+        <?php
+          $maxPrincipal = max(array_column($bankDiversification, 'total_principal'));
+          $colors = ['#4f46e5','#7c3aed','#2563eb','#0f766e','#b45309','#be123c','#15803d','#9333ea'];
+          $ci = 0;
+          foreach ($bankDiversification as $bank):
+            $pct     = $maxPrincipal > 0 ? round((float)$bank['total_principal'] / $maxPrincipal * 100, 1) : 0;
+            $sharePct= $totalPrincipal > 0 ? round((float)$bank['total_principal'] / $totalPrincipal * 100, 1) : 0;
+            $overLimit = (float)$bank['total_principal'] > $dicgcLimit;
+            $barColor  = $overLimit ? '#dc2626' : ($colors[$ci % count($colors)]);
+        ?>
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <span style="font-size:13px;font-weight:600;color:var(--text-primary)">
+              <?= htmlspecialchars($bank['bank_name'], ENT_QUOTES) ?>
+              <?= $overLimit ? '<span style="color:#dc2626;font-size:11px;margin-left:4px">⚠ >₹5L</span>' : '' ?>
+            </span>
+            <span style="font-size:12px;color:var(--text-muted)"><?= $sharePct ?>% &nbsp;·&nbsp; <?= inr((float)$bank['total_principal']) ?></span>
+          </div>
+          <div style="background:var(--border,#e5e7eb);border-radius:99px;height:8px;overflow:hidden">
+            <div style="width:<?= $pct ?>%;background:<?= $barColor ?>;height:100%;border-radius:99px;transition:width .5s"></div>
+          </div>
+          <?php if ($overLimit): ?>
+          <div style="font-size:11px;color:#dc2626;margin-top:2px">
+            ₹<?= number_format((float)$bank['total_principal'] - $dicgcLimit) ?> above DICGC limit (uninsured)
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php $ci++; endforeach; ?>
+      </div>
+
+      <!-- Right: Summary + Recommendations -->
+      <div>
+        <p style="margin:0 0 12px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Concentration Summary</p>
+        <div style="background:var(--surface-hover,#f9fafb);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="background:var(--border,#e5e7eb)">
+                <th style="padding:8px 12px;text-align:left;font-weight:700">Bank</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:700">FDs</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:700">Principal</th>
+                <th style="padding:8px 12px;text-align:right;font-weight:700">Share</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:700">DICGC</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($bankDiversification as $bank):
+                $sharePct  = $totalPrincipal > 0 ? round((float)$bank['total_principal'] / $totalPrincipal * 100, 1) : 0;
+                $overLimit = (float)$bank['total_principal'] > $dicgcLimit;
+              ?>
+              <tr style="border-top:1px solid var(--border,#e5e7eb)">
+                <td style="padding:8px 12px;font-weight:600"><?= htmlspecialchars($bank['bank_name'], ENT_QUOTES) ?></td>
+                <td style="padding:8px 12px;text-align:right;color:var(--text-muted)"><?= $bank['fd_count'] ?></td>
+                <td style="padding:8px 12px;text-align:right"><?= inr((float)$bank['total_principal']) ?></td>
+                <td style="padding:8px 12px;text-align:right;color:var(--text-muted)"><?= $sharePct ?>%</td>
+                <td style="padding:8px 12px;text-align:center">
+                  <?php if ($overLimit): ?>
+                    <span style="background:#fee2e2;color:#b91c1c;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">⚠ Exceeds</span>
+                  <?php else: ?>
+                    <span style="background:#d1fae5;color:#065f46;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:700">✓ Safe</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Recommendation box -->
+        <div style="margin-top:14px;background:var(--surface-hover,#f9fafb);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+          <p style="margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text-primary)">💡 Recommendations</p>
+          <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--text-muted);line-height:1.7">
+            <?php if (count($bankDiversification) < 3): ?>
+            <li>Spread FDs across <strong>3+ banks</strong> to reduce concentration risk.</li>
+            <?php endif; ?>
+            <?php if (count($overLimitBanks) > 0): ?>
+            <li>Move excess principal from highlighted banks to other banks to stay within the DICGC ₹5L safety net.</li>
+            <li>Consider <strong>Small Finance Banks</strong> — they offer higher rates (7.5–9%) and are also DICGC-insured up to ₹5L.</li>
+            <?php else: ?>
+            <li>Your FD portfolio is well-structured. Keep maintaining &lt;₹5L per bank.</li>
+            <?php endif; ?>
+            <li><strong>Post Office FDs</strong> are backed by the Government of India — no deposit limit risk.</li>
+            <li>Review FD concentration every quarter as balances grow with interest.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function fdToggleDiv() {
+  const body = document.getElementById('fdDivBody');
+  const icon = document.getElementById('fdDivToggleIcon');
+  if (!body) return;
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  icon.textContent = isHidden ? '▾' : '▸';
+}
+</script>
+<?php endif; ?>
 
 <?php if ($upcomingFds): ?>
 <!-- Maturity Alerts -->

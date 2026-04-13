@@ -1,0 +1,6 @@
+{
+  "_comment": "WealthDash — t419: ESLint config — TODO: configure rules",
+  "env": { "browser": true, "es2021": true },
+  "extends": "eslint:recommended",
+  "rules": {}
+}

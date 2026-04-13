@@ -1,329 +1,606 @@
 <?php
 /**
- * WealthDash — Tax Planning / Harvest Suggestions
- * Tells user WHAT to sell to stay within LTCG ₹1.25L exemption
- * POST /api/?action=report_tax_planning
+ * WealthDash — Tax Planning Dashboard API
+ *
+ * tv001 — Old vs New Tax Regime Comparator
+ * tv002 — Advance Tax Calculator (quarterly installments)
+ * tv003 — Section 87A Rebate Tracker
+ * tv005 — 80C Dashboard (₹1.5L utilization)
+ *
+ * GET /api/reports/tax_planning.php
+ *   ?action=regime_compare   &income=X [&deductions JSON]
+ *   ?action=advance_tax      &portfolio_id=X
+ *   ?action=rebate_87a       &income=X
+ *   ?action=section_80c      &portfolio_id=X
+ *   ?action=full_dashboard   &portfolio_id=X &income=X  ← all in one
  */
-declare(strict_types=1);
-defined('WEALTHDASH') or die('Direct access not permitted.');
+define('WEALTHDASH', true);
+require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
+require_once APP_ROOT . '/includes/auth_check.php';
+require_once APP_ROOT . '/includes/helpers.php';
 
-require_once APP_ROOT . '/includes/tax_engine.php';
+header('Content-Type: application/json; charset=utf-8');
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
 
-$portfolioId = (int)($_POST['portfolio_id'] ?? 0);
-if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)($currentUser['id'] ?? 0));
-$targetFy    = clean($_POST['fy'] ?? '');
+$currentUser = require_auth();
 
-if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
-    json_response(false, 'Invalid or inaccessible portfolio.');
+set_exception_handler(function (Throwable $e) {
+    ob_clean(); http_response_code(500);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]); exit;
+});
+
+try {
+    $db          = DB::conn();
+    $action      = $_GET['action'] ?? 'full_dashboard';
+    $portfolioId = (int)($_GET['portfolio_id'] ?? 0);
+    $userId      = (int)$currentUser['id'];
+    $income      = (float)($_GET['income'] ?? 0);
+
+    // Auto-pull deductions from WealthDash data
+    $autoDeductions = pull_auto_deductions($db, $userId, $portfolioId);
+
+    $response = ['success' => true, 'action' => $action, 'fy' => current_fy()];
+
+    switch ($action) {
+        case 'regime_compare':
+            $manual = json_decode($_GET['deductions'] ?? '{}', true) ?: [];
+            $deductions = array_merge($autoDeductions, $manual);
+            $response['regime_compare'] = compare_tax_regimes($income, $deductions);
+            break;
+
+        case 'advance_tax':
+            $response['advance_tax'] = calc_advance_tax($db, $userId, $portfolioId, $income);
+            break;
+
+        case 'rebate_87a':
+            $response['rebate_87a'] = check_87a_rebate($income, $autoDeductions);
+            break;
+
+        case 'section_80c':
+            $response['section_80c'] = calc_80c_dashboard($db, $userId, $portfolioId);
+            break;
+
+        case 'full_dashboard':
+        default:
+            $deductions = $autoDeductions;
+            $response['auto_deductions']  = $deductions;
+            $response['regime_compare']   = compare_tax_regimes($income, $deductions);
+            $response['advance_tax']      = calc_advance_tax($db, $userId, $portfolioId, $income);
+            $response['rebate_87a']       = check_87a_rebate($income, $deductions);
+            $response['section_80c']      = calc_80c_dashboard($db, $userId, $portfolioId);
+            break;
+    }
+
+    ob_clean();
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+
+} catch (Throwable $e) {
+    ob_clean(); http_response_code(500);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
 
-/* ─── Helper: current FY ────────────────────────────────────────────────── */
-function current_fy(): string {
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-PULL DEDUCTIONS FROM WEALTHDASH DATA
+// ═══════════════════════════════════════════════════════════════════════════
+function pull_auto_deductions(PDO $db, int $userId, int $portfolioId): array
+{
+    $fy     = fy_start();
+    $deductions = [
+        'elss_sip'       => 0,
+        'elss_lumpsum'   => 0,
+        'nps_80ccd1'     => 0,
+        'nps_80ccd1b'    => 0,
+        'epf'            => 0,
+        'lic_premium'    => 0,
+        'fd_interest'    => 0,
+        'mf_ltcg'        => 0,
+        'mf_stcg'        => 0,
+        'savings_interest' => 0,
+    ];
+
+    // ELSS SIP investments this FY
+    try {
+        $pWhere = $portfolioId > 0 ? 'AND t.portfolio_id = ?' : 'AND p.user_id = ?';
+        $pParam = $portfolioId > 0 ? $portfolioId : $userId;
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(t.value_at_cost), 0) AS total
+            FROM mf_transactions t
+            JOIN funds f ON f.id = t.fund_id
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.transaction_type IN ('buy','sip')
+              AND t.txn_date >= ?
+              AND (LOWER(f.category) LIKE '%elss%' OR LOWER(f.category) LIKE '%tax sav%')
+              $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $deductions['elss_sip'] = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+
+    // NPS contributions this FY (from nps_transactions if exists)
+    try {
+        $pWhere = $portfolioId > 0 ? 'AND p.id = ?' : 'AND p.user_id = ?';
+        $pParam = $portfolioId > 0 ? $portfolioId : $userId;
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(t.amount), 0) AS total
+            FROM nps_transactions t
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.txn_date >= ? $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $npsTotal = (float)$stmt->fetchColumn();
+        $deductions['nps_80ccd1']  = min($npsTotal, 150000); // part of 80C limit
+        $deductions['nps_80ccd1b'] = min(max(0, $npsTotal - 150000), 50000); // additional
+    } catch (Exception $e) {}
+
+    // FD interest earned this FY
+    try {
+        $pWhere = $portfolioId > 0 ? 'AND fa.portfolio_id = ?' : 'AND p.user_id = ?';
+        $pParam = $portfolioId > 0 ? $portfolioId : $userId;
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(
+                ROUND(fa.principal * (fa.interest_rate/100) *
+                DATEDIFF(LEAST(fa.maturity_date, CURDATE()), GREATEST(fa.start_date, ?)) / 365, 2)
+            ), 0) AS total
+            FROM fd_accounts fa
+            JOIN portfolios p ON p.id = fa.portfolio_id
+            WHERE fa.status = 'active' $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $deductions['fd_interest'] = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+
+    // EPF from epf_accounts
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(employee_contribution), 0) AS total
+            FROM epf_accounts WHERE user_id = ?
+        ");
+        $stmt->execute([$userId]);
+        $deductions['epf'] = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+
+    return $deductions;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// tv001 — OLD vs NEW REGIME COMPARATOR
+// ═══════════════════════════════════════════════════════════════════════════
+function compare_tax_regimes(float $income, array $deductions): array
+{
+    if ($income <= 0) {
+        return ['message' => 'Please provide your annual income (?income=XXXXXX)', 'income' => 0];
+    }
+
+    // ── OLD REGIME ────────────────────────────────────────────────────────
+    $deductible80C  = min(
+        ($deductions['elss_sip'] ?? 0) + ($deductions['elss_lumpsum'] ?? 0) +
+        ($deductions['epf']      ?? 0) + ($deductions['lic_premium']   ?? 0) +
+        ($deductions['nps_80ccd1'] ?? 0),
+        150000
+    );
+    $deductible80CCD1B = min($deductions['nps_80ccd1b'] ?? 0, 50000);
+    $deductible80D     = (float)($deductions['health_insurance'] ?? 25000); // default
+    $deductible24b     = (float)($deductions['home_loan_interest'] ?? 0);
+    $deductible80TTA   = min((float)($deductions['savings_interest'] ?? 0), 10000);
+    $stdDeductionOld   = 50000; // salaried
+
+    $totalDeductionOld = $stdDeductionOld + $deductible80C + $deductible80CCD1B +
+                         $deductible80D + $deductible24b + $deductible80TTA;
+    $taxableOld = max(0, $income - $totalDeductionOld);
+    $taxOld     = calc_old_regime_tax($taxableOld);
+
+    // ── NEW REGIME ────────────────────────────────────────────────────────
+    $stdDeductionNew = 75000; // FY 2024-25 onwards
+    $taxableNew  = max(0, $income - $stdDeductionNew);
+    $taxNew      = calc_new_regime_tax($taxableNew);
+
+    // ── 87A REBATE ────────────────────────────────────────────────────────
+    if ($taxableOld <= 500000) $taxOld = 0;  // old: ₹5L limit
+    if ($taxableNew <= 700000) $taxNew = 0;  // new: ₹7L limit (Budget 2023)
+
+    // ── CESS (4%) ──────────────────────────────────────────────────────────
+    $taxOldFinal = round($taxOld * 1.04, 0);
+    $taxNewFinal = round($taxNew * 1.04, 0);
+
+    $winner = $taxOldFinal <= $taxNewFinal ? 'old' : 'new';
+    $saving = abs($taxOldFinal - $taxNewFinal);
+
+    // Break-even deductions
+    $breakEvenDeductions = calc_breakeven($income);
+
+    return [
+        'income'          => $income,
+        'old_regime' => [
+            'total_deductions' => round($totalDeductionOld, 0),
+            'taxable_income'   => round($taxableOld, 0),
+            'tax_before_cess'  => round($taxOld, 0),
+            'total_tax'        => $taxOldFinal,
+            'effective_rate'   => $income > 0 ? round($taxOldFinal / $income * 100, 2) : 0,
+            'breakdown' => [
+                'std_deduction'  => $stdDeductionOld,
+                '80c'            => round($deductible80C, 0),
+                '80ccd1b_nps'    => round($deductible80CCD1B, 0),
+                '80d_health'     => round($deductible80D, 0),
+                '24b_home_loan'  => round($deductible24b, 0),
+                '80tta'          => round($deductible80TTA, 0),
+            ],
+        ],
+        'new_regime' => [
+            'total_deductions' => $stdDeductionNew,
+            'taxable_income'   => round($taxableNew, 0),
+            'tax_before_cess'  => round($taxNew, 0),
+            'total_tax'        => $taxNewFinal,
+            'effective_rate'   => $income > 0 ? round($taxNewFinal / $income * 100, 2) : 0,
+            'note'             => 'Most deductions (80C, HRA, 80D) not available. Only standard deduction ₹75,000 allowed.',
+        ],
+        'winner'           => $winner,
+        'savings'          => round($saving, 0),
+        'recommendation'   => winner_text($winner, $saving, $taxOldFinal, $taxNewFinal),
+        'break_even'       => $breakEvenDeductions,
+        'slabs_old'        => old_regime_slabs(),
+        'slabs_new'        => new_regime_slabs(),
+    ];
+}
+
+function calc_old_regime_tax(float $income): float
+{
+    if ($income <= 250000) return 0;
+    if ($income <= 500000) return ($income - 250000) * 0.05;
+    if ($income <= 1000000) return 12500 + ($income - 500000) * 0.20;
+    return 112500 + ($income - 1000000) * 0.30;
+}
+
+function calc_new_regime_tax(float $income): float
+{
+    // FY 2024-25 new regime slabs
+    if ($income <= 300000)  return 0;
+    if ($income <= 700000)  return ($income - 300000) * 0.05;
+    if ($income <= 1000000) return 20000 + ($income - 700000) * 0.10;
+    if ($income <= 1200000) return 50000 + ($income - 1000000) * 0.15;
+    if ($income <= 1500000) return 80000 + ($income - 1200000) * 0.20;
+    return 140000 + ($income - 1500000) * 0.30;
+}
+
+function winner_text(string $winner, float $saving, float $oldTax, float $newTax): string
+{
+    $savStr = '₹' . number_format((int)$saving, 0);
+    if ($saving < 1000) return 'Both regimes are almost equal for your income profile. New regime is simpler.';
+    return $winner === 'old'
+        ? "Old regime saves you $savStr (₹{$oldTax} vs ₹{$newTax}). Claim all deductions carefully."
+        : "New regime saves you $savStr (₹{$newTax} vs ₹{$oldTax}). Simpler filing, no deduction tracking needed.";
+}
+
+function calc_breakeven(float $income): array
+{
+    // At what total deductions does old regime = new regime?
+    $stdNew    = 75000;
+    $taxableNew= max(0, $income - $stdNew);
+    $taxNew    = calc_new_regime_tax($taxableNew) * 1.04;
+
+    // Binary search for breakeven deductions
+    $lo = 75000; $hi = 500000;
+    for ($i = 0; $i < 30; $i++) {
+        $mid = ($lo + $hi) / 2;
+        $taxable = max(0, $income - $mid);
+        $tax = calc_old_regime_tax($taxable) * 1.04;
+        if ($tax > $taxNew) $lo = $mid;
+        else $hi = $mid;
+    }
+    $be = round(($lo + $hi) / 2, 0);
+    return [
+        'amount' => $be,
+        'message' => "If your total old-regime deductions exceed ₹" . number_format((int)$be, 0) . ", old regime is better.",
+    ];
+}
+
+function old_regime_slabs(): array {
+    return [
+        ['range' => 'Up to ₹2.5L',     'rate' => '0%'],
+        ['range' => '₹2.5L – ₹5L',     'rate' => '5%'],
+        ['range' => '₹5L – ₹10L',      'rate' => '20%'],
+        ['range' => 'Above ₹10L',       'rate' => '30%'],
+    ];
+}
+function new_regime_slabs(): array {
+    return [
+        ['range' => 'Up to ₹3L',        'rate' => '0%'],
+        ['range' => '₹3L – ₹7L',        'rate' => '5%'],
+        ['range' => '₹7L – ₹10L',       'rate' => '10%'],
+        ['range' => '₹10L – ₹12L',      'rate' => '15%'],
+        ['range' => '₹12L – ₹15L',      'rate' => '20%'],
+        ['range' => 'Above ₹15L',        'rate' => '30%'],
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// tv002 — ADVANCE TAX CALCULATOR
+// ═══════════════════════════════════════════════════════════════════════════
+function calc_advance_tax(PDO $db, int $userId, int $portfolioId, float $income): array
+{
+    $fy   = fy_start();
+    $year = (int)substr($fy, 0, 4);
+
+    // Estimate income from WealthDash sources
+    $sources = [];
+
+    // MF Capital Gains
+    $pWhere = $portfolioId > 0 ? 'AND t.portfolio_id = ?' : 'AND p.user_id = ?';
+    $pParam = $portfolioId > 0 ? $portfolioId : $userId;
+    try {
+        $stmt = $db->prepare("
+            SELECT
+                SUM(CASE WHEN t.gain_type='LTCG' AND t.gain_loss_amount > 0 THEN t.gain_loss_amount ELSE 0 END) AS ltcg,
+                SUM(CASE WHEN t.gain_type='STCG' AND t.gain_loss_amount > 0 THEN t.gain_loss_amount ELSE 0 END) AS stcg
+            FROM mf_transactions t JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.transaction_type IN ('sell','redeem') AND t.txn_date >= ? $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $gains = $stmt->fetch();
+        if ($gains['ltcg'] || $gains['stcg']) {
+            $sources['mf_ltcg'] = (float)($gains['ltcg'] ?? 0);
+            $sources['mf_stcg'] = (float)($gains['stcg'] ?? 0);
+        }
+    } catch (Exception $e) {}
+
+    // FD Interest
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(
+                fa.principal * (fa.interest_rate/100) *
+                DATEDIFF(LEAST(fa.maturity_date, CURDATE()), GREATEST(fa.start_date, ?)) / 365
+            ), 0) AS interest
+            FROM fd_accounts fa JOIN portfolios p ON p.id = fa.portfolio_id
+            WHERE fa.status = 'active' $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $fdInt = (float)$stmt->fetchColumn();
+        if ($fdInt > 0) $sources['fd_interest'] = $fdInt;
+    } catch (Exception $e) {}
+
+    $salary        = max(0, $income);
+    $ltcg          = $sources['mf_ltcg'] ?? 0;
+    $stcg          = $sources['mf_stcg'] ?? 0;
+    $fdInterest    = $sources['fd_interest'] ?? 0;
+    $otherIncome   = $fdInterest;
+
+    // Tax estimate
+    $taxableSalary = max(0, $salary - 75000); // new regime std deduction
+    $taxOnSalary   = calc_new_regime_tax($taxableSalary) * 1.04;
+    $ltcgExempt    = max(0, $ltcg - 125000);
+    $taxOnLtcg     = $ltcgExempt * 0.125 * 1.04;
+    $taxOnStcg     = $stcg * 0.20 * 1.04;
+    $taxOnFd       = $fdInterest * 0.30 * 1.04; // assume 30% slab
+
+    $totalTax = round($taxOnSalary + $taxOnLtcg + $taxOnStcg + $taxOnFd, 0);
+    $tdsEstimate = round($salary * 0.10, 0); // rough TDS on salary
+
+    $netTaxPayable = max(0, $totalTax - $tdsEstimate);
+
+    // 4 installments: 15 Jun / 15 Sep / 15 Dec / 15 Mar
+    $installments = [
+        ['due_date' => "{$year}-06-15",     'pct' => 15, 'cumulative_pct' => 15,  'label' => 'Q1 (Jun 15)'],
+        ['due_date' => "{$year}-09-15",     'pct' => 30, 'cumulative_pct' => 45,  'label' => 'Q2 (Sep 15)'],
+        ['due_date' => "{$year}-12-15",     'pct' => 30, 'cumulative_pct' => 75,  'label' => 'Q3 (Dec 15)'],
+        ['due_date' => ($year+1) . '-03-15','pct' => 25, 'cumulative_pct' => 100, 'label' => 'Q4 (Mar 15)'],
+    ];
+
+    $today = new DateTime();
+    foreach ($installments as &$inst) {
+        $due = new DateTime($inst['due_date']);
+        $inst['amount']     = round($netTaxPayable * $inst['pct'] / 100, 0);
+        $inst['cumulative'] = round($netTaxPayable * $inst['cumulative_pct'] / 100, 0);
+        $inst['days_left']  = (int)$today->diff($due)->days * ($due > $today ? 1 : -1);
+        $inst['is_past']    = $due < $today;
+        $inst['is_next']    = !$inst['is_past'] && empty($nextSet);
+        if ($inst['is_next']) $nextSet = true;
+    }
+
+    // 234B/234C interest (rough)
+    $interest234C = $netTaxPayable > 10000 ? round($netTaxPayable * 0.01 * 3, 0) : 0;
+
+    return [
+        'fy'                 => current_fy(),
+        'income_sources'     => $sources,
+        'salary_income'      => $salary,
+        'total_tax_estimate' => $totalTax,
+        'tds_estimate'       => $tdsEstimate,
+        'net_tax_payable'    => $netTaxPayable,
+        'advance_tax_required' => $netTaxPayable > 10000,
+        'threshold_note'     => 'Advance tax required only if total tax liability > ₹10,000',
+        'installments'       => $installments,
+        'penalty_234c'       => $interest234C,
+        'note'               => 'These are estimates based on your WealthDash data. Consult your CA for exact figures.',
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// tv003 — SECTION 87A REBATE TRACKER
+// ═══════════════════════════════════════════════════════════════════════════
+function check_87a_rebate(float $income, array $deductions): array
+{
+    if ($income <= 0) {
+        return ['message' => 'Provide income via ?income=XXXXXX'];
+    }
+
+    // New regime: taxable income ≤ ₹7L → zero tax
+    $taxableNew = max(0, $income - 75000);
+    $qualifiesNew = $taxableNew <= 700000;
+    $taxNew = $qualifiesNew ? 0 : calc_new_regime_tax($taxableNew) * 1.04;
+
+    // Old regime: taxable income ≤ ₹5L → zero tax
+    $stdOld = 50000;
+    $elss = min(($deductions['elss_sip'] ?? 0) + ($deductions['elss_lumpsum'] ?? 0) + ($deductions['epf'] ?? 0), 150000);
+    $taxableOld = max(0, $income - $stdOld - $elss);
+    $qualifiesOld = $taxableOld <= 500000;
+    $taxOld = $qualifiesOld ? 0 : calc_old_regime_tax($taxableOld) * 1.04;
+
+    // Borderline advisory
+    $gapNew = max(0, $taxableNew - 700000);
+    $gapOld = max(0, $taxableOld - 500000);
+
+    $advisory = null;
+    if (!$qualifiesNew && $gapNew <= 50000) {
+        $advisory = "You are ₹" . number_format((int)$gapNew, 0) . " above the ₹7L new-regime rebate limit. " .
+                    "Consider ₹" . number_format((int)$gapNew, 0) . " more in NPS 80CCD(1B) to reduce taxable income below ₹7L → Zero tax!";
+    } elseif (!$qualifiesOld && $gapOld <= 50000) {
+        $advisory = "You are ₹" . number_format((int)$gapOld, 0) . " above the ₹5L old-regime rebate limit. " .
+                    "Invest ₹" . number_format((int)$gapOld, 0) . " more in ELSS/PPF/NPS to qualify for zero-tax status.";
+    }
+
+    // LTCG warning: Section 87A rebate does NOT cover special rate tax (STCG/LTCG)
+    return [
+        'income'               => $income,
+        'new_regime' => [
+            'taxable_income'    => round($taxableNew, 0),
+            'qualifies_rebate'  => $qualifiesNew,
+            'rebate_amount'     => $qualifiesNew ? 25000 : 0,
+            'tax_after_rebate'  => round($taxNew, 0),
+            'limit'             => 700000,
+            'gap_to_qualify'    => $qualifiesNew ? 0 : round($gapNew, 0),
+            'status_badge'      => $qualifiesNew ? '🟢 Zero Tax — 87A Rebate Applied' : '🔴 Does Not Qualify',
+        ],
+        'old_regime' => [
+            'taxable_income'    => round($taxableOld, 0),
+            'qualifies_rebate'  => $qualifiesOld,
+            'rebate_amount'     => $qualifiesOld ? 12500 : 0,
+            'tax_after_rebate'  => round($taxOld, 0),
+            'limit'             => 500000,
+            'gap_to_qualify'    => $qualifiesOld ? 0 : round($gapOld, 0),
+            'status_badge'      => $qualifiesOld ? '🟢 Zero Tax — 87A Rebate Applied' : '🔴 Does Not Qualify',
+        ],
+        'advisory'             => $advisory,
+        'ltcg_warning'         => 'Section 87A rebate does NOT apply to LTCG (Section 112A) or STCG (Section 111A). Special rate tax is payable even if total income < ₹7L.',
+        'note'                 => 'FY 2024-25: New regime 87A = ₹25,000 (income ≤ ₹7L). Old regime 87A = ₹12,500 (income ≤ ₹5L).',
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// tv005 — 80C DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function calc_80c_dashboard(PDO $db, int $userId, int $portfolioId): array
+{
+    $fy     = fy_start();
+    $limit  = 150000;
+    $fyEnd  = fy_end();
+
+    $pWhere = $portfolioId > 0 ? 'AND p.id = ?' : 'AND p.user_id = ?';
+    $pParam = $portfolioId > 0 ? $portfolioId : $userId;
+
+    $components = [];
+
+    // ELSS SIPs this FY
+    $elss = 0;
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(t.value_at_cost), 0) AS total
+            FROM mf_transactions t JOIN funds f ON f.id = t.fund_id
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.transaction_type IN ('buy','sip') AND t.txn_date >= ?
+              AND (LOWER(f.category) LIKE '%elss%' OR LOWER(f.category) LIKE '%tax sav%')
+              $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $elss = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+    if ($elss > 0) $components[] = ['name' => 'ELSS / Tax Saver MF', 'amount' => round($elss, 0), 'source' => 'auto', 'section' => '80C'];
+
+    // EPF Employee Contribution
+    $epf = 0;
+    try {
+        $stmt = $db->prepare("SELECT COALESCE(SUM(employee_contribution), 0) FROM epf_accounts WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $epf = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+    if ($epf > 0) $components[] = ['name' => 'EPF (Employee Contribution)', 'amount' => round($epf, 0), 'source' => 'auto', 'section' => '80C'];
+
+    // NPS 80CCD(1) — part of 80C
+    $nps80c = 0;
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(amount), 0) FROM nps_transactions t
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.txn_date >= ? $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $npsTotal = (float)$stmt->fetchColumn();
+        $nps80c   = min($npsTotal, 150000);
+    } catch (Exception $e) {}
+    if ($nps80c > 0) $components[] = ['name' => 'NPS [80CCD(1)]', 'amount' => round($nps80c, 0), 'source' => 'auto', 'section' => '80C'];
+
+    // Insurance premiums (from insurance table)
+    $lic = 0;
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(annual_premium), 0) FROM insurance_policies ip
+            JOIN portfolios p ON p.id = ip.portfolio_id
+            WHERE ip.policy_type IN ('life','term','ulip') $pWhere
+        ");
+        $stmt->execute([$pParam]);
+        $lic = (float)$stmt->fetchColumn();
+    } catch (Exception $e) {}
+    if ($lic > 0) $components[] = ['name' => 'LIC / Life Insurance Premium', 'amount' => round($lic, 0), 'source' => 'auto', 'section' => '80C'];
+
+    $total80C = min(array_sum(array_column($components, 'amount')), $limit);
+    $remaining = max(0, $limit - $total80C);
+    $pctUsed   = round($total80C / $limit * 100, 1);
+
+    // Days left in FY
+    $fyEndDt   = new DateTime($fyEnd);
+    $today     = new DateTime();
+    $daysLeft  = max(0, (int)$today->diff($fyEndDt)->days);
+
+    // NPS 80CCD(1B) — additional ₹50K over 80C
+    $nps1b = min(max(0, ($npsTotal ?? 0) - 150000), 50000);
+    $nps1b_components = $nps1b > 0 ? [['name' => 'NPS [80CCD(1B)] — Additional', 'amount' => round($nps1b, 0), 'section' => '80CCD(1B)', 'limit' => 50000]] : [];
+
+    return [
+        'limit'           => $limit,
+        'total_invested'  => round($total80C, 0),
+        'remaining'       => round($remaining, 0),
+        'pct_used'        => $pctUsed,
+        'components'      => $components,
+        'nps_80ccd1b'     => $nps1b_components,
+        'fy'              => current_fy(),
+        'fy_end'          => $fyEnd,
+        'days_left'       => $daysLeft,
+        'status'          => $pctUsed >= 100 ? 'maxed' : ($pctUsed >= 75 ? 'good' : ($pctUsed >= 50 ? 'partial' : 'low')),
+        'status_badge'    => match (true) {
+            $pctUsed >= 100 => '✅ 80C Maxed Out — Great!',
+            $pctUsed >= 75  => '🟡 75%+ done — Add ₹' . number_format((int)$remaining, 0) . ' more',
+            $remaining > 0  => '🔴 ₹' . number_format((int)$remaining, 0) . ' remaining — invest by Mar 31',
+            default         => '⚪ No 80C investments tracked',
+        },
+        'tax_saved_at_30pct' => round($total80C * 0.30, 0),
+        'alert'           => $remaining > 0 && $daysLeft <= 30
+            ? "⚠️ Only {$daysLeft} days left! Invest ₹" . number_format((int)$remaining, 0) . " in ELSS/NPS/PPF to save ₹" . number_format((int)round($remaining * 0.30), 0) . " in tax."
+            : null,
+        'suggestions'     => $remaining > 0 ? [
+            ['name' => 'ELSS MF (lock-in 3yr)', 'benefit' => 'Shortest lock-in among 80C options + market returns'],
+            ['name' => 'PPF (15yr)', 'benefit' => 'Safest option, tax-free maturity, government-backed'],
+            ['name' => 'NPS [80CCD(1B)]', 'benefit' => 'Additional ₹50K deduction OVER 80C limit'],
+        ] : [],
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+function current_fy(): string
+{
     $m = (int)date('n');
     $y = (int)date('Y');
-    return $m >= 4 ? "{$y}-" . substr((string)($y+1),-2) : ($y-1) . '-' . substr((string)$y,-2);
+    $fy = $m >= 4 ? $y : $y - 1;
+    return "FY {$fy}-" . ($fy + 1);
 }
-
-$fy = $targetFy ?: current_fy();
-
-/* ─── 1. How much LTCG already realised this FY? ─────────────────────────── */
-// Get FY date range
-[$fyStartY, $fyEndY2] = explode('-', $fy);
-$fyStart = $fyStartY . '-04-01';
-$fyEnd   = ('20' . $fyEndY2) . '-03-31';
-
-// MF LTCG already realised
-$mfLtcgRealised = 0.0;
-$mfSells = DB::fetchAll(
-    "SELECT t.txn_date, t.units AS sell_units, t.nav AS sell_nav,
-            t.fund_id, t.folio_number, f.category
-     FROM mf_transactions t
-     JOIN funds f ON f.id = t.fund_id
-     WHERE t.portfolio_id = ?
-       AND t.transaction_type IN ('SELL','SWITCH_OUT','SWP')
-       AND t.txn_date BETWEEN ? AND ?",
-    [$portfolioId, $fyStart, $fyEnd]
-);
-
-foreach ($mfSells as $sell) {
-    $buys = DB::fetchAll(
-        "SELECT txn_date, units, nav FROM mf_transactions
-         WHERE portfolio_id = ? AND fund_id = ?
-           AND (folio_number = ? OR folio_number IS NULL)
-           AND transaction_type IN ('BUY','SWITCH_IN','STP_IN','DIV_REINVEST')
-           AND txn_date <= ?
-         ORDER BY txn_date ASC",
-        [$portfolioId, $sell['fund_id'], $sell['folio_number'], $sell['txn_date']]
-    );
-    $remain = (float)$sell['sell_units'];
-    $cost = 0.0;
-    foreach ($buys as $b) {
-        if ($remain <= 0) break;
-        $used = min((float)$b['units'], $remain);
-        $cost += $used * (float)$b['nav'];
-        $remain -= $used;
-    }
-    $gain = ((float)$sell['sell_units'] * (float)$sell['sell_nav']) - $cost;
-    if ($gain <= 0) continue;
-    $firstBuy = $buys[0]['txn_date'] ?? $sell['txn_date'];
-    $days = (int)(new DateTime($sell['txn_date']))->diff(new DateTime($firstBuy))->days;
-    $cat = strtolower($sell['category'] ?? '');
-    $assetType = (strpos($cat,'debt') !== false) ? 'debt' : 'equity';
-    $ltcgDays = ($assetType === 'debt') ? DEBT_LTCG_DAYS : EQUITY_LTCG_DAYS;
-    if ($days >= $ltcgDays) $mfLtcgRealised += $gain;
+function fy_start(): string
+{
+    $m = (int)date('n'); $y = (int)date('Y');
+    return ($m >= 4 ? $y : $y - 1) . '-04-01';
 }
-
-// Stock LTCG already realised
-$stockLtcgRealised = 0.0;
-$stSells = DB::fetchAll(
-    "SELECT t.txn_date, t.quantity AS sell_qty, t.price AS sell_price,
-            t.brokerage, t.stt, t.exchange_charges, t.stock_id
-     FROM stock_transactions t
-     WHERE t.portfolio_id = ? AND t.txn_type = 'SELL'
-       AND t.txn_date BETWEEN ? AND ?",
-    [$portfolioId, $fyStart, $fyEnd]
-);
-foreach ($stSells as $sell) {
-    $buys = DB::fetchAll(
-        "SELECT txn_date, quantity, price FROM stock_transactions
-         WHERE portfolio_id = ? AND stock_id = ?
-           AND txn_type IN ('BUY','BONUS','SPLIT') AND txn_date <= ?
-         ORDER BY txn_date ASC",
-        [$portfolioId, $sell['stock_id'], $sell['txn_date']]
-    );
-    $remain = (float)$sell['sell_qty'];
-    $cost = 0.0;
-    foreach ($buys as $b) {
-        if ($remain <= 0) break;
-        $used = min((float)$b['quantity'], $remain);
-        $cost += $used * (float)$b['price'];
-        $remain -= $used;
-    }
-    $charges = (float)$sell['brokerage'] + (float)$sell['stt'] + (float)$sell['exchange_charges'];
-    $gain = ((float)$sell['sell_qty'] * (float)$sell['sell_price']) - $cost - $charges;
-    if ($gain <= 0) continue;
-    $firstBuy = $buys[0]['txn_date'] ?? $sell['txn_date'];
-    $days = (int)(new DateTime($sell['txn_date']))->diff(new DateTime($firstBuy))->days;
-    if ($days >= EQUITY_LTCG_DAYS) $stockLtcgRealised += $gain;
+function fy_end(): string
+{
+    $m = (int)date('n'); $y = (int)date('Y');
+    return ($m >= 4 ? $y + 1 : $y) . '-03-31';
 }
-
-$totalLtcgRealised = $mfLtcgRealised + $stockLtcgRealised;
-$exemptionRemaining = max(0.0, LTCG_EXEMPTION_LIMIT - $totalLtcgRealised);
-$exemptionUsed = min($totalLtcgRealised, LTCG_EXEMPTION_LIMIT);
-
-/* ─── 2. Current holdings eligible for LTCG harvest ─────────────────────── */
-$today = date('Y-m-d');
-
-// MF holdings eligible for LTCG
-$mfHoldings = DB::fetchAll(
-    "SELECT h.id, h.fund_id, h.folio_number, h.total_units, h.avg_cost_nav,
-            h.total_invested, h.value_now, h.gain_loss, h.first_purchase_date,
-            h.ltcg_date, h.gain_type, h.cagr,
-            f.scheme_name, f.category, f.sub_category, f.latest_nav,
-            fh.name AS fund_house
-     FROM mf_holdings h
-     JOIN funds f ON f.id = h.fund_id
-     JOIN fund_houses fh ON fh.id = f.fund_house_id
-     WHERE h.portfolio_id = ? AND h.is_active = 1 AND h.gain_loss > 0
-     ORDER BY h.gain_loss DESC",
-    [$portfolioId]
-);
-
-$harvestSuggestions = [];
-foreach ($mfHoldings as $h) {
-    if (!$h['ltcg_date']) continue;
-    if ($h['ltcg_date'] > $today) continue; // not yet LTCG eligible
-    $ltcgGain = (float)$h['gain_loss'];
-    if ($ltcgGain <= 0) continue;
-
-    // How many units to sell to use remaining exemption?
-    $gainPerUnit = (float)$h['latest_nav'] - (float)$h['avg_cost_nav'];
-    if ($gainPerUnit <= 0) continue;
-    $unitsToSell  = $exemptionRemaining > 0 ? min((float)$h['total_units'], $exemptionRemaining / $gainPerUnit) : 0;
-    $gainIfSell   = round($unitsToSell * $gainPerUnit, 2);
-    $valueIfSell  = round($unitsToSell * (float)$h['latest_nav'], 2);
-
-    $harvestSuggestions[] = [
-        'type'            => 'MF',
-        'name'            => $h['scheme_name'],
-        'fund_house'      => $h['fund_house'],
-        'category'        => $h['category'],
-        'folio'           => $h['folio_number'],
-        'total_units'     => round((float)$h['total_units'], 4),
-        'avg_cost_nav'    => round((float)$h['avg_cost_nav'], 4),
-        'latest_nav'      => round((float)$h['latest_nav'], 4),
-        'total_gain'      => round($ltcgGain, 2),
-        'ltcg_date'       => format_date($h['ltcg_date']),
-        'days_since_ltcg' => (int)(new DateTime($today))->diff(new DateTime($h['ltcg_date']))->days,
-        'units_to_sell'   => round($unitsToSell, 4),
-        'gain_if_sell'    => $gainIfSell,
-        'value_if_sell'   => $valueIfSell,
-        'cagr'            => round((float)$h['cagr'], 2),
-        'priority'        => $ltcgGain >= $exemptionRemaining ? 'partial' : 'full',
-    ];
-}
-
-// Stock holdings eligible for LTCG
-$stockHoldings = DB::fetchAll(
-    "SELECT h.id, h.stock_id, h.quantity, h.avg_buy_price, h.total_invested,
-            h.current_value, h.gain_loss, h.first_buy_date, h.ltcg_date, h.cagr,
-            sm.symbol, sm.company_name, sm.exchange, sm.latest_price
-     FROM stock_holdings h
-     JOIN stock_master sm ON sm.id = h.stock_id
-     WHERE h.portfolio_id = ? AND h.is_active = 1 AND h.gain_loss > 0
-     ORDER BY h.gain_loss DESC",
-    [$portfolioId]
-);
-
-foreach ($stockHoldings as $h) {
-    if (!$h['ltcg_date']) continue;
-    if ($h['ltcg_date'] > $today) continue;
-    $ltcgGain = (float)$h['gain_loss'];
-    if ($ltcgGain <= 0) continue;
-
-    $gainPerShare = (float)$h['latest_price'] - (float)$h['avg_buy_price'];
-    if ($gainPerShare <= 0) continue;
-    $sharesToSell = $exemptionRemaining > 0 ? min((float)$h['quantity'], $exemptionRemaining / $gainPerShare) : 0;
-    $sharesToSell = floor($sharesToSell); // whole shares only
-    $gainIfSell   = round($sharesToSell * $gainPerShare, 2);
-    $valueIfSell  = round($sharesToSell * (float)$h['latest_price'], 2);
-
-    $harvestSuggestions[] = [
-        'type'            => 'Stock',
-        'name'            => $h['company_name'],
-        'symbol'          => $h['symbol'],
-        'exchange'        => $h['exchange'],
-        'quantity'        => (float)$h['quantity'],
-        'avg_buy_price'   => round((float)$h['avg_buy_price'], 2),
-        'latest_price'    => round((float)$h['latest_price'], 2),
-        'total_gain'      => round($ltcgGain, 2),
-        'ltcg_date'       => format_date($h['ltcg_date']),
-        'days_since_ltcg' => (int)(new DateTime($today))->diff(new DateTime($h['ltcg_date']))->days,
-        'units_to_sell'   => $sharesToSell,
-        'gain_if_sell'    => $gainIfSell,
-        'value_if_sell'   => $valueIfSell,
-        'cagr'            => round((float)$h['cagr'], 2),
-        'priority'        => $ltcgGain >= $exemptionRemaining ? 'partial' : 'full',
-    ];
-}
-
-// Sort by gain descending (best harvest candidates first)
-usort($harvestSuggestions, fn($a,$b) => $b['total_gain'] <=> $a['total_gain']);
-
-/* ─── 3. STCG summary ────────────────────────────────────────────────────── */
-$stcgHoldings = [];
-foreach ($mfHoldings as $h) {
-    if ($h['gain_type'] !== 'STCG' && $h['ltcg_date'] > $today) {
-        // Holdings not yet LTCG eligible — warn about STCG tax if sold now
-        $daysToLtcg = $h['ltcg_date'] ? (int)(new DateTime($h['ltcg_date']))->diff(new DateTime($today))->days : null;
-        if ($daysToLtcg && $daysToLtcg <= 90) {
-            $stcgHoldings[] = [
-                'type'         => 'MF',
-                'name'         => $h['scheme_name'],
-                'category'     => $h['category'],
-                'gain'         => round((float)$h['gain_loss'], 2),
-                'ltcg_date'    => format_date($h['ltcg_date']),
-                'days_to_ltcg' => $daysToLtcg,
-                'message'      => "Wait {$daysToLtcg} more days to qualify for LTCG (save approx ₹" . number_format((float)$h['gain_loss'] * 0.05, 0) . " in tax)",
-            ];
-        }
-    }
-}
-
-/* ─── 4. FD TDS summary for FY ───────────────────────────────────────────── */
-$fdTds = DB::fetchAll(
-    "SELECT SUM(interest_amount) AS total_interest, SUM(tds_amount) AS total_tds
-     FROM fd_interest_accruals
-     WHERE portfolio_id = ? AND accrual_fy = ?",
-    [$portfolioId, $fy]
-);
-$fdInterest = round((float)($fdTds[0]['total_interest'] ?? 0), 2);
-$fdTdsAmt   = round((float)($fdTds[0]['total_tds'] ?? 0), 2);
-
-/* ─── 5. Savings 80TTA ───────────────────────────────────────────────────── */
-$savings80tta = DB::fetchVal(
-    "SELECT COALESCE(SUM(interest_amount),0) FROM savings_interest_log
-     WHERE portfolio_id = ? AND interest_fy = ?",
-    [$portfolioId, $fy]
-);
-$savingsInterest = round((float)$savings80tta, 2);
-$tta80Exemption  = min($savingsInterest, SAVINGS_80TTA_LIMIT);
-
-/* ─── 80C Dashboard (t82) ────────────────────────────────────────────────── */
-const LIMIT_80C     = 150000;
-const LIMIT_80CCD1B = 50000;  // NPS extra
-
-// ELSS invested this FY (from mf_transactions WHERE category LIKE '%ELSS%' AND txn_type=BUY)
-$elssStmt = $db->prepare("
-    SELECT COALESCE(SUM(t.value_at_cost), 0) AS elss_invested
-    FROM mf_transactions t
-    JOIN funds f ON f.id = t.fund_id
-    WHERE t.portfolio_id = ?
-      AND t.transaction_type = 'BUY'
-      AND t.txn_date BETWEEN ? AND ?
-      AND (LOWER(f.category) LIKE '%elss%' OR LOWER(f.category) LIKE '%tax sav%')
-");
-$elssStmt->execute([$portfolioId, $fyStart, $fyEnd]);
-$elssInvested = (float)$elssStmt->fetchColumn();
-
-// NPS Tier1 SELF contribution this FY (80C eligible up to 1.5L combined, 80CCD1B extra 50K)
-$npsStmt = $db->prepare("
-    SELECT COALESCE(SUM(amount), 0) AS nps_invested
-    FROM nps_transactions
-    WHERE portfolio_id = ?
-      AND tier = 'tier1'
-      AND contribution_type = 'SELF'
-      AND txn_date BETWEEN ? AND ?
-");
-$npsStmt->execute([$portfolioId, $fyStart, $fyEnd]);
-$npsInvested = (float)$npsStmt->fetchColumn();
-
-// PPF: check post_office_investments table (if exists)
-$ppfInvested = 0;
-try {
-    $ppfStmt = $db->prepare("
-        SELECT COALESCE(SUM(amount), 0) FROM post_office_investments
-        WHERE portfolio_id = ? AND scheme_type = 'PPF'
-          AND investment_date BETWEEN ? AND ?
-    ");
-    $ppfStmt->execute([$portfolioId, $fyStart, $fyEnd]);
-    $ppfInvested = (float)$ppfStmt->fetchColumn();
-} catch (\Exception $e) { /* table may not exist */ }
-
-// Total 80C = ELSS + NPS (80C portion capped at 1.5L) + PPF
-// NPS: first 1.5L combined, anything extra goes to 80CCD1B (50K more)
-$total80C      = min(LIMIT_80C, $elssInvested + $ppfInvested + min($npsInvested, LIMIT_80C));
-$nps80ccd1b    = max(0, $npsInvested - $total80C); // extra NPS beyond 80C
-$remaining80C  = max(0, LIMIT_80C - $total80C);
-
-// Days until FY end (March 31)
-$fyEndDate     = new \DateTime($fyEnd);
-$today         = new \DateTime(date('Y-m-d'));
-$daysToFyEnd   = max(0, (int)$today->diff($fyEndDate)->days);
-
-json_response(true, 'Tax planning data loaded.', [
-    'fy'                   => $fy,
-    'ltcg_exemption_limit' => LTCG_EXEMPTION_LIMIT,
-    'ltcg_realised'        => round($totalLtcgRealised, 2),
-    'ltcg_exemption_used'  => round($exemptionUsed, 2),
-    'ltcg_exemption_remaining' => round($exemptionRemaining, 2),
-    'harvest_suggestions'  => $harvestSuggestions,
-    'wait_for_ltcg'        => $stcgHoldings,
-    'fd_interest_fy'       => $fdInterest,
-    'fd_tds_fy'            => $fdTdsAmt,
-    'savings_interest_fy'  => $savingsInterest,
-    'savings_80tta_benefit'=> round($tta80Exemption, 2),
-    'savings_80tta_limit'  => SAVINGS_80TTA_LIMIT,
-    // t82: 80C Dashboard
-    '80c_elss'             => round($elssInvested, 2),
-    '80c_nps'              => round(min($npsInvested, LIMIT_80C), 2),
-    '80c_ppf'              => round($ppfInvested, 2),
-    '80c_total'            => round($total80C, 2),
-    '80c_limit'            => LIMIT_80C,
-    '80c_remaining'        => round($remaining80C, 2),
-    '80ccd1b_nps'          => round(min($nps80ccd1b, LIMIT_80CCD1B), 2),
-    '80ccd1b_limit'        => LIMIT_80CCD1B,
-    'days_to_fy_end'       => $daysToFyEnd,
-    'fy_end_date'          => $fyEnd,
-]);
-

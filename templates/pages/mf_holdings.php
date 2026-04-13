@@ -899,7 +899,7 @@ ob_start();
   </div>
 </div>
 
-<!-- ═══ TAB: INVESTMENT CALENDAR (t75) ═══ -->
+<!-- ═══ TAB: INVESTMENT CALENDAR (t75 + t498) ═══ -->
 <div id="tabCalendarWrap" style="display:none;">
   <div class="card" style="margin-bottom:16px;">
     <div class="card-body" style="padding:12px 20px;">
@@ -908,9 +908,28 @@ ob_start();
       </p>
     </div>
   </div>
-  <div class="card">
+  <div class="card" style="margin-bottom:16px;">
     <div class="card-body" style="padding:0 16px 16px;" id="tabCalendar">
       <!-- Calendar rendered by renderCalendar() -->
+    </div>
+  </div>
+
+  <!-- t498: FY Financial Dates Panel -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div>
+        <span style="font-size:14px;font-weight:800;">🗓️ Important FY Dates — 2025-26</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Advance Tax · 80C Deadline · ITR · SIP Cut-offs · Market Holidays</span>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button onclick="fyDatesFilter('all',this)" class="fy-filter-btn fy-active" style="padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;background:#eef2ff;color:#4338ca;border-color:#c7d2fe;">All</button>
+        <button onclick="fyDatesFilter('tax',this)" class="fy-filter-btn" style="padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;background:#f8f9fc;color:#5a6882;border-color:#e2e6f0;">Tax</button>
+        <button onclick="fyDatesFilter('sip',this)" class="fy-filter-btn" style="padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;background:#f8f9fc;color:#5a6882;border-color:#e2e6f0;">SIP</button>
+        <button onclick="fyDatesFilter('holiday',this)" class="fy-filter-btn" style="padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1.5px solid;cursor:pointer;background:#f8f9fc;color:#5a6882;border-color:#e2e6f0;">Holidays</button>
+      </div>
+    </div>
+    <div class="card-body" style="padding:16px;" id="fyDatesPanel">
+      <!-- Rendered by renderFYDates() -->
     </div>
   </div>
 </div>

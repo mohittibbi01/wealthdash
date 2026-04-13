@@ -1,0 +1,11 @@
+# WealthDash — t420: Docker Compose
+# TODO: implement full stack (PHP + MySQL + phpMyAdmin)
+version: '3.8'
+services:
+  app:
+    build: .
+    ports: ['8080:80']
+    # TODO: volumes, env, depends_on
+  db:
+    image: mysql:8.0
+    # TODO: env vars, volumes
