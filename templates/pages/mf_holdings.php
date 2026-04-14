@@ -664,6 +664,19 @@ ob_start();
     </div>
   </div>
 
+  <!-- tmfi08: SIP Optimization Engine -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h3 class="card-title">⚡ SIP Optimization Engine</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Increase winners · Stop laggards · Switch regular → direct</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <div id="mfiSipOptimization">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ═══ TAB: REALIZED GAINS ═══ -->

@@ -8369,6 +8369,127 @@ function mfiExportCleanup() {
 
 
 /* ══════════════════════════════════════════════════════════════
+   tmfi08 — SIP OPTIMIZATION ENGINE
+   Smart increase/stop/switch suggestions based on XIRR & category
+══════════════════════════════════════════════════════════════ */
+function renderMfiSipOptimization(holdings) {
+  const el = document.getElementById('mfiSipOptimization');
+  if (!el) return;
+  if (!holdings || !holdings.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  // Filter only SIP holdings (sip_amount > 0 and active)
+  const sipHoldings = holdings.filter(h => parseFloat(h.sip_amount || 0) > 0);
+  if (!sipHoldings.length) {
+    el.innerHTML = `<div style="padding:14px;font-size:12px;color:var(--muted,#6b7280);text-align:center;">
+      No active SIPs found. Add SIPs from the SIP Manager page.
+    </div>`;
+    return;
+  }
+
+  // Score each SIP
+  const scored = sipHoldings.map(h => {
+    const xirr        = parseFloat(h.xirr || 0);
+    const invested    = parseFloat(h.total_invested || 0);
+    const valueNow    = parseFloat(h.value_now || 0);
+    const sipAmt      = parseFloat(h.sip_amount || 0);
+    const gainPct     = invested > 0 ? ((valueNow - invested) / invested) * 100 : 0;
+    const expense     = parseFloat(h.expense_ratio || h.ter_pct || 0);
+    const isRegular   = (h.plan_type || '').toLowerCase().includes('regular') ||
+                        (h.scheme_name || '').toLowerCase().includes(' - regular') ||
+                        (h.scheme_name || '').toLowerCase().includes('(regular)');
+    const category    = (h.category || h.fund_category || '').toLowerCase();
+    const isDebt      = category.includes('debt') || category.includes('liquid') ||
+                        category.includes('money market') || category.includes('overnight');
+
+    // Benchmark: equity 12%, debt 7%
+    const benchmark   = isDebt ? 7 : 12;
+    const xirrVsBench = xirr - benchmark;
+
+    let action = 'hold', reason = '', priority = 2, color = '#6b7280', icon = '➡️';
+
+    if (isRegular && expense > 0.8) {
+      action   = 'switch';
+      reason   = `Regular plan — expense ratio ${expense.toFixed(2)}% eats returns. Direct plan mein switch karo.`;
+      priority = 1; color = '#dc2626'; icon = '🔄';
+    } else if (xirr > 0 && xirrVsBench >= 3 && sipAmt > 0) {
+      action   = 'increase';
+      reason   = `Excellent performer — XIRR ${xirr.toFixed(1)}% (${xirrVsBench > 0 ? '+' : ''}${xirrVsBench.toFixed(1)}% vs ${benchmark}% benchmark). SIP badhao.`;
+      priority = 1; color = '#16a34a'; icon = '📈';
+    } else if (xirr < 0 && invested > 10000) {
+      action   = 'stop';
+      reason   = `Negative XIRR (${xirr.toFixed(1)}%). Category mein better funds available. Paisa waste ho raha hai.`;
+      priority = 1; color = '#dc2626'; icon = '⛔';
+    } else if (xirr > 0 && xirrVsBench >= 0) {
+      action   = 'hold';
+      reason   = `Solid performer — XIRR ${xirr.toFixed(1)}%, benchmark se ${xirrVsBench >= 0 ? '+' : ''}${xirrVsBench.toFixed(1)}%. Continue.`;
+      priority = 3; color = '#2563eb'; icon = '✅';
+    } else if (xirr > 0 && xirrVsBench < -3) {
+      action   = 'review';
+      reason   = `Underperforming — XIRR ${xirr.toFixed(1)}% vs ${benchmark}% benchmark (${xirrVsBench.toFixed(1)}%). Category mein better options check karo.`;
+      priority = 2; color = '#d97706'; icon = '⚠️';
+    } else {
+      reason = `XIRR ${xirr > 0 ? xirr.toFixed(1) + '%' : 'na calc hua'}. Monitor karo.`;
+    }
+
+    return { ...h, xirr, sipAmt, invested, valueNow, gainPct, action, reason, priority, color, icon, isRegular, expense };
+  }).sort((a, b) => a.priority - b.priority || b.xirr - a.xirr);
+
+  // Summary counts
+  const counts = { increase: 0, hold: 0, review: 0, stop: 0, switch: 0 };
+  scored.forEach(s => { if (counts[s.action] !== undefined) counts[s.action]++; });
+
+  const fmtAmt = v => _mfi_fmt(v);
+  const fmtXirr = v => v > 0 ? `+${v.toFixed(1)}%` : `${v.toFixed(1)}%`;
+
+  el.innerHTML = `
+    <!-- Summary bar -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      ${[
+        { key:'increase', label:'📈 Increase',  bg:'#f0fdf4', border:'#86efac', txt:'#15803d' },
+        { key:'hold',     label:'✅ Hold',       bg:'#eff6ff', border:'#bfdbfe', txt:'#1d4ed8' },
+        { key:'review',   label:'⚠️ Review',    bg:'#fffbeb', border:'#fcd34d', txt:'#92400e' },
+        { key:'stop',     label:'⛔ Stop',       bg:'#fff1f2', border:'#fca5a5', txt:'#b91c1c' },
+        { key:'switch',   label:'🔄 Switch',     bg:'#fdf4ff', border:'#e9d5ff', txt:'#7e22ce' },
+      ].map(b => counts[b.key] > 0 ? `
+        <div style="background:${b.bg};border:1.5px solid ${b.border};border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:${b.txt};">
+          ${b.label} <span style="font-size:14px;margin-left:4px;">${counts[b.key]}</span>
+        </div>` : '').join('')}
+    </div>
+
+    <!-- SIP rows -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${scored.map(s => `
+        <div style="background:var(--surface2,#f8fafc);border:1.5px solid var(--border,#e5e7eb);border-left:3px solid ${s.color};border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div style="font-size:18px;flex-shrink:0;margin-top:2px;">${s.icon}</div>
+          <div style="flex:1;min-width:160px;">
+            <div style="font-size:12px;font-weight:700;color:var(--text,#111827);margin-bottom:2px;">${(s.scheme_name || s.fund_name || '—').replace(' - Direct Plan','').replace('(Direct)','').trim()}</div>
+            <div style="font-size:10px;color:var(--muted,#6b7280);">${s.category || s.fund_category || ''} ${s.isRegular ? '· <span style="color:#dc2626;font-weight:600;">Regular Plan</span>' : '· Direct'}</div>
+            <div style="font-size:11px;color:${s.color};margin-top:4px;line-height:1.4;">${s.reason}</div>
+          </div>
+          <div style="display:flex;gap:14px;flex-shrink:0;text-align:right;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:10px;color:var(--muted,#6b7280);font-weight:600;">Monthly SIP</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text,#111827);">${fmtAmt(s.sipAmt)}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted,#6b7280);font-weight:600;">XIRR</div>
+              <div style="font-size:13px;font-weight:700;color:${s.xirr > 12 ? '#16a34a' : s.xirr > 0 ? '#d97706' : '#dc2626'};">${s.xirr ? fmtXirr(s.xirr) : '—'}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted,#6b7280);font-weight:600;">Gain</div>
+              <div style="font-size:13px;font-weight:700;color:${s.gainPct >= 0 ? '#16a34a' : '#dc2626'};">${s.gainPct >= 0 ? '+' : ''}${s.gainPct.toFixed(1)}%</div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div style="font-size:10px;color:var(--muted,#6b7280);margin-top:10px;padding:8px;background:var(--accent-bg,#eef2ff);border-radius:6px;">
+      💡 <strong>April Tip:</strong> Ye financial year ka pehla mahina hai — SIP review ka best time. Underperformers ko switch karo, winners ko step-up karo.
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
    HOOK ALL MFI INTO renderMfAnalytics
 ══════════════════════════════════════════════════════════════ */
 const _mfiBaseAnalytics = renderMfAnalytics;
@@ -8383,5 +8504,5 @@ function renderMfAnalytics() {
   renderMfiTaxHarvest(h);
   renderMfiWhatIf(h);
   renderMfiCleanup(h);
+  renderMfiSipOptimization(h);
 }
-

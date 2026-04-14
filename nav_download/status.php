@@ -1,556 +1,544 @@
+<?php
+define('WEALTHDASH', true);
+require_once dirname(__DIR__) . '/config/config.php';
+require_once APP_ROOT . '/includes/auth_check.php';
+if (!is_logged_in() || !is_admin()) { header('Location: /wealthdash/login.php'); exit; }
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>NAV History Downloader — WealthDash</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#f0f4f8;--card:#fff;--border:#e2e8f0;
-    --blue:#2563eb;--green:#16a34a;--red:#dc2626;
-    --yellow:#d97706;--orange:#ea580c;--purple:#7c3aed;
-    --cyan:#0891b2;--muted:#64748b;--muted2:#cbd5e1;
-    --text:#0f172a;--text2:#475569;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
-  .header{background:#fff;border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
-  .header h1{font-size:18px;font-weight:700;color:var(--cyan);display:flex;align-items:center;gap:8px}
-  .htime{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .wrap{max-width:1400px;margin:0 auto;padding:20px 16px}
+:root {
+  --bg:#f0f2f7;--white:#ffffff;--surface:#f7f8fc;
+  --border:#e4e7f0;--border2:#cdd2e0;
+  --text:#111827;--muted:#6b7280;--muted2:#9ca3af;
+  --blue:#2563eb;--blue-bg:#eff6ff;--blue-bdr:#bfdbfe;--blue-dk:#1d4ed8;
+  --green:#059669;--green-bg:#ecfdf5;--green-bdr:#a7f3d0;
+  --amber:#d97706;--amber-bg:#fffbeb;--amber-bdr:#fcd34d;
+  --red:#dc2626;--red-bg:#fef2f2;--red-bdr:#fecaca;
+  --purple:#7c3aed;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Sora',sans-serif;
+  --r:10px;--rsm:6px;--rlg:14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
 
-  /* STAT CARDS */
-  .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;border-top:3px solid}
-  .card .num{font-size:28px;font-weight:800;line-height:1;margin-bottom:4px}
-  .card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-  .card .sub{font-size:11px;color:var(--muted);margin-top:4px}
-  .c-total{border-top-color:var(--blue)}    .c-total .num{color:var(--blue)}
-  .c-done{border-top-color:var(--green)}    .c-done .num{color:var(--green)}
-  .c-work{border-top-color:var(--yellow)}   .c-work .num{color:var(--yellow)}
-  .c-pend{border-top-color:var(--muted2)}   .c-pend .num{color:var(--muted)}
-  .c-err{border-top-color:var(--red)}       .c-err .num{color:var(--red)}
+/* HEADER */
+.hdr{background:var(--white);border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.hdr-logo{width:32px;height:32px;background:linear-gradient(135deg,#2563eb,#7c3aed);border-radius:var(--rsm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.hdr-title{font-size:14px;font-weight:600;letter-spacing:-.02em;color:var(--text)}
+.hdr-sep{width:1px;height:18px;background:var(--border);margin:0 2px}
+.hdr-sub{font-size:11px;color:var(--muted);font-weight:400}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:11px;color:var(--muted)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted2);flex-shrink:0;transition:all .3s}
+.dot.run{background:var(--green);box-shadow:0 0 0 3px rgba(5,150,105,.15);animation:blink 1.5s infinite}
+.dot.err{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
 
-  /* PROGRESS */
-  .prog-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px}
-  .prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .prog-label{font-size:13px;font-weight:600;color:var(--text2)}
-  .pct-lbl{font-size:20px;font-weight:800;color:var(--cyan)}
-  .prog-track{background:#e2e8f0;border-radius:99px;height:12px;overflow:hidden}
-  .prog-bar{height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));border-radius:99px;transition:width .6s ease;min-width:2px}
-  .prog-meta{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+/* TILES */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px 16px;flex-shrink:0}
+.tile{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:14px 16px;display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
+.tile::after{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:var(--rlg) 0 0 var(--rlg)}
+.t-blue::after{background:var(--blue)}.t-amber::after{background:var(--amber)}.t-red::after{background:var(--red)}.t-green::after{background:var(--green)}
+.tile-top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.tile-icon{font-size:13px}
+.tile-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.tile-val{font-family:var(--mono);font-size:26px;font-weight:500;line-height:1;letter-spacing:-.03em}
+.t-blue .tile-val{color:var(--blue)}.t-amber .tile-val{color:var(--amber)}.t-red .tile-val{color:var(--red)}.t-green .tile-val{color:var(--green)}
+.tile-sub{font-size:11px;color:var(--muted2);margin-top:3px}
 
-  /* STATUS BREAKDOWN */
-  .section{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px}
-  .section-title{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
-  .bk-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .bk-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-  .bk-name{width:120px;font-size:12px;color:var(--text2)}
-  .bk-track{flex:1;height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden}
-  .bk-fill{height:100%;border-radius:99px;transition:width .5s}
-  .bk-val{width:60px;text-align:right;font-size:12px;font-weight:700}
+/* BODY */
+.body{flex:1;display:grid;grid-template-columns:272px 1fr;min-height:0;overflow:hidden}
 
-  /* CURRENT DOWNLOADING */
-  .live-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:16px}
-  .live-title{font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-  .live-row{font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid #dcfce7;display:flex;justify-content:space-between}
-  .live-row:last-child{border-bottom:none}
-  .live-sc{font-weight:600;color:var(--text)}
-  .pulse{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;animation:pulse 1.2s infinite}
-  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+/* SIDEBAR */
+.sidebar{background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-block{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sb-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--muted2);margin-bottom:10px}
 
-  /* TIMER */
-  .timer-row{display:flex;gap:20px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 20px;margin-bottom:16px;align-items:center}
-  .timer-item{display:flex;flex-direction:column;gap:2px}
-  .timer-item .tval{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text)}
-  .timer-item .tlbl{font-size:10px;color:var(--muted);text-transform:uppercase}
-  .st-badge{margin-left:auto;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:700}
-  .st-running{background:#dcfce7;color:#16a34a}
-  .st-idle{background:#f1f5f9;color:#64748b}
-  .st-stopped{background:#fef3c7;color:#d97706}
+/* Timers */
+.timer-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tbox{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:9px 11px;text-align:center}
+.tsub{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted2);margin-bottom:3px}
+.tval{font-family:var(--mono);font-size:15px;font-weight:500;color:var(--text);letter-spacing:.02em}
+.tdate{text-align:center;font-size:10px;color:var(--muted2);font-family:var(--mono);margin-top:6px}
 
-  /* CONTROLS */
-  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:16px}
-  .tbtn{padding:8px 18px;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .2s}
-  .tbtn:hover{opacity:.85}
-  .tbtn:disabled{opacity:.4;cursor:not-allowed}
-  .tbtn-green{background:#16a34a;color:#fff}
-  .tbtn-red{background:#dc2626;color:#fff}
-  .tbtn-orange{background:#ea580c;color:#fff}
-  .tbtn-blue{background:#2563eb;color:#fff}
-  .tbtn-gray{background:#94a3b8;color:#fff}
-  .tbtn-cyan{background:#0891b2;color:#fff}
-  .par-ctrl{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid var(--border);border-radius:7px;padding:4px 10px}
-  .par-ctrl span{font-size:12px;font-weight:600;color:var(--text2)}
-  .par-val{font-size:15px;font-weight:800;min-width:28px;text-align:center;color:var(--cyan)}
-  .par-btn{width:24px;height:24px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;font-size:14px;font-weight:700}
+/* NAV Range */
+.nav-range{background:var(--blue-bg);border:1px solid var(--blue-bdr);border-radius:var(--r);padding:10px 12px}
+.nav-range-row{display:flex;align-items:center;justify-content:space-between}
+.nr-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--blue);font-weight:600;margin-bottom:2px}
+.nr-val{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--blue-dk)}
+.nr-arr{font-size:14px;color:var(--blue);opacity:.5}
+.irows{margin-top:8px;display:flex;flex-direction:column;gap:0}
+.irow{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px}
+.irow:last-child{border-bottom:none}
+.ilbl{color:var(--muted)}.ival{font-family:var(--mono);font-size:10px;color:var(--text);text-align:right}
+.ival.acc{color:var(--blue);font-weight:500}
 
-  /* SETUP NOTICE */
-  .setup-box{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:16px 20px;margin-bottom:16px;display:none}
-  .setup-box h3{color:var(--orange);font-size:14px;margin-bottom:8px}
-  .setup-box p{font-size:12px;color:var(--text2);margin-bottom:10px}
+/* Workers */
+.wrow{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;margin-bottom:9px}
+.wlbl{font-size:11px;color:var(--muted);flex:1}
+.wval{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--blue);width:26px;text-align:center}
+.wbtn{width:24px;height:24px;border-radius:5px;border:1px solid var(--border2);background:var(--white);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--text);transition:all .15s;flex-shrink:0}
+.wbtn:hover{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
 
-  /* TABS + TABLE */
-  .tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:0}
-  .tab{padding:8px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px}
-  .tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
-  .tab .tc{background:#e2e8f0;border-radius:99px;padding:1px 7px;font-size:11px;margin-left:4px}
-  .tab.active .tc{background:var(--cyan);color:#fff}
-  .tbl-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th{background:#f8fafc;padding:8px 12px;text-align:left;font-weight:700;color:var(--text2);border-bottom:2px solid var(--border);position:sticky;top:0}
-  td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
-  tr:hover td{background:#f8fafc}
-  .badge{padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
-  .b-completed{background:#dcfce7;color:#16a34a}
-  .b-pending{background:#f1f5f9;color:#64748b}
-  .b-in_progress{background:#fef3c7;color:#d97706}
-  .b-error{background:#fee2e2;color:#dc2626}
-  .tbl-meta{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:11px;color:var(--muted);background:#f8fafc;border-top:1px solid var(--border)}
-  .pg-btn{padding:3px 10px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;font-size:11px}
-  .pg-btn:disabled{opacity:.4}
-  .no-data{text-align:center;padding:40px;color:var(--muted);font-size:13px}
-  .records-badge{font-size:10px;background:#eff6ff;color:#2563eb;padding:1px 6px;border-radius:99px}
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:9px 14px;border-radius:var(--r);border:none;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.01em}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--blue);color:#fff;box-shadow:0 1px 4px rgba(37,99,235,.25)}
+.btn-primary:hover{background:var(--blue-dk)}
+.btn-primary:disabled{background:#93c5fd;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border2)}
+.btn-outline:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-bg)}
+.btn-warn{background:transparent;color:var(--amber);border:1px solid var(--amber-bdr)}
+.btn-warn:hover{background:var(--amber-bg)}
+.btn-warn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-danger{background:transparent;color:var(--red);border:1px solid var(--red-bdr)}
+.btn-danger:hover{background:var(--red-bg)}
+.btn-sm{padding:7px 12px;font-size:11px}
+.brow{display:flex;flex-direction:column;gap:6px}
+.bpair{display:flex;gap:6px}.bpair .btn{flex:1}
+
+/* Log */
+.log-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.log-head{padding:8px 16px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);display:flex;align-items:center;justify-content:space-between;background:var(--surface);flex-shrink:0}
+.log-clr{font-size:10px;color:var(--muted2);cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0;transition:color .15s}
+.log-clr:hover{color:var(--red)}
+.log-body{flex:1;overflow-y:auto;padding:3px 0}
+.log-line{padding:2px 16px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.8;border-left:2px solid transparent}
+.log-line.ok{color:var(--green);border-color:var(--green-bdr)}
+.log-line.er{color:var(--red);border-color:var(--red-bdr)}
+.log-line.inf{color:var(--blue);border-color:var(--blue-bdr)}
+.log-line.wn{color:var(--amber);border-color:var(--amber-bdr)}
+
+/* MAIN */
+.main{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+
+/* Panel */
+.panel{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg)}
+.phead{padding:11px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:var(--rlg) var(--rlg) 0 0}
+.ptitle{font-size:12px;font-weight:600;color:var(--text);letter-spacing:-.01em}
+.pbadge{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--blue)}
+.pbody{padding:14px 16px}
+
+/* Progress */
+.pmeta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.plabel{font-size:11px;color:var(--muted)}
+.pdates{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.ptrack{background:var(--bg);border-radius:5px;height:7px;overflow:hidden;border:1px solid var(--border)}
+.pfill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--blue-dk),var(--blue),var(--purple));transition:width .5s cubic-bezier(.4,0,.2,1);min-width:3px}
+
+/* Breakdown */
+.bkdown{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.bk{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;text-align:center;position:relative;overflow:hidden}
+.bk::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px}
+.bkd::before{background:var(--green)}.bkp::before{background:var(--blue)}.bkq::before{background:var(--muted2)}.bke::before{background:var(--red)}
+.bk-dot{width:7px;height:7px;border-radius:50%;margin:0 auto 7px}
+.bk-n{font-family:var(--mono);font-size:20px;font-weight:500;line-height:1}
+.bkd .bk-n{color:var(--green)}.bkp .bk-n{color:var(--blue)}.bkq .bk-n{color:var(--muted)}.bke .bk-n{color:var(--red)}
+.bk-l{font-size:10px;color:var(--muted2);margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
+
+/* Coverage */
+.covbar{display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:12px}
+.covblk{flex:1;padding:11px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:3px}
+.covblk:last-child{border-right:none}
+.covlbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.covval{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text)}
+.covval.blue{color:var(--blue)}.covval.purple{color:var(--purple)}.covval.green{color:var(--green)}
+
+/* Queue */
+.queue-panel{flex:1;display:flex;flex-direction:column;min-height:260px}
+.qtabs{display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 14px;background:var(--surface)}
+.qtab{padding:9px 10px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;display:flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap}
+.qtab.active{color:var(--blue);border-color:var(--blue)}.qtab:hover:not(.active){color:var(--text)}
+.qbadge{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1px 6px;font-size:10px}
+.qtab.active .qbadge{background:var(--blue-bg);border-color:var(--blue-bdr);color:var(--blue)}
+.sbar{padding:8px 14px;border-bottom:1px solid var(--border);background:var(--white);display:flex;align-items:center;gap:8px}
+.sin{flex:1;background:var(--surface);border:1px solid var(--border2);border-radius:var(--rsm);padding:6px 10px;font-size:12px;font-family:var(--sans);color:var(--text);outline:none;transition:border-color .15s}
+.sin:focus{border-color:var(--blue);background:var(--white)}.sin::placeholder{color:var(--muted2)}
+.tbl-wrap{flex:1;overflow-y:auto}
+.ftbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.ftbl th{background:var(--surface);padding:7px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0}
+.ftbl td{padding:7px 12px;font-size:11px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ftbl tr:last-child td{border-bottom:none}.ftbl tr:hover td{background:var(--blue-bg)}
+.fcode{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.bp{background:#f3f4f6;color:var(--muted)}.bw{background:var(--blue-bg);color:var(--blue)}.bd{background:var(--green-bg);color:var(--green)}.be{background:var(--red-bg);color:var(--red)}
+.nodata{text-align:center;color:var(--muted2);padding:36px 16px;font-size:12px}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--white);border:1px solid var(--border);border-radius:var(--rlg);padding:22px;max-width:340px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.12);transform:translateY(6px);transition:transform .2s}
+.overlay.open .modal{transform:none}
+.modal h3{font-size:14px;font-weight:600;margin-bottom:6px;letter-spacing:-.01em}
+.modal p{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px}
+.mbtns{display:flex;gap:8px;justify-content:flex-end}.mbtns .btn{width:auto}
+
+/* Toast */
+.tc{position:fixed;bottom:18px;right:18px;z-index:2000;display:flex;flex-direction:column;gap:6px}
+.toast{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:9px 13px;font-size:12px;max-width:280px;display:flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(0,0,0,.1);animation:su .2s ease}
+@keyframes su{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.tok{border-left:3px solid var(--green)}.ter{border-left:3px solid var(--red)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+
+/* Responsive */
+@media(max-width:1100px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:768px){.body{grid-template-columns:1fr}.sidebar{display:none}}
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>📥 Full NAV History Downloader</h1>
-  <div style="display:flex;align-items:center;gap:16px">
-    <span id="last-refresh" style="font-size:11px;color:var(--muted)">—</span>
-    <span class="htime" id="htime">—</span>
+<div class="hdr">
+  <div class="hdr-logo">📡</div>
+  <span class="hdr-title">NAV History Downloader</span>
+  <div class="hdr-sep"></div>
+  <span class="hdr-sub">WealthDash Admin</span>
+  <div class="hdr-right">
+    <div class="pill"><span class="dot" id="sdot"></span><span id="stxt">Idle</span></div>
+    <div class="pill" style="font-family:var(--mono);font-size:11px" id="clk">--:--:--</div>
   </div>
 </div>
 
-<div class="wrap">
-
-  <!-- SETUP NOTICE (shown when not seeded) -->
-  <div class="setup-box" id="setup-box">
-    <h3>⚠️ Setup Required</h3>
-    <p>nav_download_progress table mein data nahi hai. Pehle "Initialize" button click karo to seed it from funds table.</p>
-    <button class="tbtn tbtn-orange" onclick="doSetup()">🔧 Initialize Progress Table</button>
+<div class="tiles">
+  <div class="tile t-blue">
+    <div class="tile-top"><span class="tile-icon">📊</span><span class="tile-label">Total Funds</span></div>
+    <div class="tile-val" id="cTotal">—</div>
+    <div class="tile-sub" id="cNav">— NAV records</div>
   </div>
-
-  <!-- STAT CARDS -->
-  <div class="cards">
-    <div class="card c-total">
-      <div class="num" id="c-total">—</div>
-      <div class="lbl">Total Funds</div>
-      <div class="sub" id="c-recs">— NAV records</div>
-    </div>
-    <div class="card c-pend">
-      <div class="num" id="c-pend">—</div>
-      <div class="lbl">Pending ⏳</div>
-      <div class="sub">Waiting in queue</div>
-    </div>
-    <div class="card c-work">
-      <div class="num" id="c-work">—</div>
-      <div class="lbl">In Progress ⚙️</div>
-      <div class="sub">Currently fetching</div>
-    </div>
-    <div class="card c-err">
-      <div class="num" id="c-err">—</div>
-      <div class="lbl">⚠ Errors</div>
-      <div class="sub">Click retry to fix</div>
-    </div>
-    <div class="card c-done">
-      <div class="num" id="c-done">—</div>
-      <div class="lbl">Downloaded ✅</div>
-      <div class="sub" id="c-done-sub">Latest: —</div>
-    </div>
+  <div class="tile t-amber">
+    <div class="tile-top"><span class="tile-icon">⏳</span><span class="tile-label">Needs Update</span></div>
+    <div class="tile-val" id="cNeeds">—</div>
+    <div class="tile-sub">Funds with outdated NAV</div>
   </div>
-
-  <!-- PROGRESS BAR -->
-  <div class="prog-box">
-    <div class="prog-top">
-      <span class="prog-label">Overall Download Progress</span>
-      <span class="pct-lbl" id="pct-lbl">0%</span>
-    </div>
-    <div class="prog-track"><div class="prog-bar" id="bar" style="width:0%"></div></div>
-    <div class="prog-meta">
-      <span id="oldest-dl">Oldest: —</span>
-      <span id="latest-dl">Latest: —</span>
-    </div>
+  <div class="tile t-red">
+    <div class="tile-top"><span class="tile-icon">⚠</span><span class="tile-label">Errors</span></div>
+    <div class="tile-val" id="cErr">—</div>
+    <div class="tile-sub">Click Retry Errors to fix</div>
   </div>
-
-  <!-- STATUS BREAKDOWN -->
-  <div class="section">
-    <div class="section-title">📊 Status Breakdown</div>
-    <div class="bk-row"><div class="bk-dot" style="background:var(--green)"></div><div class="bk-name">Downloaded</div><div class="bk-track"><div class="bk-fill" id="bk-bar-done" style="background:var(--green);width:0%"></div></div><div class="bk-val" id="bk-done">0</div></div>
-    <div class="bk-row"><div class="bk-dot" style="background:var(--yellow)"></div><div class="bk-name">In Progress</div><div class="bk-track"><div class="bk-fill" id="bk-bar-work" style="background:var(--yellow);width:0%"></div></div><div class="bk-val" id="bk-work">0</div></div>
-    <div class="bk-row"><div class="bk-dot" style="background:var(--muted2)"></div><div class="bk-name">Pending</div><div class="bk-track"><div class="bk-fill" id="bk-bar-pend" style="background:var(--muted2);width:0%"></div></div><div class="bk-val" id="bk-pend">0</div></div>
-    <div class="bk-row"><div class="bk-dot" style="background:var(--red)"></div><div class="bk-name">Errors</div><div class="bk-track"><div class="bk-fill" id="bk-bar-err" style="background:var(--red);width:0%"></div></div><div class="bk-val" id="bk-err">0</div></div>
-    <div style="margin-top:10px;font-size:12px;color:var(--muted2);padding-top:8px;border-top:1px solid var(--border)">
-      Effective Total: <strong id="bk-total">—</strong>
-    </div>
+  <div class="tile t-green">
+    <div class="tile-top"><span class="tile-icon">✅</span><span class="tile-label">Downloaded</span></div>
+    <div class="tile-val" id="cDone">—</div>
+    <div class="tile-sub" id="cLatest">Latest: —</div>
   </div>
+</div>
 
-  <!-- CURRENTLY DOWNLOADING -->
-  <div class="live-box" id="live-box" style="display:none">
-    <div class="live-title"><span class="pulse"></span> Currently Downloading</div>
-    <div id="live-funds"></div>
-  </div>
+<div class="body">
+  <div class="sidebar">
 
-  <!-- TIMER -->
-  <div class="timer-row">
-    <div class="timer-item"><div class="tval" id="t-elapsed">00:00:00</div><div class="tlbl">Total Elapsed</div></div>
-    <div class="timer-item"><div class="tval" id="t-session">00:00:00</div><div class="tlbl">This Session</div></div>
-    <div class="timer-item"><div class="tval" id="t-today">—</div><div class="tlbl">Today</div></div>
-    <span class="st-badge st-idle" id="run-st">● Idle</span>
-  </div>
-
-  <!-- CONTROLS -->
-  <div class="controls">
-    <button class="tbtn tbtn-green" id="btn-run" onclick="startProcessor()">▶ Start Download</button>
-    <button class="tbtn tbtn-red"   id="btn-stop" onclick="doStop()" style="display:none">⏹ Stop</button>
-
-    <div class="par-ctrl">
-      <span>⚡ PARALLEL</span>
-      <button class="par-btn" onclick="adjPar(-5)">−</button>
-      <span class="par-val" id="par-val">8</span>
-      <button class="par-btn" onclick="adjPar(5)">+</button>
-      <span style="font-size:11px;color:var(--red)" id="par-warn"></span>
+    <div class="sb-block">
+      <div class="sb-label">Session Timers</div>
+      <div class="timer-grid">
+        <div class="tbox"><div class="tsub">Total Elapsed</div><div class="tval" id="tTotal">00:00:00</div></div>
+        <div class="tbox"><div class="tsub">This Session</div><div class="tval" id="tSess">00:00:00</div></div>
+      </div>
+      <div class="tdate" id="tDate"></div>
     </div>
 
-    <button class="tbtn tbtn-orange" onclick="doRetry()">↺ Retry Errors</button>
-    <button class="tbtn tbtn-cyan"   onclick="doExport()">📤 Export CSV</button>
-    <button class="tbtn tbtn-gray"   onclick="doReset()">🔄 Full Reset</button>
-    <span id="ctrl-msg" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
-  </div>
-
-  <!-- TABLE SECTION -->
-  <div class="section" style="padding:0">
-    <!-- Search bar -->
-    <div style="padding:12px 16px 0;border-bottom:1px solid var(--border)">
-      <input type="text" id="search-input" placeholder="🔍 Search scheme name, code, category…"
-        oninput="onSearch(this.value)"
-        style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;
-               font-size:13px;background:#f8fafc;color:var(--text);outline:none">
-    </div>
-    <div class="tabs" style="padding:0 16px;padding-top:12px">
-      <div class="tab active" onclick="switchTab('pending')"   id="tab-pending">   ⏳ Pending   <span class="tc" id="tc-p">0</span></div>
-      <div class="tab"        onclick="switchTab('working')"   id="tab-working">   ⚙️ Working   <span class="tc" id="tc-w">0</span></div>
-      <div class="tab"        onclick="switchTab('errors')"    id="tab-errors">    ⚠ Errors    <span class="tc" id="tc-e">0</span></div>
-      <div class="tab"        onclick="switchTab('completed')" id="tab-completed"> ✅ Completed <span class="tc" id="tc-c">0</span></div>
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th onclick="sortTable('scheme_code')" style="cursor:pointer" title="Sort">Scheme Code <span id="sort-scheme_code">↕</span></th>
-            <th onclick="sortTable('scheme_name')" style="cursor:pointer" title="Sort">Scheme Name <span id="sort-scheme_name">↕</span></th>
-            <th onclick="sortTable('category')" style="cursor:pointer" title="Sort">Category <span id="sort-category">↕</span></th>
-            <th onclick="sortTable('from_date')" style="cursor:pointer" title="Sort">From Date <span id="sort-from_date">↕</span></th>
-            <th onclick="sortTable('last_downloaded_date')" style="cursor:pointer" title="Sort">Last Downloaded <span id="sort-last_downloaded_date">↕</span></th>
-            <th onclick="sortTable('records_saved')" style="cursor:pointer" title="Sort">Records Saved <span id="sort-records_saved">↕</span></th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="tbl-body"><tr><td colspan="8" class="no-data">Loading...</td></tr></tbody>
-      </table>
-    </div>
-    <div class="tbl-meta">
-      <span id="tbl-info">—</span>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="pg-btn" id="pg-prev" onclick="changePage(-1)">← Prev</button>
-        <span id="pg-info" style="font-size:11px">Page 1</span>
-        <button class="pg-btn" id="pg-next" onclick="changePage(1)">Next →</button>
+    <div class="sb-block">
+      <div class="sb-label">NAV Data Info</div>
+      <div class="nav-range">
+        <div class="nav-range-row">
+          <div><div class="nr-lbl">From</div><div class="nr-val" id="iOldest">—</div></div>
+          <div class="nr-arr">→</div>
+          <div style="text-align:right"><div class="nr-lbl" style="text-align:right">To</div><div class="nr-val" id="iLatest">—</div></div>
+        </div>
+      </div>
+      <div class="irows">
+        <div class="irow"><span class="ilbl">Needs Update</span><span class="ival" id="iNeeds">—</span></div>
+        <div class="irow"><span class="ilbl">Total Records</span><span class="ival acc" id="iNavTotal">—</span></div>
+        <div class="irow"><span class="ilbl">Last Processed</span><span class="ival" id="iLast" style="font-size:9px">—</span></div>
       </div>
     </div>
+
+    <div class="sb-block">
+      <div class="sb-label">Parallel Workers</div>
+      <div class="wrow">
+        <span class="wlbl">⚡ Workers per batch</span>
+        <button class="wbtn" onclick="chgP(-1)">−</button>
+        <span class="wval" id="prlV">4</span>
+        <button class="wbtn" onclick="chgP(1)">+</button>
+      </div>
+      <div class="sb-label">Actions</div>
+      <div class="brow">
+        <button class="btn btn-primary" id="btnStart" onclick="doStart()">▶ Start Download</button>
+        <div class="bpair">
+          <button class="btn btn-warn btn-sm" id="btnPause" onclick="doPause()" disabled>⏸ Pause</button>
+          <button class="btn btn-outline btn-sm" onclick="doRetry()">🔄 Retry Errors</button>
+        </div>
+        <div class="bpair">
+          <button class="btn btn-outline btn-sm" onclick="doExport()">📥 Export CSV</button>
+          <button class="btn btn-danger btn-sm" onclick="showMod()">🗑 Clear Queue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-area">
+      <div class="log-head">Activity Log <span class="log-clr" onclick="clrLog()">Clear</span></div>
+      <div class="log-body" id="logBody">
+        <div class="log-line inf">[system] Ready. Click Start Download to begin.</div>
+      </div>
+    </div>
+
   </div>
 
-</div><!-- /wrap -->
+  <div class="main">
+
+    <div class="panel">
+      <div class="phead">
+        <span style="font-size:14px">📈</span>
+        <span class="ptitle">Overall Progress</span>
+        <span class="pbadge" id="pct">0%</span>
+      </div>
+      <div class="pbody">
+        <div class="pmeta">
+          <span class="plabel" id="pLabel">No active download session</span>
+          <span class="pdates" id="pDates">Oldest: — &nbsp; Latest: —</span>
+        </div>
+        <div class="ptrack"><div class="pfill" id="pFill" style="width:0%"></div></div>
+        <div class="bkdown">
+          <div class="bk bkd"><div class="bk-dot" style="background:var(--green)"></div><div class="bk-n" id="bDone">0</div><div class="bk-l">Downloaded</div></div>
+          <div class="bk bkp"><div class="bk-dot" style="background:var(--blue)"></div><div class="bk-n" id="bProg">0</div><div class="bk-l">In Progress</div></div>
+          <div class="bk bkq"><div class="bk-dot" style="background:var(--muted2)"></div><div class="bk-n" id="bPend">0</div><div class="bk-l">Pending</div></div>
+          <div class="bk bke"><div class="bk-dot" style="background:var(--red)"></div><div class="bk-n" id="bErr">0</div><div class="bk-l">Errors</div></div>
+        </div>
+        <div class="covbar">
+          <div class="covblk"><div class="covlbl">Oldest Date</div><div class="covval blue" id="rOldest">—</div></div>
+          <div class="covblk"><div class="covlbl">Latest Date</div><div class="covval blue" id="rLatest">—</div></div>
+          <div class="covblk"><div class="covlbl">Total Records</div><div class="covval purple" id="rNavCount">—</div></div>
+          <div class="covblk"><div class="covlbl">Active Funds</div><div class="covval green" id="rFundCount">—</div></div>
+          <div class="covblk"><div class="covlbl">Effective Total</div><div class="covval" id="rEff" style="color:var(--text)">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel queue-panel">
+      <div class="phead">
+        <span style="font-size:14px">📋</span>
+        <span class="ptitle">Fund Queue</span>
+      </div>
+      <div class="qtabs">
+        <div class="qtab active" id="tPend" onclick="stab('pending')">⏳ Pending <span class="qbadge" id="tbPend">0</span></div>
+        <div class="qtab" id="tWork" onclick="stab('working')">⚡ Working <span class="qbadge" id="tbWork">0</span></div>
+        <div class="qtab" id="tErrs" onclick="stab('errors')">⚠ Errors <span class="qbadge" id="tbErrs">0</span></div>
+        <div class="qtab" id="tDone" onclick="stab('done')">✅ Done <span class="qbadge" id="tbDone2">0</span></div>
+      </div>
+      <div class="sbar">
+        <span style="color:var(--muted2);font-size:12px;flex-shrink:0">🔍</span>
+        <input class="sin" id="fsearch" placeholder="Search scheme name or code…" oninput="renderTable()">
+      </div>
+      <div class="tbl-wrap">
+        <table class="ftbl">
+          <colgroup><col style="width:42px"><col style="width:auto"><col style="width:80px"><col style="width:100px"><col style="width:95px"><col style="width:82px"></colgroup>
+          <thead><tr><th>#</th><th>Scheme Name</th><th>Code</th><th>From Date</th><th>Status</th><th>Records</th></tr></thead>
+          <tbody id="ftbody"><tr><td colspan="6" class="nodata">No funds in queue. Click Start Download.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="overlay" id="mod">
+  <div class="modal">
+    <h3>🗑 Clear Queue</h3>
+    <p>Queue clear ho jayegi. Existing NAV history data safe rahega. Kabhi bhi naya download start kar sakte hain.</p>
+    <div class="mbtns">
+      <button class="btn btn-outline btn-sm" onclick="closeMod()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="doReset()">Clear Queue</button>
+    </div>
+  </div>
+</div>
+<div class="tc" id="toastC"></div>
 
 <script>
-const API = 'api.php';
-let pollTimer    = null;
-let clockTimer   = null;
-let sessionStart = null;
-let totalStart   = null;
-let isRunning    = false;
-let curTab       = 'pending';
-let curPage      = 1;
-let parallelSize = 8;
-let searchQuery  = '';
-let sortCol      = '';
-let sortDir      = 'asc';
+const API='nav_worker.php';
+const S={running:false,paused:false,parallel:4,workers:0,sessStart:null,totalSec:0,tab:'pending',stats:{},queue:[]};
+const fmtT=s=>[Math.floor(s/3600),Math.floor((s%3600)/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');
+const g=id=>document.getElementById(id);
+const num=n=>(n??0).toLocaleString('en-IN');
 
-const g = id => document.getElementById(id);
-const fmt = n => Number(n||0).toLocaleString('en-IN');
-const pad = n => String(n).padStart(2,'0');
+setInterval(()=>{
+  const n=new Date();
+  g('clk').textContent=n.toLocaleTimeString('en-IN',{hour12:false});
+  g('tDate').textContent=n.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
+  const ss=S.sessStart&&S.running&&!S.paused?Math.floor((Date.now()-S.sessStart)/1000):0;
+  g('tTotal').textContent=fmtT(S.totalSec+ss);
+  if(S.sessStart)g('tSess').textContent=fmtT(Math.floor((Date.now()-S.sessStart)/1000));
+},1000);
+(()=>{const n=new Date();g('clk').textContent=n.toLocaleTimeString('en-IN',{hour12:false});g('tDate').textContent=n.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short',year:'numeric'});})();
 
-function tick() {
-    const now = new Date();
-    g('htime').textContent = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds());
-    // Timer sirf tab chale jab actually running ho
-    if (sessionStart && isRunning) {
-        const s = Math.floor((Date.now()-sessionStart)/1000);
-        g('t-session').textContent = pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);
-    } else if (!isRunning) {
-        g('t-session').textContent = '00:00:00';
+async function api(action,extra={}){
+  const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
+  return r.json();
+}
+async function poll(){
+  try{const d=await api('status');if(!d.ok)return;S.stats=d;renderUI(d);}catch(e){}
+}
+function renderUI(d){
+  const q=d.queue??{};
+  const tot=(q.pending||0)+(q.in_progress||0)+(q.downloaded||0)+(q.errors||0);
+  const done=q.downloaded||0;
+  const pct=tot>0?Math.round((done/tot)*100):0;
+  g('cTotal').textContent=num(d.total_funds);
+  g('cNav').textContent=num(d.nav_records)+' NAV records';
+  g('cNeeds').textContent=num(d.funds_needing_update);
+  g('cErr').textContent=num(q.errors);
+  g('cDone').textContent=num(q.downloaded);
+  g('cLatest').textContent='Latest: '+(d.date_range?.latest??'—');
+  g('pct').textContent=pct+'%';
+  g('pFill').style.width=pct+'%';
+  g('pLabel').textContent=tot>0?`${num(done)} of ${num(tot)} funds processed`:'No active download session';
+  g('pDates').textContent=`Oldest: ${d.date_range?.oldest??'—'}   Latest: ${d.date_range?.latest??'—'}`;
+  g('bDone').textContent=num(q.downloaded);
+  g('bProg').textContent=num(q.in_progress);
+  g('bPend').textContent=num(q.pending);
+  g('bErr').textContent=num(q.errors);
+  const ol=d.date_range?.oldest??'—',la=d.date_range?.latest??'—';
+  g('rOldest').textContent=ol;g('rLatest').textContent=la;
+  g('rNavCount').textContent=num(d.nav_records);
+  g('rFundCount').textContent=num(d.total_funds);
+  g('rEff').textContent=tot>0?num(tot):'—';
+  g('iOldest').textContent=ol;g('iLatest').textContent=la;
+  g('iNeeds').textContent=num(d.funds_needing_update)+' funds';
+  g('iNavTotal').textContent=num(d.nav_records);
+  if(d.last_done)g('iLast').textContent=(d.last_done.scheme_code||'')+' @ '+(d.last_done.updated_at||'').substring(0,16);
+  g('tbPend').textContent=q.pending||0;
+  g('tbWork').textContent=q.in_progress||0;
+  g('tbErrs').textContent=q.errors||0;
+  g('tbDone2').textContent=q.downloaded||0;
+  S.totalSec=d.total_elapsed_sec||0;S.paused=d.paused;
+  const pb=g('btnPause');
+  pb.textContent=S.paused?'▶ Resume':'⏸ Pause';
+  pb.className=S.paused?'btn btn-primary btn-sm':'btn btn-warn btn-sm';
+}
+function renderTable(){
+  const tbody=g('ftbody');
+  const q=g('fsearch').value.toLowerCase();
+  const filtered=S.queue.filter(f=>{
+    if(S.tab==='pending'&&f.status!=='pending')return false;
+    if(S.tab==='working'&&f.status!=='in_progress')return false;
+    if(S.tab==='errors'&&f.status!=='error')return false;
+    if(S.tab==='done'&&f.status!=='done')return false;
+    if(q&&!f.scheme_name.toLowerCase().includes(q)&&!f.scheme_code.toLowerCase().includes(q))return false;
+    return true;
+  });
+  if(!filtered.length){tbody.innerHTML=`<tr><td colspan="6" class="nodata">${S.queue.length===0?'No funds in queue. Click Start Download.':'No results match filter.'}</td></tr>`;return;}
+  const cls={pending:'bp',in_progress:'bw',done:'bd',error:'be'};
+  const lbl={pending:'⏳ Pending',in_progress:'⚡ Working',done:'✅ Done',error:'⚠ Error'};
+  tbody.innerHTML=filtered.map((f,i)=>`<tr>
+    <td style="color:var(--muted2);font-family:var(--mono);font-size:10px">${i+1}</td>
+    <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0" title="${f.scheme_name}">${f.scheme_name}</td>
+    <td><span class="fcode">${f.scheme_code}</span></td>
+    <td style="font-family:var(--mono);font-size:10px;color:var(--muted)">${f.from_date||'—'}</td>
+    <td><span class="badge ${cls[f.status]||'bp'}">${lbl[f.status]||f.status}</span></td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--blue)">${f.records!=null?num(f.records):'—'}</td>
+  </tr>`).join('');
+}
+async function procOne(){
+  try{
+    const d=await api('process_next');
+    if(!d.ok)return'err';
+    if(d.status==='idle')return'idle';
+    if(d.status==='paused')return'paused';
+    if(d.status==='processed'){
+      log(`✓ ${d.name||d.scheme} — ${num(d.inserted)} records`,'ok');
+      const i=S.queue.findIndex(f=>f.scheme_code==d.scheme);
+      if(i>=0){S.queue[i].status='done';S.queue[i].records=d.inserted;}
+    }else if(d.status==='error'){
+      log(`✗ ${d.scheme}: ${d.error}`,'er');
+      const i=S.queue.findIndex(f=>f.scheme_code==d.scheme);
+      if(i>=0)S.queue[i].status='error';
     }
-    if (totalStart && isRunning) {
-        const s = Math.floor((Date.now()-totalStart)/1000);
-        g('t-elapsed').textContent = pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);
-    } else if (!isRunning) {
-        g('t-elapsed').textContent = '00:00:00';
-    }
+    renderTable();return d.status;
+  }catch(e){return'err';}
 }
-
-function adjPar(delta) {
-    parallelSize = Math.max(1, Math.min(50, parallelSize + delta));
-    g('par-val').textContent = parallelSize;
-    g('par-warn').textContent = parallelSize >= 30 ? '⚠ High risk' : '';
+async function wLoop(){
+  while(S.running&&!S.paused){
+    const r=await procOne();
+    if(r==='idle'||r==='paused')break;
+    await new Promise(r2=>setTimeout(r2,80));
+  }
+  S.workers--;
+  if(S.workers===0&&S.running&&!S.paused){
+    const q=S.stats?.queue??{};
+    if((q.pending||0)===0){S.running=false;setRun(false);log('✓ All downloads complete!','ok');toast('Download complete!',true);}
+  }
 }
-
-function setStatus(type, msg) {
-    const el = g('run-st');
-    el.className = 'st-badge st-' + type;
-    el.textContent = msg;
+function setRun(r){
+  const dot=g('sdot'),txt=g('stxt'),sb=g('btnStart'),pb=g('btnPause');
+  if(r){dot.className='dot run';txt.textContent='Running';sb.disabled=true;pb.disabled=false;}
+  else{dot.className='dot';txt.textContent=S.paused?'Paused':'Idle';sb.disabled=false;pb.disabled=!S.paused;}
 }
-
-async function fetchSummary() {
-    try {
-        const d = await fetch(API+'?action=summary&_='+Date.now(),{cache:'no-store'}).then(r=>r.json());
-        if (d.error) return;
-
-        // Setup check
-        g('setup-box').style.display = d.seeded ? 'none' : 'block';
-
-        // Cards
-        animNum('c-total', fmt(d.total));
-        animNum('c-done',  fmt(d.completed));
-        animNum('c-work',  fmt(d.working));
-        animNum('c-pend',  fmt(d.pending));
-        animNum('c-err',   fmt(d.errors));
-        g('c-recs').textContent     = fmt(d.total_records) + ' NAV records';
-        g('c-done-sub').textContent = d.counts?.latest_dl || '—';
-
-        // Progress
-        g('pct-lbl').textContent    = d.pct + '%';
-        g('bar').style.width        = d.pct + '%';
-        g('oldest-dl').textContent  = 'Oldest: ' + (d.counts?.oldest_dl || '—');
-        g('latest-dl').textContent  = 'Latest: ' + (d.counts?.latest_dl || '—');
-
-        // Breakdown
-        const ef = Math.max(d.total || 1, 1);
-        const setBk  = (id,v) => { const e=g('bk-'+id);  if(e) e.textContent=fmt(v); };
-        const setBar = (id,v) => { const e=g('bk-bar-'+id); if(e) e.style.width=Math.min(100,Math.round(v/ef*100))+'%'; };
-        setBk('done',d.completed); setBar('done',d.completed);
-        setBk('work',d.working);   setBar('work',d.working);
-        setBk('pend',d.pending);   setBar('pend',d.pending);
-        setBk('err', d.errors);    setBar('err', d.errors);
-        g('bk-total').textContent = fmt(d.total);
-
-        // Tab counts
-        g('tc-p').textContent = fmt(d.pending);
-        g('tc-w').textContent = fmt(d.working);
-        g('tc-c').textContent = fmt(d.completed);
-        g('tc-e').textContent = fmt(d.errors);
-
-        // Current downloading
-        if (d.current_funds && d.current_funds.length > 0) {
-            g('live-box').style.display = 'block';
-            g('live-funds').innerHTML = d.current_funds.map(f => `
-                <div class="live-row">
-                    <span class="live-sc">${f.scheme_code}</span>
-                    <span>${f.scheme_name || '—'}</span>
-                    <span>${f.from_date || 'inception'} → ${f.last_downloaded_date || 'downloading...'}</span>
-                    <span class="records-badge">${fmt(f.records_saved)} records</span>
-                </div>
-            `).join('');
-        } else {
-            g('live-box').style.display = 'none';
-        }
-
-        // Today date
-        g('t-today').textContent = d.today;
-
-        // Running state — server se actual status check karo
-        const running = d.working > 0;
-        if (running && !isRunning) {
-            isRunning = true;
-            if (!sessionStart) sessionStart = Date.now();
-            if (!totalStart) totalStart = Date.now();
-            setStatus('running','● Running');
-            g('btn-run').style.display  = 'none';
-            g('btn-stop').style.display = 'inline-block';
-        } else if (!running && isRunning) {
-            // Download ruka — timer bhi rok do
-            isRunning = false;
-            sessionStart = null;
-            setStatus('idle','● Idle');
-            g('btn-run').style.display  = 'inline-block';
-            g('btn-stop').style.display = 'none';
-        } else if (!running && !isRunning) {
-            // Page load pe bhi check karo — agar kuch nahi chal raha to timer zero pe rakho
-            if (sessionStart) { sessionStart = null; }
-        }
-
-        // Last refresh
-        const n=new Date();
-        g('last-refresh').textContent = '↻ '+pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
-
-    } catch(e) {}
+async function doStart(){
+  log('Starting — missing NAV funds queue ho rahe hain…','inf');
+  const d=await api('start');
+  if(!d.ok){toast(d.message,false);log('✗ '+d.message,'er');return;}
+  if(!d.queued){toast(d.message,true);log('✓ '+d.message,'ok');return;}
+  log(`${d.queued} funds queued — ${S.parallel} workers starting…`,'inf');
+  toast(`${d.queued} funds queued`,true);
+  S.queue=Array.from({length:d.queued},()=>({scheme_code:'…',scheme_name:'Fetching fund data…',status:'pending',from_date:null,records:null}));
+  renderTable();
+  S.sessStart=Date.now();S.running=true;S.paused=false;
+  g('tSess').textContent='00:00:00';setRun(true);
+  S.workers=S.parallel;
+  for(let i=0;i<S.parallel;i++)wLoop();
+  await poll();
 }
-
-async function loadTable() {
-    let url = `${API}?action=table&tab=${curTab}&page=${curPage}&_=${Date.now()}`;
-    if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-    if (sortCol)     url += `&sort=${sortCol}&dir=${sortDir}`;
-    const res = await fetch(url, {cache:'no-store'}).then(r=>r.json());
-    const body = g('tbl-body');
-
-    if (!res.rows || res.rows.length === 0) {
-        body.innerHTML = `<tr><td colspan="8" class="no-data">No records</td></tr>`;
-    } else {
-        body.innerHTML = res.rows.map((r,i) => `
-            <tr>
-                <td>${((curPage-1)*50)+i+1}</td>
-                <td><code style="font-size:11px">${r.scheme_code}</code></td>
-                <td style="max-width:280px">${r.scheme_name||'—'}</td>
-                <td>${r.category||'—'}</td>
-                <td style="font-size:11px">${r.from_date||'—'}</td>
-                <td style="font-size:11px;font-weight:600">${r.last_downloaded_date||'—'}</td>
-                <td><span class="records-badge">${fmt(r.records_saved)}</span></td>
-                <td><span class="badge b-${r.status}">${r.status}</span>${r.error_message?`<div style="font-size:10px;color:var(--red);margin-top:2px">${r.error_message}</div>`:''}</td>
-            </tr>
-        `).join('');
-    }
-
-    const total = res.total_rows || 0;
-    const pages = res.pages || 1;
-    g('tbl-info').textContent     = `Showing ${((curPage-1)*50)+1}–${Math.min(curPage*50, total)} of ${fmt(total)} records`;
-    g('pg-info').textContent      = `Page ${curPage} of ${pages}`;
-    g('pg-prev').disabled         = curPage <= 1;
-    g('pg-next').disabled         = curPage >= pages;
+async function doPause(){
+  const d=await api('pause');if(!d.ok)return;
+  S.paused=d.paused;
+  if(S.paused){S.running=false;setRun(false);log('⏸ Paused','wn');toast('Paused',true);}
+  else{S.running=true;setRun(true);log('▶ Resumed','inf');toast('Resumed',true);S.workers=S.parallel;for(let i=0;i<S.parallel;i++)wLoop();}
 }
-
-function onSearch(val) {
-    searchQuery = val.trim();
-    curPage = 1;
-    loadTable();
+async function doRetry(){
+  const d=await api('retry_errors');toast(d.message,d.ok);log((d.ok?'🔄':'✗')+' '+d.message,d.ok?'inf':'er');
+  if(d.ok&&d.retried>0&&!S.running){
+    S.queue.forEach(f=>{if(f.status==='error')f.status='pending';});
+    renderTable();S.running=true;S.paused=false;setRun(true);S.workers=S.parallel;for(let i=0;i<S.parallel;i++)wLoop();
+  }
+  await poll();
 }
-
-function sortTable(col) {
-    if (sortCol === col) {
-        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-    } else {
-        sortCol = col;
-        sortDir = 'asc';
-    }
-    // Update sort icons
-    ['scheme_code','scheme_name','category','from_date','last_downloaded_date','records_saved'].forEach(c => {
-        const el = document.getElementById('sort-' + c);
-        if (el) el.textContent = c === sortCol ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
-    });
-    curPage = 1;
-    loadTable();
+function doExport(){window.open(API+'?action=export_csv','_blank');log('📥 CSV export started','inf');}
+async function doReset(){
+  closeMod();const d=await api('reset',{confirm:true});
+  toast(d.message,d.ok);log((d.ok?'✓':'✗')+' '+d.message,d.ok?'ok':'er');
+  S.running=false;S.queue=[];renderTable();setRun(false);await poll();
 }
-
-function switchTab(tab) {
-    curTab  = tab;
-    curPage = 1;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    g('tab-'+tab).classList.add('active');
-    loadTable();
+function chgP(delta){S.parallel=Math.max(1,Math.min(16,S.parallel+delta));g('prlV').textContent=S.parallel;}
+function stab(tab){
+  S.tab=tab;
+  ['Pend','Work','Errs','Done'].forEach(t=>g('t'+t)?.classList.remove('active'));
+  const m={pending:'Pend',working:'Work',errors:'Errs',done:'Done'};
+  g('t'+m[tab])?.classList.add('active');renderTable();
 }
-
-function changePage(delta) {
-    curPage += delta;
-    loadTable();
+function log(msg,type=''){
+  const f=g('logBody');
+  const t=new Date().toLocaleTimeString('en-IN',{hour12:false});
+  const el=document.createElement('div');el.className='log-line '+type;
+  el.textContent=`[${t}] ${msg}`;f.appendChild(el);f.scrollTop=f.scrollHeight;
+  while(f.children.length>200)f.removeChild(f.firstChild);
 }
-
-async function startProcessor() {
-    await fetch(API+'?action=clear_stop',{method:'POST'}).catch(()=>{});
-    ctrlMsg('Starting...');
-
-    try {
-        const res = await fetch(`${API}?action=start_processor&parallel=${parallelSize}`, {
-            method: 'POST'
-        }).then(r => r.json());
-
-        if (res.ok) {
-            // Sirf tab timer shuru karo jab actually start hua
-            sessionStart = Date.now();
-            if (!totalStart) totalStart = Date.now();
-            setStatus('running','● Running');
-            g('btn-run').style.display  = 'none';
-            g('btn-stop').style.display = 'inline-block';
-            isRunning = true;
-            ctrlMsg(res.message || 'Processor background mein chal raha hai...');
-            startPolling();
-        } else {
-            // Failed - timer mat chalao
-            setStatus('idle','● Idle');
-            g('btn-run').style.display  = 'inline-block';
-            g('btn-stop').style.display = 'none';
-            isRunning = false;
-            ctrlMsg((res.message || 'Start nahi hua.') + ' -- Naya download karna ho to "Full Reset" karo phir start karo.');
-        }
-    } catch(e) {
-        setStatus('idle','● Idle');
-        isRunning = false;
-        ctrlMsg('Error: ' + e.message);
-    }
+function clrLog(){g('logBody').innerHTML='';}
+function showMod(){g('mod').classList.add('open');}
+function closeMod(){g('mod').classList.remove('open');}
+g('mod').addEventListener('click',e=>{if(e.target===g('mod'))closeMod();});
+function toast(msg,ok=true){
+  const t=document.createElement('div');t.className='toast '+(ok?'tok':'ter');
+  t.innerHTML=`<span>${ok?'✅':'❌'}</span><span>${msg}</span>`;
+  g('toastC').appendChild(t);setTimeout(()=>t.remove(),4000);
 }
-
-async function doStop() {
-    const res = await fetch(API+'?action=stop',{method:'POST'}).then(r=>r.json());
-    ctrlMsg(res.message || 'Stop requested.');
-    setStatus('stopped','● Stopping...');
-}
-
-async function doRetry() {
-    const res = await fetch(API+'?action=retry_errors',{method:'POST'}).then(r=>r.json());
-    ctrlMsg(`↺ ${fmt(res.count)} errors reset to pending.`);
-    fetchSummary(); loadTable();
-}
-
-async function doSetup() {
-    const res = await fetch(API+'?action=setup',{method:'POST'}).then(r=>r.json());
-    ctrlMsg(`✅ Seeded ${fmt(res.inserted)} funds. Total: ${fmt(res.total)}`);
-    fetchSummary(); loadTable();
-}
-
-async function doReset() {
-    if (!confirm('⚠️ Sab download progress reset ho jayega (nav_history data nahi hatega). Continue?')) return;
-    await fetch(API+'?action=reset',{method:'POST'});
-    ctrlMsg('🔄 Full reset done.');
-    fetchSummary(); loadTable();
-}
-
-function doExport() {
-    window.location = API + '?action=export';
-}
-
-function ctrlMsg(msg) {
-    const el = g('ctrl-msg');
-    el.textContent = msg;
-    setTimeout(() => el.textContent = '', 5000);
-}
-
-function startPolling() {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(() => {
-        fetchSummary();
-        loadTable();
-    }, 3000);
-}
-
-function animNum(id, val) {
-    const el = g(id);
-    if (el) el.textContent = val;
-}
-
-// Init
-clockTimer = setInterval(tick, 1000);
-tick();
-fetchSummary();
-loadTable();
-startPolling();
+poll();setInterval(poll,4000);
 </script>
 </body>
 </html>

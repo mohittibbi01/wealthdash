@@ -71,6 +71,25 @@ $csrfExempt = [
     'data_quality_report',   // tv13
     'nfo_list',              // tv08
     'wl_alerts_list',        // tv10
+    'wl_alerts_check',       // tv10
+    'wl_alerts_history',     // t405
+    'wl_alerts_simulate',    // t405
+    'fund_ratings_get',      // tv01
+    'fund_ratings_list',     // tv01
+    'fund_health_score',     // t362
+    'fund_health_top',       // t362
+    'style_box_map',         // tv04
+    'style_box_fund',        // tv04
+    'style_box_screener',    // tv04
+    'style_box_portfolio',   // tv04
+    'benchmark_compare',     // tv11
+    'benchmark_alpha',       // tv11
+    'benchmark_defaults',    // tv11
+    'isin_validate',         // t483
+    'isin_validate_code',    // t483
+    'isin_invalid_list',     // t483
+    'isin_cache_refresh',    // t483
+    'csv_v3_formats',        // t490
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -406,12 +425,55 @@ try {
         case 'nfo_list':
             require APP_ROOT . '/api/mutual_funds/nfo_list.php'; exit;
 
-        // ── tv10: Watchlist Alerts ───────────────────────────
+        // ── tv10 + t405: Watchlist Alerts (v2) ──────────────────
         case 'wl_alerts_list':
         case 'wl_alert_save':
         case 'wl_alert_delete':
         case 'wl_alerts_check':
+        case 'wl_alert_save_multi':
+        case 'wl_alerts_history':
+        case 'wl_alert_snooze':
+        case 'wl_alerts_simulate':
             require APP_ROOT . '/api/mutual_funds/wl_alerts.php'; exit;
+
+        // ── tv01 + t362: Fund Ratings + Health Score ─────────────
+        case 'fund_ratings_get':
+        case 'fund_ratings_list':
+        case 'fund_ratings_recalc':
+        case 'fund_health_score':
+        case 'fund_health_top':
+            require APP_ROOT . '/api/mutual_funds/fund_ratings.php'; exit;
+
+        // ── tv04: Style Box ──────────────────────────────────────
+        case 'style_box_map':
+        case 'style_box_fund':
+        case 'style_box_screener':
+        case 'style_box_portfolio':
+        case 'style_box_recalc':
+            require APP_ROOT . '/api/mutual_funds/style_box.php'; exit;
+
+        // ── tv11: Benchmark Comparison ───────────────────────────
+        case 'benchmark_compare':
+        case 'benchmark_alpha':
+        case 'benchmark_defaults':
+        case 'benchmark_assign':
+        case 'benchmark_bulk_assign':
+            require APP_ROOT . '/api/mutual_funds/fund_benchmark.php'; exit;
+
+        // ── t483: ISIN Validator ─────────────────────────────────
+        case 'isin_validate':
+        case 'isin_validate_code':
+        case 'isin_batch_validate':
+        case 'isin_fix':
+        case 'isin_cache_refresh':
+        case 'isin_invalid_list':
+            require APP_ROOT . '/api/mutual_funds/isin_validator.php'; exit;
+
+        // ── t490: CSV Importer v3 ────────────────────────────────
+        case 'csv_v3_detect':
+        case 'csv_v3_import':
+        case 'csv_v3_formats':
+            require APP_ROOT . '/api/mutual_funds/mf_import_csv_v3.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);
