@@ -543,6 +543,9 @@ ob_start();
             <a href="<?= APP_URL ?>/nav_download/status.php" target="_blank" class="btn btn-primary btn-sm">
               ▶ Start / Monitor
             </a>
+            <a href="<?= APP_URL ?>/godmod.php" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;background:linear-gradient(135deg,#eff6ff,#f5f3ff);border-color:#bfdbfe;color:#2563eb;font-weight:700;">
+              ⚡ GodMod Dashboard
+            </a>
             <button class="btn btn-ghost btn-sm" onclick="adminNavDlRefresh()" style="margin-top:6px;">
               ↺ Refresh Stats
             </button>
@@ -581,6 +584,7 @@ ob_start();
               <span id="btnRunPeakNavIcon">▶</span><span id="btnRunPeakNavText"> Run Peak NAV</span>
             </button>
             <a href="<?= APP_URL ?>/peak_nav/status.php" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;">↗ Full Tracker</a>
+            <a href="<?= APP_URL ?>/godmod.php?phase=2" target="_blank" class="btn btn-ghost btn-sm" style="margin-top:6px;background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border-color:#a7f3d0;color:#059669;font-weight:700;">⚡ GodMod</a>
           </div>
         </div>
 

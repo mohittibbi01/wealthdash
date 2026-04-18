@@ -2,3 +2,9 @@
 Run following command in command prompt
 cd\
 C:\xampp\php\php.exe C:\xampp\htdocs\wealthdash\cron\calculate_returns.php
+
+
+in sql
+
+ALTER TABLE nav_download_progress 
+ADD COLUMN IF NOT EXISTS peak_calculated TINYINT(1) DEFAULT 0;

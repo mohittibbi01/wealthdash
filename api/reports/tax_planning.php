@@ -6,12 +6,14 @@
  * tv002 — Advance Tax Calculator (quarterly installments)
  * tv003 — Section 87A Rebate Tracker
  * tv005 — 80C Dashboard (₹1.5L utilization)
+ * t62   — AI Tax Optimization Suggestions (rule-based engine)
  *
  * GET /api/reports/tax_planning.php
  *   ?action=regime_compare   &income=X [&deductions JSON]
  *   ?action=advance_tax      &portfolio_id=X
  *   ?action=rebate_87a       &income=X
  *   ?action=section_80c      &portfolio_id=X
+ *   ?action=ai_tax_optimize  &portfolio_id=X &income=X  ← t62
  *   ?action=full_dashboard   &portfolio_id=X &income=X  ← all in one
  */
 define('WEALTHDASH', true);
@@ -60,6 +62,12 @@ try {
 
         case 'section_80c':
             $response['section_80c'] = calc_80c_dashboard($db, $userId, $portfolioId);
+            break;
+
+        // t62 — AI Tax Optimization Suggestions
+        case 'ai_tax_optimize':
+            $deductions = array_merge($autoDeductions, json_decode($_GET['deductions'] ?? '{}', true) ?: []);
+            $response['ai_tax_optimize'] = ai_tax_optimize($db, $userId, $portfolioId, $income, $deductions);
             break;
 
         case 'full_dashboard':
@@ -603,4 +611,295 @@ function fy_end(): string
 {
     $m = (int)date('n'); $y = (int)date('Y');
     return ($m >= 4 ? $y + 1 : $y) . '-03-31';
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// t62 — AI TAX OPTIMIZATION SUGGESTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// t62 — AI TAX OPTIMIZATION SUGGESTIONS (Rule-Based Engine)
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Generates prioritized, actionable tax optimization suggestions based on
+ * actual portfolio data. Rule-based engine (no LLM needed — uses real numbers).
+ *
+ * Returns structured suggestions with category, action, saving estimate, urgency.
+ */
+function ai_tax_optimize(PDO $db, int $userId, int $portfolioId, float $income, array $deductions): array
+{
+    $fy        = fy_start();
+    $fyEnd     = fy_end();
+    $today     = new DateTime();
+    $fyEndDt   = new DateTime($fyEnd);
+    $daysLeft  = max(0, (int)$today->diff($fyEndDt)->days);
+    $month     = (int)$today->format('n');
+    $isMarch   = ($month === 3);
+    $isFebMar  = ($month >= 2 && $month <= 3);
+
+    // Determine tax slab
+    $slab = $income > 1500000 ? 0.30
+          : ($income > 1200000 ? 0.20
+          : ($income > 900000  ? 0.15
+          : ($income > 600000  ? 0.10
+          : ($income > 300000  ? 0.05 : 0))));
+
+    $pWhere = '';
+    $pParam = null;
+    if ($portfolioId) {
+        $pWhere = 'AND p.id = ?';
+        $pParam = $portfolioId;
+    } else {
+        $pWhere = 'AND p.user_id = ?';
+        $pParam = $userId;
+    }
+
+    $suggestions = [];
+
+    // ── 1. 80C HEADROOM ──────────────────────────────────────────────────
+    $used80c = $deductions['elss_sip'] + $deductions['elss_lumpsum'] +
+               ($deductions['nps_80ccd1'] ?? 0) + ($deductions['epf'] ?? 0) +
+               ($deductions['lic_premium'] ?? 0);
+    $remaining80c = max(0, 150000 - $used80c);
+
+    if ($remaining80c >= 1000 && $income > 300000) {
+        $saving = round($remaining80c * $slab);
+        $urgency = $isMarch ? 'critical' : ($isFebMar ? 'high' : 'medium');
+        $suggestions[] = [
+            'id'       => 'opt_80c',
+            'category' => '80C / Tax Saving',
+            'icon'     => '🏦',
+            'title'    => '₹' . number_format($remaining80c) . ' ki 80C limit bacha hai',
+            'action'   => 'ELSS SIP shuru karo ya PPF mein lump sum dalo',
+            'detail'   => "Is FY mein ₹" . number_format($remaining80c) . " aur invest karo 80C mein. "
+                        . "Estimated tax saving: ₹" . number_format($saving) . " at {$slab}% slab.",
+            'saving'   => $saving,
+            'urgency'  => $urgency,
+            'days_left'=> $daysLeft,
+            'options'  => [
+                ['name' => 'ELSS MF', 'benefit' => '3-yr lock-in + equity returns (historically 12-15%)'],
+                ['name' => 'PPF',     'benefit' => 'Safest, tax-free maturity, 7.1% guaranteed'],
+                ['name' => 'NSC',     'benefit' => '5yr, 7.7%, good for debt allocation'],
+            ],
+        ];
+    }
+
+    // ── 2. NPS 80CCD(1B) — ADDITIONAL ₹50K ─────────────────────────────
+    $npsExtra = 0;
+    try {
+        $stmt = $db->prepare("
+            SELECT COALESCE(SUM(t.amount),0) FROM nps_transactions t
+            JOIN portfolios p ON p.id = t.portfolio_id
+            WHERE t.txn_date >= ? $pWhere
+        ");
+        $stmt->execute([$fy, $pParam]);
+        $npsTotal = (float)$stmt->fetchColumn();
+        $npsExtra = max(0, min(50000, $npsTotal - 150000));
+    } catch (Exception $e) {}
+
+    $nps1bRemaining = max(0, 50000 - $npsExtra);
+    if ($nps1bRemaining >= 500 && $income > 500000) {
+        $saving = round($nps1bRemaining * $slab);
+        $suggestions[] = [
+            'id'       => 'opt_nps_1b',
+            'category' => 'NPS 80CCD(1B)',
+            'icon'     => '🏛️',
+            'title'    => 'NPS se ₹' . number_format($nps1bRemaining) . ' extra deduction milegi',
+            'action'   => '80C ke UPAR additional ₹50,000 NPS mein dalo',
+            'detail'   => "80CCD(1B) limit ₹50,000 hai — 80C se BILKUL ALAG. "
+                        . "₹" . number_format($nps1bRemaining) . " invest karo → ₹" . number_format($saving) . " bachega.",
+            'saving'   => $saving,
+            'urgency'  => $isFebMar ? 'high' : 'medium',
+            'days_left'=> $daysLeft,
+            'options'  => [
+                ['name' => 'NPS Tier I', 'benefit' => 'Tax deductible, lock-in till 60 — max tax benefit'],
+            ],
+        ];
+    }
+
+    // ── 3. LTCG HARVESTING (₹1.25L annual exemption) ────────────────────
+    $ltcgData = [];
+    try {
+        $stmt = $db->prepare("
+            SELECT
+                f.fund_name,
+                mh.units,
+                mh.avg_cost_nav,
+                fn.nav AS current_nav,
+                mh.id  AS holding_id,
+                MIN(mt.txn_date) AS first_buy
+            FROM mf_holdings mh
+            JOIN funds f ON f.id = mh.fund_id
+            JOIN portfolios p ON p.id = mh.portfolio_id
+            LEFT JOIN fund_navs fn ON fn.fund_id = mh.fund_id
+            LEFT JOIN mf_transactions mt ON mt.fund_id = mh.fund_id AND mt.portfolio_id = mh.portfolio_id AND mt.txn_type = 'BUY'
+            WHERE mh.units > 0 $pWhere
+            GROUP BY mh.id
+            HAVING first_buy <= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+        ");
+        $stmt->execute([$pParam]);
+        $ltcgData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+
+    $totalLtcgGain = 0;
+    $harvestCandidates = [];
+    foreach ($ltcgData as $row) {
+        $gain = ($row['current_nav'] - $row['avg_cost_nav']) * $row['units'];
+        if ($gain > 0) {
+            $totalLtcgGain += $gain;
+            $harvestCandidates[] = [
+                'fund'  => $row['fund_name'],
+                'gain'  => round($gain),
+                'units' => $row['units'],
+            ];
+        }
+    }
+
+    $ltcgExempt    = 125000; // ₹1.25L FY2024 onwards
+    $ltcgBandwidth = max(0, $ltcgExempt - $totalLtcgGain);
+
+    if ($ltcgBandwidth > 10000 && count($harvestCandidates) > 0) {
+        $suggestions[] = [
+            'id'       => 'opt_ltcg_harvest',
+            'category' => 'LTCG Tax Harvesting',
+            'icon'     => '🌾',
+            'title'    => '₹' . number_format($ltcgBandwidth) . ' LTCG bandwidth aur available hai',
+            'action'   => 'Kuch equity MF units redeem karo aur rebuy karo — tax-free booking',
+            'detail'   => "Har saal ₹1.25L LTCG equity gains pe ZERO tax hota hai. "
+                        . "Abhi tak ₹" . number_format($totalLtcgGain) . " gain book kiya — "
+                        . "₹" . number_format($ltcgBandwidth) . " bandwidth remaining. "
+                        . "Redeem karo, 3 din baad rebuy karo → cost base reset hoga.",
+            'saving'   => round($ltcgBandwidth * 0.125), // 12.5% LTCG rate
+            'urgency'  => $isMarch ? 'critical' : 'low',
+            'days_left'=> $daysLeft,
+            'candidates' => array_slice($harvestCandidates, 0, 3),
+        ];
+    }
+
+    // ── 4. LOSS HARVESTING (STCL/LTCL to offset gains) ──────────────────
+    $lossFunds = [];
+    try {
+        $stmt = $db->prepare("
+            SELECT
+                f.fund_name,
+                mh.units,
+                mh.avg_cost_nav,
+                fn.nav AS current_nav
+            FROM mf_holdings mh
+            JOIN funds f ON f.id = mh.fund_id
+            JOIN portfolios p ON p.id = mh.portfolio_id
+            LEFT JOIN fund_navs fn ON fn.fund_id = mh.fund_id
+            WHERE mh.units > 0 $pWhere
+        ");
+        $stmt->execute([$pParam]);
+        $allHoldings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { $allHoldings = []; }
+
+    foreach ($allHoldings as $row) {
+        if (!$row['current_nav'] || !$row['avg_cost_nav']) continue;
+        $loss = ($row['avg_cost_nav'] - $row['current_nav']) * $row['units'];
+        if ($loss > 2000) {
+            $lossFunds[] = ['fund' => $row['fund_name'], 'loss' => round($loss)];
+        }
+    }
+
+    if (count($lossFunds) > 0) {
+        $totalLoss = array_sum(array_column($lossFunds, 'loss'));
+        $suggestions[] = [
+            'id'       => 'opt_loss_harvest',
+            'category' => 'Loss Harvesting',
+            'icon'     => '📉',
+            'title'    => count($lossFunds) . ' funds mein ₹' . number_format($totalLoss) . ' unrealized loss',
+            'action'   => 'Loss book karo → apne STCG/LTCG gains offset karo',
+            'detail'   => "In funds ko sell karo aur ₹" . number_format($totalLoss) . " capital loss book karo. "
+                        . "Yeh loss aapke future gains ko offset karega aur tax bachayega.",
+            'saving'   => round($totalLoss * 0.15), // conservative STCG offset estimate
+            'urgency'  => $isMarch ? 'critical' : ($isFebMar ? 'high' : 'medium'),
+            'days_left'=> $daysLeft,
+            'candidates' => array_slice($lossFunds, 0, 3),
+        ];
+    }
+
+    // ── 5. FD INTEREST — SPLIT ACROSS FY ─────────────────────────────────
+    $fdInterest = $deductions['fd_interest'] ?? 0;
+    if ($fdInterest > 40000) {
+        $suggestions[] = [
+            'id'       => 'opt_fd_timing',
+            'category' => 'FD Interest Timing',
+            'icon'     => '💰',
+            'title'    => 'FD interest ₹' . number_format($fdInterest) . ' — TDS kat raha hoga',
+            'action'   => 'FD maturity dates plan karo — different FY mein split karo',
+            'detail'   => "₹40,000+ FD interest hone pe bank TDS kaata hai. "
+                        . "FD ko 2 FY mein split karo (March/April boundary cross karo) "
+                        . "taaki ek FY mein taxable income kam ho.",
+            'saving'   => round(min($fdInterest - 40000, 50000) * $slab),
+            'urgency'  => 'low',
+            'days_left'=> $daysLeft,
+        ];
+    }
+
+    // ── 6. SAVINGS INTEREST — 80TTA ──────────────────────────────────────
+    $savingsInt = $deductions['savings_interest'] ?? 0;
+    if ($savingsInt > 10000) {
+        $excess = $savingsInt - 10000;
+        $suggestions[] = [
+            'id'       => 'opt_80tta',
+            'category' => '80TTA Optimization',
+            'icon'     => '🏦',
+            'title'    => 'Savings interest ₹' . number_format($savingsInt) . ' — ₹10K se upar taxable',
+            'action'   => 'Excess balance liquid fund mein move karo (better returns, same liquid)',
+            'detail'   => "80TTA sirf ₹10,000 savings account interest free karta hai. "
+                        . "₹" . number_format($excess) . " extra tax mein jayega. "
+                        . "Liquid fund ya FD (laddered) better hai — higher returns bhi.",
+            'saving'   => round($excess * $slab * 0.5), // partial saving
+            'urgency'  => 'low',
+            'days_left'=> $daysLeft,
+        ];
+    }
+
+    // ── 7. REGIME SWITCH RECOMMENDATION ──────────────────────────────────
+    if ($income > 300000) {
+        $regimeData = compare_tax_regimes($income, $deductions);
+        $diff = ($regimeData['old']['tax_payable'] ?? 0) - ($regimeData['new']['tax_payable'] ?? 0);
+        if (abs($diff) > 2000) {
+            $better  = $diff > 0 ? 'New Regime' : 'Old Regime';
+            $saving2 = abs(round($diff));
+            $suggestions[] = [
+                'id'       => 'opt_regime',
+                'category' => 'Tax Regime Choice',
+                'icon'     => '⚖️',
+                'title'    => "$better mein ₹" . number_format($saving2) . " zyada bachenge",
+                'action'   => "ITR file karte waqt $better choose karo",
+                'detail'   => $diff > 0
+                    ? "Aapki deductions itni hain ki Old Regime mein zyada tax dena padta. New Regime ka ₹75K standard deduction + lower slabs better hain."
+                    : "Aapki 80C/NPS/HRA deductions itni hain ki Old Regime better hai. New Regime mein ye deductions nahi milti.",
+                'saving'   => $saving2,
+                'urgency'  => 'medium',
+                'days_left'=> $daysLeft,
+            ];
+        }
+    }
+
+    // Sort by saving (highest first), then urgency
+    $urgencyOrder = ['critical' => 0, 'high' => 1, 'medium' => 2, 'low' => 3];
+    usort($suggestions, function ($a, $b) use ($urgencyOrder) {
+        $ua = $urgencyOrder[$a['urgency']] ?? 9;
+        $ub = $urgencyOrder[$b['urgency']] ?? 9;
+        if ($ua !== $ub) return $ua - $ub;
+        return ($b['saving'] ?? 0) - ($a['saving'] ?? 0);
+    });
+
+    $totalPotentialSaving = array_sum(array_column($suggestions, 'saving'));
+
+    return [
+        'suggestions'            => $suggestions,
+        'total_potential_saving' => $totalPotentialSaving,
+        'income'                 => $income,
+        'slab_pct'               => $slab * 100,
+        'fy'                     => current_fy(),
+        'days_left_in_fy'        => $daysLeft,
+        'is_march'               => $isMarch,
+        'generated_at'           => date('Y-m-d H:i:s'),
+    ];
 }

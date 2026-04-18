@@ -141,6 +141,11 @@ if (function_exists('is_admin') && is_admin()) {
         'href'  => APP_URL . '/templates/pages/admin.php',
         'icon'  => _ic('<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/>'),
     ];
+    $navItems['godmode'] = [
+        'label' => 'NAV Pipeline',
+        'href'  => APP_URL . '/godmode_unified.php',
+        'icon'  => _ic('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+    ];
 }
 
 $navItems['settings'] = [

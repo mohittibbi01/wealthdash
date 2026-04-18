@@ -90,6 +90,9 @@ $csrfExempt = [
     'isin_invalid_list',     // t483
     'isin_cache_refresh',    // t483
     'csv_v3_formats',        // t490
+    // t24 — Crypto
+    'crypto_list', 'crypto_prices', 'crypto_summary', 'crypto_txns',
+    'crypto_vda_tax',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -474,6 +477,24 @@ try {
         case 'csv_v3_import':
         case 'csv_v3_formats':
             require APP_ROOT . '/api/mutual_funds/mf_import_csv_v3.php'; exit;
+
+        // ── t24 — Crypto Holdings ───────────────────────────────────
+        case 'crypto_list':
+        case 'crypto_prices':
+        case 'crypto_summary':
+        case 'crypto_txns':
+        case 'crypto_add':
+        case 'crypto_delete':
+        case 'crypto_txn_add':
+            require APP_ROOT . '/api/crypto/crypto_list.php'; exit;
+
+        // ── t42 — VDA Tax Calculator ─────────────────────────────
+        case 'crypto_vda_tax':
+            require APP_ROOT . '/api/crypto/vda_tax.php'; exit;
+
+        // ── t62 — AI Tax Optimization ────────────────────────────
+        case 'ai_tax_optimize':
+            require APP_ROOT . '/api/reports/tax_planning.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

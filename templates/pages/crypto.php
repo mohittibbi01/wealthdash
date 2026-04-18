@@ -1,6 +1,7 @@
 <?php
 /**
- * WealthDash — t315: Crypto Holdings Page
+ * WealthDash — Crypto Holdings Page (t24)
+ * Full implementation: holdings + live prices + P&L + VDA Tax
  */
 define('WEALTHDASH', true);
 require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
@@ -15,21 +16,27 @@ $pageScript    = 'crypto.js';
 
 ob_start();
 ?>
-<div class="page-wrapper">
-  <div class="page-header" style="padding:24px 0 20px;border-bottom:1px solid var(--border);margin-bottom:24px;">
-    <h1 class="page-title" style="margin:0;font-size:24px;font-weight:700;">Crypto Holdings</h1>
-    <p class="page-subtitle" style="color:var(--text-secondary);margin:6px 0 0;font-size:14px;">
-      ⚠️ Coming soon — implementation in progress
-    </p>
-  </div>
-  <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--text-secondary);">
-    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="opacity:.3;margin-bottom:16px;">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    <p style="font-size:16px;font-weight:500;margin:0 0 8px;">Module under development</p>
-    <p style="font-size:13px;margin:0;">This module will be implemented in an upcoming session.</p>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">₿ Crypto Holdings</h1>
+    <p class="page-subtitle">Live prices via CoinGecko · 30% VDA tax tracker · P&amp;L</p>
   </div>
 </div>
+
+<!-- Notice about tax -->
+<div style="background:linear-gradient(135deg,#fef3c7,#fffbeb);border:1.5px solid #fcd34d;border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+  <span style="font-size:20px;flex-shrink:0">⚠️</span>
+  <div style="font-size:12px;color:#78350f;line-height:1.6">
+    <strong>Indian Tax Rules (Budget 2022):</strong>
+    Crypto gains par <strong>30% flat tax</strong> lagta hai (Section 115BBH) — koi deduction allowed nahi.
+    Sell karte waqt <strong>1% TDS</strong> bhi katega (Section 194S).
+    Losses CANNOT be offset against other income ya future gains.
+  </div>
+</div>
+
+<!-- Main App Container (JS fills this) -->
+<div id="cryptoApp"></div>
+
 <?php
 $content = ob_get_clean();
 require APP_ROOT . '/templates/layout.php';
