@@ -228,8 +228,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 <!-- OVERVIEW BAR — single source of truth, no duplicates -->
 <div class="ov">
   <div class="ov-seg"><span class="ov-label">Funds</span><span class="ov-val" id="ovTotal">—</span></div>
-  <div class="ov-seg"><span class="ov-label">Done</span><span class="ov-val c-green" id="ovDone">—</span></div>
-  <div class="ov-seg"><span class="ov-label">Pending</span><span class="ov-val c-amber" id="ovPending">—</span></div>
+  <div class="ov-seg"><span class="ov-label">Done Today</span><span class="ov-val c-green" id="ovDone">—</span></div>
+  <div class="ov-seg"><span class="ov-label">To Process</span><span class="ov-val c-amber" id="ovPending">—</span></div>
   <div class="ov-seg"><span class="ov-label">Working</span><span class="ov-val c-blue" id="ovWorking">—</span></div>
   <div class="ov-seg"><span class="ov-label">Errors</span><span class="ov-val c-red" id="ovErrors">—</span></div>
   <div class="ov-needs-update" id="ovNeedsWrap" style="display:none">
@@ -375,10 +375,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
     <!-- Queue table -->
     <div class="queue-card">
       <div class="q-tabs">
-        <div class="q-tab active" data-tab="pending"  onclick="switchQTab('pending')">⏳ Pending <span class="q-cnt" id="qcPending">0</span></div>
+        <div class="q-tab active" data-tab="pending"  onclick="switchQTab('pending')">⏳ Pending+Stale <span class="q-cnt" id="qcPending">0</span></div>
         <div class="q-tab"       data-tab="working"   onclick="switchQTab('working')">⚡ Working <span class="q-cnt" id="qcWorking">0</span></div>
         <div class="q-tab"       data-tab="errors"    onclick="switchQTab('errors')">⚠ Errors  <span class="q-cnt" id="qcErrors">0</span></div>
-        <div class="q-tab"       data-tab="done"      onclick="switchQTab('done')">✅ Done+Stale <span class="q-cnt" id="qcDone">0</span></div>
+        <div class="q-tab"       data-tab="done"      onclick="switchQTab('done')">✅ Done <span class="q-cnt" id="qcDone">0</span></div>
         <input type="text" class="q-search" id="qSearch" placeholder="Search fund..." oninput="debouncedQSearch()">
       </div>
       <div class="q-body">
@@ -505,28 +505,25 @@ function fmt(n){return n!=null?Number(n).toLocaleString('en-IN'):'—'}
 function updateUI(d) {
   const pct = d.pct || 0;
 
-  // Overview bar
+  // Overview bar — correct counts
   document.getElementById('ovTotal').textContent   = fmt(d.total);
-  document.getElementById('ovDone').textContent    = fmt(d.completed);
-  document.getElementById('ovPending').textContent = fmt(d.pending);
+  document.getElementById('ovDone').textContent    = fmt(d.completed);   // only completed
+  document.getElementById('ovPending').textContent = fmt(d.actionable || (d.pending + (d.needs_update||0))); // pending+needs_update
   document.getElementById('ovWorking').textContent = fmt(d.working);
   document.getElementById('ovErrors').textContent  = fmt(d.errors);
   document.getElementById('ovBarFill').style.width = pct + '%';
   document.getElementById('ovPct').textContent     = pct + '%';
 
-  // needs_update pill
+  // needs_update pill — always show if > 0
   const nu = d.needs_update || 0;
   const nuWrap = document.getElementById('ovNeedsWrap');
   nuWrap.style.display = nu > 0 ? 'flex' : 'none';
   document.getElementById('ovNeeds').textContent = fmt(nu);
 
-  // Donut
-  const arc = (pct / 100) * CIRC;
-  document.getElementById('donutRing').setAttribute('stroke-dasharray', `${arc.toFixed(1)} ${(CIRC-arc).toFixed(1)}`);
-  document.getElementById('dPct').textContent    = pct + '%';
+  // Donut legend — needs_update shown separately
   document.getElementById('lgDone').textContent    = fmt(d.completed)   + ' Done';
-  document.getElementById('lgNeeds').textContent   = fmt(nu)            + ' Stale';
-  document.getElementById('lgPending').textContent = fmt(d.pending)     + ' Pending';
+  document.getElementById('lgNeeds').textContent   = fmt(nu)            + ' Stale (queued)';
+  document.getElementById('lgPending').textContent = fmt(d.pending)     + ' New';
   document.getElementById('lgWorking').textContent = fmt(d.working)     + ' Working';
   document.getElementById('lgErrors').textContent  = fmt(d.errors)      + ' Errors';
 
@@ -538,30 +535,43 @@ function updateUI(d) {
   document.getElementById('pmWork').textContent = fmt(d.working);
   document.getElementById('pmTs').textContent   = d.timestamp || '—';
 
-  // Tab counts
-  document.getElementById('qcPending').textContent = fmt(d.pending);
+  // Queue tab counts — pending tab = pending+needs_update, done tab = only completed
+  const actionable = d.actionable || (d.pending + nu);
+  document.getElementById('qcPending').textContent = fmt(actionable);  // pending+needs_update
   document.getElementById('qcWorking').textContent = fmt(d.working);
   document.getElementById('qcErrors').textContent  = fmt(d.errors);
-  document.getElementById('qcDone').textContent    = fmt(d.completed);
+  document.getElementById('qcDone').textContent    = fmt(d.completed); // only completed
 
-  // Right stats (single set)
-  document.getElementById('stTotal').textContent   = fmt(d.total);
+  // Right panel stats
   document.getElementById('stDone').textContent    = fmt(d.completed);
   document.getElementById('stNeeds').textContent   = fmt(nu);
   document.getElementById('stPending').textContent = fmt(d.pending);
   document.getElementById('stErrors').textContent  = fmt(d.errors);
   document.getElementById('stRec').textContent     = fmt(d.total_records);
   document.getElementById('stPeak').textContent    = fmt(d.peaks_done);
+  document.getElementById('stTotal').textContent   = fmt(d.total);
 
   if (d.last_completed) document.getElementById('lastDone').textContent = d.last_completed;
 
-  // Status dot
-  const running = d.status === 'running' || d.working > 0;
+  // Status text — "Complete" only if completed == total (no stale remaining)
+  const allDone = d.completed === d.total && d.total > 0 && nu === 0;
+  // Donut arc update
+  const arc = (pct / 100) * CIRC;
+  document.getElementById('donutRing').setAttribute('stroke-dasharray', `${arc.toFixed(1)} ${(CIRC-arc).toFixed(1)}`);
+  document.getElementById('dPct').textContent = pct + '%';
+
+  // Running = only if there are actually active workers in DB
+  // Do NOT trust d.status alone — it can be stale from crashed previous run
+  const running = d.working > 0;
+
   document.getElementById('statusDot').className = 'dot' + (running ? ' run' : '');
   document.getElementById('statusText').textContent = running
-    ? `Running (${d.working} active)` : (d.completed === d.total && d.total > 0 ? 'Complete ✓' : 'Idle');
+    ? `Running (${d.working} active)`
+    : (allDone ? 'Complete ✓' : (nu > 0 ? `Idle — ${fmt(nu)} stale` : 'Idle'));
 
-  if (running !== isRunning) { isRunning = running; syncBtns(); }
+  // Always sync buttons based on actual working state
+  isRunning = running;
+  syncBtns();
 
   // Working list
   const wl = document.getElementById('wlBody');
@@ -619,8 +629,10 @@ function startPolling() { poll(); pollTimer = setInterval(poll, 2000); }
 
 // ── Actions ──
 async function startPipeline() {
+  const btn = document.getElementById('btnStart');
   const parallel = document.getElementById('wSlider').value;
-  document.getElementById('btnStart').disabled = true;
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting...';
   toast('Starting pipeline...','inf');
   try {
     const r = await fetch(`${API}?action=start&parallel=${parallel}`, {method:'POST',body:new FormData()});
@@ -628,27 +640,50 @@ async function startPipeline() {
     if (d.ok) {
       isRunning = true; sessionStart = Math.floor(Date.now()/1000);
       if (!totalStart) totalStart = sessionStart;
-      syncBtns(); addLog('🚀', d.message || 'Pipeline started!');
-      toast(d.message || 'Pipeline started!','ok'); poll();
+      syncBtns();
+      addLog('🚀', d.message || 'Pipeline started!');
+      toast(d.message || 'Pipeline started!','ok');
+      poll();
     } else {
-      document.getElementById('btnStart').disabled = false;
-      toast(d.message || d.error || 'Start failed','err');
+      // Not started — re-enable immediately
+      isRunning = false;
+      syncBtns();
+      toast(d.message || d.error || 'Start failed', 'err');
       if (d.all_done) addLog('✅','All funds already complete!');
     }
-  } catch(e) { document.getElementById('btnStart').disabled=false; toast('Network error','err'); }
+  } catch(e) {
+    isRunning = false;
+    syncBtns();
+    toast('Network error: ' + e.message, 'err');
+  } finally {
+    // Always restore button label
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Download';
+  }
 }
 
 async function stopPipeline() {
-  document.getElementById('btnStop').disabled = true;
+  const btn = document.getElementById('btnStop');
+  btn.disabled = true;
+  btn.textContent = '⏳ Stopping...';
+  toast('Stop signal sent — current batch finish hogi phir rukegi...','inf',8000);
   try {
     const r = await fetch(`${API}?action=stop`,{method:'POST',body:new FormData()});
     const d = await r.json();
     if (d.ok) {
-      isRunning=false; sessionStart=null; syncBtns();
-      addLog('⛔', d.message||'Pipeline stopped.'); toast(d.message||'Stopped.','ok');
-    } else toast(d.error||'Stop failed','err');
-  } catch(e){ toast('Network error','err'); }
-  finally{ document.getElementById('btnStop').disabled=false; }
+      isRunning = false; sessionStart = null; syncBtns();
+      addLog('⛔', (d.message || 'Pipeline stopped.') + ' needs_update funds apne status pe wapas hain.');
+      toast(d.message || 'Stopped — resume karo Start se.', 'ok');
+      await poll(); // immediate refresh
+    } else {
+      btn.disabled = false;
+      toast(d.error || 'Stop failed', 'err');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    toast('Network error: ' + e.message, 'err');
+  } finally {
+    btn.innerHTML = '&#x25A0; Stop Pipeline';
+  }
 }
 
 async function retryErrors() {
@@ -671,9 +706,16 @@ async function resetAll() {
   } catch(e){toast('Network error','err');}
 }
 
-function syncBtns(){
-  document.getElementById('btnStart').disabled = isRunning;
-  document.getElementById('btnStop').disabled  = !isRunning;
+function syncBtns() {
+  const start = document.getElementById('btnStart');
+  const stop  = document.getElementById('btnStop');
+  start.disabled = isRunning;
+  stop.disabled  = !isRunning;
+  // Safety: always ensure at least Start is clickable if not actually running
+  if (!isRunning) {
+    start.disabled = false;
+    start.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Download';
+  }
 }
 
 // ── Queue table ──
@@ -692,11 +734,11 @@ async function loadQTable(page=1){
     if(d.error||!d.rows){body.innerHTML=`<tr><td colspan="7" style="color:var(--red);padding:10px;text-align:center">${d.error||'Error'}</td></tr>`;return;}
     if(!d.rows.length){body.innerHTML=`<tr><td colspan="7" style="color:var(--muted2);padding:14px;text-align:center">Koi fund nahi mila</td></tr>`;return;}
     const statusMap = {
-      pending:{cls:'s-p',lbl:'Pending'},
-      in_progress:{cls:'s-w',lbl:'Working'},
-      completed:{cls:'s-d',lbl:'Done'},
-      needs_update:{cls:'s-n',lbl:'Stale'},
-      error:{cls:'s-e',lbl:'Error'},
+      pending:     {cls:'s-p', lbl:'Pending'},
+      in_progress: {cls:'s-w', lbl:'Working'},
+      completed:   {cls:'s-d', lbl:'Done ✓'},
+      needs_update:{cls:'s-n', lbl:'Stale 🔄'},
+      error:       {cls:'s-e', lbl:'Error'},
     };
     body.innerHTML = d.rows.map(r=>{
       const st = statusMap[r.status]||{cls:'s-p',lbl:r.status};

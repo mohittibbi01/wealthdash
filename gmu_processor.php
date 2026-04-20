@@ -90,19 +90,26 @@ $pdo->exec("UPDATE nav_download_progress SET status='pending' WHERE status='in_p
 $today = date('Y-m-d');
 
 // ── Fetch actionable funds ────────────────────────────────────────────────────
-// needs_update = downloaded before but stale; treat same as pending
-$dateWhere = $colDate ? "OR (p.status='completed' AND p.{$colDate} < CURDATE())" : "";
+// needs_update: already downloaded but stale date — fetch ALL nav (no last_date filter)
+//               so peak NAV gets fully recalculated from complete history
+// pending/error: fresh download
 $schemes = $pdo->query("
     SELECT p.fund_id,
+           p.status AS orig_status,
            {$scSelect},
-           " . ($colDate ? "p.{$colDate} AS last_date" : "NULL AS last_date") . ",
-           " . ($colRec  ? "p.{$colRec}  AS saved_count" : "0 AS saved_count") . ",
+           " . ($colDate ? "CASE WHEN p.status IN ('pending','error') THEN p.{$colDate} ELSE NULL END AS last_date" : "NULL AS last_date") . ",
+           " . ($colRec  ? "p.{$colRec} AS saved_count" : "0 AS saved_count") . ",
            COALESCE(f.highest_nav, 0)  AS current_peak_nav,
            f.highest_nav_date          AS current_peak_date
     FROM nav_download_progress p
     INNER JOIN funds f ON {$joinOn}
-    WHERE p.status IN ('pending','error','needs_update') {$dateWhere}
-    ORDER BY CASE p.status WHEN 'pending' THEN 1 WHEN 'needs_update' THEN 2 WHEN 'error' THEN 3 ELSE 4 END, p.fund_id
+    WHERE p.status IN ('pending','error','needs_update')
+    ORDER BY CASE p.status
+        WHEN 'pending'      THEN 1
+        WHEN 'needs_update' THEN 2
+        WHEN 'error'        THEN 3
+        ELSE 4
+    END, p.fund_id
 ")->fetchAll(PDO::FETCH_ASSOC);
 
 $total = count($schemes);
@@ -113,30 +120,30 @@ if ($total === 0) {
 }
 lm("Funds to process: {$total}");
 
-// ── Prepared statements (built dynamically for schema) ─────────────────────
+// ── Prepared statements ─────────────────────────────────────────────────────
 $stmtInsertNav = $pdo->prepare(
     "INSERT IGNORE INTO nav_history (fund_id, nav_date, nav) VALUES (?, ?, ?)"
 );
 
-// Build UPDATE for done — uses actual column names
+// For needs_update: recalc total_records from nav_history after insert
+// For pending/error: we SET total_records to new count
+// Use SET not += to avoid double-counting on re-runs
 $doneSetParts = ["status='completed'", "updated_at=NOW()", "peak_calculated=1"];
-if ($colRec)    $doneSetParts[] = "{$colRec}={$colRec}+?";  // increment
+if ($colRec)    $doneSetParts[] = "{$colRec}=?";   // SET absolute value
 if ($colDate)   $doneSetParts[] = "{$colDate}=?";
 if ($hasErrCol) $doneSetParts[] = "error_message=NULL";
 
-// We'll use fund_id as the WHERE key (always exists)
-$stmtMarkDone = $pdo->prepare(
-    "UPDATE nav_download_progress SET " . implode(', ', $doneSetParts) . " WHERE fund_id=?"
-);
+$stmtMarkDone  = $pdo->prepare("UPDATE nav_download_progress SET " . implode(', ', $doneSetParts) . " WHERE fund_id=?");
+$stmtMarkWork  = $pdo->prepare("UPDATE nav_download_progress SET status='in_progress', updated_at=NOW() WHERE fund_id=?");
 
-$stmtMarkWork = $pdo->prepare("UPDATE nav_download_progress SET status='in_progress', updated_at=NOW() WHERE fund_id=?");
+// Stop-restore statement: restores to original status, not always 'pending'
+$stmtRestoreStatus = $pdo->prepare("UPDATE nav_download_progress SET status=?, updated_at=NOW() WHERE fund_id=? AND status='in_progress'");
+
 $errSet = $hasErrCol ? "status='error', error_message=?, updated_at=NOW()" : "status='error', updated_at=NOW()";
-$stmtMarkError = $hasErrCol
-    ? $pdo->prepare("UPDATE nav_download_progress SET {$errSet} WHERE fund_id=?")
-    : $pdo->prepare("UPDATE nav_download_progress SET {$errSet} WHERE fund_id=?");
-
+$stmtMarkError  = $pdo->prepare("UPDATE nav_download_progress SET {$errSet} WHERE fund_id=?");
 $stmtUpdatePeak = $pdo->prepare("UPDATE funds SET highest_nav=?, highest_nav_date=?, updated_at=NOW() WHERE id=?");
 $stmtCheckStop  = $pdo->prepare("SELECT setting_val FROM app_settings WHERE setting_key='" . STOP_KEY . "'");
+$stmtCountRecs  = $pdo->prepare("SELECT COUNT(*) FROM nav_history WHERE fund_id=?");
 
 // ── Parallel fetch ────────────────────────────────────────────────────────────
 function parallelFetch(array $batch, int $timeout, int $parallel): array {
@@ -168,30 +175,36 @@ function parallelFetch(array $batch, int $timeout, int $parallel): array {
     return $results;
 }
 
-// ── Process one fund: NAV insert + Peak calc + single mark-done ───────────────
+// ── Process one fund: NAV insert + Peak calc + mark-done ─────────────────────
 function processOne(
     array $row, ?string $raw, PDO $pdo, string $today,
-    $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak,
+    $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak, $stmtCountRecs,
     bool $hasRecCol, bool $hasDateCol
 ): bool {
-    $fundId = (int)$row['fund_id'];
+    $fundId      = (int)$row['fund_id'];
+    $isStale     = ($row['orig_status'] === 'needs_update');
     if ($raw === null) return false;
 
     $json = json_decode($raw, true);
     if (empty($json['data'])) {
-        // No data — mark done with 0 increment
+        $stmtCountRecs->execute([$fundId]);
+        $totalRecs = (int)$stmtCountRecs->fetchColumn();
         $params = [];
-        if ($hasRecCol)  $params[] = 0;
+        if ($hasRecCol)  $params[] = $totalRecs;
         if ($hasDateCol) $params[] = $today;
         $params[] = $fundId;
         $stmtMarkDone->execute($params);
         return true;
     }
 
-    $lastDate    = $row['last_date']         ?? null;
-    $peakNAV     = (float)($row['current_peak_nav']  ?? 0);
-    $peakDate    = $row['current_peak_date']  ?? null;
-    $inserted    = 0;
+    // For needs_update: no last_date filter — process ALL records so peak is fully recalculated
+    // For pending/error: use last_date to only insert new records (incremental)
+    $lastDate = $isStale ? null : ($row['last_date'] ?? null);
+
+    // For peak: start from 0 for needs_update (full rescan), existing for others
+    $peakNAV  = $isStale ? 0.0 : (float)($row['current_peak_nav'] ?? 0);
+    $peakDate = $isStale ? null : ($row['current_peak_date'] ?? null);
+    $inserted = 0;
 
     $pdo->beginTransaction();
     try {
@@ -199,14 +212,24 @@ function processOne(
             $parts = explode('-', trim($entry['date'] ?? ''));
             if (count($parts) !== 3) continue;
             $isoDate = "{$parts[2]}-{$parts[1]}-{$parts[0]}";
-            if ($lastDate && $isoDate <= $lastDate) continue;
+
             $nav = (float)($entry['nav'] ?? 0);
             if ($nav <= 0) continue;
 
-            $stmtInsertNav->execute([$fundId, $isoDate, $nav]);
-            if ($stmtInsertNav->rowCount() > 0) $inserted++;
+            // Track peak from ALL data (even existing rows) for needs_update
+            if ($isStale) {
+                if ($nav > $peakNAV) { $peakNAV = $nav; $peakDate = $isoDate; }
+            }
 
-            if ($nav > $peakNAV) { $peakNAV = $nav; $peakDate = $isoDate; }
+            // Insert only new records
+            if ($lastDate && $isoDate <= $lastDate) continue;
+
+            $stmtInsertNav->execute([$fundId, $isoDate, $nav]);
+            if ($stmtInsertNav->rowCount() > 0) {
+                $inserted++;
+                // For non-stale: track peak from newly inserted only
+                if (!$isStale && $nav > $peakNAV) { $peakNAV = $nav; $peakDate = $isoDate; }
+            }
         }
         $pdo->commit();
     } catch (Exception $e) {
@@ -216,14 +239,17 @@ function processOne(
         return false;
     }
 
-    // Update peak in funds table
-    if ($peakNAV > (float)($row['current_peak_nav'] ?? 0) && $peakNAV > 0) {
+    // Always update peak if improved
+    if ($peakNAV > 0) {
         $stmtUpdatePeak->execute([$peakNAV, $peakDate, $fundId]);
     }
 
-    // Mark done — build params matching prepared statement
+    // Get absolute total record count from nav_history (SET not +=)
+    $stmtCountRecs->execute([$fundId]);
+    $totalRecs = (int)$stmtCountRecs->fetchColumn();
+
     $params = [];
-    if ($hasRecCol)  $params[] = $inserted;
+    if ($hasRecCol)  $params[] = $totalRecs;
     if ($hasDateCol) $params[] = $today;
     $params[] = $fundId;
     $stmtMarkDone->execute($params);
@@ -237,45 +263,51 @@ $chunks = array_chunk($schemes, $PARALLEL);
 
 foreach ($chunks as $idx => $chunk) {
 
+    // ── Stop flag check ───────────────────────────────────────────────────────
     $stmtCheckStop->execute();
     if ($stmtCheckStop->fetchColumn() === '1') {
-        $ids = array_column($chunk, 'fund_id');
-        $ph  = implode(',', array_fill(0, count($ids), '?'));
-        $pdo->prepare("UPDATE nav_download_progress SET status='pending', updated_at=NOW() WHERE fund_id IN ({$ph}) AND status='in_progress'")->execute($ids);
+        // Restore each fund to its original status (not all to 'pending')
+        foreach ($chunk as $row) {
+            $stmtRestoreStatus->execute([$row['orig_status'], $row['fund_id']]);
+        }
         $pdo->exec("UPDATE app_settings SET setting_val='0'    WHERE setting_key='" . STOP_KEY  . "'");
         $pdo->exec("UPDATE app_settings SET setting_val='idle' WHERE setting_key='" . STATUS_KEY . "'");
-        lm("⛔ Stopped at chunk #{$idx}. Resume by clicking Start.");
+        lm("⛔ Stopped at chunk #{$idx}. Resume any time.");
         echo "STOPPED\n"; exit;
     }
 
+    // ── Time limit check ──────────────────────────────────────────────────────
     if (overtime()) {
-        $ids = array_column($chunk, 'fund_id');
-        $ph  = implode(',', array_fill(0, count($ids), '?'));
-        $pdo->prepare("UPDATE nav_download_progress SET status='pending', updated_at=NOW() WHERE fund_id IN ({$ph}) AND status='in_progress'")->execute($ids);
-        lm("⏱ Time limit at chunk #{$idx}. System will continue on next poll.");
+        foreach ($chunk as $row) {
+            $stmtRestoreStatus->execute([$row['orig_status'], $row['fund_id']]);
+        }
+        lm("⏱ Time limit at chunk #{$idx}. Auto-continue on next poll.");
         break;
     }
 
+    // ── Mark batch in_progress ────────────────────────────────────────────────
     foreach ($chunk as $row) $stmtMarkWork->execute([$row['fund_id']]);
 
+    // ── Parallel fetch ────────────────────────────────────────────────────────
     $results = parallelFetch($chunk, API_TIMEOUT, $PARALLEL);
     $failed  = [];
 
     foreach ($chunk as $row) {
         $raw = $results[$row['scheme_code']] ?? null;
-        if (processOne($row, $raw, $pdo, $today, $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak, (bool)$colRec, (bool)$colDate)) {
+        if (processOne($row, $raw, $pdo, $today, $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak, $stmtCountRecs, (bool)$colRec, (bool)$colDate)) {
             $done++;
         } else {
             $failed[] = $row;
         }
     }
 
+    // ── Retry failed ──────────────────────────────────────────────────────────
     if (!empty($failed)) {
         usleep(400000);
         $retry = parallelFetch($failed, API_TIMEOUT + 10, max(1, intdiv($PARALLEL, 2)));
         foreach ($failed as $row) {
             $raw = $retry[$row['scheme_code']] ?? null;
-            if (processOne($row, $raw, $pdo, $today, $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak, (bool)$colRec, (bool)$colDate)) {
+            if (processOne($row, $raw, $pdo, $today, $stmtInsertNav, $stmtMarkDone, $stmtMarkError, $stmtUpdatePeak, $stmtCountRecs, (bool)$colRec, (bool)$colDate)) {
                 $done++;
             } else {
                 if ($hasErrCol) $stmtMarkError->execute(['API timeout after retry', $row['fund_id']]);
@@ -286,8 +318,8 @@ foreach ($chunks as $idx => $chunk) {
     }
 
     if (($idx + 1) % 10 === 0) {
-        $e = time() - $runStart;
-        lm("Done:{$done} | Errors:{$errs} | " . round($done/max(1,$e),1) . " funds/s");
+        $elapsed = time() - $runStart;
+        lm("Done:{$done} | Errors:{$errs} | Speed:" . round($done / max(1, $elapsed), 1) . " f/s");
     }
 }
 

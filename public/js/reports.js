@@ -1114,3 +1114,161 @@ if (document.getElementById('rebalancingTable')) {
     if (portId()) loadRebalancing();
     window.addEventListener('portfolioChanged', () => loadRebalancing());
 }
+/* ══════════════════════════════════════════════════════════════════════
+   t491 — CROSS-FY COMPARISON
+   loadFyCompare() — called from report_fy.php button
+══════════════════════════════════════════════════════════════════════ */
+async function loadFyCompare() {
+    const body = document.getElementById('fyCompareBody');
+    const spanBody = document.getElementById('fySpanBody');
+    const btn  = document.getElementById('fyCompareRefreshBtn');
+    if (!body) return;
+
+    body.innerHTML = `<div style="text-align:center;padding:32px;"><span class="spinner"></span> Loading…</div>`;
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+
+    const pid = document.getElementById('portfolioSelect')?.value ||
+                window.WD?.selectedPortfolio || '';
+
+    try {
+        const fd = new FormData();
+        fd.append('action', 'fy_compare');
+        if (pid) fd.append('portfolio_id', pid);
+        const csrf = window.WD?.csrf || window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
+        if (csrf) fd.append('_csrf_token', csrf);
+        const base = window.WD?.appUrl || window.APP_URL || '';
+        const res  = await fetch(`${base}/api/?action=fy_compare`, { method:'POST', body:fd });
+        const data = await res.json();
+
+        if (!data.success) { body.innerHTML = `<p class="text-danger">${data.error||'Failed'}</p>`; return; }
+
+        const rows = data.data.comparison || [];
+        if (!rows.length) {
+            body.innerHTML = `<p style="text-align:center;padding:24px;color:var(--text-secondary);">No transaction data found across financial years.</p>`;
+            return;
+        }
+
+        const inr = v => '₹' + Number(v||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const gainCls = v => Number(v)>=0 ? 'color:#16a34a' : 'color:#ef4444';
+
+        // Chart bars — max for scaling
+        const maxInvested = Math.max(...rows.map(r => r.invested), 1);
+
+        // Table
+        let html = `
+        <!-- Bar chart -->
+        <div style="margin-bottom:24px;">
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Invested per FY</div>
+          <div style="display:flex;align-items:flex-end;gap:8px;height:100px;">
+            ${rows.map(r => {
+                const barH = Math.max(4, Math.round((r.invested / maxInvested) * 96));
+                return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="font-size:10px;color:var(--text-secondary);">${inr(r.invested)}</div>
+                  <div style="width:100%;height:${barH}px;background:var(--accent);border-radius:4px 4px 0 0;opacity:.85;min-width:24px;"></div>
+                  <div style="font-size:11px;color:var(--text-secondary);white-space:nowrap;">${r.fy}</div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Comparison table -->
+        <div style="overflow-x:auto;">
+        <table class="table" style="min-width:600px;">
+          <thead>
+            <tr>
+              <th>Financial Year</th>
+              <th class="text-right">Invested</th>
+              <th class="text-right">Redeemed</th>
+              <th class="text-right">LTCG</th>
+              <th class="text-right">STCG</th>
+              <th class="text-right">Total Gains</th>
+              <th class="text-right">SIPs</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+            <tr>
+              <td><strong>${r.fy}</strong></td>
+              <td class="text-right">${inr(r.invested)}</td>
+              <td class="text-right">${inr(r.redeemed)}</td>
+              <td class="text-right" style="${gainCls(r.ltcg)}">${inr(r.ltcg)}</td>
+              <td class="text-right" style="${gainCls(r.stcg)}">${inr(r.stcg)}</td>
+              <td class="text-right" style="${gainCls(r.total_gains)};font-weight:600;">${inr(r.total_gains)}</td>
+              <td class="text-right">${r.sip_count}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="font-weight:600;background:var(--bg-secondary);">
+              <td>Total (All FYs)</td>
+              <td class="text-right">${inr(rows.reduce((s,r)=>s+r.invested,0))}</td>
+              <td class="text-right">${inr(rows.reduce((s,r)=>s+r.redeemed,0))}</td>
+              <td class="text-right">${inr(rows.reduce((s,r)=>s+r.ltcg,0))}</td>
+              <td class="text-right">${inr(rows.reduce((s,r)=>s+r.stcg,0))}</td>
+              <td class="text-right">${inr(rows.reduce((s,r)=>s+r.total_gains,0))}</td>
+              <td class="text-right">${rows.reduce((s,r)=>s+r.sip_count,0)}</td>
+            </tr>
+          </tfoot>
+        </table>
+        </div>`;
+
+        body.innerHTML = html;
+
+        // Also load holdings span
+        if (spanBody) {
+            spanBody.innerHTML = `<div style="text-align:center;padding:16px;"><span class="spinner"></span></div>`;
+            const fd2 = new FormData();
+            fd2.append('action', 'fy_holdings_span');
+            if (pid) fd2.append('portfolio_id', pid);
+            if (csrf) fd2.append('_csrf_token', csrf);
+            const res2 = await fetch(`${base}/api/?action=fy_holdings_span`, { method:'POST', body:fd2 });
+            const d2   = await res2.json();
+            const section = document.getElementById('fySpanSection');
+            if (section) section.style.display = '';
+
+            if (d2.success && d2.data?.length) {
+                spanBody.innerHTML = `<div style="overflow-x:auto;"><table class="table">
+                  <thead><tr>
+                    <th>Fund</th><th>Category</th>
+                    <th class="text-right">First Buy</th>
+                    <th class="text-right">Held (yrs)</th>
+                    <th class="text-right">FYs Spanned</th>
+                    <th class="text-right">Invested</th>
+                    <th class="text-right">Current Value</th>
+                    <th class="text-right">Gain %</th>
+                  </tr></thead>
+                  <tbody>
+                    ${d2.data.map(r => `<tr>
+                      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.fund_name}">${r.fund_name}</td>
+                      <td><span style="font-size:11px;background:var(--bg-secondary);padding:2px 6px;border-radius:4px;">${r.category||'—'}</span></td>
+                      <td class="text-right">${r.first_buy||'—'}</td>
+                      <td class="text-right">${r.holding_years}</td>
+                      <td class="text-right"><strong>${r.fy_count}</strong></td>
+                      <td class="text-right">${inr(r.invested_value)}</td>
+                      <td class="text-right">${inr(r.latest_value)}</td>
+                      <td class="text-right" style="${gainCls(r.gain_pct)};font-weight:600;">${Number(r.gain_pct||0).toFixed(1)}%</td>
+                    </tr>`).join('')}
+                  </tbody>
+                </table></div>`;
+            } else {
+                spanBody.innerHTML = `<p style="text-align:center;padding:24px;color:var(--text-secondary);">No holdings spanning multiple FYs found.</p>`;
+            }
+        }
+
+    } catch(e) {
+        body.innerHTML = `<p class="text-danger">Error: ${e.message}</p>`;
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
+    }
+}
+
+// Auto-load if section visible on page load
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('fyCompareSection')) {
+        // Don't auto-load — wait for button click (data can be slow)
+    }
+    // Wire portfolio change
+    window.addEventListener('portfolioChanged', () => {
+        const body = document.getElementById('fyCompareBody');
+        if (body) body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;">Click <strong>Load Comparison</strong> to refresh.</div>`;
+    });
+});

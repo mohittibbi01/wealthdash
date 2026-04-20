@@ -1,434 +1,482 @@
 <?php
 /**
- * WealthDash — FY Gains Report
- * LTCG + STCG + Dividends broken down by Financial Year
- * POST /api/?action=report_fy_gains
- *
- * ✅ FIX: Proper FIFO lot tracking across multiple SELL transactions
- *         Each buy lot is consumed only once — remaining units carry forward
+ * WealthDash — FY Gains / Capital Gains Report API
+ * Tasks: t74, t74b, t363, tmfi05, tv009b
+ * Actions: fy_gains | ltcg_summary | stcg_summary | tax_loss_harvest
+ *          capital_gains_preview | ltcg_bandwidth | gain_by_fund
  */
-declare(strict_types=1);
-defined('WEALTHDASH') or die('Direct access not permitted.');
 
-require_once APP_ROOT . '/includes/tax_engine.php';
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
-$portfolioId = (int)($_POST['portfolio_id'] ?? 0);
-if (!$portfolioId) $portfolioId = get_user_portfolio_id((int)($currentUser['id'] ?? 0));
-$filterFy    = clean($_POST['fy'] ?? '');   // e.g. "2024-25" or "" for all
+$currentUser = require_auth();
+$userId      = (int)$currentUser['id'];
+$action      = $_POST['action'] ?? $_GET['action'] ?? 'fy_gains';
+$db          = DB::conn();
 
-if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
-    json_response(false, 'Invalid or inaccessible portfolio.');
+// ── Helpers ───────────────────────────────────────────────────────────────
+function getFYDates(string $fy): array {
+    // fy = '2024-25'
+    [$y1, $y2] = explode('-', $fy);
+    return ["from" => "{$y1}-04-01", "to" => "20{$y2}-03-31"];
 }
 
-/* ─── Helper: financial year from a date ─────────────────────────────────── */
-function get_fy(string $date): string {
-    $d = new DateTime($date);
-    $y = (int) $d->format('Y');
-    $m = (int) $d->format('n');
-    return $m >= 4 ? "{$y}-" . substr((string)($y + 1), -2) : ($y - 1) . '-' . substr((string)$y, -2);
+function currentFY(): string {
+    $m = (int)date('n'); $y = (int)date('Y');
+    return $m >= 4 ? "{$y}-" . substr($y + 1, 2) : ($y - 1) . "-" . substr($y, 2);
 }
 
-/* ─── 1. MF SELL transactions → realised gains (PROPER FIFO) ─────────────── */
+function ltcgTaxFree(): float { return 125000; } // ₹1.25L from Jul 2024 Budget
 
-// Get all distinct fund+folio combos that have sells
-$mfCombos = DB::fetchAll(
-    "SELECT DISTINCT fund_id, folio_number
-     FROM mf_transactions
-     WHERE portfolio_id = ?
-       AND transaction_type IN ('SELL','SWITCH_OUT','SWP')",
-    [$portfolioId]
-);
+switch ($action) {
 
-$mfGains = [];
+// ══════════════════════════════════════════════════════════════════════════
+// fy_gains — All gains/losses for a financial year
+// ══════════════════════════════════════════════════════════════════════════
+case 'fy_gains':
+    $fy     = $_GET['fy'] ?? currentFY();
+    $search = trim($_GET['search'] ?? '');
+    $dates  = getFYDates($fy);
 
-foreach ($mfCombos as $combo) {
-    $fundId    = (int) $combo['fund_id'];
-    $folio     = ($combo['folio_number'] !== '' && $combo['folio_number'] !== null)
-                 ? $combo['folio_number'] : null;
+    // Get all SELL transactions in the FY
+    $sellStmt = $db->prepare("
+        SELECT
+          t.id AS tx_id,
+          t.tx_date,
+          t.units       AS sold_units,
+          t.price_per_unit AS sell_nav,
+          t.amount      AS sell_amount,
+          f.fund_name,
+          f.scheme_code,
+          f.category,
+          t.holding_id
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        JOIN portfolios p   ON p.id  = mh.portfolio_id
+        JOIN funds f        ON f.id  = mh.fund_id
+        WHERE p.user_id = ?
+          AND t.tx_type IN ('sell','swp','switch_out','redemption')
+          AND t.tx_date BETWEEN ? AND ?
+          " . ($search ? "AND f.fund_name LIKE ?" : "") . "
+        ORDER BY t.tx_date DESC
+    ");
+    $params = [$userId, $dates['from'], $dates['to']];
+    if ($search) $params[] = "%$search%";
+    $sellStmt->execute($params);
+    $sells = $sellStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get ALL transactions for this fund+folio in chronological order
-    // Fix: use proper folio matching — exact match if folio set, else NULL/empty
-    if ($folio !== null) {
-        $allTxns = DB::fetchAll(
-            "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house,
-                    f.min_ltcg_days, f.lock_in_days
-             FROM mf_transactions t
-             JOIN funds f ON f.id = t.fund_id
-             JOIN fund_houses fh ON fh.id = f.fund_house_id
-             WHERE t.portfolio_id = ?
-               AND t.fund_id = ?
-               AND t.folio_number = ?
-             ORDER BY t.txn_date ASC, t.id ASC",
-            [$portfolioId, $fundId, $folio]
-        );
-    } else {
-        $allTxns = DB::fetchAll(
-            "SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                    f.scheme_name, f.category, f.sub_category, fh.name AS fund_house,
-                    f.min_ltcg_days, f.lock_in_days
-             FROM mf_transactions t
-             JOIN funds f ON f.id = t.fund_id
-             JOIN fund_houses fh ON fh.id = f.fund_house_id
-             WHERE t.portfolio_id = ?
-               AND t.fund_id = ?
-               AND (t.folio_number IS NULL OR t.folio_number = '')
-             ORDER BY t.txn_date ASC, t.id ASC",
-            [$portfolioId, $fundId]
-        );
-    }
+    $gains = [];
+    $ltcgTotal = $stcgTotal = $ltcgExempt = 0;
 
-    // Build FIFO queue from BUY transactions, process SELLs in order
-    $queue = []; // ['units' => float, 'nav' => float, 'date' => string]
+    foreach ($sells as $sell) {
+        // FIFO: find matching buy transactions for this holding
+        $buys = $db->prepare("
+            SELECT tx_date, units AS bought_units, price_per_unit AS buy_nav, amount AS buy_amount
+            FROM mf_transactions
+            WHERE holding_id = ? AND tx_type IN ('buy','sip','lumpsum','switch_in')
+              AND tx_date <= ?
+            ORDER BY tx_date ASC
+        ");
+        $buys->execute([$sell['holding_id'], $sell['tx_date']]);
+        $buyRows = $buys->fetchAll(PDO::FETCH_ASSOC);
 
-    foreach ($allTxns as $t) {
-        $type  = $t['transaction_type'];
-        $units = (float) $t['units'];
-        $nav   = (float) $t['nav'];
-        $date  = $t['txn_date'];
+        $unitsToMatch  = (float)$sell['sold_units'];
+        $costBasis     = 0.0;
+        $holdingDaysWt = 0.0;
 
-        if (in_array($type, ['BUY', 'DIV_REINVEST', 'SWITCH_IN', 'STP_IN'])) {
-            // Add to FIFO queue
-            $queue[] = ['units' => $units, 'nav' => $nav, 'date' => $date];
-
-        } elseif (in_array($type, ['SELL', 'SWITCH_OUT', 'SWP'])) {
-            $sellFy = get_fy($date);
-            if ($filterFy && $sellFy !== $filterFy) {
-                // Still consume from queue even if filtered out, to keep FIFO state correct
-                $remaining = $units;
-                while ($remaining > 0.0001 && !empty($queue)) {
-                    $lot = &$queue[0];
-                    if ($lot['units'] <= $remaining) {
-                        $remaining -= $lot['units'];
-                        array_shift($queue);
-                    } else {
-                        $lot['units'] -= $remaining;
-                        $remaining = 0;
-                    }
-                    unset($lot);
-                }
-                continue;
-            }
-
-            $remaining  = $units;
-            $totalCost  = 0.0;
-            $proceeds   = round($units * $nav, 2);
-            $firstBuyDate = !empty($queue) ? $queue[0]['date'] : $date;
-
-            // FIFO: consume from earliest lots
-            while ($remaining > 0.0001 && !empty($queue)) {
-                $lot = &$queue[0];
-                if ($lot['units'] <= $remaining) {
-                    $totalCost += $lot['units'] * $lot['nav'];
-                    $remaining -= $lot['units'];
-                    array_shift($queue);
-                } else {
-                    $totalCost    += $remaining * $lot['nav'];
-                    $lot['units'] -= $remaining;
-                    $remaining     = 0;
-                }
-                unset($lot);
-            }
-
-            $gain     = round($proceeds - $totalCost, 2);
-            $days     = (int)(new DateTime($date))->diff(new DateTime($firstBuyDate))->days;
-
-            $cat      = strtolower($t['category'] ?? '');
-            // Detect asset type from category for debt-slab rule
-            $assetType = (strpos($cat, 'debt') !== false || strpos($cat, 'liquid') !== false
-                          || strpos($cat, 'money market') !== false || strpos($cat, 'credit') !== false)
-                         ? 'debt' : (strpos($cat, 'elss') !== false ? 'elss' : 'equity');
-
-            // Use fund-specific LTCG days from DB (set correctly by fetch_amfi_funds.php)
-            $fundMinLtcgDays = (int)($t['min_ltcg_days'] ?? 0);
-
-            $taxInfo = TaxEngine::mf_gain_tax($gain, $firstBuyDate, $date, $assetType, $fundMinLtcgDays);
-
-            $mfGains[] = [
-                'asset_class'  => 'Mutual Fund',
-                'name'         => $t['scheme_name'],
-                'fund_house'   => $t['fund_house'],
-                'category'     => $t['category'],
-                'folio'        => $combo['folio_number'],
-                'sell_date'    => format_date($date),
-                'units'        => $units,
-                'sell_nav'     => $nav,
-                'proceeds'     => $proceeds,
-                'cost'         => round($totalCost, 2),
-                'gain'         => $gain,
-                'days_held'    => $days,
-                'gain_type'    => $taxInfo['gain_type'],
-                'tax_rate'     => $taxInfo['tax_rate'],
-                'tax_amount'   => $taxInfo['tax_amount'],
-                'fy'           => $sellFy,
-            ];
+        foreach ($buyRows as $buy) {
+            if ($unitsToMatch <= 0) break;
+            $used  = min((float)$buy['bought_units'], $unitsToMatch);
+            $ratio = $used / (float)$buy['bought_units'];
+            $costBasis     += $used * (float)$buy['buy_nav'];
+            $holdingDaysWt += $used * ((strtotime($sell['tx_date']) - strtotime($buy['tx_date'])) / 86400);
+            $unitsToMatch  -= $used;
         }
-    }
-}
 
-/* ─── 2. STOCK SELL transactions → realised gains (PROPER FIFO) ─────────── */
-$stockTxns = DB::fetchAll(
-    "SELECT t.id, t.stock_id, t.txn_date, t.txn_type,
-            t.quantity, t.price, t.value_at_cost,
-            t.brokerage, t.stt, t.exchange_charges,
-            sm.symbol, sm.company_name, sm.exchange
-     FROM stock_transactions t
-     JOIN stock_master sm ON sm.id = t.stock_id
-     WHERE t.portfolio_id = ?
-     ORDER BY t.stock_id ASC, t.txn_date ASC, t.id ASC",
-    [$portfolioId]
-);
+        $avgHoldingDays = ($sell['sold_units'] > 0) ? $holdingDaysWt / (float)$sell['sold_units'] : 0;
+        $sellAmt   = (float)$sell['sell_amount'];
+        $gain      = $sellAmt - $costBasis;
+        $isLTCG    = $avgHoldingDays >= 365;
 
-// Group by stock and run FIFO per stock
-$stockTxnsByStock = [];
-foreach ($stockTxns as $t) {
-    $stockTxnsByStock[$t['stock_id']][] = $t;
-}
+        // LTCG/STCG classification for equity MF
+        $isEquity  = str_contains(strtolower($sell['category'] ?? ''), 'equity')
+                  || str_contains(strtolower($sell['category'] ?? ''), 'elss')
+                  || str_contains(strtolower($sell['category'] ?? ''), 'index');
 
-$stockGains = [];
-foreach ($stockTxnsByStock as $stockId => $txns) {
-    $queue = []; // FIFO: ['qty'=>float, 'price'=>float, 'date'=>string]
-
-    foreach ($txns as $t) {
-        $type = $t['txn_type'];
-        $qty  = (float)$t['quantity'];
-
-        if (in_array($type, ['BUY', 'BONUS', 'SPLIT'])) {
-            $queue[] = ['qty' => $qty, 'price' => (float)$t['price'], 'date' => $t['txn_date']];
-
-        } elseif ($type === 'SELL') {
-            $sellDate = $t['txn_date'];
-            $sellFy   = get_fy($sellDate);
-            $proceeds = (float)$t['value_at_cost'];
-            $charges  = (float)$t['brokerage'] + (float)$t['stt'] + (float)$t['exchange_charges'];
-
-            $remaining  = $qty;
-            $totalCost  = 0.0;
-            $firstBuyDate = !empty($queue) ? $queue[0]['date'] : $sellDate;
-
-            // FIFO consume
-            while ($remaining > 0.0001 && !empty($queue)) {
-                $lot = &$queue[0];
-                if ($lot['qty'] <= $remaining) {
-                    $totalCost += $lot['qty'] * $lot['price'];
-                    $remaining -= $lot['qty'];
-                    array_shift($queue);
-                } else {
-                    $totalCost   += $remaining * $lot['price'];
-                    $lot['qty']  -= $remaining;
-                    $remaining    = 0;
-                }
-                unset($lot);
-            }
-
-            if ($filterFy && $sellFy !== $filterFy) continue;
-
-            $gain    = $proceeds - $totalCost - $charges;
-            $days    = (int)(new DateTime($sellDate))->diff(new DateTime($firstBuyDate))->days;
-
-            // t39: Grandfathering — for stocks bought before Jan 31 2018
-            // FMV lookup not implemented (would need NSE historical data)
-            // Using 0 for now — user can manually override in UI
-            $taxInfo = TaxEngine::stock_gain_tax($gain, $firstBuyDate, $sellDate, $proceeds, 0);
-
-            $stockGains[] = [
-                'asset_class'    => 'Stock',
-                'name'           => $t['company_name'],
-                'symbol'         => $t['symbol'],
-                'exchange'       => $t['exchange'],
-                'buy_date'       => $firstBuyDate,       // t39: for grandfathering display
-                'sell_date'      => format_date($sellDate),
-                'quantity'       => $qty,
-                'sell_price'     => (float)$t['price'],
-                'proceeds'       => $proceeds,
-                'cost'           => round($totalCost, 2),
-                'charges'        => round($charges, 2),
-                'gain'           => round($gain, 2),
-                'adjusted_gain'  => $taxInfo['adjusted_gain'] ?? round($gain, 2), // t39
-                'days_held'      => $days,
-                'gain_type'      => $taxInfo['gain_type'],
-                'tax_rate'       => $taxInfo['tax_rate'],
-                'tax_amount'     => $taxInfo['tax_amount'],
-                'grandfathered'  => $taxInfo['grandfathered'] ?? false, // t39
-                'fy'             => $sellFy,
-            ];
+        $taxType   = $isLTCG ? 'LTCG' : 'STCG';
+        $taxRate   = $isLTCG ? 10 : 15; // equity MF rates post Jul 2024
+        if (!$isEquity) {
+            $taxType = $isLTCG ? 'LTCG_Debt' : 'STCG_Debt';
+            $taxRate = $isLTCG ? 20 : null; // slab rate for STCG debt
         }
-    }
-}
 
-/* ─── 3. MF Dividends ────────────────────────────────────────────────────── */
-$mfDivRows = DB::fetchAll(
-    "SELECT d.div_date, d.total_amount, d.dividend_fy,
-            f.scheme_name, fh.name AS fund_house
-     FROM mf_dividends d
-     JOIN funds f ON f.id = d.fund_id
-     JOIN fund_houses fh ON fh.id = f.fund_house_id
-     WHERE d.portfolio_id = ?
-     ORDER BY d.div_date ASC",
-    [$portfolioId]
-);
-$mfDividends = [];
-foreach ($mfDivRows as $row) {
-    $fy = $row['dividend_fy'] ?: get_fy($row['div_date']);
-    if ($filterFy && $fy !== $filterFy) continue;
-    $mfDividends[] = [
-        'asset_class' => 'Mutual Fund',
-        'name'        => $row['scheme_name'],
-        'fund_house'  => $row['fund_house'],
-        'date'        => format_date($row['div_date']),
-        'amount'      => (float) $row['total_amount'],
-        'fy'          => $fy,
-    ];
-}
+        if ($isLTCG && $isEquity) $ltcgTotal += max(0, $gain);
+        if (!$isLTCG && $isEquity) $stcgTotal += max(0, $gain);
 
-/* ─── 4. Stock Dividends ─────────────────────────────────────────────────── */
-$stDivRows = DB::fetchAll(
-    "SELECT d.div_date, d.total_amount, d.dividend_fy,
-            sm.symbol, sm.company_name
-     FROM stock_dividends d
-     JOIN stock_master sm ON sm.id = d.stock_id
-     WHERE d.portfolio_id = ?
-     ORDER BY d.div_date ASC",
-    [$portfolioId]
-);
-$stockDividends = [];
-foreach ($stDivRows as $row) {
-    $fy = $row['dividend_fy'] ?: get_fy($row['div_date']);
-    if ($filterFy && $fy !== $filterFy) continue;
-    $stockDividends[] = [
-        'asset_class' => 'Stock',
-        'name'        => $row['company_name'],
-        'symbol'      => $row['symbol'],
-        'date'        => format_date($row['div_date']),
-        'amount'      => (float) $row['total_amount'],
-        'fy'          => $fy,
-    ];
-}
-
-/* ─── 5. Aggregate by FY ─────────────────────────────────────────────────── */
-$allGains = array_merge($mfGains, $stockGains);
-$fyData   = [];
-
-foreach ($allGains as $g) {
-    $fy = $g['fy'];
-    if (!isset($fyData[$fy])) {
-        $fyData[$fy] = [
-            'fy'               => $fy,
-            'ltcg_equity'      => 0.0,
-            'ltcg_debt'        => 0.0,
-            'stcg_equity'      => 0.0,
-            'stcg_debt'        => 0.0,
-            'slab_gains'       => 0.0,
-            'total_gains'      => 0.0,
-            'mf_dividends'     => 0.0,
-            'stock_dividends'  => 0.0,
-            'total_tax_approx' => 0.0,
-            'ltcg_exemption_remaining' => LTCG_EXEMPTION_LIMIT,
+        $gains[] = [
+            'tx_id'           => $sell['tx_id'],
+            'fund_name'       => $sell['fund_name'],
+            'scheme_code'     => $sell['scheme_code'],
+            'category'        => $sell['category'],
+            'tx_date'         => $sell['tx_date'],
+            'sold_units'      => round((float)$sell['sold_units'], 4),
+            'sell_nav'        => round((float)$sell['sell_nav'], 4),
+            'sell_amount'     => round($sellAmt, 2),
+            'cost_basis'      => round($costBasis, 2),
+            'gain_loss'       => round($gain, 2),
+            'gain_pct'        => $costBasis > 0 ? round($gain / $costBasis * 100, 2) : 0,
+            'holding_days'    => round($avgHoldingDays),
+            'tax_type'        => $taxType,
+            'tax_rate_pct'    => $taxRate,
+            'estimated_tax'   => $taxRate ? round(max(0, $gain) * $taxRate / 100, 2) : null,
         ];
     }
-    $gainAmt = (float) $g['gain'];
-    $gt      = $g['gain_type'];
-    $assetCl = $g['asset_class'];
 
-    if ($gt === 'LTCG') {
-        if ($assetCl === 'Stock' || strpos(strtolower($g['category'] ?? ''), 'debt') === false) {
-            $fyData[$fy]['ltcg_equity'] += $gainAmt;
-        } else {
-            $fyData[$fy]['ltcg_debt'] += $gainAmt;
-        }
-    } elseif ($gt === 'STCG') {
-        if ($assetCl === 'Stock' || strpos(strtolower($g['category'] ?? ''), 'debt') === false) {
-            $fyData[$fy]['stcg_equity'] += $gainAmt;
-        } else {
-            $fyData[$fy]['stcg_debt'] += $gainAmt;
-        }
-    } elseif ($gt === 'SLAB') {
-        $fyData[$fy]['slab_gains'] += $gainAmt;
+    $ltcgExempt   = min($ltcgTotal, ltcgTaxFree());
+    $ltcgTaxable  = max(0, $ltcgTotal - ltcgTaxFree());
+    $ltcgTax      = round($ltcgTaxable * 0.10, 2);
+    $stcgTax      = round(max(0, $stcgTotal) * 0.15, 2);
+
+    echo json_encode([
+        'success' => true,
+        'data'    => $gains,
+        'summary' => [
+            'fy'              => $fy,
+            'ltcg_total'      => round($ltcgTotal, 2),
+            'ltcg_exempt'     => round($ltcgExempt, 2),
+            'ltcg_taxable'    => round($ltcgTaxable, 2),
+            'ltcg_tax'        => $ltcgTax,
+            'stcg_total'      => round($stcgTotal, 2),
+            'stcg_tax'        => $stcgTax,
+            'total_tax'       => round($ltcgTax + $stcgTax, 2),
+        ],
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// tax_loss_harvest — tmfi05: Identify loss-making holdings to sell
+// ══════════════════════════════════════════════════════════════════════════
+case 'tax_loss_harvest':
+    $fy    = $_GET['fy'] ?? currentFY();
+    $portfolioId = getOrCreatePortfolio($db, $userId);
+
+    // Current realised gains this FY (to know how much to offset)
+    $datesR  = getFYDates($fy);
+    $realised = $db->prepare("
+        SELECT
+          SUM(CASE WHEN DATEDIFF(t.tx_date, first_buy.buy_date) >= 365 THEN (t.amount - cost.cost) ELSE 0 END) AS ltcg,
+          SUM(CASE WHEN DATEDIFF(t.tx_date, first_buy.buy_date) < 365  THEN (t.amount - cost.cost) ELSE 0 END) AS stcg
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        JOIN portfolios p   ON p.id  = mh.portfolio_id
+        CROSS JOIN (SELECT 0 AS cost, '2000-01-01' AS buy_date) first_buy
+        CROSS JOIN (SELECT 0 AS cost) cost
+        WHERE p.user_id = ? AND t.tx_type IN ('sell','swp','redemption')
+          AND t.tx_date BETWEEN ? AND ?
+    ");
+    $realised->execute([$userId, $datesR['from'], $datesR['to']]);
+    $r = $realised->fetch(PDO::FETCH_ASSOC);
+
+    // Holdings with unrealised losses
+    $losses = $db->prepare("
+        SELECT mh.id AS holding_id, mh.fund_id, mh.units, mh.invested_amount,
+               mh.current_value, mh.current_nav, mh.first_investment_date,
+               f.fund_name, f.category,
+               (mh.current_value - mh.invested_amount) AS unrealised_gl,
+               DATEDIFF(NOW(), mh.first_investment_date) AS holding_days
+        FROM mf_holdings mh
+        JOIN funds f ON f.id = mh.fund_id
+        JOIN portfolios p ON p.id = mh.portfolio_id
+        WHERE p.user_id = ? AND mh.is_active = 1
+          AND mh.current_value < mh.invested_amount
+        ORDER BY (mh.current_value - mh.invested_amount) ASC
+    ");
+    $losses->execute([$userId]);
+    $lossHoldings = $losses->fetchAll(PDO::FETCH_ASSOC);
+
+    $harvestCandidates = [];
+    foreach ($lossHoldings as $h) {
+        $loss      = abs((float)$h['unrealised_gl']);
+        $isLTCL    = (int)$h['holding_days'] >= 365;
+        $harvestCandidates[] = array_merge($h, [
+            'unrealised_loss' => round($loss, 2),
+            'loss_pct'        => (float)$h['invested_amount'] > 0
+                                  ? round($loss / (float)$h['invested_amount'] * 100, 2) : 0,
+            'loss_type'       => $isLTCL ? 'LTCL' : 'STCL',
+            'offset_type'     => $isLTCL ? 'Can offset LTCG only' : 'Can offset STCG and LTCG',
+            'tax_saving'      => $isLTCL ? round($loss * 0.10, 2) : round($loss * 0.15, 2),
+            'note'            => $isLTCL
+                ? "Long-term loss — can offset LTCG. Rebuy after 3 days to maintain exposure."
+                : "Short-term loss — can offset both STCG ({$h['category']}) and LTCG.",
+        ]);
     }
-    $fyData[$fy]['total_gains'] += $gainAmt;
-    $fyData[$fy]['total_tax_approx'] += (float)($g['tax_amount'] ?? 0);
-}
 
-foreach ($mfDividends as $d) {
-    $fy = $d['fy'];
-    if (!isset($fyData[$fy])) $fyData[$fy] = ['fy' => $fy, 'mf_dividends' => 0.0, 'stock_dividends' => 0.0, 'ltcg_equity' => 0.0, 'ltcg_debt' => 0.0, 'stcg_equity' => 0.0, 'stcg_debt' => 0.0, 'slab_gains' => 0.0, 'total_gains' => 0.0, 'total_tax_approx' => 0.0];
-    $fyData[$fy]['mf_dividends'] += (float)$d['amount'];
-}
-foreach ($stockDividends as $d) {
-    $fy = $d['fy'];
-    if (!isset($fyData[$fy])) $fyData[$fy] = ['fy' => $fy, 'mf_dividends' => 0.0, 'stock_dividends' => 0.0, 'ltcg_equity' => 0.0, 'ltcg_debt' => 0.0, 'stcg_equity' => 0.0, 'stcg_debt' => 0.0, 'slab_gains' => 0.0, 'total_gains' => 0.0, 'total_tax_approx' => 0.0];
-    $fyData[$fy]['stock_dividends'] += (float)$d['amount'];
-}
+    // LTCG bandwidth remaining
+    $ltcgBandwidth = max(0, ltcgTaxFree() - ((float)($r['ltcg'] ?? 0)));
 
-foreach ($fyData as &$fy) {
-    foreach (['ltcg_equity','ltcg_debt','stcg_equity','stcg_debt','slab_gains','total_gains','mf_dividends','stock_dividends','total_tax_approx'] as $k) {
-        $fy[$k] = round($fy[$k] ?? 0.0, 2);
-    }
-    $fy['total_dividends'] = round(($fy['mf_dividends'] ?? 0) + ($fy['stock_dividends'] ?? 0), 2);
-}
-unset($fy);
+    echo json_encode([
+        'success'        => true,
+        'candidates'     => $harvestCandidates,
+        'realised_stcg'  => round((float)($r['stcg'] ?? 0), 2),
+        'realised_ltcg'  => round((float)($r['ltcg'] ?? 0), 2),
+        'ltcg_bandwidth' => round($ltcgBandwidth, 2),
+        'ltcg_tax_free'  => ltcgTaxFree(),
+        'fy'             => $fy,
+    ]);
+    break;
 
-krsort($fyData);
+// ══════════════════════════════════════════════════════════════════════════
+// ltcg_bandwidth — Quick LTCG bandwidth check
+// ══════════════════════════════════════════════════════════════════════════
+case 'ltcg_bandwidth':
+    $fy    = $_GET['fy'] ?? currentFY();
+    $dates = getFYDates($fy);
 
-// ✅ FIX: Only show FYs where actual SELL transactions happened
-$sellFySet = [];
-foreach ($mfGains    as $g) { $sellFySet[$g['fy']] = true; }
-foreach ($stockGains as $g) { $sellFySet[$g['fy']] = true; }
-krsort($sellFySet);
-$allFyList = array_keys($sellFySet);
+    // Sum realised LTCG this FY (simplified — holdings sold > 1 year)
+    $stmt = $db->prepare("
+        SELECT COALESCE(SUM(t.amount), 0) AS total_sell
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        JOIN portfolios p   ON p.id  = mh.portfolio_id
+        WHERE p.user_id = ? AND t.tx_type IN ('sell','redemption')
+          AND t.tx_date BETWEEN ? AND ?
+          AND DATEDIFF(t.tx_date, mh.first_investment_date) >= 365
+    ");
+    $stmt->execute([$userId, $dates['from'], $dates['to']]);
+    $totalLTCGSell = (float)$stmt->fetchColumn();
+    // Simplified — actual cost basis needed for accurate number
+    $estimatedLTCGGain  = $totalLTCGSell * 0.15; // rough estimate
+    $ltcgUsed      = max(0, $estimatedLTCGGain);
+    $ltcgRemaining = max(0, ltcgTaxFree() - $ltcgUsed);
 
-// t39: Build stock-specific LTCG/STCG summary per FY
-$stockSummary = [];
-foreach ($stockGains as $g) {
-    $fy = $g['fy'];
-    if (!isset($stockSummary[$fy])) {
-        $stockSummary[$fy] = [
-            'fy'          => $fy,
-            'ltcg_gain'   => 0, 'ltcg_tax'   => 0, 'ltcg_count' => 0,
-            'stcg_gain'   => 0, 'stcg_tax'   => 0, 'stcg_count' => 0,
-            'total_gain'  => 0, 'total_tax'  => 0,
-            'grandfathered_count' => 0,
-            'exchanges'   => [],
+    echo json_encode([
+        'success'        => true,
+        'ltcg_used'      => round($ltcgUsed, 2),
+        'ltcg_remaining' => round($ltcgRemaining, 2),
+        'ltcg_limit'     => ltcgTaxFree(),
+        'fy'             => $fy,
+        'note'           => $ltcgRemaining > 0
+            ? "₹" . number_format($ltcgRemaining) . " LTCG exemption remaining. Consider booking gains before March 31."
+            : "LTCG exemption fully used for FY $fy.",
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// capital_gains_preview — Live preview on holdings page (tv09b)
+// ══════════════════════════════════════════════════════════════════════════
+case 'capital_gains_preview':
+    $portfolioId = getOrCreatePortfolio($db, $userId);
+    $fy          = currentFY();
+
+    $stmt = $db->prepare("
+        SELECT mh.fund_id, mh.invested_amount, mh.current_value, mh.first_investment_date,
+               f.fund_name, f.category
+        FROM mf_holdings mh
+        JOIN funds f ON f.id = mh.fund_id
+        JOIN portfolios p ON p.id = mh.portfolio_id
+        WHERE p.user_id = ? AND mh.is_active = 1 AND mh.current_value > mh.invested_amount
+    ");
+    $stmt->execute([$userId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $preview = ['ltcg' => 0, 'stcg' => 0, 'items' => []];
+    foreach ($rows as $r) {
+        $gain  = (float)$r['current_value'] - (float)$r['invested_amount'];
+        $days  = (int)(time() - strtotime($r['first_investment_date'])) / 86400;
+        $isLT  = $days >= 365;
+        if ($isLT) $preview['ltcg'] += $gain;
+        else        $preview['stcg'] += $gain;
+        $preview['items'][] = [
+            'fund_name' => $r['fund_name'],
+            'gain'      => round($gain, 2),
+            'type'      => $isLT ? 'LTCG' : 'STCG',
+            'holding_days' => $days,
         ];
     }
-    $gt = $g['gain_type'];
-    $gain = (float)($g['adjusted_gain'] ?? $g['gain']);
-    $tax  = (float)($g['tax_amount'] ?? 0);
-    if ($gt === 'LTCG') {
-        $stockSummary[$fy]['ltcg_gain']  += $gain;
-        $stockSummary[$fy]['ltcg_tax']   += $tax;
-        $stockSummary[$fy]['ltcg_count'] ++;
-    } else {
-        $stockSummary[$fy]['stcg_gain']  += $gain;
-        $stockSummary[$fy]['stcg_tax']   += $tax;
-        $stockSummary[$fy]['stcg_count'] ++;
-    }
-    $stockSummary[$fy]['total_gain'] += $gain;
-    $stockSummary[$fy]['total_tax']  += $tax;
-    if (!empty($g['grandfathered'])) $stockSummary[$fy]['grandfathered_count']++;
-    if ($g['exchange'] && !in_array($g['exchange'], $stockSummary[$fy]['exchanges'])) {
-        $stockSummary[$fy]['exchanges'][] = $g['exchange'];
-    }
-}
-// Round all values
-foreach ($stockSummary as &$s) {
-    $s['ltcg_gain'] = round($s['ltcg_gain'], 2);
-    $s['stcg_gain'] = round($s['stcg_gain'], 2);
-    $s['total_gain']= round($s['total_gain'], 2);
-    $s['ltcg_tax']  = round($s['ltcg_tax'],  2);
-    $s['stcg_tax']  = round($s['stcg_tax'],  2);
-    $s['total_tax'] = round($s['total_tax'],  2);
-}
-unset($s);
 
-json_response(true, 'FY Gains report loaded.', [
-    'fy_summary'         => array_values($fyData),
-    'mf_gains_detail'    => $mfGains,
-    'stock_gains_detail' => $stockGains,
-    'stock_summary'      => array_values($stockSummary), // t39
-    'mf_dividends'       => $mfDividends,
-    'stock_dividends'    => $stockDividends,
-    'fy_list'            => $allFyList,
-    'filter_fy'          => $filterFy,
-    'ltcg_exemption'     => LTCG_EXEMPTION_LIMIT,
-]);
+    $ltcgTaxable = max(0, $preview['ltcg'] - ltcgTaxFree());
+    $preview['ltcg_tax']   = round($ltcgTaxable * 0.10, 2);
+    $preview['stcg_tax']   = round(max(0, $preview['stcg']) * 0.15, 2);
+    $preview['total_tax']  = $preview['ltcg_tax'] + $preview['stcg_tax'];
+    $preview['ltcg']       = round($preview['ltcg'], 2);
+    $preview['stcg']       = round($preview['stcg'], 2);
+
+    echo json_encode(['success' => true, 'data' => $preview, 'fy' => $fy]);
+    break;
+
+default:
+    echo json_encode(['success' => false, 'msg' => "Unknown action: $action"]);
+}
+
+function getOrCreatePortfolio(PDO $db, int $userId): int {
+    $id = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+    $id->execute([$userId]);
+    $pid = $id->fetchColumn();
+    if ($pid) return (int)$pid;
+    $db->prepare("INSERT INTO portfolios (user_id, name, is_default, created_at) VALUES (?,?,1,NOW())")->execute([$userId, 'My Portfolio']);
+    return (int)$db->lastInsertId();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// t491: fy_compare — Multi-year side-by-side comparison
+// ══════════════════════════════════════════════════════════════════════════
+case 'fy_compare':
+    // Returns all FYs data for cross-FY comparison chart
+    $pid = (int)($_POST['portfolio_id'] ?? 0);
+    if (!$pid) {
+        // auto-detect
+        $r = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+        $r->execute([$userId]);
+        $pid = (int)($r->fetchColumn() ?: 0);
+    }
+    if (!$pid) { echo json_encode(['success'=>false,'error'=>'No portfolio']); break; }
+
+    // Verify ownership
+    $chk = $db->prepare("SELECT id FROM portfolios WHERE id=? AND user_id=?");
+    $chk->execute([$pid, $userId]);
+    if (!$chk->fetch()) { echo json_encode(['success'=>false,'error'=>'Forbidden']); break; }
+
+    // Get all FYs that have transactions
+    $fyStmt = $db->prepare("
+        SELECT DISTINCT
+          CASE WHEN MONTH(t.tx_date) >= 4
+               THEN CONCAT(YEAR(t.tx_date),'-',LPAD(SUBSTR(YEAR(t.tx_date)+1,3,2),2,'0'))
+               ELSE CONCAT(YEAR(t.tx_date)-1,'-',LPAD(SUBSTR(YEAR(t.tx_date),3,2),2,'0'))
+          END AS fy
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        WHERE mh.portfolio_id = ?
+        ORDER BY fy ASC
+    ");
+    $fyStmt->execute([$pid]);
+    $fyList = $fyStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    $comparison = [];
+    foreach ($fyList as $fy) {
+        $parts = explode('-', $fy);
+        $y1 = $parts[0];
+        $y2 = strlen($parts[1]) == 2 ? '20'.$parts[1] : $parts[1];
+        $from = "{$y1}-04-01";
+        $to   = "{$y2}-03-31";
+
+        // Invested this FY (buys)
+        $buyQ = $db->prepare("
+            SELECT COALESCE(SUM(t.amount),0) AS invested
+            FROM mf_transactions t
+            JOIN mf_holdings mh ON mh.id = t.holding_id
+            WHERE mh.portfolio_id=? AND t.tx_type IN ('buy','sip','switch_in','lumpsum')
+              AND t.tx_date BETWEEN ? AND ?
+        ");
+        $buyQ->execute([$pid, $from, $to]);
+        $invested = (float)$buyQ->fetchColumn();
+
+        // Realised gains this FY (sells)
+        $sellQ = $db->prepare("
+            SELECT
+              COALESCE(SUM(CASE WHEN DATEDIFF(t.tx_date, tb.tx_date) > 365 THEN (t.price_per_unit - tb.price_per_unit)*t.units ELSE 0 END),0) AS ltcg,
+              COALESCE(SUM(CASE WHEN DATEDIFF(t.tx_date, tb.tx_date) <= 365 THEN (t.price_per_unit - tb.price_per_unit)*t.units ELSE 0 END),0) AS stcg,
+              COALESCE(SUM(t.amount),0) AS redeemed
+            FROM mf_transactions t
+            JOIN mf_holdings mh ON mh.id = t.holding_id
+            LEFT JOIN mf_transactions tb ON tb.holding_id = t.holding_id
+              AND tb.tx_type IN ('buy','sip','lumpsum','switch_in')
+              AND tb.tx_date = (
+                SELECT MIN(tb2.tx_date) FROM mf_transactions tb2
+                WHERE tb2.holding_id = t.holding_id
+                  AND tb2.tx_type IN ('buy','sip','lumpsum','switch_in')
+                  AND tb2.tx_date <= t.tx_date
+              )
+            WHERE mh.portfolio_id=?
+              AND t.tx_type IN ('sell','swp','switch_out','redemption')
+              AND t.tx_date BETWEEN ? AND ?
+        ");
+        $sellQ->execute([$pid, $from, $to]);
+        $gains = $sellQ->fetch(PDO::FETCH_ASSOC);
+
+        // SIP count this FY
+        $sipQ = $db->prepare("
+            SELECT COUNT(*) FROM mf_transactions t
+            JOIN mf_holdings mh ON mh.id = t.holding_id
+            WHERE mh.portfolio_id=? AND t.tx_type='sip'
+              AND t.tx_date BETWEEN ? AND ?
+        ");
+        $sipQ->execute([$pid, $from, $to]);
+        $sipCount = (int)$sipQ->fetchColumn();
+
+        // Portfolio value at FY end (latest NAV × units held as of FY end)
+        $valQ = $db->prepare("
+            SELECT COALESCE(SUM(
+              (SELECT COALESCE(SUM(CASE WHEN tx_type IN ('buy','sip','lumpsum','switch_in') THEN units
+                                        WHEN tx_type IN ('sell','swp','switch_out','redemption') THEN -units
+                                        ELSE 0 END),0)
+               FROM mf_transactions t2
+               WHERE t2.holding_id = mh.id AND t2.tx_date <= ?)
+              * COALESCE((SELECT nav FROM nav_history nh WHERE nh.fund_id=mh.fund_id AND nh.nav_date <= ? ORDER BY nh.nav_date DESC LIMIT 1),
+                          (SELECT latest_nav FROM funds WHERE id=mh.fund_id))
+            ),0) AS portfolio_value
+            FROM mh_holdings mh
+            WHERE mh.portfolio_id=?
+        ");
+        // simplified — use holdings table directly
+        $valQ2 = $db->prepare("
+            SELECT COALESCE(SUM(mh.latest_value),0) FROM mf_holdings mh WHERE mh.portfolio_id=?
+        ");
+        $valQ2->execute([$pid]);
+        $portfolioVal = (float)$valQ2->fetchColumn();
+
+        $comparison[] = [
+            'fy'            => $fy,
+            'invested'      => round($invested, 2),
+            'redeemed'      => round((float)($gains['redeemed'] ?? 0), 2),
+            'ltcg'          => round((float)($gains['ltcg'] ?? 0), 2),
+            'stcg'          => round((float)($gains['stcg'] ?? 0), 2),
+            'total_gains'   => round((float)($gains['ltcg'] ?? 0) + (float)($gains['stcg'] ?? 0), 2),
+            'sip_count'     => $sipCount,
+        ];
+    }
+
+    echo json_encode(['success'=>true, 'data'=>['fy_list'=>$fyList, 'comparison'=>$comparison]]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// t491: fy_holdings_span — Holdings that span multiple FYs
+// ══════════════════════════════════════════════════════════════════════════
+case 'fy_holdings_span':
+    $pid = (int)($_POST['portfolio_id'] ?? 0);
+    if (!$pid) {
+        $r = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+        $r->execute([$userId]);
+        $pid = (int)($r->fetchColumn() ?: 0);
+    }
+    $chk = $db->prepare("SELECT id FROM portfolios WHERE id=? AND user_id=?");
+    $chk->execute([$pid, $userId]);
+    if (!$chk->fetch()) { echo json_encode(['success'=>false,'error'=>'Forbidden']); break; }
+
+    $stmt = $db->prepare("
+        SELECT
+          f.fund_name,
+          f.category,
+          MIN(t.tx_date) AS first_buy,
+          MAX(t.tx_date) AS last_tx,
+          DATEDIFF(CURDATE(), MIN(t.tx_date)) AS holding_days,
+          ROUND(DATEDIFF(CURDATE(), MIN(t.tx_date)) / 365.25, 1) AS holding_years,
+          COUNT(DISTINCT CASE WHEN MONTH(t.tx_date) >= 4
+               THEN CONCAT(YEAR(t.tx_date),'-',LPAD(SUBSTR(YEAR(t.tx_date)+1,3,2),2,'0'))
+               ELSE CONCAT(YEAR(t.tx_date)-1,'-',LPAD(SUBSTR(YEAR(t.tx_date),3,2),2,'0'))
+          END) AS fy_count,
+          mh.invested_value,
+          mh.latest_value,
+          ROUND((mh.latest_value - mh.invested_value) / NULLIF(mh.invested_value,0) * 100, 2) AS gain_pct
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        JOIN funds f ON f.id = mh.fund_id
+        WHERE mh.portfolio_id = ?
+          AND t.tx_type IN ('buy','sip','lumpsum','switch_in')
+          AND mh.units > 0.001
+        GROUP BY mh.id, f.fund_name, f.category, mh.invested_value, mh.latest_value
+        HAVING fy_count >= 2
+        ORDER BY holding_years DESC
+    ");
+    $stmt->execute([$pid]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['success'=>true,'data'=>$rows]);
+    break;

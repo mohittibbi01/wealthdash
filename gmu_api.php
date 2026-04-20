@@ -75,30 +75,39 @@ if ($action === 'summary') {
     try {
         $total = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress");
 
-        $recExpr  = $colRec    ? "COALESCE(SUM(p.{$colRec}),0)"    : "0";
+        $recExpr  = $colRec    ? "COALESCE(SUM(p.{$colRec}),0)"       : "0";
         $peakExpr = $hasPeakCol ? "COALESCE(SUM(p.peak_calculated),0)" : "0";
 
         $counts = $pdo->query("
             SELECT
-                COUNT(*)                                   AS total,
-                SUM(status IN ('completed','needs_update')) AS done,
-                SUM(status = 'needs_update')                AS needs_update,
-                SUM(status = 'pending')                     AS pending,
-                SUM(status = 'in_progress')                 AS working,
-                SUM(status = 'error')                       AS errors,
-                {$recExpr}                                  AS total_records,
-                {$peakExpr}                                 AS peaks_done
+                COUNT(*)                        AS total,
+                SUM(status = 'completed')        AS completed,
+                SUM(status = 'needs_update')     AS needs_update,
+                SUM(status IN ('pending','needs_update')) AS actionable,
+                SUM(status = 'pending')          AS pending,
+                SUM(status = 'in_progress')      AS working,
+                SUM(status = 'error')            AS errors,
+                {$recExpr}                       AS total_records,
+                {$peakExpr}                      AS peaks_done
             FROM nav_download_progress p
         ")->fetch(PDO::FETCH_ASSOC);
 
-        $done        = (int)($counts['done']         ?? 0);
-        $needsUpdate = (int)($counts['needs_update'] ?? 0);
-        $pending     = (int)($counts['pending']      ?? 0);
-        $working     = (int)($counts['working']      ?? 0);
-        $errors      = (int)($counts['errors']       ?? 0);
+        // CORRECTED logic:
+        // completed  = only status='completed' (processed today by pipeline)
+        // needs_update = stale funds (downloaded before, date is old) — actionable, NOT "done"
+        // pending    = truly never downloaded
+        // pct        = completed / total (needs_update does NOT count toward progress)
+        $completed   = (int)($counts['completed']   ?? 0);
+        $needsUpdate = (int)($counts['needs_update']?? 0);
+        $actionable  = (int)($counts['actionable']  ?? 0); // pending + needs_update
+        $pending     = (int)($counts['pending']     ?? 0);
+        $working     = (int)($counts['working']     ?? 0);
+        $errors      = (int)($counts['errors']      ?? 0);
         $totalRecs   = (int)($counts['total_records']?? 0);
-        $peaksDone   = (int)($counts['peaks_done']   ?? 0);
-        $pct         = $total > 0 ? round(($done / $total) * 100, 1) : 0;
+        $peaksDone   = (int)($counts['peaks_done']  ?? 0);
+
+        // Progress = how many genuinely completed today / total
+        $pct = $total > 0 ? round(($completed / $total) * 100, 1) : 0;
 
         // Fallbacks
         if ($totalRecs === 0)
@@ -109,6 +118,12 @@ if ($action === 'summary') {
         $stopFlag   = safeVal($pdo, "SELECT setting_val FROM app_settings WHERE setting_key='" . STOP_KEY  . "'") ?? '0';
         $statusFlag = safeVal($pdo, "SELECT setting_val FROM app_settings WHERE setting_key='" . STATUS_KEY . "'") ?? 'idle';
         $lastDone   = safeVal($pdo, "SELECT setting_val FROM app_settings WHERE setting_key='gmu_last_completed'") ?? '';
+
+        // Auto-fix stale 'running' flag — if no workers active, mark idle
+        if ($statusFlag === 'running' && $working === 0) {
+            $pdo->exec("UPDATE app_settings SET setting_val='idle' WHERE setting_key='" . STATUS_KEY . "'");
+            $statusFlag = 'idle';
+        }
 
         $recSel  = $colRec    ? "p.{$colRec} AS records_saved" : "0 AS records_saved";
         $peakSel = $hasPeakCol ? "p.peak_calculated"           : "0 AS peak_calculated";
@@ -129,20 +144,21 @@ if ($action === 'summary') {
                    {$recSel}, {$peakSel}, p.updated_at
             FROM nav_download_progress p
             LEFT JOIN funds f ON {$joinOn}
-            WHERE p.status IN ('completed','needs_update')
+            WHERE p.status = 'completed'
             ORDER BY p.updated_at DESC LIMIT 20
         ")->fetchAll(PDO::FETCH_ASSOC);
 
         echo json_encode([
             'total'         => $total,
-            'completed'     => $done,
-            'needs_update'  => $needsUpdate,
-            'pending'       => $pending,
+            'completed'     => $completed,    // only status='completed'
+            'needs_update'  => $needsUpdate,  // stale funds, actionable
+            'actionable'    => $actionable,   // pending + needs_update (total to process)
+            'pending'       => $pending,      // never downloaded
             'working'       => $working,
             'errors'        => $errors,
             'total_records' => $totalRecs,
             'peaks_done'    => $peaksDone,
-            'pct'           => $pct,
+            'pct'           => $pct,          // completed/total only
             'stop_flag'     => $stopFlag,
             'status'        => $statusFlag,
             'last_completed'=> $lastDone,
@@ -164,18 +180,28 @@ if ($action === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (session_status() === PHP_SESSION_NONE) session_start();
         $parallel = max(1, min(50, (int)($_POST['parallel'] ?? $_GET['parallel'] ?? 8)));
 
-        $pdo->exec("UPDATE nav_download_progress SET status='pending', updated_at=NOW()
-                    WHERE status='in_progress' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+        // Reset stale in_progress (from crashed previous runs)
+        // Restore them to needs_update if they had records, else pending
+        $colRecLocal = in_array('total_records', $cols) ? 'total_records'
+                     : (in_array('records_saved', $cols) ? 'records_saved' : null);
+        if ($colRecLocal) {
+            $pdo->exec("UPDATE nav_download_progress
+                        SET status = CASE WHEN {$colRecLocal} > 0 THEN 'needs_update' ELSE 'pending' END, updated_at=NOW()
+                        WHERE status='in_progress' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+        } else {
+            $pdo->exec("UPDATE nav_download_progress SET status='pending', updated_at=NOW()
+                        WHERE status='in_progress' AND updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+        }
         $pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('" . STOP_KEY . "','0')
                     ON DUPLICATE KEY UPDATE setting_val='0'");
 
-        $pending = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress WHERE status IN ('pending','error','needs_update')");
-        $total   = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress");
+        $actionable = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress WHERE status IN ('pending','error','needs_update')");
+        $total      = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress");
 
-        if ($pending === 0) {
-            $done = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress WHERE status IN ('completed','needs_update')");
+        if ($actionable === 0) {
+            $completed = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress WHERE status='completed'");
             echo json_encode(['ok' => false,
-                'message'  => $total === 0 ? 'Progress table empty.' : "Sab {$done}/{$total} funds complete.",
+                'message'  => $total === 0 ? 'Progress table empty.' : "Sab {$completed}/{$total} funds aaj process ho chuke hain.",
                 'all_done' => $total > 0]);
             exit;
         }
@@ -183,14 +209,21 @@ if ($action === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $script = escapeshellarg(__DIR__ . '/gmu_processor.php');
         $php    = escapeshellarg(PHP_BINARY ?: 'php');
         if (PHP_OS_FAMILY === 'Windows') {
-            pclose(popen("start /B {$php} {$script} {$parallel}", 'r'));
+            // Windows: use wscript to spawn truly detached background process
+            $cmd = "{$php} {$script} {$parallel}";
+            $wsh = "wscript //nologo //e:jscript -e \"var s=new ActiveXObject('WScript.Shell');s.Run('" . addslashes($cmd) . "',0,false);\"";
+            pclose(popen("start /B cmd /c \"{$php} {$script} {$parallel} > NUL 2>&1\"", 'r'));
         } else {
             exec("{$php} {$script} {$parallel} > /dev/null 2>&1 &");
         }
         $pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('" . STATUS_KEY . "','running')
                     ON DUPLICATE KEY UPDATE setting_val='running'");
 
-        echo json_encode(['ok' => true, 'message' => "⚡ Pipeline started — {$pending} funds queued.", 'pending' => $pending]);
+        $nuCount = (int) safeVal($pdo, "SELECT COUNT(*) FROM nav_download_progress WHERE status='needs_update'");
+        $msg = $nuCount > 0
+            ? "⚡ Pipeline started — {$nuCount} stale + " . ($actionable - $nuCount) . " new funds queued."
+            : "⚡ Pipeline started — {$actionable} funds queued.";
+        echo json_encode(['ok' => true, 'message' => $msg, 'pending' => $actionable]);
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
@@ -203,8 +236,23 @@ if ($action === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'stop' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $pdo->exec("INSERT INTO app_settings (setting_key,setting_val) VALUES('" . STOP_KEY . "','1') ON DUPLICATE KEY UPDATE setting_val='1'");
-        $pdo->exec("UPDATE nav_download_progress SET status='pending', updated_at=NOW() WHERE status='in_progress'");
-        echo json_encode(['ok' => true, 'message' => 'Pipeline stopping... Progress saved.']);
+        // Restore in_progress funds to their appropriate status
+        // needs_update funds should go back to needs_update, not pending
+        // We identify needs_update by checking if they have last_nav_date set
+        // Simpler: check if total_records > 0 (has been downloaded before)
+        $hasSchCols = dbCols($pdo, 'nav_download_progress');
+        $colRecLocal = in_array('total_records', $hasSchCols) ? 'total_records'
+                     : (in_array('records_saved', $hasSchCols) ? 'records_saved' : null);
+        if ($colRecLocal) {
+            // Funds with existing records → needs_update, truly new → pending
+            $pdo->exec("UPDATE nav_download_progress
+                        SET status = CASE WHEN {$colRecLocal} > 0 THEN 'needs_update' ELSE 'pending' END,
+                            updated_at = NOW()
+                        WHERE status = 'in_progress'");
+        } else {
+            $pdo->exec("UPDATE nav_download_progress SET status='pending', updated_at=NOW() WHERE status='in_progress'");
+        }
+        echo json_encode(['ok' => true, 'message' => 'Pipeline stopped. Progress saved — resume anytime.']);
     } catch (Exception $e) { echo json_encode(['ok' => false, 'error' => $e->getMessage()]); }
     exit;
 }
@@ -253,10 +301,10 @@ if ($action === 'table') {
         $offset = ($page - 1) * $limit;
 
         $whereMap = [
-            'pending' => "p.status = 'pending'",
+            'pending' => "p.status IN ('pending','needs_update')",  // actionable: both pending & stale
             'working' => "p.status = 'in_progress'",
             'errors'  => "p.status = 'error'",
-            'done'    => "p.status IN ('completed','needs_update')",
+            'done'    => "p.status = 'completed'",                  // only truly completed today
         ];
         $where  = $whereMap[$tab] ?? "p.status='pending'";
         $params = [];

@@ -222,6 +222,10 @@ ob_start();
   <button class="mf-tab" data-tab="exitplanner" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
     🎯 Exit Planner
   </button>
+  <!-- t484: Sunburst Chart -->
+  <button class="mf-tab" data-tab="sunburst" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🌐 Sunburst
+  </button>
 </div>
 
 <!-- ═══ TAB: HOLDINGS ═══ -->
@@ -1027,6 +1031,61 @@ ob_start();
   </div>
 
 </div><!-- end tabExitPlanner -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     t484: SUNBURST CHART TAB
+════════════════════════════════════════════════════════════════ -->
+<div id="tabSunburst" style="display:none;padding:16px 0;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div>
+      <h3 style="margin:0;font-size:16px;font-weight:600;">Portfolio Sunburst</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">
+        Asset Class → Category → Fund — click to drill down
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="sbViewMode" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;">
+        <option value="sunburst">Sunburst</option>
+        <option value="treemap">Treemap</option>
+        <option value="pie">Donut</option>
+      </select>
+      <button onclick="MF.sunburst.load()" class="btn btn-sm btn-ghost" title="Refresh">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div id="sbSummaryCards" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px;"></div>
+
+  <!-- Chart area -->
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;" id="sbLayout">
+    <div class="card" style="padding:20px;min-height:460px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <div id="sbChartWrap" style="width:100%;max-width:480px;margin:0 auto;">
+        <div id="sbLoading" style="text-align:center;padding:40px;color:var(--text-secondary);">
+          <div class="spinner" style="margin:0 auto 12px;"></div>Loading chart…
+        </div>
+        <svg id="sbSvg" style="display:none;width:100%;height:460px;"></svg>
+        <canvas id="sbCanvas" style="display:none;max-width:100%;"></canvas>
+      </div>
+      <!-- Breadcrumb drill-down path -->
+      <div id="sbBreadcrumb" style="margin-top:12px;font-size:13px;color:var(--text-secondary);display:none;">
+        <span id="sbBreadcrumbText"></span>
+        <button onclick="MF.sunburst.resetDrilldown()" style="margin-left:8px;font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;">↩ Reset</button>
+      </div>
+    </div>
+
+    <!-- Legend / Detail panel -->
+    <div>
+      <div class="card" style="padding:16px;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">Asset Breakdown</div>
+        <div id="sbLegend" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+      <div class="card" style="padding:16px;" id="sbDetailCard" style="display:none;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;" id="sbDetailTitle">Hover a segment</div>
+        <div id="sbDetailBody" style="font-size:13px;"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- end tabSunburst -->
 
 <!-- ═══ ADD/EDIT TRANSACTION MODAL ═══ -->
 <div class="modal-overlay" id="modalAddTxn" style="display:none;">

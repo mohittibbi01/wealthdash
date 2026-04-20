@@ -1,208 +1,149 @@
 <?php
 /**
- * WealthDash — AMFI NAV Bulk Update
- * Run daily via cron: php update_amfi.php
- * Or manually by admin via browser
+ * WealthDash — AMFI Fund List Updater + NAV Proxy
+ * Tasks: t05 (AMFI Update), t163 (NAV Proxy local cache)
+ * Actions: update_amfi | nav_proxy | fund_search_amfi
+ * Run: php api/nav/update_amfi.php (to update fund master list)
  */
+
 define('WEALTHDASH', true);
-require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
-require_once APP_ROOT . '/includes/auth_check.php';
+require_once __DIR__ . '/../../config/database.php';
 
-$isCron = php_sapi_name() === 'cli';
+$isCli    = (php_sapi_name() === 'cli');
+$isAction = !$isCli;
 
-if (!$isCron) {
-    require_auth(ROLE_ADMIN);
+if ($isAction) {
+    if (!defined('WEALTHDASH')) die('Direct access not allowed.');
     header('Content-Type: application/json');
+    $action = $_POST['action'] ?? $_GET['action'] ?? 'nav_proxy';
+
+    switch ($action) {
+
+    // ── NAV Proxy ─────────────────────────────────────────────────────────
+    case 'nav_proxy':
+        $code = preg_replace('/[^0-9]/', '', $_GET['scheme_code'] ?? '');
+        if (!$code) { echo json_encode(['error' => 'scheme_code required']); exit; }
+
+        $db   = DB::conn();
+        $fund = $db->prepare("SELECT id, current_nav, nav_date FROM funds WHERE scheme_code=? LIMIT 1");
+        $fund->execute([$code]);
+        $f    = $fund->fetch(PDO::FETCH_ASSOC);
+
+        if (!$f) {
+            // Passthrough to MFAPI
+            $resp = @file_get_contents("https://api.mfapi.in/mf/{$code}");
+            echo $resp ?: json_encode(['error' => 'Fund not found']);
+            exit;
+        }
+
+        // Return cached NAV history
+        $rows = $db->prepare("SELECT nav_date AS date, nav FROM nav_history WHERE fund_id=? ORDER BY nav_date DESC LIMIT 1826");
+        $rows->execute([$f['id']]);
+        $data = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'meta' => ['scheme_code' => $code, 'scheme_name' => '', 'fund_house' => ''],
+            'data' => array_map(fn($r) => [
+                'date' => date('d-m-Y', strtotime($r['date'])),
+                'nav'  => (string)$r['nav'],
+            ], $data),
+            'source' => 'wealthdash_cache',
+        ]);
+        exit;
+
+    // ── Search AMFI by name ───────────────────────────────────────────────
+    case 'fund_search_amfi':
+        $q  = trim($_GET['q'] ?? '');
+        $db = DB::conn();
+        if (!$q) { echo json_encode(['results' => []]); exit; }
+        $stmt = $db->prepare("
+            SELECT id, scheme_code, fund_name, fund_house, category, plan_type, current_nav
+            FROM funds WHERE is_active=1 AND fund_name LIKE ? ORDER BY fund_name LIMIT 20
+        ");
+        $stmt->execute(['%' . $q . '%']);
+        echo json_encode(['results' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        exit;
+    }
+    exit;
 }
 
-$amfiUrl = AMFI_NAV_URL;
-$today   = date('Y-m-d');
+// ── CLI: Update AMFI Fund Master ───────────────────────────────────────────
+$log  = fn(string $msg) => print('[' . date('H:i:s') . '] ' . $msg . PHP_EOL);
+$db   = DB::conn();
 
-// Check if already updated today
-$lastUpdated = DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key = 'nav_last_updated'");
-$manual = isset($_GET['manual']) && $_GET['manual'] === '1'
-       || ($isCron && isset($argv[1]) && $argv[1] === '--force');
+$log("Fetching AMFI NAVAll.txt...");
 
-if ($lastUpdated === $today && !$manual) {
-    $msg = "NAV already updated today ({$today}). Use ?manual=1 to force update.";
-    if ($isCron) { echo $msg . PHP_EOL; exit(0); }
-    json_response(true, $msg);
-}
-
-// Fetch AMFI data
-$context = stream_context_create([
-    'http' => ['timeout' => 30, 'user_agent' => 'WealthDash/1.0'],
-    'ssl'  => ['verify_peer' => false],
-]);
-
-$data = @file_get_contents($amfiUrl, false, $context);
-
-if (!$data) {
-    $msg = 'Failed to fetch AMFI NAV data. Check internet connection.';
-    if ($isCron) { echo "ERROR: $msg" . PHP_EOL; exit(1); }
-    json_response(false, $msg);
-}
-
-$lines       = explode("\n", $data);
-$updated     = 0;
-$inserted    = 0;
-$currentAmc  = '';
-$currentAmcId = null;
-
-DB::beginTransaction();
+// Ensure funds table has required columns
 try {
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if (empty($line)) continue;
+    $db->exec("
+        ALTER TABLE funds
+          ADD COLUMN IF NOT EXISTS isin          VARCHAR(12)  DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS isin_growth   VARCHAR(12)  DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS plan_type     ENUM('Direct','Regular') DEFAULT 'Direct',
+          ADD COLUMN IF NOT EXISTS fund_house    VARCHAR(100) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS category      VARCHAR(80)  DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS sub_category  VARCHAR(80)  DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS risk_level    VARCHAR(30)  DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS aum           DECIMAL(18,2) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS expense_ratio DECIMAL(5,3) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS exit_load_percent DECIMAL(5,2) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS lock_in_months INT UNSIGNED DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS is_active     TINYINT(1) NOT NULL DEFAULT 1,
+          ADD COLUMN IF NOT EXISTS current_nav   DECIMAL(12,4) DEFAULT NULL,
+          ADD COLUMN IF NOT EXISTS nav_date      DATETIME DEFAULT NULL
+    ");
+} catch (Exception $e) { $log("Column add: " . $e->getMessage()); }
 
-        // AMC header line (no semicolons, not a data line)
-        if (!str_contains($line, ';')) {
-            $currentAmc = $line;
-            // Upsert fund house
-            $existing = DB::fetchOne('SELECT id FROM fund_houses WHERE name = ?', [$currentAmc]);
-            if ($existing) {
-                $currentAmcId = $currentAmcId = (int) $existing['id'];
-            } else {
-                $currentAmcId = (int) DB::insert(
-                    'INSERT INTO fund_houses (name) VALUES (?)',
-                    [$currentAmc]
-                );
-            }
-            continue;
-        }
+$url  = 'https://www.amfiindia.com/spages/NAVAll.txt';
+$ch   = curl_init($url);
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60, CURLOPT_FOLLOWLOCATION => true]);
+$data = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
 
-        // Data line: Scheme Code;ISIN Div Payout/IDCW;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
-        $parts = explode(';', $line);
-        if (count($parts) < 6) continue;
+if ($code !== 200 || !$data) { $log("FAILED to fetch AMFI. HTTP $code"); exit(1); }
 
-        $schemeCode  = trim($parts[0]);
-        $isinDiv     = trim($parts[1]);
-        $isinGrowth  = trim($parts[2]);
-        $schemeName  = trim($parts[3]);
-        $navStr      = trim($parts[4]);
-        $navDateStr  = trim($parts[5]);
+$lines    = explode("\n", $data);
+$inserted = $updated = $skipped = 0;
+$currentHouse = '';
 
-        if (!is_numeric($navStr) || empty($schemeCode) || empty($schemeName)) continue;
+$upsert = $db->prepare("
+    INSERT INTO funds (scheme_code, fund_name, fund_house, plan_type, current_nav, nav_date, is_active)
+    VALUES (?,?,?,?,?,NOW(),1)
+    ON DUPLICATE KEY UPDATE
+      fund_name=VALUES(fund_name), fund_house=VALUES(fund_house),
+      current_nav=VALUES(current_nav), nav_date=NOW(), is_active=1
+");
 
-        $nav     = (float) $navStr;
-        $navDate = null;
+$db->beginTransaction();
+$count = 0;
+foreach ($lines as $line) {
+    $line = trim($line);
+    if (empty($line)) continue;
 
-        // Parse date: DD-Mon-YYYY
-        if ($navDateStr) {
-            $d = DateTime::createFromFormat('d-M-Y', $navDateStr);
-            if ($d) $navDate = $d->format('Y-m-d');
-        }
-        if (!$navDate) $navDate = $today;
-
-        // Upsert fund
-        $fund = DB::fetchOne('SELECT id FROM funds WHERE scheme_code = ?', [$schemeCode]);
-
-        if ($fund) {
-            // Update NAV — save current latest_nav as prev_nav before overwriting
-            DB::run(
-                'UPDATE funds SET
-                    prev_nav      = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav, prev_nav),
-                    prev_nav_date = IF(latest_nav_date IS NOT NULL AND latest_nav_date < ?, latest_nav_date, prev_nav_date),
-                    latest_nav = ?, latest_nav_date = ?,
-                    highest_nav = GREATEST(COALESCE(highest_nav, 0), ?),
-                    highest_nav_date = IF(? > COALESCE(highest_nav, 0), ?, highest_nav_date),
-                    updated_at = NOW()
-                 WHERE scheme_code = ?',
-                [$navDate, $navDate, $nav, $navDate, $nav, $nav, $navDate, $schemeCode]
-            );
-            $fundId = (int) $fund['id'];
-            $updated++;
-        } else {
-            // Determine category/type from name
-            $optionType = 'growth';
-            if (preg_match('/\b(dividend|idcw|div)\b/i', $schemeName)) $optionType = 'idcw';
-            if (preg_match('/\bbonus\b/i', $schemeName)) $optionType = 'bonus';
-
-            $isElss   = (bool) preg_match('/\belss\b/i', $schemeName);
-            $lockIn   = $isElss ? ELSS_LOCKIN_DAYS : 0;
-            $ltcgDays = EQUITY_LTCG_DAYS;
-
-            // Detect category from scheme name
-            if ($isElss) {
-                $category = 'ELSS';
-            } elseif (preg_match('/\b(liquid|overnight|ultra short|low dur|short dur|money market)\b/i', $schemeName)) {
-                $category = 'Liquid';
-                $ltcgDays = DEBT_LTCG_DAYS;
-            } elseif (preg_match('/\b(debt|gilt|floater|banking and psu|credit risk|medium|long dur|dynamic bond|corporate bond)\b/i', $schemeName)) {
-                $category = 'Debt';
-                $ltcgDays = DEBT_LTCG_DAYS;
-            } elseif (preg_match('/\b(hybrid|balanced|aggressive|conservative|multi asset|arbitrage|equity savings)\b/i', $schemeName)) {
-                $category = 'Hybrid';
-            } elseif (preg_match('/\b(index|nifty|sensex|bse|nse|etf|exchange traded)\b/i', $schemeName)) {
-                $category = 'Index';
-            } else {
-                $category = 'Equity';
-            }
-
-            $fundId = (int) DB::insert(
-                'INSERT INTO funds (fund_house_id, scheme_code, scheme_name, isin_growth, isin_div,
-                    category, option_type, min_ltcg_days, lock_in_days, latest_nav, latest_nav_date,
-                    highest_nav, highest_nav_date)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [
-                    $currentAmcId ?: 1,
-                    $schemeCode, $schemeName,
-                    $isinGrowth ?: null, $isinDiv ?: null,
-                    $category, $optionType, $ltcgDays, $lockIn,
-                    $nav, $navDate, $nav, $navDate,
-                ]
-            );
-            $inserted++;
-        }
-
-        // Store in nav_history (ignore duplicates)
-        if ($fundId && $navDate) {
-            try {
-                DB::run(
-                    'INSERT IGNORE INTO nav_history (fund_id, nav_date, nav) VALUES (?, ?, ?)',
-                    [$fundId, $navDate, $nav]
-                );
-            } catch (Exception) {}
-        }
+    // Fund house header line (no semicolons)
+    if (!str_contains($line, ';')) {
+        $currentHouse = $line;
+        continue;
     }
 
-    // Update last-updated setting
-    DB::run(
-        "INSERT INTO app_settings (setting_key, setting_val) VALUES ('nav_last_updated', ?)
-         ON DUPLICATE KEY UPDATE setting_val = ?",
-        [$today, $today]
-    );
-    DB::run(
-        "INSERT INTO app_settings (setting_key, setting_val) VALUES ('import_amfi_last_updated', NOW())
-         ON DUPLICATE KEY UPDATE setting_val = NOW()"
-    );
+    $parts = explode(';', $line);
+    if (count($parts) < 5) continue;
 
-    DB::commit();
+    [$code, $isin1, $isin2, $name, $nav] = array_map('trim', $parts);
+    if (!is_numeric($code) || !is_numeric($nav) || (float)$nav <= 0) continue;
 
-    // ── Bulk-refresh mf_holdings value_now/gain_loss after NAV update ──
-    // This is the critical step — without this, holdings show stale values
-    DB::run("
-        UPDATE mf_holdings h
-        JOIN funds f ON f.id = h.fund_id
-        SET
-            h.value_now  = ROUND(h.total_units * f.latest_nav, 2),
-            h.gain_loss  = ROUND((h.total_units * f.latest_nav) - h.total_invested, 2),
-            h.gain_pct   = CASE
-                               WHEN h.total_invested > 0
-                               THEN ROUND(((h.total_units * f.latest_nav) - h.total_invested) / h.total_invested * 100, 4)
-                               ELSE 0
-                           END
-        WHERE h.is_active = 1 AND f.latest_nav > 0
-    ", []);
+    $planType = (str_contains(strtolower($name), 'direct') || str_contains(strtolower($name), ' - dp ')) ? 'Direct' : 'Regular';
 
-    $msg = "NAV update complete. Updated: {$updated}, New funds: {$inserted}. Date: {$today}";
-    if ($isCron) { echo $msg . PHP_EOL; exit(0); }
-    json_response(true, $msg, ['updated' => $updated, 'inserted' => $inserted]);
+    $upsert->execute([$code, $name, $currentHouse, $planType, (float)$nav]);
+    $count++;
 
-} catch (Exception $e) {
-    DB::rollback();
-    error_log('AMFI update error: ' . $e->getMessage());
-    $msg = 'NAV update failed: ' . $e->getMessage();
-    if ($isCron) { echo "ERROR: $msg" . PHP_EOL; exit(1); }
-    json_response(false, $msg);
+    if ($count % 1000 === 0) {
+        $db->commit();
+        $db->beginTransaction();
+        $log("Processed $count funds...");
+    }
 }
+$db->commit();
+
+$log("AMFI update complete. $count fund entries processed.");

@@ -321,6 +321,28 @@ ob_start();
   </div>
 </div>
 
+<!-- t273: NPS Auto-Allocation Analyzer Card -->
+<div class="card" style="margin-top:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h3 class="card-title" style="margin:0;">🎯 Auto-Allocation Analyzer</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">Are you in the right asset class for your age? Compare vs PFRDA Lifecycle Funds (LC-25/50/75)</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <label style="font-size:13px;color:var(--text-secondary);">Your Age:</label>
+      <input type="number" id="npsAllocAge" value="35" min="18" max="60"
+             style="width:72px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;"
+             oninput="loadNpsAllocAnalyzer()">
+      <button onclick="loadNpsAllocAnalyzer()" class="btn btn-sm btn-ghost">↻ Analyse</button>
+    </div>
+  </div>
+  <div class="card-body" id="npsAllocAnalyzerWrap" style="min-height:80px;">
+    <div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">
+      Enter your age above and click <strong>Analyse</strong> to check if your NPS allocation matches PFRDA recommendations.
+    </div>
+  </div>
+</div>
+
 <!-- Add Contribution Modal -->
 <div class="modal-overlay" id="modalAddNps" style="display:none">
   <div class="modal" style="max-width:520px">
@@ -684,7 +706,111 @@ document.addEventListener('DOMContentLoaded', () => {
   NPS.init();
   calcNpsMaturity();
   calcNpsMfCmp(); // t105
+  loadNpsAllocAnalyzer(); // t273
 });
+
+/* ── t273: NPS Auto-Allocation Analyzer ──────────────────────── */
+async function loadNpsAllocAnalyzer() {
+  const wrap = document.getElementById('npsAllocAnalyzerWrap');
+  if (!wrap) return;
+  const BASE = window.APP_URL || window.WD?.appUrl || '';
+  const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+  const age  = parseInt(document.getElementById('npsAllocAge')?.value || 0) || 35;
+
+  wrap.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>';
+  try {
+    const fd = new FormData();
+    fd.append('action', 'nps_allocation_analyzer');
+    fd.append('current_age', age);
+    if (CSRF) fd.append('_csrf_token', CSRF);
+    const res  = await fetch(`${BASE}/api/?action=nps_allocation_analyzer`, {method:'POST',body:fd});
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'API error');
+    const d = data.allocation_analyzer;
+    renderNpsAllocAnalyzer(d);
+  } catch(e) {
+    wrap.innerHTML = `<p style="color:var(--text-secondary);text-align:center;">Could not load analyzer: ${e.message}</p>`;
+  }
+}
+
+function renderNpsAllocAnalyzer(d) {
+  const wrap = document.getElementById('npsAllocAnalyzerWrap');
+  if (!wrap) return;
+  const inr = v => '₹' + Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0});
+  const pct = (v, cls='') => `<strong style="color:${cls||'var(--text)'};">${Number(v||0).toFixed(1)}%</strong>`;
+
+  const alertsHtml = (d.alerts||[]).map(a => `
+    <div style="padding:10px 14px;border-left:3px solid ${a.level==='error'?'#ef4444':'#f59e0b'};background:var(--bg-secondary);border-radius:0 6px 6px 0;font-size:13px;margin-bottom:8px;">
+      ${a.level==='error'?'🔴':'⚠️'} ${a.message}
+    </div>`).join('');
+
+  const rebalHtml = (d.rebalance||[]).map(r => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:13px;margin-bottom:6px;">
+      <span style="font-size:16px;">${r.action==='Increase'?'📈':'📉'}</span>
+      <div style="flex:1;">
+        <strong>${r.asset}</strong>: ${r.action} from ${r.from_pct}% → ${r.to_pct}%
+        <div style="font-size:12px;color:var(--text-secondary);">Amount: ~${inr(r.by_amount)}</div>
+      </div>
+    </div>`).join('');
+
+  // LC comparison table
+  const lcHtml = Object.entries(d.recommended||{}).map(([key, lc]) => `
+    <tr style="${key===d.default_choice?'background:rgba(99,102,241,.08);font-weight:600;':''}">
+      <td>${lc.name} ${key===d.default_choice?'<span style="font-size:10px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:10px;margin-left:4px;">Recommended</span>':''}</td>
+      <td class="text-right">${lc.equity}%</td>
+      <td class="text-right">${lc.corporate}%</td>
+      <td class="text-right">${lc.govt}%</td>
+    </tr>`).join('');
+
+  // Actual vs target bars
+  const barRow = (label, actual, target, color) => {
+    const maxW = 200;
+    const aW = Math.round(Math.min(actual/100,1)*maxW);
+    const tW = Math.round(Math.min(target/100,1)*maxW);
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+        <span>${label}</span>
+        <span>Actual ${actual}% · Target ${target}%</span>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:8px;width:${maxW}px;position:relative;">
+        <div style="background:${color};width:${aW}px;height:8px;border-radius:4px;"></div>
+        <div style="position:absolute;top:-2px;left:${tW}px;width:2px;height:12px;background:#374151;border-radius:1px;" title="Target ${target}%"></div>
+      </div>
+    </div>`;
+  };
+
+  const actual = d.actual_pct || {};
+  const target = d.target || {};
+
+  wrap.innerHTML = d.has_holdings ? `
+    ${alertsHtml ? `<div style="margin-bottom:16px;">${alertsHtml}</div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <!-- Actual vs Target bars -->
+      <div class="card" style="padding:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;">Actual vs Recommended (${d.default_choice?.toUpperCase()})</div>
+        ${barRow('Equity (E)', actual.equity||0, target.equity||0, '#3b82f6')}
+        ${barRow('Corporate Bonds (C)', actual.corporate||0, target.corporate||0, '#10b981')}
+        ${barRow('Govt Bonds (G)', actual.govt||0, target.govt||0, '#8b5cf6')}
+      </div>
+      <!-- LC Fund comparison -->
+      <div class="card" style="padding:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px;">PFRDA Lifecycle Funds (Age ${d.current_age})</div>
+        <table class="table" style="font-size:12px;"><thead><tr><th>Fund</th><th class="text-right">Equity</th><th class="text-right">Corp.</th><th class="text-right">Govt</th></tr></thead>
+        <tbody>${lcHtml}</tbody></table>
+      </div>
+    </div>
+
+    ${rebalHtml ? `<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">🔄 Rebalancing Suggestions</div>${rebalHtml}</div>` : '<div style="padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:13px;color:#16a34a;margin-bottom:16px;">✅ Your allocation is well-aligned with recommendations.</div>'}
+
+    <div style="font-size:12px;color:var(--text-secondary);padding:10px 14px;background:var(--bg-secondary);border-radius:8px;">
+      💡 <strong>Tip:</strong> Under Active Choice, you can set up to 75% equity. Under Auto Choice (Lifecycle), PFRDA automatically reduces equity as you age. Switch in your NPS account portal or via employer.
+    </div>` :
+    `<div style="text-align:center;padding:24px;color:var(--text-secondary);">
+      <div style="font-size:40px;margin-bottom:8px;">📊</div>
+      <div>No NPS Tier I holdings found. Add your NPS contributions to see allocation analysis.</div>
+    </div>`;
+}
 </script>
 <?php
 $pageContent = ob_get_clean();

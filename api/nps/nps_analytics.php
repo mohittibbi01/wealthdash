@@ -56,12 +56,16 @@ try {
         case 'tax_dashboard':
             $response['tax_dashboard'] = nps_tax_dashboard($db, $userId, $portfolioId, $income);
             break;
+        case 'allocation_analyzer':
+            $response['allocation_analyzer'] = nps_allocation_analyzer($db, $userId, $portfolioId, $currentAge);
+            break;
         case 'full':
         default:
-            $response['tier_breakdown']    = get_tier_breakdown($db, $userId, $portfolioId);
-            $response['pfm_comparison']    = get_pfm_comparison($db);
-            $response['pension_estimator'] = calc_pension($db, $userId, $portfolioId, $currentAge, $retireAge, $monthlyContrib);
-            $response['tax_dashboard']     = nps_tax_dashboard($db, $userId, $portfolioId, $income);
+            $response['tier_breakdown']      = get_tier_breakdown($db, $userId, $portfolioId);
+            $response['pfm_comparison']      = get_pfm_comparison($db);
+            $response['pension_estimator']   = calc_pension($db, $userId, $portfolioId, $currentAge, $retireAge, $monthlyContrib);
+            $response['tax_dashboard']       = nps_tax_dashboard($db, $userId, $portfolioId, $income);
+            $response['allocation_analyzer'] = nps_allocation_analyzer($db, $userId, $portfolioId, $currentAge);
             break;
     }
 
@@ -443,4 +447,162 @@ function fy_start(): string {
 function fy_end(): string {
     $m = (int)date('n'); $y = (int)date('Y');
     return ($m >= 4 ? $y + 1 : $y) . '-03-31';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// t273 — NPS AUTO-ALLOCATION ANALYZER
+// Age-based PFRDA allocation vs user's actual allocation
+// LC-75 / LC-50 / LC-25 lifecycle fund benchmarks
+// ═══════════════════════════════════════════════════════════════════════════
+function nps_allocation_analyzer(PDO $db, int $userId, int $portfolioId, int $currentAge): array
+{
+    if ($currentAge <= 0) $currentAge = 35; // default
+
+    // ── PFRDA Lifecycle Fund Rules ─────────────────────────────────────
+    // LC-75: Aggressive (cap 75% equity, reduces 2.5% per year after 35)
+    // LC-50: Moderate  (cap 50% equity, reduces 1.5% per year after 35)
+    // LC-25: Conservative (cap 25% equity, reduces 1%  per year after 35)
+    $ageBasedEquity = function(int $age, float $maxPct, float $reducePerYear, int $reduceFrom = 35): float {
+        if ($age <= $reduceFrom) return $maxPct;
+        $reduced = $maxPct - (($age - $reduceFrom) * $reducePerYear);
+        return max(5.0, $reduced); // minimum 5% equity
+    };
+
+    $recommended = [
+        'lc75' => [
+            'name'     => 'LC-75 (Aggressive)',
+            'equity'   => $ageBasedEquity($currentAge, 75.0, 2.5),
+            'corporate'=> min(10.0, $ageBasedEquity($currentAge, 10.0, 0.5)),
+            'govt'     => null, // rest
+            'suitable' => $currentAge <= 40,
+        ],
+        'lc50' => [
+            'name'     => 'LC-50 (Moderate)',
+            'equity'   => $ageBasedEquity($currentAge, 50.0, 1.5),
+            'corporate'=> min(10.0, $ageBasedEquity($currentAge, 10.0, 0.3)),
+            'govt'     => null,
+            'suitable' => $currentAge >= 35 && $currentAge <= 50,
+        ],
+        'lc25' => [
+            'name'     => 'LC-25 (Conservative)',
+            'equity'   => $ageBasedEquity($currentAge, 25.0, 1.0),
+            'corporate'=> min(5.0, $ageBasedEquity($currentAge, 5.0, 0.2)),
+            'govt'     => null,
+            'suitable' => $currentAge >= 45,
+        ],
+    ];
+
+    // Fill govt bond allocation (remainder)
+    foreach ($recommended as &$lc) {
+        $lc['govt'] = round(100 - $lc['equity'] - $lc['corporate'], 1);
+        $lc['equity']    = round($lc['equity'], 1);
+        $lc['corporate'] = round($lc['corporate'], 1);
+    }
+
+    // Default recommended based on age
+    $defaultChoice = $currentAge <= 40 ? 'lc50' : ($currentAge <= 50 ? 'lc50' : 'lc25');
+
+    // ── User's Actual Allocation ──────────────────────────────────────
+    // NPS schemes: asset_class E = Equity, C = Corporate Bonds, G = Govt Bonds, A = Alternate Assets
+    $allocStmt = $db->prepare("
+        SELECT
+          ns.asset_class,
+          COALESCE(SUM(nh.units * ns.latest_nav), 0) AS current_value
+        FROM nps_holdings nh
+        JOIN nps_schemes ns ON ns.id = nh.scheme_id
+        JOIN portfolios p ON p.id = nh.portfolio_id
+        WHERE p.user_id = ? AND nh.tier = 'I'
+        GROUP BY ns.asset_class
+    ");
+    $allocStmt->execute([$userId]);
+    $allocRows = $allocStmt->fetchAll(PDO::FETCH_KEY_PAIR); // asset_class => value
+
+    $totalVal = array_sum($allocRows) ?: 1;
+    $actualPct = [
+        'equity'    => round((float)($allocRows['E'] ?? 0) / $totalVal * 100, 1),
+        'corporate' => round((float)($allocRows['C'] ?? 0) / $totalVal * 100, 1),
+        'govt'      => round((float)($allocRows['G'] ?? 0) / $totalVal * 100, 1),
+        'alternate' => round((float)($allocRows['A'] ?? 0) / $totalVal * 100, 1),
+    ];
+    $actualValues = [
+        'equity'    => round((float)($allocRows['E'] ?? 0), 2),
+        'corporate' => round((float)($allocRows['C'] ?? 0), 2),
+        'govt'      => round((float)($allocRows['G'] ?? 0), 2),
+        'alternate' => round((float)($allocRows['A'] ?? 0), 2),
+        'total'     => round($totalVal, 2),
+    ];
+
+    $hasHoldings = ($totalVal > 1);
+
+    // ── Deviation analysis ────────────────────────────────────────────
+    $target = $recommended[$defaultChoice];
+    $deviation = [];
+    $alerts = [];
+
+    if ($hasHoldings) {
+        $eqDiff = $actualPct['equity'] - $target['equity'];
+        $deviation['equity']    = round($eqDiff, 1);
+        $deviation['corporate'] = round($actualPct['corporate'] - $target['corporate'], 1);
+        $deviation['govt']      = round($actualPct['govt'] - $target['govt'], 1);
+
+        if (abs($eqDiff) > 10) {
+            $direction = $eqDiff > 0 ? 'higher' : 'lower';
+            $alerts[] = [
+                'level'   => 'warning',
+                'message' => sprintf(
+                    "Your equity allocation is %.1f%% — %.1f%% %s than recommended %.1f%% for age %d.",
+                    $actualPct['equity'], abs($eqDiff), $direction, $target['equity'], $currentAge
+                ),
+            ];
+        }
+
+        if ($actualPct['equity'] > 75) {
+            $alerts[] = ['level'=>'error','message'=>'Equity above 75% is not allowed under PFRDA Active Choice rules.'];
+        }
+        if ($currentAge > 55 && $actualPct['equity'] > 25) {
+            $alerts[] = [
+                'level'   => 'warning',
+                'message' => sprintf("At age %d, reducing equity to 25%% or below is recommended to protect corpus near retirement.", $currentAge),
+            ];
+        }
+    }
+
+    // ── Rebalancing suggestion ────────────────────────────────────────
+    $rebalance = [];
+    if ($hasHoldings && !empty($deviation)) {
+        $eqTarget = $target['equity'];
+        $eqActual = $actualPct['equity'];
+        if (abs($eqActual - $eqTarget) >= 5) {
+            $targetEqVal  = $totalVal * $eqTarget / 100;
+            $actualEqVal  = $actualValues['equity'];
+            $diff         = $targetEqVal - $actualEqVal;
+            $rebalance[] = [
+                'asset'   => 'Equity (E)',
+                'action'  => $diff > 0 ? 'Increase' : 'Decrease',
+                'by_pct'  => round(abs($eqActual - $eqTarget), 1),
+                'by_amount' => round(abs($diff), 0),
+                'from_pct'  => $eqActual,
+                'to_pct'    => $eqTarget,
+            ];
+        }
+    }
+
+    return [
+        'current_age'    => $currentAge,
+        'has_holdings'   => $hasHoldings,
+        'actual_pct'     => $actualPct,
+        'actual_values'  => $actualValues,
+        'recommended'    => $recommended,
+        'default_choice' => $defaultChoice,
+        'target'         => $target,
+        'deviation'      => $deviation,
+        'alerts'         => $alerts,
+        'rebalance'      => $rebalance,
+        'age_buckets'    => [
+            ['range'=>'<35', 'advice'=>'Max equity allowed. Growth phase — prioritize LC-75'],
+            ['range'=>'35–45','advice'=>'Moderate equity. Balance growth & stability — LC-50'],
+            ['range'=>'45–55','advice'=>'Gradually shift to debt. Protect accumulated corpus'],
+            ['range'=>'55–60','advice'=>'Conservative mode. Prioritise capital preservation — LC-25'],
+        ],
+    ];
 }

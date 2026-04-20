@@ -1,410 +1,376 @@
 <?php
 /**
- * WealthDash — Fund Screener API (clean rewrite)
+ * WealthDash — Fund Screener API
+ * Tasks: t63–t69, t93, t96, t98, t108, t111, tv01, tv04
+ * Actions: fund_screener | fund_detail | fund_top_performers
+ *          fund_compare | fund_filter_meta | recommend_funds
+ *          style_box | saved_screens_list | saved_screen_save
+ *          saved_screen_delete | fund_house_rankings
  */
-define('WEALTHDASH', true);
-require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
-require_once APP_ROOT . '/includes/auth_check.php';
-require_once APP_ROOT . '/includes/helpers.php';
 
-header('Content-Type: application/json; charset=utf-8');
-// Suppress PHP warnings/notices from corrupting JSON
-error_reporting(0);
-ini_set('display_errors', '0');
-// Buffer output so stray warnings/errors don't corrupt JSON
-ob_start();
-require_auth();
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
-// Global exception handler — always return JSON, never HTML
-set_exception_handler(function(Throwable $e) {
-    ob_clean();
-    http_response_code(500);
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
-    exit;
-});
+$currentUser = require_auth();
+$userId      = (int)$currentUser['id'];
+$action      = $_POST['action'] ?? $_GET['action'] ?? 'fund_screener';
+$db          = DB::conn();
 
-try {
+switch ($action) {
 
-$db = DB::conn();
+// ══════════════════════════════════════════════════════════════════════════
+// fund_screener — Main screener with all filters + sort
+// ══════════════════════════════════════════════════════════════════════════
+case 'fund_screener':
+    $page    = max(1, (int)($_GET['page'] ?? 1));
+    $perPage = min(100, max(10, (int)($_GET['per_page'] ?? 25)));
+    $offset  = ($page - 1) * $perPage;
 
-// ── Inputs ──────────────────────────────────────────────
-$q          = trim($_GET['q'] ?? '');
-$categories = (array)($_GET['category']    ?? []);
-$fundHouses = (array)($_GET['fund_house']  ?? []);
-$optionType = $_GET['option_type'] ?? 'all';
-$planType   = $_GET['plan_type']   ?? 'all';
-$ltcgDays   = (int)($_GET['ltcg_days']    ?? 0);
-$hasLockin  = isset($_GET['has_lockin']) ? (int)$_GET['has_lockin'] : -1;
-$expMin     = isset($_GET['exp_min']) && is_numeric($_GET['exp_min']) ? (float)$_GET['exp_min'] : null;
-$expMax     = isset($_GET['exp_max']) && is_numeric($_GET['exp_max']) ? (float)$_GET['exp_max'] : null;
-$hasTer     = isset($_GET['has_ter']) && $_GET['has_ter'] === '1';
-$sort       = $_GET['sort']     ?? 'name';
-$page       = max(1, (int)($_GET['page']     ?? 1));
-$perPage    = min(max(1,(int)($_GET['per_page'] ?? 50)), 100);
-$offset     = ($page - 1) * $perPage;
-$manager    = trim($_GET['manager']   ?? '');  // t67
-$fundAge    = trim($_GET['fund_age']  ?? '');  // t98
-$sortinoMin = isset($_GET['sortino_min']) && is_numeric($_GET['sortino_min']) ? (float)$_GET['sortino_min'] : null; // t126
-$styleBoxes = (array)($_GET['style_box'] ?? []);  // t179
-$minStars   = isset($_GET['min_stars']) && is_numeric($_GET['min_stars']) ? (int)$_GET['min_stars'] : null; // t111
+    // Build WHERE conditions
+    $where  = ["f.is_active = 1"];
+    $params = [];
 
-// ── WHERE builder ───────────────────────────────────────
-$where  = ['f.is_active = 1'];
-$params = [];
-
-if ($q !== '') {
-    $like = '%' . $q . '%';
-    $where[]  = '(f.scheme_name LIKE ? OR f.scheme_code LIKE ? OR fh.short_name LIKE ? OR fh.name LIKE ?)';
-    array_push($params, $like, $like, $like, $like);
-}
-if (!empty($categories)) {
-    $ph = implode(',', array_fill(0, count($categories), '?'));
-    $where[] = "f.category IN ($ph)";
-    array_push($params, ...$categories);
-}
-if (!empty($fundHouses)) {
-    $ph = implode(',', array_fill(0, count($fundHouses), '?'));
-    $where[] = "COALESCE(fh.short_name, fh.name) IN ($ph)";
-    array_push($params, ...$fundHouses);
-}
-if ($optionType === 'growth') { $where[] = "f.option_type = 'growth'"; }
-elseif ($optionType === 'idcw') { $where[] = "f.option_type IN ('idcw','dividend')"; }
-
-if ($planType === 'direct')  { $where[] = 'f.scheme_name LIKE ?'; $params[] = '%Direct%'; }
-elseif ($planType === 'regular') { $where[] = 'f.scheme_name NOT LIKE ?'; $params[] = '%Direct%'; }
-
-if ($ltcgDays > 0) { $where[] = 'f.min_ltcg_days = ?'; $params[] = $ltcgDays; }
-if ($hasLockin === 1) { $where[] = 'f.lock_in_days > 0'; }
-elseif ($hasLockin === 0) { $where[] = 'f.lock_in_days = 0'; }
-
-// Expense ratio filters — only if column exists
-$hasExpCol = false;
-try {
-    $db->query("SELECT expense_ratio FROM funds LIMIT 1");
-    $hasExpCol = true;
-} catch (Exception $e) { $hasExpCol = false; }
-
-if ($hasExpCol) {
-    if ($expMin !== null) { $where[] = 'f.expense_ratio >= ?'; $params[] = $expMin; }
-    if ($expMax !== null) { $where[] = 'f.expense_ratio <= ?'; $params[] = $expMax; }
-    if ($hasTer) { $where[] = 'f.expense_ratio IS NOT NULL AND f.expense_ratio > 0'; }
-}
-
-$whereSQL = 'WHERE ' . implode(' AND ', $where);
-
-// t67: Fund manager filter (only if column exists)
-if ($manager !== '') {
-    try {
-        $db->query("SELECT fund_manager FROM funds LIMIT 1");
-        $where[] = 'f.fund_manager LIKE ?';
-        $params[] = '%' . $manager . '%';
-        $whereSQL = 'WHERE ' . implode(' AND ', $where);
-    } catch(Exception $e) {}
-}
-
-// t98: Fund age filter (only if inception_date column exists)
-if ($fundAge !== '') {
-    try {
-        $db->query("SELECT inception_date FROM funds LIMIT 1");
-        $today = date('Y-m-d');
-        if ($fundAge === '1') {
-            $where[] = "f.inception_date >= DATE_SUB(?, INTERVAL 1 YEAR)"; $params[] = $today;
-        } elseif ($fundAge === '3') {
-            $where[] = "f.inception_date BETWEEN DATE_SUB(?, INTERVAL 3 YEAR) AND DATE_SUB(?, INTERVAL 1 YEAR)";
-            $params[] = $today; $params[] = $today;
-        } elseif ($fundAge === '5') {
-            $where[] = "f.inception_date BETWEEN DATE_SUB(?, INTERVAL 5 YEAR) AND DATE_SUB(?, INTERVAL 3 YEAR)";
-            $params[] = $today; $params[] = $today;
-        } elseif ($fundAge === '5+') {
-            $where[] = "f.inception_date <= DATE_SUB(?, INTERVAL 5 YEAR)"; $params[] = $today;
+    // Category filter
+    if (!empty($_GET['category'])) {
+        $where[]  = "f.category = ?";
+        $params[] = $_GET['category'];
+    }
+    // Sub-category filter
+    if (!empty($_GET['sub_category'])) {
+        $where[]  = "f.sub_category = ?";
+        $params[] = $_GET['sub_category'];
+    }
+    // Fund house filter
+    if (!empty($_GET['fund_house'])) {
+        $where[]  = "f.fund_house = ?";
+        $params[] = $_GET['fund_house'];
+    }
+    // Risk level
+    if (!empty($_GET['risk'])) {
+        $where[]  = "f.risk_level = ?";
+        $params[] = $_GET['risk'];
+    }
+    // Plan type
+    if (!empty($_GET['plan'])) {
+        $where[]  = "f.plan_type = ?";
+        $params[] = $_GET['plan'];
+    }
+    // Returns filters
+    foreach (['returns_1y','returns_3y','returns_5y','sharpe_ratio','alpha','expense_ratio'] as $col) {
+        $minK = "{$col}_min"; $maxK = "{$col}_max";
+        if (isset($_GET[$minK]) && is_numeric($_GET[$minK])) {
+            $where[] = "f.$col >= ?"; $params[] = (float)$_GET[$minK];
         }
-        $whereSQL = 'WHERE ' . implode(' AND ', $where);
-    } catch(Exception $e) {}
-}
-
-// t126: Sortino Ratio filter (only if column exists)
-if ($sortinoMin !== null) {
-    try {
-        $db->query("SELECT sortino_ratio FROM funds LIMIT 1");
-        $where[]  = 'f.sortino_ratio >= ?';
-        $params[] = $sortinoMin;
-        $whereSQL = 'WHERE ' . implode(' AND ', $where);
-    } catch(Exception $e) {}
-}
-
-// t179: Style Box filter (only if column exists)
-if (!empty($styleBoxes)) {
-    $styleBoxes = array_filter($styleBoxes, fn($s) => preg_match('/^(large|mid|small)_(value|blend|growth)$/', $s));
-    if (!empty($styleBoxes)) {
-        try {
-            $db->query("SELECT style_size FROM funds LIMIT 1");
-            // Build OR conditions: (style_size='large' AND style_value='growth') OR ...
-            $styleConds = [];
-            foreach ($styleBoxes as $sb) {
-                [$sz, $sv] = explode('_', $sb, 2);
-                $styleConds[] = "(f.style_size = ? AND f.style_value = ?)";
-                $params[] = $sz; $params[] = $sv;
-            }
-            $where[]  = '(' . implode(' OR ', $styleConds) . ')';
-            $whereSQL = 'WHERE ' . implode(' AND ', $where);
-        } catch(Exception $e) {}
+        if (isset($_GET[$maxK]) && is_numeric($_GET[$maxK])) {
+            $where[] = "f.$col <= ?"; $params[] = (float)$_GET[$maxK];
+        }
     }
-}
-
-// t111: WD Star Rating filter (uses denorm wd_stars column on funds)
-if ($minStars !== null && $minStars >= 1 && $minStars <= 5) {
-    try {
-        $db->query("SELECT wd_stars FROM funds LIMIT 1");
-        $where[]  = 'f.wd_stars >= ?';
-        $params[] = $minStars;
-        $whereSQL = 'WHERE ' . implode(' AND ', $where);
-    } catch(Exception $e) {
-        // wd_stars column not yet created — run migration 23_fund_ratings.sql
+    // Alpha > 0 filter
+    if (isset($_GET['alpha_positive']) && $_GET['alpha_positive'] == '1') {
+        $where[] = "f.alpha > 0";
     }
-}
-
-// ── ORDER BY ─────────────────────────────────────────────
-$sortMap = [
-    'name'          => 'IF(f.latest_nav IS NULL OR f.latest_nav=0,1,0) ASC, f.scheme_name ASC',
-    'name_desc'     => 'f.scheme_name DESC',
-    'nav_desc'      => 'IF(f.latest_nav IS NULL OR f.latest_nav=0,1,0) ASC, f.latest_nav DESC',
-    'nav_asc'       => 'IF(f.latest_nav IS NULL OR f.latest_nav=0,1,0) ASC, f.latest_nav ASC',
-    'ltcg'          => 'f.min_ltcg_days ASC, f.scheme_name ASC',
-    'ltcg_desc'     => 'f.min_ltcg_days DESC, f.scheme_name ASC',
-    'dd_asc'        => 'CASE WHEN f.highest_nav>0 THEN (f.highest_nav-f.latest_nav)/f.highest_nav ELSE 1 END ASC',
-    'dd_desc'       => 'CASE WHEN f.highest_nav>0 THEN (f.highest_nav-f.latest_nav)/f.highest_nav ELSE 1 END DESC',
-    'expense'       => 'IF(f.expense_ratio IS NULL,1,0) ASC, f.expense_ratio ASC',
-    'expense_desc'  => 'IF(f.expense_ratio IS NULL,1,0) ASC, f.expense_ratio DESC',
-    'peak_nav_asc'  => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav ASC',
-    'peak_nav_desc' => 'IF(f.highest_nav IS NULL,1,0) ASC, f.highest_nav DESC',
-    'house'         => "COALESCE(fh.short_name,fh.name,'') ASC, f.scheme_name ASC",
-    // t164+t166: Sharpe + Max Drawdown sorts
-    'sharpe_desc'   => 'IF(f.sharpe_ratio IS NULL,1,0) ASC, f.sharpe_ratio DESC',
-    'sharpe_asc'    => 'IF(f.sharpe_ratio IS NULL,1,0) ASC, f.sharpe_ratio ASC',
-    'mdd_asc'       => 'IF(f.max_drawdown IS NULL,1,0) ASC, f.max_drawdown ASC',
-    'mdd_desc'      => 'IF(f.max_drawdown IS NULL,1,0) ASC, f.max_drawdown DESC',
-    // t27: 1Y/3Y/5Y return sorts
-    'ret1y_desc'    => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y DESC',
-    'ret1y_asc'     => 'IF(f.returns_1y IS NULL,1,0) ASC, f.returns_1y ASC',
-    'ret3y_desc'    => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y DESC',
-    'ret3y_asc'     => 'IF(f.returns_3y IS NULL,1,0) ASC, f.returns_3y ASC',
-    'ret5y_desc'    => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y DESC',
-    'ret5y_asc'     => 'IF(f.returns_5y IS NULL,1,0) ASC, f.returns_5y ASC',
-    'wd_stars_desc' => 'IF(f.wd_stars IS NULL,1,0) ASC, f.wd_stars DESC, f.scheme_name ASC',  // t111
-    'wd_stars_asc'  => 'IF(f.wd_stars IS NULL,1,0) ASC, f.wd_stars ASC, f.scheme_name ASC',   // t111
-];
-// expense/risk/returns sort only if column exists
-if (!$hasExpCol   && in_array($sort, ['expense','expense_desc'])) $sort = 'name';
-if (!$hasSharpCol && in_array($sort, ['sharpe_desc','sharpe_asc','mdd_asc','mdd_desc'])) $sort = 'name';
-if (!$hasRetCol   && in_array($sort, ['ret1y_desc','ret1y_asc','ret3y_desc','ret3y_asc','ret5y_desc','ret5y_asc'])) $sort = 'name';
-$orderSQL = $sortMap[$sort] ?? $sortMap['name'];
-
-// ── COUNT ────────────────────────────────────────────────
-$countStmt = $db->prepare("SELECT COUNT(*) FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id $whereSQL");
-$countStmt->execute($params);
-$total = (int)$countStmt->fetchColumn();
-
-// ── MAIN SELECT ──────────────────────────────────────────
-// Build column list dynamically based on available columns
-$hasPrevNav = false;
-try { $db->query("SELECT prev_nav FROM funds LIMIT 1"); $hasPrevNav = true; } catch(Exception $e){}
-
-// Check for risk_level and aum_crore columns
-$hasRiskCol = false;
-try { $db->query("SELECT risk_level FROM funds LIMIT 1"); $hasRiskCol = true; } catch(Exception $e){}
-$hasAumCol = false;
-try { $db->query("SELECT aum_crore FROM funds LIMIT 1"); $hasAumCol = true; } catch(Exception $e){}
-
-$expColSQL  = $hasExpCol  ? ', f.expense_ratio, f.exit_load_pct, f.exit_load_days' : '';
-$riskColSQL = $hasRiskCol ? ', f.risk_level' : '';
-$aumColSQL  = $hasAumCol  ? ', f.aum_crore'  : '';
-$prevNavSQL = $hasPrevNav ? ', f.prev_nav, f.prev_nav_date' : '';
-// t67+t98: fund_manager and inception_date (optional columns)
-$hasMgrCol = false; try { $db->query("SELECT fund_manager FROM funds LIMIT 1"); $hasMgrCol=true; } catch(Exception $e){}
-$hasIncCol = false; try { $db->query("SELECT inception_date FROM funds LIMIT 1"); $hasIncCol=true; } catch(Exception $e){}
-$hasRetCol = false; try { $db->query("SELECT returns_1y FROM funds LIMIT 1"); $hasRetCol=true; } catch(Exception $e){}
-// t164+t166: Sharpe Ratio + Max Drawdown (optional columns)
-$hasSharpCol  = false; try { $db->query("SELECT sharpe_ratio  FROM funds LIMIT 1"); $hasSharpCol=true;  } catch(Exception $e){}
-$hasSortinoCol= false; try { $db->query("SELECT sortino_ratio FROM funds LIMIT 1"); $hasSortinoCol=true;} catch(Exception $e){}
-$hasCatAvgCol = false; try { $db->query("SELECT category_avg_1y FROM funds LIMIT 1"); $hasCatAvgCol=true;} catch(Exception $e){}
-// t179: Style Box columns
-$hasStyleCol  = false; try { $db->query("SELECT style_size FROM funds LIMIT 1"); $hasStyleCol=true; } catch(Exception $e){}
-$styleColSQL  = $hasStyleCol ? ', f.style_size, f.style_value, f.style_drift_note' : '';
-// t111: WD Star Rating column
-$hasStarsCol  = false; try { $db->query("SELECT wd_stars FROM funds LIMIT 1"); $hasStarsCol=true; } catch(Exception $e){}
-$starsColSQL  = $hasStarsCol ? ', f.wd_stars' : '';
-$mgrColSQL   = $hasMgrCol   ? ', f.fund_manager, f.manager_since' : '';
-$incColSQL   = $hasIncCol   ? ', f.inception_date' : '';
-$retColSQL   = $hasRetCol   ? ', f.returns_1y, f.returns_3y, f.returns_5y, f.returns_updated_at' : '';
-$sharpColSQL = ($hasSharpCol ? ', f.sharpe_ratio, f.max_drawdown, f.max_drawdown_date' : '')
-             . ($hasSortinoCol ? ', f.sortino_ratio' : '')
-             . ($hasCatAvgCol  ? ', f.category_avg_1y, f.category_avg_3y' : '')
-             . $styleColSQL
-             . $starsColSQL;
-
-$mainSQL = "
-    SELECT f.id, f.scheme_code, f.scheme_name, f.category, f.option_type,
-           f.latest_nav, f.latest_nav_date, f.min_ltcg_days, f.lock_in_days,
-           f.highest_nav, f.highest_nav_date
-           $expColSQL $prevNavSQL $riskColSQL $aumColSQL $mgrColSQL $incColSQL $retColSQL $sharpColSQL,
-           COALESCE(fh.short_name, fh.name, '') AS fund_house
-    FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
-    $whereSQL ORDER BY $orderSQL LIMIT ? OFFSET ?
-";
-$allParams = array_merge($params, [(int)$perPage, (int)$offset]);
-$stmt = $db->prepare($mainSQL);
-$stmt->execute($allParams);
-$rows = $stmt->fetchAll();
-
-// ── HELPER FUNCTIONS ─────────────────────────────────────
-function broad_type(string $cat): string {
-    $c = strtolower($cat);
-    if (str_contains($c,'elss')||str_contains($c,'tax sav')) return 'Equity';
-    if (str_contains($c,'debt')||str_contains($c,'liquid')||str_contains($c,'overnight')||
-        str_contains($c,'money market')||str_contains($c,'gilt')||str_contains($c,'credit')||
-        str_contains($c,'duration')||str_contains($c,'floater')||str_contains($c,'corporate bond')||
-        str_contains($c,'banking and psu')) return 'Debt';
-    if (str_contains($c,'gold')||str_contains($c,'silver')||str_contains($c,'commodit')) return 'Commodity';
-    if (str_contains($c,'fund of fund')||str_contains($c,'overseas')||str_contains($c,'international')||
-        str_contains($c,'fof')) return 'FoF/Intl';
-    if (str_contains($c,'retirement')||str_contains($c,'children')) return 'Solution';
-    if (str_contains($c,'equity')||str_contains($c,'index')||str_contains($c,'etf')||
-        str_contains($c,'hybrid')||str_contains($c,'arbitrage')||str_contains($c,'multi cap')||
-        str_contains($c,'large cap')||str_contains($c,'mid cap')||str_contains($c,'small cap')||
-        str_contains($c,'flexi')||str_contains($c,'balanced')||str_contains($c,'thematic')||
-        str_contains($c,'sectoral')) return 'Equity';
-    return 'Other';
-}
-
-function cat_short(string $cat): string {
-    $cat = preg_replace('/\b(fund|scheme|mutual)\b/i', '', $cat);
-    return trim(preg_replace('/\s+/', ' ', $cat));
-}
-
-function is_direct(string $name): bool {
-    return stripos($name, 'direct') !== false;
-}
-
-function title_case(string $name): string {
-    if ($name !== strtoupper($name)) return $name;
-    $name = mb_convert_case(strtolower($name), MB_CASE_TITLE);
-    return preg_replace_callback('/\b(etf|elss|fof|idcw|bse|nse|uti|hdfc|icici|sbi|dsp|psu|us|uk|nfo|ipo)\b/i',
-        fn($m) => strtoupper($m[0]), $name);
-}
-
-// ── MAP ROWS ─────────────────────────────────────────────
-$funds = array_map(function($r) use ($hasPrevNav, $hasExpCol, $hasRiskCol, $hasAumCol) {
-    $latNav  = $r['latest_nav']  ? (float)$r['latest_nav']  : null;
-    $highNav = $r['highest_nav'] ? (float)$r['highest_nav'] : null;
-    $prevNav = ($hasPrevNav && !empty($r['prev_nav'])) ? (float)$r['prev_nav'] : null;
-
-    $drawdown = null;
-    if ($latNav > 0 && $highNav > 0 && $highNav >= $latNav) {
-        $dd = round(($highNav - $latNav) / $highNav * 100, 2);
-        if ($dd <= 99) $drawdown = $dd;
+    // Rating filter
+    if (!empty($_GET['min_stars']) && is_numeric($_GET['min_stars'])) {
+        $where[] = "f.rating_stars >= ?"; $params[] = (int)$_GET['min_stars'];
+    }
+    // Fund age filter
+    if (!empty($_GET['min_age_years']) && is_numeric($_GET['min_age_years'])) {
+        $where[] = "f.inception_date <= ?";
+        $params[] = date('Y-m-d', strtotime('-' . (int)$_GET['min_age_years'] . ' years'));
+    }
+    // AUM filter
+    if (!empty($_GET['min_aum']) && is_numeric($_GET['min_aum'])) {
+        $where[] = "f.aum >= ?"; $params[] = (float)$_GET['min_aum'];
+    }
+    // Manager filter (partial name)
+    if (!empty($_GET['manager'])) {
+        $where[] = "f.manager_name LIKE ?"; $params[] = '%' . $_GET['manager'] . '%';
+    }
+    // Text search
+    if (!empty($_GET['q'])) {
+        $where[] = "(f.fund_name LIKE ? OR f.fund_house LIKE ? OR f.scheme_code LIKE ?)";
+        $like = '%' . $_GET['q'] . '%';
+        $params = array_merge($params, [$like, $like, $like]);
     }
 
-    $navChange = null;
-    if ($prevNav && $prevNav > 0 && $latNav) {
-        $navChange = round(($latNav - $prevNav) / $prevNav * 100, 2);
-    }
+    $whereSQL = implode(' AND ', $where);
 
-    return [
-        'id'              => (int)$r['id'],
-        'scheme_code'     => $r['scheme_code'],
-        'scheme_name'     => title_case($r['scheme_name'] ?? ''),
-        'fund_house'      => $r['fund_house'] ?? '',
-        'category'        => $r['category'] ?? '',
-        'category_short'  => cat_short($r['category'] ?? ''),
-        'broad_type'      => broad_type($r['category'] ?? ''),
-        'option_type'     => $r['option_type'],
-        'plan_type'       => is_direct($r['scheme_name']) ? 'direct' : 'regular',
-        'latest_nav'      => $latNav,
-        'latest_nav_date' => $r['latest_nav_date'] ?? null,
-        'highest_nav'     => $highNav,
-        'highest_nav_date'=> $r['highest_nav_date'] ?? null,
-        'drawdown_pct'    => $drawdown,
-        'nav_change_pct'  => $navChange,
-        'min_ltcg_days'   => (int)$r['min_ltcg_days'],
-        'lock_in_days'    => (int)$r['lock_in_days'],
-        'expense_ratio'   => ($hasExpCol && isset($r['expense_ratio'])) ? (float)$r['expense_ratio'] ?: null : null,
-        'exit_load_pct'   => ($hasExpCol && isset($r['exit_load_pct']))  ? (float)$r['exit_load_pct']  : null,
-        'exit_load_days'  => ($hasExpCol && isset($r['exit_load_days'])) ? (int)$r['exit_load_days']   : null,
-        'risk_level'      => ($hasRiskCol && isset($r['risk_level']))    ? $r['risk_level']             : null,
-        'aum_crore'       => ($hasAumCol  && isset($r['aum_crore']))     ? (float)$r['aum_crore']       : null,
-        'returns_1y'      => ($hasRetCol  && isset($r['returns_1y'])  && $r['returns_1y']  !== null) ? round((float)$r['returns_1y'],  2) : null,
-        'returns_3y'      => ($hasRetCol  && isset($r['returns_3y'])  && $r['returns_3y']  !== null) ? round((float)$r['returns_3y'],  2) : null,
-        'returns_5y'      => ($hasRetCol  && isset($r['returns_5y'])  && $r['returns_5y']  !== null) ? round((float)$r['returns_5y'],  2) : null,
-        'returns_updated' => ($hasRetCol  && isset($r['returns_updated_at'])) ? $r['returns_updated_at'] : null,
-        // t164+t166: Sharpe + Max Drawdown from cron
-        'sharpe_ratio'    => ($hasSharpCol && isset($r['sharpe_ratio'])   && $r['sharpe_ratio']   !== null) ? round((float)$r['sharpe_ratio'], 3)  : null,
-        'max_drawdown'    => ($hasSharpCol && isset($r['max_drawdown'])    && $r['max_drawdown']    !== null) ? round((float)$r['max_drawdown'], 2)   : null,
-        'max_drawdown_date'=> ($hasSharpCol && isset($r['max_drawdown_date'])) ? $r['max_drawdown_date'] : null,
-        // t165: Sortino Ratio
-        'sortino_ratio'   => ($hasSortinoCol && isset($r['sortino_ratio']) && $r['sortino_ratio']  !== null) ? round((float)$r['sortino_ratio'], 3) : null,
-        // t167: Category Averages for peer comparison
-        'category_avg_1y' => ($hasCatAvgCol  && isset($r['category_avg_1y']) && $r['category_avg_1y'] !== null) ? round((float)$r['category_avg_1y'], 2) : null,
-        'category_avg_3y' => ($hasCatAvgCol  && isset($r['category_avg_3y']) && $r['category_avg_3y'] !== null) ? round((float)$r['category_avg_3y'], 2) : null,
-        // t179: Style Box
-        'style_size'       => ($hasStyleCol && isset($r['style_size']))       ? $r['style_size']       : null,
-        'style_value'      => ($hasStyleCol && isset($r['style_value']))      ? $r['style_value']      : null,
-        'style_drift_note' => ($hasStyleCol && isset($r['style_drift_note'])) ? $r['style_drift_note'] : null,
-        // t111: WD Star Rating (from cron-calculated fund_ratings table)
-        'wd_stars'         => ($hasStarsCol && isset($r['wd_stars']) && $r['wd_stars'] !== null) ? (int)$r['wd_stars'] : null,
-    ];
-}, $rows);
+    // Sort
+    $sortable = ['returns_1y','returns_3y','returns_5y','sharpe_ratio','sortino_ratio',
+                 'alpha','beta','max_drawdown','expense_ratio','momentum_score',
+                 'aum','fund_name','rating_stars','health_score'];
+    $sortBy  = in_array($_GET['sort'] ?? '', $sortable) ? $_GET['sort'] : 'returns_1y';
+    $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
 
-// ── FACETS (first page, no filters) ──────────────────────
-$sendFacets = $page === 1 && $q === '' && empty($categories) && empty($fundHouses)
-              && $optionType === 'all' && $planType === 'all'
-              && $ltcgDays === 0 && $hasLockin === -1
-              && $expMin === null && $expMax === null && !$hasTer;
+    $countStmt = $db->prepare("SELECT COUNT(*) FROM funds f WHERE $whereSQL");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
 
-$facets = null;
-if ($sendFacets) {
-    $fhRows = $db->query("
-        SELECT COALESCE(fh.short_name, fh.name) AS amc, COUNT(*) AS cnt
-        FROM funds f LEFT JOIN fund_houses fh ON fh.id=f.fund_house_id
-        WHERE f.is_active=1 AND COALESCE(fh.short_name,fh.name,'') != ''
-        GROUP BY fh.id ORDER BY cnt DESC LIMIT 80
-    ")->fetchAll();
-    $fhFacets = [];
-    foreach ($fhRows as $r) $fhFacets[$r['amc']] = (int)$r['cnt'];
+    $dataStmt = $db->prepare("
+        SELECT f.id AS fund_id, f.scheme_code, f.fund_name, f.fund_house,
+               f.category, f.sub_category, f.risk_level, f.plan_type,
+               f.current_nav, f.nav_date, f.aum,
+               f.expense_ratio, f.exit_load_percent, f.lock_in_months,
+               f.returns_1y, f.returns_3y, f.returns_5y, f.returns_6m, f.returns_1m,
+               f.sharpe_ratio, f.sortino_ratio, f.calmar_ratio,
+               f.max_drawdown, f.standard_deviation,
+               f.alpha, f.beta, f.momentum_score,
+               f.category_avg_1y, f.category_avg_3y, f.category_avg_5y,
+               f.rating_stars, f.health_score,
+               f.inception_date, f.manager_name, f.manager_since,
+               DATEDIFF(CURDATE(), f.inception_date) / 365 AS fund_age_years,
+               DATEDIFF(CURDATE(), f.manager_since)  / 365 AS manager_tenure_years,
+               (SELECT 1 FROM mf_watchlist wl WHERE wl.fund_id = f.id AND wl.user_id = ? LIMIT 1) AS in_watchlist
+        FROM funds f
+        WHERE $whereSQL
+        ORDER BY f.$sortBy $sortDir NULLS LAST
+        LIMIT $perPage OFFSET $offset
+    ");
+    $dataStmt->execute(array_merge([$userId], $params));
+    $funds = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $catRows = $db->query("
-        SELECT category, COUNT(*) AS cnt FROM funds
-        WHERE is_active=1 AND category IS NOT NULL AND category != ''
-        GROUP BY category ORDER BY cnt DESC LIMIT 120
-    ")->fetchAll();
-    $catFacets = [];
-    foreach ($catRows as $r) $catFacets[] = ['category'=>$r['category'],'short'=>cat_short($r['category']),'count'=>(int)$r['cnt']];
-
-    $ltcgRows = $db->query("SELECT min_ltcg_days, COUNT(*) AS cnt FROM funds WHERE is_active=1 GROUP BY min_ltcg_days")->fetchAll();
-    $ltcgFacets = [];
-    foreach ($ltcgRows as $r) $ltcgFacets[(int)$r['min_ltcg_days']] = (int)$r['cnt'];
-
-    $facets = ['fund_houses'=>$fhFacets,'categories'=>$catFacets,'ltcg_days'=>$ltcgFacets];
-}
-
-// ── RESPONSE ─────────────────────────────────────────────
-ob_clean(); // discard any stray output before JSON
-echo json_encode([
-    'success' => true,
-    'total'   => $total,
-    'page'    => $page,
-    'per_page'=> $perPage,
-    'pages'   => (int)ceil($total / max(1,$perPage)),
-    'data'    => $funds,
-    'facets'  => $facets,
-], JSON_UNESCAPED_UNICODE);
-
-} catch (Throwable $e) {
-    ob_clean();
-    http_response_code(500);
-    header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
-        'success' => false,
-        'message' => 'DB error: ' . $e->getMessage(),
-    ], JSON_UNESCAPED_UNICODE);
+        'success' => true,
+        'data'    => $funds,
+        'meta'    => [
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'pages'    => ceil($total / $perPage),
+        ],
+    ]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// fund_detail — Single fund full details
+// ══════════════════════════════════════════════════════════════════════════
+case 'fund_detail':
+    $fundId = (int)($_GET['fund_id'] ?? 0);
+    if (!$fundId) { echo json_encode(['success' => false, 'msg' => 'fund_id required']); break; }
+
+    $fund = $db->prepare("SELECT f.*, DATEDIFF(CURDATE(), f.inception_date)/365 AS fund_age_years FROM funds f WHERE f.id = ?");
+    $fund->execute([$fundId]);
+    $data = $fund->fetch(PDO::FETCH_ASSOC);
+    if (!$data) { echo json_encode(['success' => false, 'msg' => 'Fund not found']); break; }
+
+    // Top holdings
+    $month = date('Y-m', strtotime('-1 month'));
+    $holdings = $db->prepare("
+        SELECT stock_name, sector, weight_pct
+        FROM fund_portfolio_holdings
+        WHERE fund_id = ? AND month_year = ?
+        ORDER BY weight_pct DESC LIMIT 10
+    ");
+    $holdings->execute([$fundId, $month]);
+    $data['top_holdings'] = $holdings->fetchAll(PDO::FETCH_ASSOC);
+
+    // Sector allocation
+    $sectors = $db->prepare("
+        SELECT sector, SUM(weight_pct) AS total_pct
+        FROM fund_portfolio_holdings
+        WHERE fund_id = ? AND month_year = ? AND sector IS NOT NULL
+        GROUP BY sector ORDER BY total_pct DESC
+    ");
+    $sectors->execute([$fundId, $month]);
+    $data['sector_allocation'] = $sectors->fetchAll(PDO::FETCH_ASSOC);
+
+    // Watchlist flag
+    $wl = $db->prepare("SELECT 1 FROM mf_watchlist WHERE fund_id = ? AND user_id = ?");
+    $wl->execute([$fundId, $userId]);
+    $data['in_watchlist'] = (bool)$wl->fetchColumn();
+
+    echo json_encode(['success' => true, 'data' => $data]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// fund_compare — t96: Max 3 funds comparison
+// ══════════════════════════════════════════════════════════════════════════
+case 'fund_compare':
+    $ids = array_map('intval', explode(',', $_GET['fund_ids'] ?? ''));
+    $ids = array_filter($ids, fn($id) => $id > 0);
+    $ids = array_slice(array_unique($ids), 0, 3);
+
+    if (empty($ids)) { echo json_encode(['success' => false, 'msg' => 'fund_ids required (max 3)']); break; }
+
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $funds = $db->prepare("
+        SELECT f.*,
+               DATEDIFF(CURDATE(), f.inception_date)/365 AS fund_age_years,
+               (SELECT 1 FROM mf_watchlist wl WHERE wl.fund_id=f.id AND wl.user_id=? LIMIT 1) AS in_watchlist
+        FROM funds f WHERE f.id IN ($in)
+    ");
+    $funds->execute(array_merge([$userId], $ids));
+    $data = $funds->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode(['success' => true, 'data' => $data]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// fund_top_performers — t28
+// ══════════════════════════════════════════════════════════════════════════
+case 'fund_top_performers':
+    $period   = in_array($_GET['period'] ?? '1y', ['1y','3y','5y']) ? $_GET['period'] : '1y';
+    $category = $_GET['category'] ?? null;
+    $colMap   = ['1y' => 'returns_1y', '3y' => 'returns_3y', '5y' => 'returns_5y'];
+    $col      = $colMap[$period];
+
+    $where  = ["f.is_active = 1", "f.$col IS NOT NULL"];
+    $params = [];
+    if ($category) { $where[] = "f.category = ?"; $params[] = $category; }
+
+    $stmt = $db->prepare("
+        SELECT f.id, f.fund_name, f.fund_house, f.category, f.plan_type,
+               f.$col AS period_return, f.expense_ratio, f.rating_stars, f.sharpe_ratio
+        FROM funds f
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY f.$col DESC
+        LIMIT 50
+    ");
+    $stmt->execute($params);
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Group by category
+    $byCategory = [];
+    foreach ($data as $f) {
+        $byCategory[$f['category']][] = $f;
+    }
+
+    echo json_encode(['success' => true, 'data' => $data, 'by_category' => $byCategory]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// recommend_funds — tmfi02
+// ══════════════════════════════════════════════════════════════════════════
+case 'recommend_funds':
+    $age     = (int)($_POST['age']  ?? 35);
+    $risk    = $_POST['risk']  ?? 'moderate'; // conservative|moderate|aggressive
+    $goal    = $_POST['goal']  ?? 'wealth';   // wealth|retirement|tax|child
+
+    // Age-based equity allocation
+    $eqPct = $age < 30 ? 80 : ($age < 45 ? 65 : ($age < 55 ? 50 : 35));
+    if ($risk === 'aggressive') $eqPct = min(90, $eqPct + 10);
+    if ($risk === 'conservative') $eqPct = max(20, $eqPct - 20);
+
+    // Determine categories to recommend
+    $cats = [];
+    if ($eqPct >= 70) {
+        $cats[] = ['category' => 'Large Cap', 'allocation' => 40, 'reason' => 'Stability with growth'];
+        $cats[] = ['category' => 'Mid Cap',   'allocation' => 25, 'reason' => 'Higher growth potential'];
+        $cats[] = ['category' => 'Flexi Cap', 'allocation' => 20, 'reason' => 'Diversified equity'];
+    } elseif ($eqPct >= 50) {
+        $cats[] = ['category' => 'Large Cap',    'allocation' => 35, 'reason' => 'Core equity holding'];
+        $cats[] = ['category' => 'Hybrid',        'allocation' => 30, 'reason' => 'Balanced growth + stability'];
+        $cats[] = ['category' => 'Debt',           'allocation' => 20, 'reason' => 'Capital protection'];
+    } else {
+        $cats[] = ['category' => 'Hybrid',   'allocation' => 40, 'reason' => 'Conservative balanced'];
+        $cats[] = ['category' => 'Debt',      'allocation' => 40, 'reason' => 'Capital preservation'];
+        $cats[] = ['category' => 'Large Cap', 'allocation' => 20, 'reason' => 'Modest equity exposure'];
+    }
+    if ($goal === 'tax') {
+        $cats[] = ['category' => 'ELSS', 'allocation' => 15, 'reason' => '80C tax benefit + equity returns'];
+    }
+
+    // Fetch top fund per category
+    $recommendations = [];
+    foreach ($cats as $cat) {
+        $stmt = $db->prepare("
+            SELECT f.id, f.fund_name, f.fund_house, f.category, f.returns_1y, f.returns_3y,
+                   f.expense_ratio, f.sharpe_ratio, f.rating_stars, f.plan_type, f.aum
+            FROM funds f
+            WHERE f.is_active = 1 AND f.category LIKE ? AND f.plan_type = 'Direct'
+              AND f.returns_1y IS NOT NULL AND f.aum >= 500 AND f.expense_ratio < 1.0
+            ORDER BY f.sharpe_ratio DESC NULLS LAST, f.returns_3y DESC NULLS LAST
+            LIMIT 3
+        ");
+        $stmt->execute(['%' . $cat['category'] . '%']);
+        $funds = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($funds)) {
+            $recommendations[] = [
+                'category'   => $cat['category'],
+                'allocation' => $cat['allocation'],
+                'reason'     => $cat['reason'],
+                'funds'      => $funds,
+            ];
+        }
+    }
+
+    echo json_encode(['success' => true, 'data' => $recommendations,
+                      'profile' => compact('age', 'risk', 'goal', 'eqPct')]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// fund_house_rankings — t168
+// ══════════════════════════════════════════════════════════════════════════
+case 'fund_house_rankings':
+    $period = in_array($_GET['period'] ?? '3y', ['1y','3y','5y']) ? $_GET['period'] : '3y';
+    $col    = "returns_{$period}";
+
+    $stmt = $db->query("
+        SELECT f.fund_house,
+               COUNT(*) AS fund_count,
+               AVG(f.$col) AS avg_return,
+               AVG(f.sharpe_ratio) AS avg_sharpe,
+               AVG(f.expense_ratio) AS avg_er,
+               SUM(f.aum) AS total_aum,
+               AVG(f.rating_stars) AS avg_stars
+        FROM funds f
+        WHERE f.is_active = 1 AND f.$col IS NOT NULL AND f.fund_house IS NOT NULL
+        GROUP BY f.fund_house
+        HAVING fund_count >= 3
+        ORDER BY avg_return DESC
+        LIMIT 30
+    ");
+    echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// saved_screens_list / saved_screen_save / saved_screen_delete — t110
+// ══════════════════════════════════════════════════════════════════════════
+case 'saved_screens_list':
+    $stmt = $db->prepare("
+        SELECT id, name, filters_json, is_public, share_token, created_at
+        FROM mf_saved_screens
+        WHERE user_id = ? ORDER BY updated_at DESC
+    ");
+    $stmt->execute([$userId]);
+    echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    break;
+
+case 'saved_screen_save':
+    $name    = trim($_POST['name'] ?? '');
+    $filters = $_POST['filters_json'] ?? '';
+    if (!$name || !$filters) { echo json_encode(['success' => false, 'msg' => 'name and filters required']); break; }
+    $token = bin2hex(random_bytes(16));
+    $stmt  = $db->prepare("
+        INSERT INTO mf_saved_screens (user_id, name, filters_json, share_token, created_at, updated_at)
+        VALUES (?, ?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE name=VALUES(name), filters_json=VALUES(filters_json), updated_at=NOW()
+    ");
+    $stmt->execute([$userId, $name, $filters, $token]);
+    echo json_encode(['success' => true, 'id' => $db->lastInsertId(), 'share_token' => $token]);
+    break;
+
+case 'saved_screen_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    $db->prepare("DELETE FROM mf_saved_screens WHERE id = ? AND user_id = ?")->execute([$id, $userId]);
+    echo json_encode(['success' => true]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// filter_meta — Get unique values for filters
+// ══════════════════════════════════════════════════════════════════════════
+case 'filter_meta':
+    $categories = $db->query("SELECT DISTINCT category FROM funds WHERE category IS NOT NULL ORDER BY category")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+    $subCats    = $db->query("SELECT DISTINCT sub_category FROM funds WHERE sub_category IS NOT NULL ORDER BY sub_category")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+    $houses     = $db->query("SELECT DISTINCT fund_house FROM funds WHERE fund_house IS NOT NULL ORDER BY fund_house")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+    $risks      = $db->query("SELECT DISTINCT risk_level FROM funds WHERE risk_level IS NOT NULL ORDER BY risk_level")
+                     ->fetchAll(PDO::FETCH_COLUMN);
+
+    echo json_encode(compact('categories', 'subCats', 'houses', 'risks'));
+    break;
+
+default:
+    echo json_encode(['success' => false, 'msg' => "Unknown action: $action"]);
 }

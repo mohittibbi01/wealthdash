@@ -357,6 +357,34 @@ ob_start();
 <script>
 // Tab switching handled by reports.js via data-tab attributes
 </script>
+
+<!-- ═══ t491: Cross-FY Comparison Section ═══════════════════════════════ -->
+<div class="card" style="margin-top:24px;" id="fyCompareSection">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <span style="font-weight:600;font-size:15px;">📊 Cross-FY Comparison</span>
+      <span style="font-size:12px;color:var(--text-secondary);margin-left:10px;">Year-over-year invested, gains &amp; SIP activity</span>
+    </div>
+    <button onclick="loadFyCompare()" class="btn btn-sm btn-ghost" id="fyCompareRefreshBtn">Load Comparison</button>
+  </div>
+  <div class="card-body" id="fyCompareBody">
+    <div style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;">
+      Click <strong>Load Comparison</strong> to see all financial years side by side.
+    </div>
+  </div>
+</div>
+
+<!-- t491: Holdings spanning multiple FYs -->
+<div class="card" style="margin-top:16px;" id="fySpanSection" style="display:none;">
+  <div class="card-header">
+    <span style="font-weight:600;font-size:15px;">🗓️ Multi-FY Holdings</span>
+    <span style="font-size:12px;color:var(--text-secondary);margin-left:10px;">Investments held across 2+ financial years</span>
+  </div>
+  <div class="card-body" id="fySpanBody">
+    <div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">Load comparison above to see multi-FY holdings.</div>
+  </div>
+</div>
+
 <script src="<?= APP_URL ?>/public/js/reports.js?v=4"></script>
 
 <?php

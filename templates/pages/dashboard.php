@@ -93,6 +93,66 @@ ob_start();
   </div>
   <?php endif; ?>
 
+  <!-- t499: Behavioral Nudge Banner -->
+  <div id="nudgeBannerWrap"></div>
+
+  <!-- tj003: Spending Discipline Score Widget -->
+  <div id="disciplineWidgetWrap" style="display:none;">
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div style="display:flex;align-items:stretch;flex-wrap:wrap;">
+        <!-- Grade circle -->
+        <div style="background:var(--accent);padding:20px 24px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:110px;">
+          <div id="dsGrade" style="font-size:38px;font-weight:800;color:#fff;line-height:1;">—</div>
+          <div id="dsGradeLabel" style="font-size:11px;color:rgba(255,255,255,.8);margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">Score</div>
+        </div>
+        <!-- Stats -->
+        <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;justify-content:center;gap:4px;">
+          <div style="font-size:14px;font-weight:600;">Investment Discipline Score</div>
+          <div id="dsSubtitle" style="font-size:12px;color:var(--text-secondary);">Loading…</div>
+          <div id="dsBadges" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;"></div>
+        </div>
+        <!-- Mini bar chart -->
+        <div style="padding:16px 20px;min-width:200px;">
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;font-weight:600;text-transform:uppercase;">Last 6 months</div>
+          <div id="dsMiniChart" style="display:flex;align-items:flex-end;gap:4px;height:44px;"></div>
+        </div>
+        <!-- Action -->
+        <div style="padding:16px 20px;display:flex;align-items:center;">
+          <a href="<?= APP_URL ?>?page=dashboard" onclick="showDisciplineModal(); return false;"
+             style="font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap;">
+            Setup income →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Discipline Setup Modal -->
+  <div id="disciplineModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1200;display:flex;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:400px;width:92%;padding:24px;position:relative;">
+      <button onclick="document.getElementById('disciplineModal').style.display='none'"
+              style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-secondary);">✕</button>
+      <h3 style="margin:0 0 16px;font-size:16px;">💰 Setup Discipline Score</h3>
+      <div style="margin-bottom:14px;">
+        <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">Monthly Income (₹)</label>
+        <input type="number" id="dsIncomeInput" placeholder="e.g. 80000" min="1"
+               style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text);font-size:14px;box-sizing:border-box;">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">Investment Target: <span id="dsTargetLabel">20%</span></label>
+        <input type="range" id="dsTargetSlider" min="5" max="60" value="20"
+               style="width:100%;" oninput="document.getElementById('dsTargetLabel').textContent=this.value+'%'">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-top:2px;">
+          <span>5% (min)</span><span>30% (recommended)</span><span>60% (aggressive)</span>
+        </div>
+      </div>
+      <button onclick="saveDisciplineIncome()"
+              style="width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+        Save &amp; Calculate Score
+      </button>
+    </div>
+  </div>
+
   <?php if (!$portfolioId): ?>
   <div class="card">
     <div class="card-body" style="text-align:center;padding:48px">
@@ -546,7 +606,137 @@ function calcNscInterest() {
       </table>
     </div>`;
 }
+
 </script>
+
+<script>
+/* ── t499 Nudge Banner + tj003 Discipline Widget ─────────────────────── */
+(function() {
+  const BASE = window.APP_URL || window.WD?.appUrl || '';
+  const CSRF = window.WD?.csrf || window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+  async function apiFetch(action, extra = {}) {
+    const fd = new FormData();
+    fd.append('action', action);
+    if (CSRF) fd.append('_csrf_token', CSRF);
+    Object.entries(extra).forEach(([k,v]) => fd.append(k, v));
+    const r = await fetch(`${BASE}/api/?action=${action}`, { method:'POST', body:fd });
+    return r.json();
+  }
+
+  // ── Nudge Banner ──────────────────────────────────────────────────
+  async function loadNudges() {
+    const wrap = document.getElementById('nudgeBannerWrap');
+    if (!wrap) return;
+    try {
+      const data = await apiFetch('nudge_get');
+      if (!data.success || !data.data?.length) return;
+      const nudges = data.data;
+      wrap.innerHTML = nudges.map(n => `
+        <div id="nudge_${n.id}" style="
+          display:flex;align-items:center;gap:12px;padding:12px 16px;
+          border-left:4px solid ${n.color};background:var(--bg-secondary);
+          border-radius:0 8px 8px 0;margin-bottom:8px;animation:fadeIn .3s ease;">
+          <span style="font-size:20px;">${n.icon}</span>
+          <div style="flex:1;">
+            <strong style="font-size:13px;">${n.title}</strong>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${n.message}</div>
+          </div>
+          <a href="${n.action_url}" style="font-size:12px;color:${n.color};white-space:nowrap;text-decoration:none;font-weight:600;">${n.action_label} →</a>
+          <button onclick="dismissNudge('${n.id}')" title="Dismiss"
+            style="background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:16px;padding:0 4px;">✕</button>
+        </div>`).join('');
+    } catch(e) { /* silent */ }
+  }
+
+  window.dismissNudge = async function(nudgeId) {
+    document.getElementById('nudge_' + nudgeId)?.remove();
+    try { await apiFetch('nudge_dismiss', { nudge_id: nudgeId }); } catch(e) {}
+  };
+
+  // ── Discipline Widget ─────────────────────────────────────────────
+  async function loadDiscipline() {
+    const wrap = document.getElementById('disciplineWidgetWrap');
+    if (!wrap) return;
+    try {
+      const data = await apiFetch('discipline_get');
+      if (!data.success) return;
+      const d = data.data;
+
+      wrap.style.display = '';
+
+      const gradeEl  = document.getElementById('dsGrade');
+      const labelEl  = document.getElementById('dsGradeLabel');
+      const subEl    = document.getElementById('dsSubtitle');
+      const badgeEl  = document.getElementById('dsBadges');
+      const chartEl  = document.getElementById('dsMiniChart');
+
+      if (gradeEl)  gradeEl.textContent  = d.grade?.letter || '—';
+      if (labelEl)  labelEl.textContent  = d.grade?.label  || 'Score';
+      if (gradeEl?.parentElement) gradeEl.parentElement.style.background = d.grade?.color || 'var(--accent)';
+
+      if (subEl) {
+        if (!d.has_income) {
+          subEl.innerHTML = `<a href="#" onclick="showDisciplineModal();return false;" style="color:var(--accent);">Set your monthly income</a> to calculate score`;
+        } else {
+          subEl.textContent = `Avg ${d.avg_rate_pct}% invested/month · ${d.months_above_target}/${d.total_months} months on target · ${d.current_streak} month streak`;
+        }
+      }
+
+      if (badgeEl) {
+        badgeEl.innerHTML = (d.badges||[]).map(b =>
+          `<span style="font-size:11px;background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:20px;">${b.icon} ${b.label}</span>`
+        ).join('');
+      }
+
+      if (chartEl && d.monthly_data) {
+        const last6 = d.monthly_data.slice(-6);
+        const maxRate = Math.max(...last6.map(m => m.rate_pct || 0), d.target_pct, 1);
+        chartEl.innerHTML = last6.map(m => {
+          const h = Math.max(4, Math.round(((m.rate_pct||0) / maxRate) * 40));
+          const col = m.on_target ? '#16a34a' : m.rate_pct ? '#f59e0b' : 'var(--border)';
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;" title="${m.label}: ${m.rate_pct||0}%">
+            <div style="width:100%;height:${h}px;background:${col};border-radius:2px 2px 0 0;min-width:8px;"></div>
+            <div style="font-size:9px;color:var(--text-secondary);">${m.label?.split(' ')[0]||''}</div>
+          </div>`;
+        }).join('');
+        // Target line (CSS trick)
+        const targetH = Math.round((d.target_pct / maxRate) * 40);
+        chartEl.style.position = 'relative';
+        chartEl.insertAdjacentHTML('beforeend', `
+          <div style="position:absolute;left:0;right:0;bottom:${targetH+14}px;height:1px;background:var(--accent);opacity:.5;"
+               title="Target ${d.target_pct}%"></div>`);
+      }
+    } catch(e) { /* silent */ }
+  }
+
+  window.showDisciplineModal = function() {
+    const m = document.getElementById('disciplineModal');
+    if (m) m.style.display = 'flex';
+  };
+
+  window.saveDisciplineIncome = async function() {
+    const income = parseFloat(document.getElementById('dsIncomeInput')?.value || 0);
+    const target = parseInt(document.getElementById('dsTargetSlider')?.value || 20);
+    if (!income || income <= 0) { alert('Please enter a valid monthly income'); return; }
+    try {
+      const r = await apiFetch('discipline_set_income', { monthly_income: income, target_pct: target });
+      if (r.success) {
+        document.getElementById('disciplineModal').style.display = 'none';
+        loadDiscipline();
+        if (typeof showToast === 'function') showToast('Discipline score updated!', 'success');
+      }
+    } catch(e) { alert('Error saving: ' + e.message); }
+  };
+
+  // ── Init on DOMContentLoaded ──────────────────────────────────────
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { loadNudges(); loadDiscipline(); });
+  } else {
+    loadNudges(); loadDiscipline();
+  }
+})();
+
 <?php
 $pageContent = ob_get_clean();
 include APP_ROOT . '/templates/layout.php';

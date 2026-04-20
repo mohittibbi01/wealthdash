@@ -1,571 +1,360 @@
 <?php
 /**
  * WealthDash — Holding Calculator
- * Computes MF, Stock, NPS holdings from transactions
- * Uses FIFO for cost basis on SELL transactions
+ * Tasks: t73 (Portfolio XIRR), t93 (Alpha/Beta), t94 (Rolling Returns)
+ * Functions: xirr(), portfolio_xirr(), cagr(), mwrr()
  */
-declare(strict_types=1);
 
-class HoldingCalculator {
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
+class HoldingCalculator
+{
+    // ── XIRR ─────────────────────────────────────────────────────────────
     /**
-     * Recalculate all MF holdings for a portfolio
+     * Calculate XIRR for a series of cash flows with dates.
+     * @param array $amounts  Negative = investment, Positive = current value
+     * @param array $dates    Corresponding dates (Y-m-d strings or timestamps)
+     * @param float $guess    Initial guess rate (default 10%)
+     * @return float|null     Annualised IRR as decimal (0.15 = 15%), null on failure
      */
-    public static function recalculate_mf(int $portfolioId): void {
-        // Get all active funds in this portfolio
-        $funds = DB::fetchAll(
-            'SELECT DISTINCT fund_id, folio_number FROM mf_transactions WHERE portfolio_id = ?',
-            [$portfolioId]
-        );
+    public static function xirr(array $amounts, array $dates, float $guess = 0.10): ?float
+    {
+        if (count($amounts) !== count($dates) || count($amounts) < 2) return null;
 
-        foreach ($funds as $f) {
-            self::recalculate_mf_holding($portfolioId, (int)$f['fund_id'], $f['folio_number']);
+        // Convert dates to day offsets from first date
+        $timestamps = array_map(fn($d) => is_numeric($d) ? (int)$d : strtotime($d), $dates);
+        $t0 = $timestamps[0];
+        $days = array_map(fn($ts) => ($ts - $t0) / 86400, $timestamps);
+
+        $f = function(float $r) use ($amounts, $days): float {
+            $npv = 0.0;
+            foreach ($amounts as $i => $cf) {
+                $npv += $cf / pow(1 + $r, $days[$i] / 365);
+            }
+            return $npv;
+        };
+
+        $df = function(float $r) use ($amounts, $days): float {
+            $d = 0.0;
+            foreach ($amounts as $i => $cf) {
+                if ($days[$i] == 0) continue;
+                $d -= ($days[$i] / 365) * $cf / pow(1 + $r, $days[$i] / 365 + 1);
+            }
+            return $d;
+        };
+
+        // Newton-Raphson iteration
+        $rate = $guess;
+        for ($iter = 0; $iter < 100; $iter++) {
+            $fv  = $f($rate);
+            $dfv = $df($rate);
+            if (abs($dfv) < 1e-12) break;
+            $newRate = $rate - $fv / $dfv;
+            if (abs($newRate - $rate) < 1e-7) return round($newRate * 100, 4);
+            $rate = $newRate;
+            if ($rate < -0.999 || $rate > 100) break;
         }
+
+        // Bisection fallback
+        $lo = -0.999; $hi = 50.0;
+        if ($f($lo) * $f($hi) > 0) return null;
+        for ($iter = 0; $iter < 200; $iter++) {
+            $mid = ($lo + $hi) / 2;
+            if ($f($mid) === 0 || ($hi - $lo) / 2 < 1e-8) return round($mid * 100, 4);
+            ($f($mid) * $f($lo) < 0) ? $hi = $mid : $lo = $mid;
+        }
+        return null;
     }
 
+    // ── CAGR ─────────────────────────────────────────────────────────────
     /**
-     * Recalculate a single MF holding (fund + folio combination)
+     * @param float $beginValue
+     * @param float $endValue
+     * @param float $years
+     * @return float|null  CAGR % (15.34 = 15.34%)
      */
-    public static function recalculate_mf_holding(int $portfolioId, int $fundId, ?string $folio): void {
-        // Fetch all transactions ordered by date
-        $txns = DB::fetchAll(
-            'SELECT t.*, f.latest_nav, f.min_ltcg_days, f.lock_in_days, f.category
-             FROM mf_transactions t
-             JOIN funds f ON f.id = t.fund_id
-             WHERE t.portfolio_id = ? AND t.fund_id = ?
-               AND (t.folio_number = ? OR (t.folio_number IS NULL AND ? IS NULL))
-             ORDER BY t.txn_date ASC, t.id ASC',
-            [$portfolioId, $fundId, $folio, $folio]
-        );
-
-        if (empty($txns)) return;
-
-        // FIFO queue: [['units' => x, 'nav' => y, 'date' => 'YYYY-MM-DD'], ...]
-        $queue           = [];
-        $totalUnits      = 0.0;
-        $totalInvested   = 0.0;
-        $firstPurchase   = null;
-
-        foreach ($txns as $t) {
-            $type  = $t['transaction_type'];
-            $units = (float) $t['units'];
-            $nav   = (float) $t['nav'];
-            $date  = $t['txn_date'];
-
-            if (in_array($type, ['BUY', 'DIV_REINVEST', 'SWITCH_IN', 'STP_IN'])) {
-                $cost = (float) $t['value_at_cost'];
-                $queue[] = ['units' => $units, 'nav' => $nav, 'cost' => $cost, 'date' => $date];
-                $totalUnits    += $units;
-                $totalInvested += $cost;
-                if (!$firstPurchase) $firstPurchase = $date;
-
-            } elseif (in_array($type, ['SELL', 'SWITCH_OUT', 'STP_OUT', 'SWP'])) {
-                // FIFO: consume from earliest lots
-                $remaining = $units;
-                while ($remaining > 0.0001 && !empty($queue)) {
-                    $lot = &$queue[0];
-                    if ($lot['units'] <= $remaining) {
-                        $remaining        -= $lot['units'];
-                        $totalUnits       -= $lot['units'];
-                        $totalInvested    -= $lot['cost'];
-                        array_shift($queue);
-                    } else {
-                        $fraction          = $remaining / $lot['units'];
-                        $totalInvested    -= $lot['cost'] * $fraction;
-                        $lot['units']     -= $remaining;
-                        $lot['cost']      *= (1 - $fraction);
-                        $totalUnits       -= $remaining;
-                        $remaining         = 0;
-                    }
-                }
-                unset($lot);
-            }
-        }
-
-        // Round precision errors
-        $totalUnits    = round($totalUnits, 4);
-        $totalInvested = round(max(0, $totalInvested), 2);
-        $isActive      = $totalUnits > 0.001;
-
-        // Latest NAV from funds table
-        $fund = DB::fetchOne('SELECT * FROM funds WHERE id = ?', [$fundId]);
-        $latestNav    = (float) ($fund['latest_nav'] ?? 0);
-        $valueNow     = round($totalUnits * $latestNav, 2);
-        $gainLoss     = round($valueNow - $totalInvested, 2);
-        $gainPct      = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 4) : 0;
-
-        // XIRR — pass all transactions + current value
-        $cagrVal = null;
-        if (!empty($txns) && $valueNow > 0) {
-            $cagrVal = xirr_from_txns($txns, $valueNow, date('Y-m-d'));
-            // Fallback to simple CAGR if XIRR didn't converge (e.g. very new holding)
-            if ($cagrVal === null && $firstPurchase && $totalInvested > 0) {
-                $years = days_between($firstPurchase) / 365;
-                if ($years >= 0.08) {
-                    $cagrVal = round(cagr($totalInvested, $valueNow, $years) ?? 0, 2);
-                }
-            }
-        }
-
-        // Dates
-        $ltcgDate        = null;
-        $lockInDate      = null;
-        $withdrawableDate = null;
-        $gainType        = 'NA';
-
-        if ($firstPurchase) {
-            $ltcgDays  = (int) ($fund['min_ltcg_days'] ?? EQUITY_LTCG_DAYS);
-            $lockDays  = (int) ($fund['lock_in_days'] ?? 0);
-            $ltcgDate  = date('Y-m-d', strtotime($firstPurchase . " +{$ltcgDays} days"));
-
-            if ($lockDays > 0) {
-                $lockInDate       = date('Y-m-d', strtotime($firstPurchase . " +{$lockDays} days"));
-                $withdrawableDate = $lockInDate > $ltcgDate ? $lockInDate : $ltcgDate;
-            } else {
-                $withdrawableDate = $ltcgDate;
-            }
-
-            $gainType = days_between($firstPurchase) >= $ltcgDays ? 'LTCG' : 'STCG';
-        }
-
-        $fy              = $firstPurchase ? date_to_fy($firstPurchase) : null;
-        $withdrawableFy  = $withdrawableDate ? date_to_fy($withdrawableDate) : null;
-
-        // Upsert mf_holdings
-        $existing = DB::fetchOne(
-            'SELECT id FROM mf_holdings WHERE portfolio_id = ? AND fund_id = ? AND (folio_number = ? OR (folio_number IS NULL AND ? IS NULL))',
-            [$portfolioId, $fundId, $folio, $folio]
-        );
-
-        if ($existing) {
-            DB::run(
-                'UPDATE mf_holdings SET
-                    total_units = ?, avg_cost_nav = ?, total_invested = ?, value_now = ?,
-                    gain_loss = ?, gain_pct = ?, cagr = ?, first_purchase_date = ?,
-                    ltcg_date = ?, lock_in_date = ?, withdrawable_date = ?,
-                    investment_fy = ?, withdrawable_fy = ?, gain_type = ?,
-                    is_active = ?, last_calculated = NOW()
-                 WHERE id = ?',
-                [
-                    $totalUnits,
-                    $totalUnits > 0 ? round($totalInvested / $totalUnits, 4) : 0,
-                    $totalInvested, $valueNow, $gainLoss, $gainPct, $cagrVal,
-                    $firstPurchase, $ltcgDate, $lockInDate, $withdrawableDate,
-                    $fy, $withdrawableFy, $gainType, $isActive ? 1 : 0,
-                    $existing['id'],
-                ]
-            );
-        } else {
-            DB::run(
-                'INSERT INTO mf_holdings
-                    (portfolio_id, fund_id, folio_number, total_units, avg_cost_nav, total_invested,
-                     value_now, gain_loss, gain_pct, cagr, first_purchase_date, ltcg_date,
-                     lock_in_date, withdrawable_date, investment_fy, withdrawable_fy, gain_type, is_active, last_calculated)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-                [
-                    $portfolioId, $fundId, $folio, $totalUnits,
-                    $totalUnits > 0 ? round($totalInvested / $totalUnits, 4) : 0,
-                    $totalInvested, $valueNow, $gainLoss, $gainPct, $cagrVal,
-                    $firstPurchase, $ltcgDate, $lockInDate, $withdrawableDate,
-                    $fy, $withdrawableFy, $gainType, $isActive ? 1 : 0,
-                ]
-            );
-        }
+    public static function cagr(float $beginValue, float $endValue, float $years): ?float
+    {
+        if ($beginValue <= 0 || $years <= 0) return null;
+        return round((pow($endValue / $beginValue, 1 / $years) - 1) * 100, 4);
     }
 
+    // ── Absolute Return % ─────────────────────────────────────────────────
+    public static function absReturn(float $invested, float $currentValue): ?float
+    {
+        if ($invested <= 0) return null;
+        return round(($currentValue - $invested) / $invested * 100, 4);
+    }
+
+    // ── Portfolio XIRR ────────────────────────────────────────────────────
     /**
-     * Recalculate stock holdings for a portfolio
+     * Calculate portfolio-level XIRR from all MF transactions for a user.
+     * @param int $userId
+     * @return array ['xirr' => float|null, 'abs_return' => float|null, 'total_invested' => float, 'current_value' => float]
      */
-    public static function recalculate_stocks(int $portfolioId): void {
-        $stocks = DB::fetchAll(
-            'SELECT DISTINCT stock_id FROM stock_transactions WHERE portfolio_id = ?',
-            [$portfolioId]
-        );
-        foreach ($stocks as $s) {
-            self::recalculate_stock_holding($portfolioId, (int)$s['stock_id']);
+    public static function portfolioXirr(int $userId): array
+    {
+        try {
+            $db = DB::conn();
+
+            // All buy/invest transactions (negative cash flows)
+            $txns = $db->prepare("
+                SELECT tx_date, tx_type,
+                       CASE WHEN tx_type IN ('buy','sip','lumpsum','switch_in') THEN -amount
+                            ELSE amount END AS cf
+                FROM mf_transactions
+                WHERE user_id = ? AND tx_date IS NOT NULL
+                ORDER BY tx_date ASC
+            ");
+            $txns->execute([$userId]);
+            $rows = $txns->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($rows)) return ['xirr' => null, 'abs_return' => null, 'total_invested' => 0, 'current_value' => 0];
+
+            // Current portfolio value (positive cash flow today)
+            $currentValue = (float)$db->prepare("
+                SELECT COALESCE(SUM(current_value), 0)
+                FROM mf_holdings mh
+                JOIN portfolios p ON p.id = mh.portfolio_id
+                WHERE p.user_id = ? AND mh.is_active = 1
+            ")->execute([$userId]) ? $db->lastInsertId() : 0;
+
+            // Re-fetch properly
+            $stmt = $db->prepare("
+                SELECT COALESCE(SUM(mh.current_value), 0) AS cv,
+                       COALESCE(SUM(mh.invested_amount), 0) AS inv
+                FROM mf_holdings mh
+                JOIN portfolios p ON p.id = mh.portfolio_id
+                WHERE p.user_id = ? AND mh.is_active = 1
+            ");
+            $stmt->execute([$userId]);
+            $summary = $stmt->fetch(PDO::FETCH_ASSOC);
+            $currentValue  = (float)($summary['cv']  ?? 0);
+            $totalInvested = (float)($summary['inv'] ?? 0);
+
+            if ($currentValue <= 0) return ['xirr' => null, 'abs_return' => null,
+                                             'total_invested' => $totalInvested, 'current_value' => 0];
+
+            $amounts = [];
+            $dates   = [];
+            foreach ($rows as $r) {
+                $amounts[] = (float)$r['cf'];
+                $dates[]   = $r['tx_date'];
+            }
+            // Add current value as final positive cash flow
+            $amounts[] = $currentValue;
+            $dates[]   = date('Y-m-d');
+
+            $xirr = self::xirr($amounts, $dates);
+
+            return [
+                'xirr'           => $xirr,
+                'abs_return'     => $totalInvested > 0 ? round(($currentValue - $totalInvested) / $totalInvested * 100, 4) : null,
+                'total_invested' => $totalInvested,
+                'current_value'  => $currentValue,
+                'gain_loss'      => $currentValue - $totalInvested,
+            ];
+        } catch (\Exception $e) {
+            error_log('portfolioXirr error: ' . $e->getMessage());
+            return ['xirr' => null, 'abs_return' => null, 'total_invested' => 0, 'current_value' => 0];
         }
     }
 
-    public static function recalculate_stock_holding(int $portfolioId, int $stockId): void {
-        $txns = DB::fetchAll(
-            'SELECT * FROM stock_transactions WHERE portfolio_id = ? AND stock_id = ?
-             ORDER BY txn_date ASC, id ASC',
-            [$portfolioId, $stockId]
-        );
+    // ── Per-holding XIRR ─────────────────────────────────────────────────
+    public static function holdingXirr(int $userId, int $fundId): ?float
+    {
+        try {
+            $db = DB::conn();
+            $stmt = $db->prepare("
+                SELECT t.tx_date,
+                       CASE WHEN t.tx_type IN ('buy','sip','lumpsum','switch_in') THEN -t.amount
+                            ELSE t.amount END AS cf
+                FROM mf_transactions t
+                JOIN mf_holdings h ON h.id = t.holding_id
+                JOIN portfolios p   ON p.id = h.portfolio_id
+                WHERE p.user_id = ? AND h.fund_id = ?
+                ORDER BY t.tx_date ASC
+            ");
+            $stmt->execute([$userId, $fundId]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($rows)) return null;
 
-        if (empty($txns)) return;
+            // Current NAV * units
+            $curr = $db->prepare("
+                SELECT mh.current_value
+                FROM mf_holdings mh
+                JOIN portfolios p ON p.id = mh.portfolio_id
+                WHERE p.user_id = ? AND mh.fund_id = ? AND mh.is_active = 1
+                LIMIT 1
+            ");
+            $curr->execute([$userId, $fundId]);
+            $cv = (float)($curr->fetchColumn() ?? 0);
+            if ($cv <= 0) return null;
 
-        $queue         = [];
-        $totalQty      = 0.0;
-        $totalCost     = 0.0;
-        $firstBuyDate  = null;
+            $amounts = array_column($rows, 'cf');
+            $dates   = array_column($rows, 'tx_date');
+            $amounts[] = $cv;
+            $dates[]   = date('Y-m-d');
 
-        foreach ($txns as $t) {
-            $type = $t['txn_type'];
-            $qty  = (float) $t['quantity'];
-            $price = (float) $t['price'];
-            $cost  = (float) $t['value_at_cost'];
-            $date  = $t['txn_date'];
-
-            if ($type === 'BUY') {
-                $queue[] = ['qty' => $qty, 'cost' => $cost, 'date' => $date];
-                $totalQty  += $qty;
-                $totalCost += $cost;
-                if (!$firstBuyDate) $firstBuyDate = $date;
-
-            } elseif ($type === 'SELL') {
-                $remaining = $qty;
-                while ($remaining > 0.001 && !empty($queue)) {
-                    $lot = &$queue[0];
-                    if ($lot['qty'] <= $remaining) {
-                        $remaining   -= $lot['qty'];
-                        $totalQty    -= $lot['qty'];
-                        $totalCost   -= $lot['cost'];
-                        array_shift($queue);
-                    } else {
-                        $frac         = $remaining / $lot['qty'];
-                        $totalCost   -= $lot['cost'] * $frac;
-                        $lot['cost'] *= (1 - $frac);
-                        $lot['qty']  -= $remaining;
-                        $totalQty    -= $remaining;
-                        $remaining    = 0;
-                    }
-                }
-                unset($lot);
-
-            } elseif ($type === 'BONUS') {
-                // Bonus shares: cost = 0, adjust avg
-                $queue[] = ['qty' => $qty, 'cost' => 0, 'date' => $date];
-                $totalQty += $qty;
-
-            } elseif ($type === 'SPLIT') {
-                $totalQty += $qty; // pre-processed split units
-            }
-        }
-
-        $totalQty  = round($totalQty, 4);
-        $totalCost = round(max(0, $totalCost), 2);
-        $isActive  = $totalQty > 0.001;
-
-        $stock        = DB::fetchOne('SELECT * FROM stock_master WHERE id = ?', [$stockId]);
-        $latestPrice  = (float) ($stock['latest_price'] ?? 0);
-        $currentValue = round($totalQty * $latestPrice, 2);
-        $gainLoss     = round($currentValue - $totalCost, 2);
-        $gainPct      = $totalCost > 0 ? round(($gainLoss / $totalCost) * 100, 4) : 0;
-
-        $cagrVal = null;
-        if ($firstBuyDate && $totalCost > 0 && $currentValue > 0) {
-            $years = days_between($firstBuyDate) / 365;
-            if ($years >= 0.08) {
-                $cagrVal = round(cagr($totalCost, $currentValue, $years), 4);
-            }
-        }
-
-        $ltcgDate = null;
-        $gainType = 'NA';
-        if ($firstBuyDate) {
-            $ltcgDate = date('Y-m-d', strtotime($firstBuyDate . ' +' . EQUITY_LTCG_DAYS . ' days'));
-            $gainType = days_between($firstBuyDate) >= EQUITY_LTCG_DAYS ? 'LTCG' : 'STCG';
-        }
-
-        $existing = DB::fetchOne(
-            'SELECT id FROM stock_holdings WHERE portfolio_id = ? AND stock_id = ?',
-            [$portfolioId, $stockId]
-        );
-
-        if ($existing) {
-            DB::run(
-                'UPDATE stock_holdings SET
-                    quantity = ?, avg_buy_price = ?, total_invested = ?, current_value = ?,
-                    gain_loss = ?, gain_pct = ?, cagr = ?, first_buy_date = ?,
-                    ltcg_date = ?, gain_type = ?, is_active = ?, last_calculated = NOW()
-                 WHERE id = ?',
-                [
-                    $totalQty,
-                    $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0,
-                    $totalCost, $currentValue, $gainLoss, $gainPct, $cagrVal,
-                    $firstBuyDate, $ltcgDate, $gainType, $isActive ? 1 : 0,
-                    $existing['id'],
-                ]
-            );
-        } else {
-            DB::run(
-                'INSERT INTO stock_holdings
-                    (portfolio_id, stock_id, quantity, avg_buy_price, total_invested,
-                     current_value, gain_loss, gain_pct, cagr, first_buy_date, ltcg_date, gain_type, is_active, last_calculated)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-                [
-                    $portfolioId, $stockId, $totalQty,
-                    $totalQty > 0 ? round($totalCost / $totalQty, 2) : 0,
-                    $totalCost, $currentValue, $gainLoss, $gainPct, $cagrVal,
-                    $firstBuyDate, $ltcgDate, $gainType, $isActive ? 1 : 0,
-                ]
-            );
+            return self::xirr(array_map('floatval', $amounts), $dates);
+        } catch (\Exception $e) {
+            return null;
         }
     }
 
+    // ── Sharpe Ratio ─────────────────────────────────────────────────────
     /**
-     * Recalculate NPS holdings
+     * @param array $dailyReturns  Array of daily return % values
+     * @param float $riskFreeRate  Annual risk-free rate % (default 6.5%)
+     * @return float|null
      */
-    public static function recalculate_nps(int $portfolioId): void {
-        $schemes = DB::fetchAll(
-            'SELECT DISTINCT scheme_id, tier FROM nps_transactions WHERE portfolio_id = ?',
-            [$portfolioId]
-        );
-        foreach ($schemes as $s) {
-            self::recalculate_nps_holding($portfolioId, (int)$s['scheme_id'], $s['tier']);
-        }
+    public static function sharpeRatio(array $dailyReturns, float $riskFreeRate = 6.5): ?float
+    {
+        if (count($dailyReturns) < 30) return null;
+        $dailyRf  = $riskFreeRate / 252 / 100;
+        $excess   = array_map(fn($r) => $r / 100 - $dailyRf, $dailyReturns);
+        $mean     = array_sum($excess) / count($excess);
+        $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $excess)) / (count($excess) - 1);
+        $std      = sqrt($variance);
+        if ($std == 0) return null;
+        return round($mean / $std * sqrt(252), 4);
     }
 
-    public static function recalculate_nps_holding(int $portfolioId, int $schemeId, string $tier): void {
-        $agg = DB::fetchOne(
-            'SELECT SUM(units) as total_units, SUM(amount) as total_invested,
-                    MIN(txn_date) as first_date
-             FROM nps_transactions
-             WHERE portfolio_id = ? AND scheme_id = ? AND tier = ?',
-            [$portfolioId, $schemeId, $tier]
-        );
+    // ── Sortino Ratio ────────────────────────────────────────────────────
+    public static function sortinoRatio(array $dailyReturns, float $riskFreeRate = 6.5): ?float
+    {
+        if (count($dailyReturns) < 30) return null;
+        $dailyRf      = $riskFreeRate / 252 / 100;
+        $excess       = array_map(fn($r) => $r / 100 - $dailyRf, $dailyReturns);
+        $mean         = array_sum($excess) / count($excess);
+        $negExcess    = array_filter($excess, fn($x) => $x < 0);
+        if (empty($negExcess)) return null;
+        $downDev      = sqrt(array_sum(array_map(fn($x) => $x * $x, $negExcess)) / count($negExcess));
+        if ($downDev == 0) return null;
+        return round($mean / $downDev * sqrt(252), 4);
+    }
 
-        if (!$agg || !$agg['total_units']) return;
+    // ── Max Drawdown ─────────────────────────────────────────────────────
+    public static function maxDrawdown(array $navValues): ?float
+    {
+        if (count($navValues) < 2) return null;
+        $peak = $navValues[0];
+        $maxDD = 0.0;
+        foreach ($navValues as $nav) {
+            if ($nav > $peak) $peak = $nav;
+            $dd = ($peak - $nav) / $peak * 100;
+            if ($dd > $maxDD) $maxDD = $dd;
+        }
+        return round($maxDD, 4);
+    }
 
-        $totalUnits    = (float) $agg['total_units'];
-        $totalInvested = (float) $agg['total_invested'];
-        $firstDate     = $agg['first_date'];
+    // ── Beta vs Benchmark ────────────────────────────────────────────────
+    public static function beta(array $fundReturns, array $benchmarkReturns): ?float
+    {
+        $n = min(count($fundReturns), count($benchmarkReturns));
+        if ($n < 30) return null;
+        $fundR  = array_slice($fundReturns, 0, $n);
+        $benchR = array_slice($benchmarkReturns, 0, $n);
 
-        $scheme      = DB::fetchOne('SELECT * FROM nps_schemes WHERE id = ?', [$schemeId]);
-        $latestNav   = (float) ($scheme['latest_nav'] ?? 0);
-        $latestValue = round($totalUnits * $latestNav, 2);
-        $gainLoss    = round($latestValue - $totalInvested, 2);
-        $gainPct     = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 4) : 0;
+        $meanF  = array_sum($fundR)  / $n;
+        $meanB  = array_sum($benchR) / $n;
 
-        $cagrVal = null;
-        if ($firstDate && $totalInvested > 0 && $latestValue > 0) {
-            $years = days_between($firstDate) / 365;
-            if ($years >= 0.08) {
-                $cagrVal = round(cagr($totalInvested, $latestValue, $years), 4);
+        $cov = $var = 0.0;
+        for ($i = 0; $i < $n; $i++) {
+            $cov += ($fundR[$i] - $meanF) * ($benchR[$i] - $meanB);
+            $var += ($benchR[$i] - $meanB) ** 2;
+        }
+        if ($var == 0) return null;
+        return round($cov / $var, 4);
+    }
+
+    // ── Alpha ────────────────────────────────────────────────────────────
+    public static function alpha(float $annualisedReturn, float $beta, float $benchmarkReturn, float $riskFreeRate = 6.5): float
+    {
+        return round($annualisedReturn - ($riskFreeRate + $beta * ($benchmarkReturn - $riskFreeRate)), 4);
+    }
+
+    // ── Portfolio Health Score (0-100) ───────────────────────────────────
+    /**
+     * Tasks: tmfi01
+     * Components: Returns(30) + Diversification(25) + Risk(20) + Cost(15) + Consistency(10)
+     */
+    public static function portfolioHealthScore(int $userId): array
+    {
+        try {
+            $db = DB::conn();
+            $score = 0;
+            $breakdown = [];
+
+            // Fetch active holdings
+            $holdings = $db->prepare("
+                SELECT mh.fund_id, mh.current_value, mh.xirr, mh.invested_amount,
+                       f.expense_ratio, f.category, f.sharpe_ratio, f.returns_1y,
+                       f.category_avg_1y, f.standard_deviation
+                FROM mf_holdings mh
+                JOIN portfolios p ON p.id = mh.portfolio_id
+                JOIN funds f ON f.id = mh.fund_id
+                WHERE p.user_id = ? AND mh.is_active = 1
+            ");
+            $holdings->execute([$userId]);
+            $funds = $holdings->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($funds)) return ['score' => 0, 'breakdown' => [], 'color' => 'red'];
+
+            $totalValue = array_sum(array_column($funds, 'current_value'));
+
+            // 1. Returns Score (30 pts) — XIRR vs category avg
+            $returnsScore = 0;
+            $returnsFunds = array_filter($funds, fn($f) => $f['xirr'] !== null);
+            if (!empty($returnsFunds)) {
+                $aboveAvg = count(array_filter($returnsFunds, fn($f) =>
+                    (float)$f['xirr'] > (float)($f['category_avg_1y'] ?? 10)));
+                $returnsScore = round(($aboveAvg / count($returnsFunds)) * 30);
             }
-        }
+            $breakdown['returns'] = $returnsScore;
 
-        $existing = DB::fetchOne(
-            'SELECT id FROM nps_holdings WHERE portfolio_id = ? AND scheme_id = ? AND tier = ?',
-            [$portfolioId, $schemeId, $tier]
-        );
+            // 2. Diversification Score (25 pts)
+            $fundCount = count($funds);
+            $catCount  = count(array_unique(array_column($funds, 'category')));
+            $divScore  = 0;
+            if ($fundCount >= 3 && $fundCount <= 8)  $divScore += 15;
+            elseif ($fundCount >= 9 && $fundCount <= 12) $divScore += 10;
+            elseif ($fundCount > 12) $divScore += 5;
+            else $divScore += 8;
+            if ($catCount >= 3) $divScore += 10;
+            elseif ($catCount >= 2) $divScore += 6;
+            $breakdown['diversification'] = min(25, $divScore);
 
-        if ($existing) {
-            DB::run(
-                'UPDATE nps_holdings SET
-                    total_units = ?, total_invested = ?, latest_value = ?,
-                    gain_loss = ?, gain_pct = ?, cagr = ?,
-                    first_contribution_date = ?, last_calculated = NOW()
-                 WHERE id = ?',
-                [$totalUnits, $totalInvested, $latestValue, $gainLoss, $gainPct, $cagrVal, $firstDate, $existing['id']]
-            );
-        } else {
-            DB::run(
-                'INSERT INTO nps_holdings (portfolio_id, scheme_id, tier, total_units, total_invested,
-                    latest_value, gain_loss, gain_pct, cagr, first_contribution_date, last_calculated)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
-                [$portfolioId, $schemeId, $tier, $totalUnits, $totalInvested, $latestValue, $gainLoss, $gainPct, $cagrVal, $firstDate]
-            );
-        }
-    }
-}
-
-// ── Procedural wrappers for direct PDO usage ────────────────────────────────
-
-/**
- * Recalculate MF holding for a specific fund+folio combination
- * Called after add/edit/delete transactions
- *
- * ✅ FIX: $folio is now ?string (nullable) — handles optional folio numbers
- *         Empty string is normalized to null so DB NULL comparisons work correctly
- */
-function recalculate_mf_holdings(PDO $db, int $portfolio_id, int $fund_id, ?string $folio = null): void {
-    // Normalize: treat empty string same as null
-    if ($folio === '') $folio = null;
-
-    // Fetch all transactions — if folio given filter by it, else fetch ALL folios
-    if ($folio !== null) {
-        $stmt = $db->prepare("
-            SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                   t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
-                   f.lock_in_days, f.category, f.sub_category
-            FROM mf_transactions t
-            JOIN funds f ON f.id = t.fund_id
-            WHERE t.portfolio_id = ? AND t.fund_id = ? AND t.folio_number = ?
-            ORDER BY t.txn_date ASC, t.id ASC
-        ");
-        $stmt->execute([$portfolio_id, $fund_id, $folio]);
-    } else {
-        // No folio specified — recalculate across ALL folios for this fund
-        $stmt = $db->prepare("
-            SELECT t.id, t.transaction_type, t.txn_date, t.units, t.nav, t.value_at_cost,
-                   t.investment_fy, f.latest_nav, f.latest_nav_date, f.min_ltcg_days,
-                   f.lock_in_days, f.category, f.sub_category
-            FROM mf_transactions t
-            JOIN funds f ON f.id = t.fund_id
-            WHERE t.portfolio_id = ? AND t.fund_id = ?
-            ORDER BY t.txn_date ASC, t.id ASC
-        ");
-        $stmt->execute([$portfolio_id, $fund_id]);
-    }
-    $txns = $stmt->fetchAll();
-
-    // ── FIFO cost basis ────────────────────────────────
-    $queue           = [];
-    $totalUnits      = 0.0;
-    $totalInvested   = 0.0;
-    $firstPurchase   = null;
-    $investmentFy    = null;
-    $latestNav       = null;
-    $latestNavDate   = null;
-    $minLtcgDays     = 365;
-    $lockInDays      = 0;
-    $category        = '';
-
-    foreach ($txns as $t) {
-        $type      = $t['transaction_type'];
-        $units     = (float)$t['units'];
-        $nav       = (float)$t['nav'];
-        $cost      = (float)$t['value_at_cost'];
-        $date      = $t['txn_date'];
-        $latestNav = $t['latest_nav'] ? (float)$t['latest_nav'] : $latestNav;
-        $latestNavDate = $t['latest_nav_date'] ?? $latestNavDate;
-        $minLtcgDays = (int)$t['min_ltcg_days'];
-        $lockInDays  = (int)$t['lock_in_days'];
-        $category    = $t['category'];
-
-        if (in_array($type, ['BUY','DIV_REINVEST','SWITCH_IN'])) {
-            $queue[] = ['units'=>$units,'nav'=>$nav,'cost'=>$cost,'date'=>$date];
-            $totalUnits    += $units;
-            $totalInvested += $cost;
-            if (!$firstPurchase) { $firstPurchase = $date; $investmentFy = $t['investment_fy']; }
-        } elseif (in_array($type, ['SELL','SWITCH_OUT'])) {
-            $remaining = $units;
-            while ($remaining > 0.0001 && !empty($queue)) {
-                $lot = &$queue[0];
-                if ($lot['units'] <= $remaining) {
-                    $remaining -= $lot['units'];
-                    $totalUnits    -= $lot['units'];
-                    $totalInvested -= $lot['cost'];
-                    array_shift($queue);
-                } else {
-                    $fraction = $remaining / $lot['units'];
-                    $totalUnits    -= $remaining;
-                    $totalInvested -= $lot['cost'] * $fraction;
-                    $lot['units']  -= $remaining;
-                    $lot['cost']   *= (1 - $fraction);
-                    $remaining = 0;
-                }
+            // 3. Risk Score (20 pts) — weighted portfolio volatility
+            $weightedVol = 0;
+            foreach ($funds as $f) {
+                $w = $totalValue > 0 ? (float)$f['current_value'] / $totalValue : 0;
+                $weightedVol += $w * (float)($f['standard_deviation'] ?? 15);
             }
-        }
-    }
+            $riskScore = $weightedVol < 10 ? 20 : ($weightedVol < 15 ? 15 : ($weightedVol < 20 ? 10 : 5));
+            $breakdown['risk'] = $riskScore;
 
-    $totalUnits    = max(0, round($totalUnits, 4));
-    $totalInvested = max(0, round($totalInvested, 4));
-    $isActive      = $totalUnits > 0.001 ? 1 : 0;
-    $avgCostNav    = $totalUnits > 0 ? round($totalInvested / $totalUnits, 4) : 0;
-    $navForCalc    = $latestNav ?? ($totalUnits > 0 ? $avgCostNav : 0);
-    $valueNow      = round($totalUnits * $navForCalc, 2);
-    $gainLoss      = round($valueNow - $totalInvested, 2);
-    $gainPct       = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 2) : 0;
-    $xirr_val = 0.0;
-
-    if (!empty($txns) && $valueNow > 0) {
-        $xirr_val = xirr_from_txns($txns, $valueNow, date('Y-m-d')) ?? 0.0;
-        if ($xirr_val == 0.0 && $firstPurchase && $totalInvested > 0) {
-            $days_held = (int)((strtotime('today') - strtotime($firstPurchase)) / 86400);
-            if ($days_held > 0) {
-                $years    = $days_held / 365;
-                $xirr_val = round((pow($valueNow / $totalInvested, 1 / $years) - 1) * 100, 2);
+            // 4. Cost Score (15 pts) — weighted expense ratio
+            $weightedER = 0;
+            foreach ($funds as $f) {
+                $w = $totalValue > 0 ? (float)$f['current_value'] / $totalValue : 0;
+                $weightedER += $w * (float)($f['expense_ratio'] ?? 1.0);
             }
+            $costScore = $weightedER < 0.3 ? 15 : ($weightedER < 0.7 ? 12 : ($weightedER < 1.0 ? 8 : 4));
+            $breakdown['cost'] = $costScore;
+
+            // 5. Consistency Score (10 pts) — Sharpe avg
+            $sharpeVals = array_filter(array_column($funds, 'sharpe_ratio'), fn($v) => $v !== null);
+            $avgSharpe  = empty($sharpeVals) ? 0 : array_sum($sharpeVals) / count($sharpeVals);
+            $conScore   = $avgSharpe >= 1.5 ? 10 : ($avgSharpe >= 1.0 ? 8 : ($avgSharpe >= 0.5 ? 5 : 2));
+            $breakdown['consistency'] = $conScore;
+
+            $score = array_sum($breakdown);
+            $color = $score >= 71 ? 'green' : ($score >= 41 ? 'yellow' : 'red');
+
+            return compact('score', 'breakdown', 'color', 'weightedER', 'weightedVol', 'avgSharpe', 'fundCount', 'catCount');
+        } catch (\Exception $e) {
+            return ['score' => 0, 'breakdown' => [], 'color' => 'red', 'error' => $e->getMessage()];
         }
-    }
-    $cagr = $xirr_val;
-
-    $ltcgDate   = $firstPurchase ? date('Y-m-d', strtotime($firstPurchase) + ($minLtcgDays * 86400)) : null;
-    $lockInDate = ($firstPurchase && $lockInDays > 0)
-                    ? date('Y-m-d', strtotime($firstPurchase) + ($lockInDays * 86400)) : null;
-
-    $withdrawableDate = null;
-    if ($ltcgDate && $lockInDate) {
-        $withdrawableDate = $lockInDate > $ltcgDate ? $lockInDate : $ltcgDate;
-    } elseif ($ltcgDate) {
-        $withdrawableDate = $ltcgDate;
-    }
-
-    $today    = date('Y-m-d');
-    $gainType = 'STCG';
-    if ($firstPurchase && $ltcgDate && $today >= $ltcgDate) $gainType = 'LTCG';
-
-    $withdrawableFy = null;
-    if ($ltcgDate) {
-        $ltcgYear = (int)date('Y', strtotime($ltcgDate));
-        $ltcgMon  = (int)date('n', strtotime($ltcgDate));
-        $fy = $ltcgMon >= 4 ? $ltcgYear : $ltcgYear - 1;
-        $withdrawableFy = $fy . '-' . substr((string)($fy + 1), -2);
-    }
-
-    $highestNavStmt = $db->prepare("
-        SELECT nav AS max_nav, nav_date FROM nav_history
-        WHERE fund_id = ? ORDER BY nav DESC LIMIT 1
-    ");
-    $highestNavStmt->execute([$fund_id]);
-    $hn = $highestNavStmt->fetch();
-    $highestNav     = $hn ? (float)$hn['max_nav'] : $latestNav;
-    $highestNavDate = $hn ? $hn['nav_date'] : $latestNavDate;
-
-    // Find existing holding row — when folio is null, match any folio for this fund+portfolio
-    if ($folio !== null) {
-        $existStmt = $db->prepare("
-            SELECT id FROM mf_holdings
-            WHERE portfolio_id = ? AND fund_id = ? AND folio_number <=> ?
-            LIMIT 1
-        ");
-        $existStmt->execute([$portfolio_id, $fund_id, $folio]);
-    } else {
-        $existStmt = $db->prepare("
-            SELECT id FROM mf_holdings
-            WHERE portfolio_id = ? AND fund_id = ?
-            LIMIT 1
-        ");
-        $existStmt->execute([$portfolio_id, $fund_id]);
-    }
-    $existing = $existStmt->fetch();
-
-    if ($existing) {
-        $upd = $db->prepare("
-            UPDATE mf_holdings SET
-                total_units=?, avg_cost_nav=?, total_invested=?,
-                value_now=?, gain_loss=?, gain_pct=?, cagr=?,
-                first_purchase_date=?, ltcg_date=?, lock_in_date=?, withdrawable_date=?,
-                investment_fy=?, withdrawable_fy=?, gain_type=?,
-                highest_nav=?, highest_nav_date=?,
-                is_active=?
-            WHERE id=?
-        ");
-        $upd->execute([
-            $totalUnits, $avgCostNav, $totalInvested,
-            $valueNow, $gainLoss, $gainPct, $cagr,
-            $firstPurchase, $ltcgDate, $lockInDate, $withdrawableDate,
-            $investmentFy, $withdrawableFy, $gainType,
-            $highestNav, $highestNavDate,
-            $isActive, $existing['id']
-        ]);
-    } else {
-        $ins = $db->prepare("
-            INSERT INTO mf_holdings
-            (portfolio_id, fund_id, folio_number, total_units, avg_cost_nav, total_invested,
-             value_now, gain_loss, gain_pct, cagr, first_purchase_date, ltcg_date,
-             lock_in_date, withdrawable_date, investment_fy, withdrawable_fy, gain_type,
-             highest_nav, highest_nav_date, is_active)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ");
-        $ins->execute([
-            $portfolio_id, $fund_id, $folio, $totalUnits, $avgCostNav, $totalInvested,
-            $valueNow, $gainLoss, $gainPct, $cagr, $firstPurchase, $ltcgDate,
-            $lockInDate, $withdrawableDate, $investmentFy, $withdrawableFy, $gainType,
-            $highestNav, $highestNavDate, $isActive
-        ]);
     }
 }

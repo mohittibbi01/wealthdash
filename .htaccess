@@ -1,5 +1,4 @@
 Options -Indexes
-ServerSignature Off
 
 # URL Rewriting
 RewriteEngine On
@@ -9,12 +8,12 @@ RewriteBase /wealthdash/
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-# Front controller
+# Front controller - send all non-file/dir requests to index.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
 
-# Block sensitive files
+# Block sensitive files (BUG-04 fix)
 <Files ".env">
     Order allow,deny
     Deny from all
@@ -25,8 +24,15 @@ RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
     Deny from all
 </Files>
 
-# Block direct access to folders
-<FilesMatch "\.(sql|log|sh|bat)$">
+# Block sensitive file types (BUG-04 fix - added .bak .tmp .orig)
+<FilesMatch "\.(sql|log|sh|bat|bak|tmp|orig|swp|old)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
+
+# Security headers (only if mod_headers available)
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>

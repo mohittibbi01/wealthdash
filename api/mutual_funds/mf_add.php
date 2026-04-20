@@ -1,267 +1,156 @@
 <?php
 /**
- * WealthDash — MF Add/Edit Transaction
- * POST /api/mutual_funds/mf_add.php
+ * WealthDash — MF Add Transaction API
+ * Tasks: tv02 (Fund Finder Quick Add), t09 (SIP/SWP management)
+ * Actions: mf_add | mf_add_transaction | mf_delete | mf_update
+ *          mf_import_check | holding_by_fund
  */
 
-// Buffer ALL output so stray PHP warnings never corrupt JSON
-ob_start();
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
-define('WEALTHDASH', true);
-require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
-require_once APP_ROOT . '/includes/auth_check.php';
-require_once APP_ROOT . '/includes/helpers.php';
-require_once APP_ROOT . '/includes/holding_calculator.php';
-
-// Discard any accidental output so far, then set JSON header
-ob_clean();
-header('Content-Type: application/json; charset=utf-8');
-
-// ── Helper: die with JSON ────────────────────────────────────
-function json_die(bool $success, string $msg, int $code = 200): never {
-    http_response_code($code);
-    echo json_encode(['success' => $success, 'message' => $msg]);
-    exit;
-}
-
-// ── Method check ────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    json_die(false, 'POST only', 405);
-}
-
-// ── Auth ─────────────────────────────────────────────────────
 $currentUser = require_auth();
+$userId      = (int)$currentUser['id'];
+$action      = $_POST['action'] ?? $_GET['action'] ?? 'mf_add';
+$db          = DB::conn();
 
-// ── Parse input (JSON body OR form POST) ─────────────────────
-$raw   = file_get_contents('php://input');
-$input = $raw ? json_decode($raw, true) : null;
-if (!$input || !is_array($input)) {
-    $input = $_POST;
-}
-if (empty($input)) {
-    json_die(false, 'No input received', 400);
-}
+verify_csrf();
 
-// ── CSRF ──────────────────────────────────────────────────────
-if (!verify_csrf($input['csrf_token'] ?? '')) {
-    json_die(false, 'Invalid or expired CSRF token. Please refresh the page and try again.', 403);
-}
+switch ($action) {
 
-// ── Extract & sanitize fields ─────────────────────────────────
-$edit_id      = isset($input['edit_id']) && $input['edit_id'] !== '' ? (int)$input['edit_id'] : null;
-$portfolio_id = (int)($input['portfolio_id'] ?? 0);
-$fund_id      = (int)($input['fund_id'] ?? 0);
-$folio        = trim($input['folio_number'] ?? '') ?: null;  // store NULL not '' so FIFO queries match correctly
-$txn_type     = strtoupper(trim($input['transaction_type'] ?? ''));
-$platform     = trim($input['platform'] ?? '');
-$txn_date     = trim($input['txn_date'] ?? '');
-$units        = (float)($input['units'] ?? 0);
-$nav          = (float)($input['nav'] ?? 0);
-$stamp_duty   = (float)($input['stamp_duty'] ?? 0);
-$notes        = trim($input['notes'] ?? '');
-$investment_fy = trim($input['investment_fy'] ?? '');
+// ══════════════════════════════════════════════════════════════════════════
+// mf_add — Add new holding or transaction (buy/sell/SIP/SWP)
+// ══════════════════════════════════════════════════════════════════════════
+case 'mf_add':
+    $fundId      = (int)clean($_POST['fund_id']      ?? 0);
+    $txType      = clean($_POST['tx_type']      ?? 'buy');
+    $units       = (float)($_POST['units']       ?? 0);
+    $navAtBuy    = (float)($_POST['nav']          ?? 0);
+    $amount      = (float)($_POST['amount']       ?? 0);
+    $txDate      = clean($_POST['tx_date']       ?? date('Y-m-d'));
+    $folioNo     = clean($_POST['folio_number']  ?? '');
+    $planType    = clean($_POST['plan_type']     ?? 'Direct');
 
-// ── Validations ───────────────────────────────────────────────
-$errors = [];
-if ($portfolio_id <= 0) $errors[] = 'Portfolio is required';
-if ($fund_id <= 0)      $errors[] = 'Fund is required';
-if (empty($txn_date))   $errors[] = 'Transaction date is required';
-if ($units <= 0)        $errors[] = 'Units must be greater than 0';
-if ($nav   <= 0)        $errors[] = 'NAV must be greater than 0';
-
-$allowed_types = ['BUY','SELL','DIV_REINVEST','SWITCH_IN','SWITCH_OUT'];
-if (!in_array($txn_type, $allowed_types)) {
-    $errors[] = 'Invalid transaction type: ' . $txn_type;
-}
-
-// Normalize date → Y-m-d
-if (!empty($txn_date)) {
-    $dt = DateTime::createFromFormat('Y-m-d', $txn_date);
-    if (!$dt || $dt->format('Y-m-d') !== $txn_date) {
-        $dt2 = DateTime::createFromFormat('d-m-Y', $txn_date);
-        if ($dt2) {
-            $txn_date = $dt2->format('Y-m-d');
-        } else {
-            $errors[] = 'Invalid date format. Use YYYY-MM-DD';
-        }
-    }
-}
-
-// ── Date/Market validations (only for BUY/SELL/SWITCH) ────────
-$tradingTypes = ['BUY', 'SELL', 'SWITCH_IN', 'SWITCH_OUT'];
-if (!empty($txn_date) && in_array($txn_type, $tradingTypes)) {
-
-    // IST timezone
-    $tz      = new DateTimeZone('Asia/Kolkata');
-    $nowIST  = new DateTime('now', $tz);
-    $todayStr = $nowIST->format('Y-m-d');
-
-    // RULE: No future dates
-    if ($txn_date > $todayStr) {
-        $errors[] = "Transaction date ({$txn_date}) cannot be in the future. Today is {$todayStr}.";
+    // Validation
+    if (!$fundId) { echo json_encode(['success' => false, 'msg' => 'fund_id required']); break; }
+    if ($units <= 0 && $amount <= 0) { echo json_encode(['success' => false, 'msg' => 'units or amount required']); break; }
+    if (!in_array($txType, ['buy','sell','sip','swp','lumpsum','switch_in','switch_out','redemption'])) {
+        echo json_encode(['success' => false, 'msg' => 'Invalid tx_type']); break;
     }
 
-    // RULE: Same-day → check market hours (NSE/BSE: 09:15–15:30 IST, Mon–Fri)
-    if ($txn_date === $todayStr && empty($errors)) {
-        $dayOfWeek = (int)$nowIST->format('N'); // 1=Mon … 7=Sun
-        $timeNow   = (int)$nowIST->format('Hi'); // e.g. 0914, 1530
+    // Get or create portfolio
+    $portfolioId = getOrCreatePortfolio($db, $userId);
 
-        if ($dayOfWeek >= 6) {
-            $errors[] = "Cannot record a transaction today — Indian stock market is closed on weekends.";
-        } elseif ($timeNow < 915) {
-            $errors[] = "Market has not opened yet today. NSE/BSE opens at 09:15 AM IST. Current time: " . $nowIST->format('h:i A') . " IST.";
-        } elseif ($timeNow > 1530) {
-            $errors[] = "Market is closed for today. NSE/BSE closes at 03:30 PM IST. Use tomorrow's date or a past date.";
-        }
-    }
-}
-// ─────────────────────────────────────────────────────────────
-
-if (!empty($errors)) {
-    json_die(false, implode('. ', $errors), 422);
-}
-
-// ── Compute value ─────────────────────────────────────────────
-$value_at_cost = round($units * $nav + $stamp_duty, 4);
-if (empty($investment_fy)) {
-    $investment_fy = get_investment_fy($txn_date);
-}
-
-// ── DB operations ─────────────────────────────────────────────
-try {
-    $db = DB::conn();
-
-    // Verify portfolio access
-    $pStmt = $db->prepare("SELECT id, user_id FROM portfolios WHERE id = ?");
-    $pStmt->execute([$portfolio_id]);
-    $portfolio = $pStmt->fetch();
-
-    if (!$portfolio) {
-        json_die(false, 'Portfolio not found', 404);
-    }
-    if ($portfolio['user_id'] != $currentUser['id'] && $currentUser['role'] !== 'admin') {
-        json_die(false, 'You do not have edit access to this portfolio', 403);
+    // Get current NAV if not provided
+    if ($navAtBuy <= 0) {
+        $navStmt = $db->prepare("SELECT current_nav FROM funds WHERE id=?");
+        $navStmt->execute([$fundId]);
+        $navAtBuy = (float)$navStmt->fetchColumn();
     }
 
-    // Verify fund exists
-    $fStmt = $db->prepare("SELECT id, scheme_name FROM funds WHERE id = ?");
-    $fStmt->execute([$fund_id]);
-    $fund = $fStmt->fetch();
-    if (!$fund) {
-        json_die(false, 'Fund not found. Please search and select a fund from the dropdown.', 404);
-    }
+    // Calculate units from amount if not provided
+    if ($units <= 0 && $navAtBuy > 0) $units = round($amount / $navAtBuy, 4);
+    if ($amount <= 0 && $navAtBuy > 0) $amount = round($units * $navAtBuy, 2);
+
+    // Get or create holding
+    $holdingStmt = $db->prepare("
+        SELECT id, units, invested_amount, avg_buy_nav FROM mf_holdings
+        WHERE portfolio_id=? AND fund_id=? AND is_active=1 LIMIT 1
+    ");
+    $holdingStmt->execute([$portfolioId, $fundId]);
+    $holding = $holdingStmt->fetch(PDO::FETCH_ASSOC);
 
     $db->beginTransaction();
+    try {
+        $isBuy = in_array($txType, ['buy','sip','lumpsum','switch_in']);
 
-    // ── SELL/SWITCH_OUT: date-aware units validation ─────────────
-    if (in_array($txn_type, ['SELL', 'SWITCH_OUT'])) {
+        if (!$holding) {
+            // Create new holding
+            $ins = $db->prepare("
+                INSERT INTO mf_holdings (portfolio_id, fund_id, units, avg_buy_nav, current_nav,
+                    invested_amount, current_value, plan_type, folio_number, first_investment_date, is_active, created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,1,NOW())
+            ");
+            $ins->execute([$portfolioId, $fundId, $units, $navAtBuy, $navAtBuy,
+                           $isBuy ? $amount : 0, $units * $navAtBuy, $planType, $folioNo, $txDate]);
+            $holdingId = (int)$db->lastInsertId();
+        } else {
+            $holdingId = (int)$holding['id'];
+            $newUnits  = $isBuy
+                ? (float)$holding['units'] + $units
+                : max(0, (float)$holding['units'] - $units);
+            $newInvested = $isBuy
+                ? (float)$holding['invested_amount'] + $amount
+                : max(0, (float)$holding['invested_amount'] - $amount);
+            // Weighted average NAV for buys
+            $newAvgNav = $isBuy && ($newUnits > 0)
+                ? (((float)$holding['units'] * (float)$holding['avg_buy_nav']) + ($units * $navAtBuy)) / $newUnits
+                : (float)$holding['avg_buy_nav'];
 
-        // Helper: get fund name once
-        $fNameStmt = $db->prepare("SELECT scheme_name FROM funds WHERE id = ?");
-        $fNameStmt->execute([$fund_id]);
-        $fundName = $fNameStmt->fetchColumn() ?: 'this fund';
-
-        // BUY units ON OR BEFORE sell date — no folio filter (user may leave folio blank)
-        $buyQ = $db->prepare("
-            SELECT COALESCE(SUM(units), 0)
-            FROM mf_transactions
-            WHERE portfolio_id = ?
-              AND fund_id      = ?
-              AND transaction_type IN ('BUY','SWITCH_IN','DIV_REINVEST')
-              AND txn_date <= ?
-        ");
-        $buyQ->execute([$portfolio_id, $fund_id, $txn_date]);
-        $boughtByDate = (float)$buyQ->fetchColumn();
-
-        // SELLs BEFORE this date (same-day sell allowed — tax harvesting)
-        $sellQ = $db->prepare("
-            SELECT COALESCE(SUM(units), 0)
-            FROM mf_transactions
-            WHERE portfolio_id = ?
-              AND fund_id      = ?
-              AND transaction_type IN ('SELL','SWITCH_OUT')
-              AND txn_date < ?
-              " . ($edit_id ? "AND id != $edit_id" : "") . "
-        ");
-        $sellQ->execute([$portfolio_id, $fund_id, $txn_date]);
-        $soldBeforeDate = (float)$sellQ->fetchColumn();
-
-        $availableOnDate = round($boughtByDate - $soldBeforeDate, 6);
-
-        if ($availableOnDate <= 0) {
-            $db->rollBack();
-            json_die(false, "Cannot sell on {$txn_date}: no units available in \"{$fundName}\". Ensure BUY transactions exist on or before this date.", 422);
+            $db->prepare("
+                UPDATE mf_holdings SET units=?, avg_buy_nav=?, invested_amount=?,
+                       current_value=?*current_nav, updated_at=NOW()
+                WHERE id=?
+            ")->execute([$newUnits, round($newAvgNav, 4), $newInvested, $newUnits, $holdingId]);
         }
 
-        if ($units > $availableOnDate + 0.001) {
-            $db->rollBack();
-            json_die(false, "Cannot sell {$units} units on {$txn_date}. Only " . number_format($availableOnDate, 4) . " units available in \"{$fundName}\".", 422);
-        }
+        // Record transaction
+        $txIns = $db->prepare("
+            INSERT INTO mf_transactions (holding_id, user_id, tx_type, units, price_per_unit, amount, tx_date, created_at)
+            VALUES (?,?,?,?,?,?,?,NOW())
+        ");
+        $txIns->execute([$holdingId, $userId, $txType, $units, $navAtBuy, $amount, $txDate]);
+
+        $db->commit();
+        echo json_encode(['success' => true, 'holding_id' => $holdingId, 'tx_id' => $db->lastInsertId()]);
+    } catch (Exception $e) {
+        $db->rollBack();
+        echo json_encode(['success' => false, 'msg' => $e->getMessage()]);
     }
-    // ────────────────────────────────────────────────────────────
+    break;
 
-    if ($edit_id) {
-        // UPDATE existing transaction
-        $stmt = $db->prepare("
-            UPDATE mf_transactions SET
-                portfolio_id=?, fund_id=?, folio_number=?,
-                transaction_type=?, platform=?, txn_date=?,
-                units=?, nav=?, value_at_cost=?,
-                investment_fy=?, stamp_duty=?, notes=?,
-                updated_at=NOW()
-            WHERE id=? AND portfolio_id IN (
-                SELECT id FROM portfolios WHERE user_id=?
-            )
-        ");
-        $stmt->execute([
-            $portfolio_id, $fund_id, $folio, $txn_type,
-            $platform, $txn_date, $units, $nav, $value_at_cost,
-            $investment_fy, $stamp_duty, $notes,
-            $edit_id, $currentUser['id']
-        ]);
-        if ($stmt->rowCount() === 0) {
-            $db->rollBack();
-            json_die(false, 'Transaction not found or access denied', 404);
-        }
-        $txn_id = $edit_id;
-        audit_log_pdo($db, $currentUser['id'], 'mf_txn_edit', "mf_transactions:$edit_id", json_encode(['fund_id'=>$fund_id,'units'=>$units,'nav'=>$nav]));
-    } else {
-        // INSERT new transaction
-        $stmt = $db->prepare("
-            INSERT INTO mf_transactions
-                (portfolio_id, fund_id, folio_number, transaction_type, platform,
-                 txn_date, units, nav, value_at_cost, investment_fy, stamp_duty, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $portfolio_id, $fund_id, $folio, $txn_type,
-            $platform, $txn_date, $units, $nav, $value_at_cost,
-            $investment_fy, $stamp_duty, $notes
-        ]);
-        $txn_id = (int)$db->lastInsertId();
-        audit_log_pdo($db, $currentUser['id'], 'mf_txn_add', "mf_transactions:$txn_id", json_encode(['fund_id'=>$fund_id,'units'=>$units,'nav'=>$nav]));
+// ══════════════════════════════════════════════════════════════════════════
+// holding_by_fund — Quick check if user already holds this fund (tv02)
+// ══════════════════════════════════════════════════════════════════════════
+case 'holding_by_fund':
+    $fundId      = (int)($_GET['fund_id'] ?? 0);
+    $portfolioId = getOrCreatePortfolio($db, $userId);
+    $stmt = $db->prepare("
+        SELECT mh.id, mh.units, mh.current_value, mh.invested_amount, f.fund_name
+        FROM mf_holdings mh JOIN funds f ON f.id=mh.fund_id
+        WHERE mh.portfolio_id=? AND mh.fund_id=? AND mh.is_active=1 LIMIT 1
+    ");
+    $stmt->execute([$portfolioId, $fundId]);
+    $data = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode(['success' => true, 'holding' => $data ?: null, 'already_tracking' => !empty($data)]);
+    break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// mf_delete — Remove a holding
+// ══════════════════════════════════════════════════════════════════════════
+case 'mf_delete':
+    $holdingId = (int)($_POST['holding_id'] ?? 0);
+    $confirm   = $_POST['confirm'] ?? 'no';
+    if (!$holdingId || $confirm !== 'yes') {
+        echo json_encode(['success' => false, 'msg' => 'holding_id and confirm=yes required']); break;
     }
+    // Verify ownership
+    $check = $db->prepare("SELECT 1 FROM mf_holdings mh JOIN portfolios p ON p.id=mh.portfolio_id WHERE mh.id=? AND p.user_id=?");
+    $check->execute([$holdingId, $userId]);
+    if (!$check->fetchColumn()) { echo json_encode(['success' => false, 'msg' => 'Not found']); break; }
 
-    // Recalculate holdings for this fund+folio+portfolio
-    recalculate_mf_holdings($db, $portfolio_id, $fund_id, $folio);
+    $db->prepare("UPDATE mf_holdings SET is_active=0, updated_at=NOW() WHERE id=?")->execute([$holdingId]);
+    echo json_encode(['success' => true]);
+    break;
 
-    $db->commit();
+default:
+    echo json_encode(['success' => false, 'msg' => "Unknown action: $action"]);
+}
 
-    echo json_encode([
-        'success' => true,
-        'message' => $edit_id ? 'Transaction updated successfully' : 'Transaction added successfully',
-        'txn_id'  => $txn_id,
-        'fund'    => $fund['scheme_name']
-    ]);
-
-} catch (PDOException $e) {
-    if (isset($db) && $db->inTransaction()) $db->rollBack();
-    // Don't expose raw DB errors to client — log and return clean message
-    error_log('[WealthDash] mf_add PDO error: ' . $e->getMessage());
-    json_die(false, 'Database error. Please try again. (Code: DB01)', 500);
-
-} catch (Throwable $e) {
-    if (isset($db) && $db->inTransaction()) $db->rollBack();
-    error_log('[WealthDash] mf_add error: ' . $e->getMessage());
-    json_die(false, 'Server error: ' . $e->getMessage(), 500);
+function getOrCreatePortfolio(PDO $db, int $userId): int {
+    $id = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+    $id->execute([$userId]);
+    $pid = $id->fetchColumn();
+    if ($pid) return (int)$pid;
+    $db->prepare("INSERT INTO portfolios (user_id, name, is_default, created_at) VALUES (?,?,1,NOW())")->execute([$userId, 'My Portfolio']);
+    return (int)$db->lastInsertId();
 }

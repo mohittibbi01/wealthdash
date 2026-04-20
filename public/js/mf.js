@@ -2232,6 +2232,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (which === 'exitplanner') {
         initExitPlanner();
       }
+      // t484: Sunburst Chart
+      const sbTab = document.getElementById('tabSunburst');
+      if (sbTab) sbTab.style.display = which === 'sunburst' ? '' : 'none';
+      if (which === 'sunburst') {
+        if (!MF.sunburst._loaded) MF.sunburst.load();
+      }
     });
   });
 
@@ -8506,3 +8512,227 @@ function renderMfAnalytics() {
   renderMfiCleanup(h);
   renderMfiSipOptimization(h);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   t484 — SUNBURST CHART MODULE
+   3-level: Asset Class → Category → Fund using pure SVG (no D3 needed)
+══════════════════════════════════════════════════════════════════════ */
+MF.sunburst = {
+  _loaded: false,
+  _data: null,
+  _drillStack: [],   // drill-down breadcrumb stack
+
+  async load() {
+    const loading = document.getElementById('sbLoading');
+    const svg     = document.getElementById('sbSvg');
+    if (loading) { loading.style.display = 'flex'; loading.style.flexDirection = 'column'; loading.style.alignItems = 'center'; }
+    if (svg) svg.style.display = 'none';
+
+    try {
+      const fd = new FormData();
+      fd.append('action', 'sunburst_data');
+      const pid = window.WD?.selectedPortfolio || document.getElementById('portfolioSelect')?.value || '';
+      if (pid) fd.append('portfolio_id', pid);
+      const csrf = window.WD?.csrf || window.CSRF_TOKEN || '';
+      if (csrf) fd.append('_csrf_token', csrf);
+
+      const base = window.APP_URL || window.WD?.appUrl || '';
+      const res  = await fetch(`${base}/api/?action=sunburst_data`, { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'API error');
+      this._data   = data.data;
+      this._loaded = true;
+      this._drillStack = [];
+      this._render(data.data.hierarchy);
+      this._renderLegend(data.data.summary);
+      this._renderSummaryCards(data.data);
+    } catch (e) {
+      if (loading) loading.innerHTML = `<span style="color:var(--text-secondary)">Error: ${e.message}</span>`;
+    }
+  },
+
+  _renderSummaryCards(data) {
+    const el = document.getElementById('sbSummaryCards');
+    if (!el) return;
+    const inr = v => '₹' + Number(v||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+    el.innerHTML = `
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:140px;">
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;">Total Value</div>
+        <div style="font-size:18px;font-weight:700;color:var(--accent);margin-top:4px;">${inr(data.total_value)}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:140px;">
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;">Funds Held</div>
+        <div style="font-size:18px;font-weight:700;margin-top:4px;">${data.fund_count}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:140px;">
+        <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;">Asset Classes</div>
+        <div style="font-size:18px;font-weight:700;margin-top:4px;">${data.summary?.length || 0}</div>
+      </div>`;
+  },
+
+  _renderLegend(summary) {
+    const el = document.getElementById('sbLegend');
+    if (!el || !summary) return;
+    const inr = v => '₹' + Number(v||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+    el.innerHTML = summary.map(s => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:12px;height:12px;border-radius:3px;background:${s.color};flex-shrink:0;"></span>
+          <span style="font-size:13px;">${s.asset_class}</span>
+        </div>
+        <div style="text-align:right;">
+          <span style="font-size:13px;font-weight:600;">${s.pct}%</span>
+          <span style="font-size:11px;color:var(--text-secondary);display:block;">${inr(s.value)}</span>
+        </div>
+      </div>`).join('');
+  },
+
+  _render(node) {
+    const svgEl   = document.getElementById('sbSvg');
+    const loading = document.getElementById('sbLoading');
+    if (!svgEl) return;
+
+    if (loading) loading.style.display = 'none';
+    svgEl.style.display = '';
+    svgEl.innerHTML = '';
+
+    const W = svgEl.clientWidth || 460;
+    const H = 460;
+    const cx = W / 2, cy = H / 2;
+    const rings = [
+      { rIn: 0,   rOut: 70  },   // centre donut
+      { rIn: 80,  rOut: 170 },   // level 1 — asset class
+      { rIn: 175, rOut: 260 },   // level 2 — category
+      { rIn: 265, rOut: 330 },   // level 3 — fund
+    ];
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const makePath = (rIn, rOut, startAngle, endAngle, color, label, value, pct) => {
+      const gap = 0.012; // radians gap between segments
+      const s = startAngle + gap;
+      const e = endAngle   - gap;
+      if (e <= s) return;
+
+      const x1 = cx + rOut * Math.cos(s), y1 = cy + rOut * Math.sin(s);
+      const x2 = cx + rOut * Math.cos(e), y2 = cy + rOut * Math.sin(e);
+      const x3 = cx + rIn  * Math.cos(e), y3 = cy + rIn  * Math.sin(e);
+      const x4 = cx + rIn  * Math.cos(s), y4 = cy + rIn  * Math.sin(s);
+      const large = (e - s) > Math.PI ? 1 : 0;
+
+      const d = `M${x1},${y1} A${rOut},${rOut} 0 ${large},1 ${x2},${y2} L${x3},${y3} A${rIn},${rIn} 0 ${large},0 ${x4},${y4} Z`;
+
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', color);
+      path.setAttribute('stroke', 'var(--bg)');
+      path.setAttribute('stroke-width', '1.5');
+      path.style.cursor = 'pointer';
+      path.style.transition = 'opacity .15s';
+
+      path.addEventListener('mouseenter', () => {
+        path.style.opacity = '0.82';
+        const inr = v => '₹' + Number(v||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+        const detail = document.getElementById('sbDetailBody');
+        const title  = document.getElementById('sbDetailTitle');
+        const card   = document.getElementById('sbDetailCard');
+        if (detail) detail.innerHTML = `
+          <div style="font-weight:600;font-size:14px;margin-bottom:6px;">${label}</div>
+          <div style="color:var(--text-secondary);">Value: <strong style="color:var(--text)">${inr(value)}</strong></div>
+          <div style="color:var(--text-secondary);">Share: <strong style="color:var(--accent)">${pct}%</strong></div>`;
+        if (title) title.textContent = 'Segment Detail';
+        if (card) card.style.display = '';
+      });
+      path.addEventListener('mouseleave', () => { path.style.opacity = '1'; });
+
+      return path;
+    };
+
+    // Centre label
+    const centerG = document.createElementNS(ns, 'g');
+    const cCircle = document.createElementNS(ns, 'circle');
+    cCircle.setAttribute('cx', cx); cCircle.setAttribute('cy', cy);
+    cCircle.setAttribute('r', 68);
+    cCircle.setAttribute('fill', 'var(--bg-secondary)');
+    centerG.appendChild(cCircle);
+    const cText1 = document.createElementNS(ns, 'text');
+    cText1.setAttribute('x', cx); cText1.setAttribute('y', cy - 8);
+    cText1.setAttribute('text-anchor', 'middle');
+    cText1.setAttribute('font-size', '12');
+    cText1.setAttribute('fill', 'var(--text-secondary)');
+    cText1.textContent = 'Portfolio';
+    const cText2 = document.createElementNS(ns, 'text');
+    cText2.setAttribute('x', cx); cText2.setAttribute('y', cy + 12);
+    cText2.setAttribute('text-anchor', 'middle');
+    cText2.setAttribute('font-size', '14');
+    cText2.setAttribute('font-weight', '600');
+    cText2.setAttribute('fill', 'var(--text)');
+    const inrShort = v => v >= 1e7 ? (v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? (v/1e5).toFixed(1)+'L' : v.toLocaleString('en-IN', {maximumFractionDigits:0});
+    cText2.textContent = '₹' + inrShort(node.value || 0);
+    centerG.appendChild(cText1);
+    centerG.appendChild(cText2);
+    svgEl.appendChild(centerG);
+
+    const total = node.value || 1;
+    const TWO_PI = Math.PI * 2;
+    const START  = -Math.PI / 2; // 12 o'clock
+
+    // Draw ring 1 — asset classes (node.children)
+    const L1 = node.children || [];
+    let angle1 = START;
+    L1.forEach(l1 => {
+      const sweep1 = (l1.value / total) * TWO_PI;
+      const p = makePath(rings[1].rIn, rings[1].rOut, angle1, angle1 + sweep1, l1.color, l1.name, l1.value, l1.pct);
+      if (p) svgEl.appendChild(p);
+
+      // Ring 2 — categories
+      const L2 = l1.children || [];
+      const catTotal = l1.value || 1;
+      let angle2 = angle1;
+      L2.forEach(l2 => {
+        const sweep2 = (l2.value / catTotal) * sweep1;
+        const p2 = makePath(rings[2].rIn, rings[2].rOut, angle2, angle2 + sweep2, l2.color, l2.name, l2.value, l2.pct);
+        if (p2) svgEl.appendChild(p2);
+
+        // Ring 3 — funds
+        const L3 = l2.children || [];
+        const fundTotal = l2.value || 1;
+        let angle3 = angle2;
+        L3.forEach(l3 => {
+          const sweep3 = (l3.value / fundTotal) * sweep2;
+          const p3 = makePath(rings[3].rIn, rings[3].rOut, angle3, angle3 + sweep3, l3.color, l3.name, l3.value, l3.pct);
+          if (p3) svgEl.appendChild(p3);
+          angle3 += sweep3;
+        });
+        angle2 += sweep2;
+      });
+      angle1 += sweep1;
+    });
+
+    // Draw centre last (on top)
+    svgEl.appendChild(centerG);
+  },
+
+  resetDrilldown() {
+    if (!this._data) return;
+    this._drillStack = [];
+    this._render(this._data.hierarchy);
+    const bc = document.getElementById('sbBreadcrumb');
+    if (bc) bc.style.display = 'none';
+  },
+};
+
+// ── Wire up view mode selector ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('sbViewMode');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      if (sel.value === 'sunburst' && MF.sunburst._data) {
+        document.getElementById('sbSvg').style.display    = '';
+        document.getElementById('sbCanvas').style.display = 'none';
+        MF.sunburst._render(MF.sunburst._data.hierarchy);
+      }
+      // Treemap/Donut modes can be added via Chart.js canvas later
+    });
+  }
+});

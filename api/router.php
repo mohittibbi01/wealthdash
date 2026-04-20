@@ -93,6 +93,42 @@ $csrfExempt = [
     // t24 — Crypto
     'crypto_list', 'crypto_prices', 'crypto_summary', 'crypto_txns',
     'crypto_vda_tax',
+    // t97/t177/t178 — Fund Sectors & Holdings
+    'fund_sectors', 'portfolio_sectors', 'sector_allocation',
+    'sector_filter_list', 'fetch_sectors_amfi',
+    'fund_holdings_status', 'fund_holdings_data',
+    'fund_holdings_overlap', 'fund_holdings_matrix', 'fund_holdings_sector',
+    'fund_top_holdings',
+    // Fund Screener
+    'fund_screener', 'fund_detail', 'fund_compare', 'fund_top_performers',
+    'recommend_funds', 'saved_screens_list', 'filter_meta',
+    // CAS status (read)
+    'cas_status',
+    // t262 — Rolling Returns
+    'rolling_returns',
+    // Lumpsum SIP Optimizer (read)
+    'lumpsum_sip_signal', 'lumpsum_sip_historical', 'lumpsum_sip_recommend', 'lumpsum_sip_all',
+    // MF Metrics (read)
+    'mf_volatility', 'mf_sortino', 'mf_calmar', 'mf_fund_age', 'mf_momentum', 'mf_metrics_all',
+    // IDCW (read)
+    'idcw_dividends', 'idcw_tax_impact', 'idcw_portfolio', 'idcw_comparison',
+    // Tax Loss Harvest (read)
+    'tlh_candidates', 'tlh_impact', 'tlh_dashboard',
+    // SIP Pause (read)
+    'sip_pause_impact', 'sip_pause_market', 'sip_pause_emergency',
+    'sip_pause_resume', 'sip_pause_dashboard',
+    // Watchlist (read)
+    'wl_list',
+    // Portfolio Optimizer (read)
+    'po_overlap_matrix', 'po_consolidation', 'po_optimal_count', 'po_full',
+    // Available units, dividend history, benchmark proxy (read)
+    'mf_available_units', 'dividend_history', 'dividend_portfolio', 'benchmark_proxy',
+    // Fund house rankings & import history (read)
+    'fund_house_rankings', 'import_history',
+    // t386: 2FA (read-only check)
+    '2fa_status',
+    // t387: Session Security (read-only list)
+    'sessions_list',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -190,6 +226,167 @@ try {
             require APP_ROOT . '/api/mutual_funds/mf_search.php'; exit;
         case 'fund_house_rankings':  // t168
             require APP_ROOT . '/api/mutual_funds/fund_house_rankings.php'; exit;
+
+        // ── t97 / t177 / t178 — Fund Sectors & Top Holdings ──
+        case 'fund_sectors':
+        case 'portfolio_sectors':
+        case 'sector_allocation':
+        case 'sector_filter_list':
+        case 'fetch_sectors_amfi':
+            require APP_ROOT . '/api/mutual_funds/fund_sectors.php'; exit;
+
+        // ── t176 / t178 — Fund Holdings Overlap & Top Holdings
+        // fund_holdings.php is standalone — re-reads $_GET['action'] internally
+        case 'fund_holdings_status':
+            $_GET['action'] = 'status';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+        case 'fund_holdings_data':
+            $_GET['action'] = 'holdings';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+        case 'fund_holdings_overlap':
+            $_GET['action'] = 'overlap';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+        case 'fund_holdings_matrix':
+            $_GET['action'] = 'matrix';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+        case 'fund_holdings_sector':
+            $_GET['action'] = 'sector_allocation';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+        case 'fund_top_holdings':
+            $_GET['action'] = 'top_holdings';
+            require APP_ROOT . '/api/mutual_funds/fund_holdings.php'; exit;
+
+        // ── Fund Screener (t108 / t96 / t109 / t110 etc.) ───
+        case 'fund_screener':
+        case 'fund_detail':
+        case 'fund_compare':
+        case 'fund_top_performers':
+        case 'recommend_funds':
+        case 'saved_screens_list':
+        case 'saved_screen_save':
+        case 'saved_screen_delete':
+        case 'filter_meta':
+            require APP_ROOT . '/api/mutual_funds/fund_screener.php'; exit;
+
+        // ── t187 — CAS Import (CAMS / KFintech) ─────────────
+        case 'cas_parse':
+        case 'cas_import':
+        case 'cas_status':
+            require APP_ROOT . '/api/mutual_funds/cas_import.php'; exit;
+
+        // ── t262 — Rolling Returns Chart ─────────────────────
+        case 'rolling_returns':
+            require APP_ROOT . '/api/mutual_funds/rolling_returns.php'; exit;
+
+        // ── Lumpsum vs SIP Optimizer ─────────────────────────
+        // Standalone file — map prefixed names to internal action names
+        case 'lumpsum_sip_signal':
+            $_GET['action'] = 'market_signal';
+            require APP_ROOT . '/api/mutual_funds/lumpsum_sip_optimizer.php'; exit;
+        case 'lumpsum_sip_historical':
+            $_GET['action'] = 'historical';
+            require APP_ROOT . '/api/mutual_funds/lumpsum_sip_optimizer.php'; exit;
+        case 'lumpsum_sip_recommend':
+            $_GET['action'] = 'fund_recommendation';
+            require APP_ROOT . '/api/mutual_funds/lumpsum_sip_optimizer.php'; exit;
+        case 'lumpsum_sip_all':
+            $_GET['action'] = 'all';
+            require APP_ROOT . '/api/mutual_funds/lumpsum_sip_optimizer.php'; exit;
+
+        // ── MF Metrics (Volatility / Sortino / Calmar etc.) ──
+        // Standalone file — map prefixed names to internal action names
+        case 'mf_volatility':
+            $_GET['action'] = $_POST['action'] = 'volatility';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+        case 'mf_sortino':
+            $_GET['action'] = $_POST['action'] = 'sortino';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+        case 'mf_calmar':
+            $_GET['action'] = $_POST['action'] = 'calmar';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+        case 'mf_fund_age':
+            $_GET['action'] = $_POST['action'] = 'fund_age';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+        case 'mf_momentum':
+            $_GET['action'] = $_POST['action'] = 'momentum';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+        case 'mf_metrics_all':
+            $_GET['action'] = $_POST['action'] = 'all';
+            require APP_ROOT . '/api/mutual_funds/mf_metrics.php'; exit;
+
+        // ── IDCW / Dividend Tracker ───────────────────────────
+        case 'idcw_dividends':
+            $_GET['action'] = $_POST['action'] = 'dividends';
+            require APP_ROOT . '/api/mutual_funds/idcw_tracker.php'; exit;
+        case 'idcw_tax_impact':
+            $_GET['action'] = $_POST['action'] = 'tax_impact';
+            require APP_ROOT . '/api/mutual_funds/idcw_tracker.php'; exit;
+        case 'idcw_portfolio':
+            $_GET['action'] = $_POST['action'] = 'portfolio_idcw';
+            require APP_ROOT . '/api/mutual_funds/idcw_tracker.php'; exit;
+        case 'idcw_comparison':
+            $_GET['action'] = $_POST['action'] = 'comparison';
+            require APP_ROOT . '/api/mutual_funds/idcw_tracker.php'; exit;
+
+        // ── Tax Loss Harvesting ───────────────────────────────
+        case 'tlh_candidates':
+            $_GET['action'] = $_POST['action'] = 'candidates';
+            require APP_ROOT . '/api/mutual_funds/tax_loss_harvest.php'; exit;
+        case 'tlh_impact':
+            $_GET['action'] = $_POST['action'] = 'impact';
+            require APP_ROOT . '/api/mutual_funds/tax_loss_harvest.php'; exit;
+        case 'tlh_dashboard':
+            $_GET['action'] = $_POST['action'] = 'dashboard';
+            require APP_ROOT . '/api/mutual_funds/tax_loss_harvest.php'; exit;
+
+        // ── SIP Pause Intelligence ────────────────────────────
+        case 'sip_pause_impact':
+            $_GET['action'] = $_POST['action'] = 'pause_impact';
+            require APP_ROOT . '/api/mutual_funds/sip_pause_intelligence.php'; exit;
+        case 'sip_pause_market':
+            $_GET['action'] = $_POST['action'] = 'market_context';
+            require APP_ROOT . '/api/mutual_funds/sip_pause_intelligence.php'; exit;
+        case 'sip_pause_emergency':
+            $_GET['action'] = $_POST['action'] = 'emergency_check';
+            require APP_ROOT . '/api/mutual_funds/sip_pause_intelligence.php'; exit;
+        case 'sip_pause_resume':
+            $_GET['action'] = $_POST['action'] = 'resume_analysis';
+            require APP_ROOT . '/api/mutual_funds/sip_pause_intelligence.php'; exit;
+        case 'sip_pause_dashboard':
+            $_GET['action'] = $_POST['action'] = 'dashboard';
+            require APP_ROOT . '/api/mutual_funds/sip_pause_intelligence.php'; exit;
+
+        // ── Watchlist (wl_list / wl_toggle) ──────────────────
+        case 'wl_list':
+        case 'wl_toggle':
+            require APP_ROOT . '/api/mutual_funds/watchlist.php'; exit;
+
+        // ── Portfolio Optimizer ───────────────────────────────
+        case 'po_overlap_matrix':
+            $_GET['action'] = $_POST['action'] = 'overlap_matrix';
+            require APP_ROOT . '/api/mutual_funds/portfolio_optimizer.php'; exit;
+        case 'po_consolidation':
+            $_GET['action'] = $_POST['action'] = 'consolidation';
+            require APP_ROOT . '/api/mutual_funds/portfolio_optimizer.php'; exit;
+        case 'po_optimal_count':
+            $_GET['action'] = $_POST['action'] = 'optimal_count';
+            require APP_ROOT . '/api/mutual_funds/portfolio_optimizer.php'; exit;
+        case 'po_full':
+            $_GET['action'] = $_POST['action'] = 'full';
+            require APP_ROOT . '/api/mutual_funds/portfolio_optimizer.php'; exit;
+
+        // ── Available Units (sell validation) ────────────────
+        case 'mf_available_units':
+            require APP_ROOT . '/api/mutual_funds/mf_available_units.php'; exit;
+
+        // ── Dividend History ──────────────────────────────────
+        case 'dividend_history':
+        case 'dividend_portfolio':
+            require APP_ROOT . '/api/mutual_funds/dividend_history.php'; exit;
+
+        // ── Benchmark Proxy (internal) ────────────────────────
+        case 'benchmark_proxy':
+            require APP_ROOT . '/api/mutual_funds/benchmark_proxy.php'; exit;
         case 'user_profile_save':    // t54 — User Settings
         case 'user_change_password':
             require APP_ROOT . '/api/user_settings.php'; exit;
@@ -338,13 +535,17 @@ try {
         case 'sip_sync_txns':
             require APP_ROOT . '/api/reports/sip_tracker.php'; exit;
 
-        // ── Phase 5: Goal Planning ───────────────────────────
+        // ── Phase 5: Goal Planning ───────────────────────────  [BUG-02 FIXED]
         case 'goal_list':
         case 'goal_add':
         case 'goal_edit':
         case 'goal_delete':
         case 'goal_mark_achieved':
         case 'goal_contribute':
+        case 'goal_projection':
+            require APP_ROOT . '/api/reports/goal_planning.php'; exit;
+
+        // ── Notifications Center ─────────────────────────────
         case 'notif_list':           // t57/t81 — Notifications Center
         case 'notif_unread_count':
         case 'notif_mark_read':
@@ -353,9 +554,6 @@ try {
         case 'notif_prefs_get':
         case 'notif_prefs_save':
             require APP_ROOT . '/api/notifications.php'; exit;
-
-        case 'goal_projection':
-            require APP_ROOT . '/api/reports/goal_planning.php'; exit;
 
         // ── Admin — Recalculate Holdings ─────────────────────
         case 'admin_recalc_holdings':
@@ -495,6 +693,70 @@ try {
         // ── t62 — AI Tax Optimization ────────────────────────────
         case 'ai_tax_optimize':
             require APP_ROOT . '/api/reports/tax_planning.php'; exit;
+
+        // ── t386: 2FA — TOTP Setup / Verify / Disable  [BUG-03 FIX] ──
+        case '2fa_status':
+        case '2fa_setup':
+        case '2fa_verify_setup':
+        case '2fa_disable':
+        case '2fa_verify_login':
+            require APP_ROOT . '/api/auth/2fa.php'; exit;
+
+        // ── t387: Session Security — List / Revoke  [BUG-03 FIX] ────
+        case 'sessions_list':
+        case 'session_revoke':
+        case 'session_revoke_all':
+            require APP_ROOT . '/api/auth/session_security.php'; exit;
+
+
+        // ── t482: Portfolio Audit Log ────────────────────────────────────
+        case 'audit_log_list':
+        case 'audit_log_stats':
+        case 'audit_log_export':
+            require APP_ROOT . '/api/mutual_funds/audit_log.php'; exit;
+
+        // ── t499: Behavioral Nudge Engine ───────────────────────────────
+        case 'nudge_get':
+        case 'nudge_list_all':
+        case 'nudge_dismiss':
+            require APP_ROOT . '/api/mutual_funds/nudge_engine.php'; exit;
+
+        // ── tj003: Spending Discipline Score ────────────────────────────
+        case 'discipline_get':
+        case 'discipline_set_income':
+        case 'discipline_history':
+            require APP_ROOT . '/api/user/discipline.php'; exit;
+
+        // ── t408: Investment Journal ─────────────────────────────────────
+        case 'journal_list':
+        case 'journal_add':
+        case 'journal_edit':
+        case 'journal_delete':
+        case 'journal_calendar':
+        case 'journal_get':
+            require APP_ROOT . '/api/mutual_funds/investment_journal.php'; exit;
+
+        // ── t503: Credit Card Optimizer ──────────────────────────────────
+        case 'cc_list':
+        case 'cc_add':
+        case 'cc_edit':
+        case 'cc_delete':
+        case 'cc_summary':
+        case 'cc_avalanche':
+            require APP_ROOT . '/api/mutual_funds/credit_card.php'; exit;
+
+        // ── t491: Cross-FY Comparison ────────────────────────────────────
+        case 'fy_compare':
+        case 'fy_holdings_span':
+            require APP_ROOT . '/api/reports/fy_gains.php'; exit;
+
+        // ── t273: NPS Allocation Analyzer ───────────────────────────────
+        case 'nps_allocation_analyzer':
+            require APP_ROOT . '/api/nps/nps_analytics.php'; exit;
+
+        // ── t484: Sunburst Chart Data ────────────────────────────────────
+        case 'sunburst_data':
+            require APP_ROOT . '/api/mutual_funds/sunburst_data.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);
