@@ -30,8 +30,10 @@ Last updated: 05 April 2026
 | 20 | `20_networth_timeline.sql` | `net_worth_snapshots` table (Net Worth chart) | Table |
 | 21 | `21_peak_nav_setup.sql` | `mf_peak_progress` table + seed from funds | Table |
 | 22 | `22_NAV_fix_run_only_if_needed.sql` | ⚠️ OPTIONAL — Sirf tab run karo jab NAV status pe from_date NULL aaye | Fix |
+| 23–44 | _(files 23 to 44)_ | Various tables: SGB, bonds, ESOP, insurance, loans, goals, journal, crypto, v48 sprint tables | Table/Alter |
+| 45 | `45_db_indexes.sql` | **tp003 p0** — 30+ missing composite indexes on hot query paths (mf_holdings, nav_history, fd_accounts, sip_schedules, funds screener etc.) | Index |
 
-**Total: 22 files → 21 run karo (22 optional hai)**
+**Total: 45 files → 44 run karo (file 22 optional hai)**
 
 ---
 

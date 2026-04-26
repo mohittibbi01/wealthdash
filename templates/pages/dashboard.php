@@ -461,6 +461,93 @@ ob_start();
 
   <?php endif; // end if portfolioId ?>
 
+  <!-- ═══ t254: FY SUMMARY CARD ════════════════════════════════════════ -->
+  <div class="card" style="margin-bottom:16px;" id="fySummaryCard">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <span style="font-weight:600;font-size:15px;">🧾 FY Summary</span>
+        <span style="font-size:12px;color:var(--text-secondary);margin-left:8px;" id="fySummaryFyLabel">Current FY</span>
+      </div>
+      <a href="<?= APP_URL ?>?page=report_fy" style="font-size:12px;color:var(--accent);text-decoration:none;">Full Report →</a>
+    </div>
+    <div class="card-body" id="fySummaryBody">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;font-weight:600;margin-bottom:4px;">Invested This FY</div>
+          <div class="fw-stat" id="dsInvested" style="font-size:17px;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;font-weight:600;margin-bottom:4px;">LTCG</div>
+          <div class="fw-stat" id="dsLtcg" style="font-size:17px;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;font-weight:600;margin-bottom:4px;">STCG</div>
+          <div class="fw-stat" id="dsStcg" style="font-size:17px;font-weight:700;">—</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;font-weight:600;margin-bottom:4px;">Est. Tax</div>
+          <div class="fw-stat" id="dsEstTax" style="font-size:17px;font-weight:700;color:#ef4444;">—</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;font-weight:600;margin-bottom:4px;">SIPs This FY</div>
+          <div class="fw-stat" id="dsSips" style="font-size:17px;font-weight:700;">—</div>
+        </div>
+      </div>
+      <!-- LTCG exemption meter -->
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-bottom:4px;">
+          <span>LTCG Exemption Used</span>
+          <span id="dsLtcgExemPct">0%</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div id="dsLtcgBar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .6s;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">₹1.25L exempt per FY (Budget 2024)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ t295+t400: NET WORTH TREND + MILESTONE ════════════════════════ -->
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:16px;align-items:start;" id="nwTrendRow">
+    <div class="card" id="nwTrendCard">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:600;font-size:15px;">📈 Net Worth Trend</span>
+        <select id="nwTrendMonths" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);"
+                onchange="loadNwTrend()">
+          <option value="6">6 months</option>
+          <option value="12" selected>12 months</option>
+          <option value="24">2 years</option>
+        </select>
+      </div>
+      <div class="card-body" style="padding:12px 16px;">
+        <canvas id="nwTrendChart" height="140"></canvas>
+        <div id="nwTrendSimNote" style="display:none;font-size:11px;color:var(--text-secondary);margin-top:6px;text-align:center;">
+          📊 Showing projected trend. Actual history builds over time.
+        </div>
+      </div>
+    </div>
+    <!-- Milestone tracker -->
+    <div class="card" id="milestoneCard">
+      <div class="card-header">
+        <span style="font-weight:600;font-size:15px;">🏆 Wealth Milestones</span>
+      </div>
+      <div class="card-body" style="padding:12px 16px;" id="milestoneBody">
+        <div style="text-align:center;padding:20px;color:var(--text-secondary);font-size:13px;">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ t291: GOAL PROGRESS RINGS ════════════════════════════════════ -->
+  <div class="card" style="margin-bottom:16px;" id="goalRingsCard" style="display:none;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-weight:600;font-size:15px;">🎯 Goal Progress</span>
+      <a href="<?= APP_URL ?>?page=goals" style="font-size:12px;color:var(--accent);text-decoration:none;">Manage Goals →</a>
+    </div>
+    <div class="card-body" id="goalRingsBody" style="padding:16px;">
+      <div style="text-align:center;padding:20px;color:var(--text-secondary);font-size:13px;">Loading goals…</div>
+    </div>
+  </div>
+
 </div>
 
 
@@ -736,6 +823,184 @@ function calcNscInterest() {
     loadNudges(); loadDiscipline();
   }
 })();
+
+<script src="<?= APP_URL ?>/public/js/charts.js?v=<?= ASSET_VERSION ?>"></script>
+<script>
+/* ── Dashboard Widgets: t254, t291, t295, t400 ──────────────────────── */
+(function(){
+  const BASE = window.APP_URL || window.WD?.appUrl || '';
+  const CSRF = window.WD?.csrf || window.CSRF_TOKEN || document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const PID  = window.WD?.selectedPortfolio || document.getElementById('portfolioSelect')?.value || '';
+
+  async function apiFetch(action, extra={}) {
+    const fd = new FormData();
+    fd.append('action', action);
+    if(CSRF) fd.append('_csrf_token', CSRF);
+    if(PID) fd.append('portfolio_id', PID);
+    Object.entries(extra).forEach(([k,v]) => fd.append(k,v));
+    const r = await fetch(`${BASE}/api/?action=${action}`,{method:'POST',body:fd});
+    return r.json();
+  }
+
+  const inr = v => '₹' + Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0});
+
+  /* ── t254: FY Summary Card ────────────────────────────────────── */
+  async function loadFySummary() {
+    try {
+      const d = await apiFetch('fy_summary_card');
+      if (!d.success) return;
+      const r = d.data;
+      const setEl = (id, val) => { const e=document.getElementById(id); if(e) e.textContent=val; };
+      document.getElementById('fySummaryFyLabel').textContent = r.fy || '';
+      setEl('dsInvested', inr(r.invested_this_fy));
+      const ltcgEl = document.getElementById('dsLtcg');
+      if(ltcgEl){ ltcgEl.textContent=inr(r.ltcg_equity); ltcgEl.style.color=r.ltcg_equity>0?'#16a34a':'var(--text)'; }
+      const stcgEl = document.getElementById('dsStcg');
+      if(stcgEl){ stcgEl.textContent=inr(r.stcg_equity); stcgEl.style.color=r.stcg_equity>0?'#f59e0b':'var(--text)'; }
+      setEl('dsEstTax', inr(r.estimated_tax));
+      setEl('dsSips', r.sip_count + ' SIPs');
+      const pct = r.ltcg_used_pct || 0;
+      const pctEl = document.getElementById('dsLtcgExemPct');
+      const barEl = document.getElementById('dsLtcgBar');
+      if(pctEl) pctEl.textContent = pct + '%';
+      if(barEl){ barEl.style.width=pct+'%'; barEl.style.background=pct>100?'#ef4444':pct>70?'#f59e0b':'var(--accent)'; }
+    } catch(e) {}
+  }
+
+  /* ── t295: Net Worth Trend Chart ─────────────────────────────── */
+  window.loadNwTrend = async function() {
+    const months = document.getElementById('nwTrendMonths')?.value || 12;
+    try {
+      const d = await apiFetch('networth_trend', {months});
+      if (!d.success) return;
+      const r   = d.data;
+      const sim = document.getElementById('nwTrendSimNote');
+      if(sim) sim.style.display = r.is_simulated ? '' : 'none';
+
+      const canvas = document.getElementById('nwTrendChart');
+      if (!canvas) return;
+
+      // Destroy existing chart
+      if (window._nwChart) { window._nwChart.destroy(); }
+
+      const labels = r.trend.map(t => t.label);
+      const vals   = r.trend.map(t => t.net_worth);
+
+      window._nwChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data: vals,
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#6366f1',
+            backgroundColor: 'rgba(99,102,241,.08)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: vals.length > 15 ? 0 : 3,
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          plugins: { legend:{display:false}, tooltip:{
+            callbacks:{ label: ctx => '₹' + Number(ctx.raw||0).toLocaleString('en-IN',{maximumFractionDigits:0}) }
+          }},
+          scales: {
+            x: { grid:{display:false}, ticks:{font:{size:10}} },
+            y: {
+              grid:{color:'rgba(0,0,0,.05)'},
+              ticks:{
+                font:{size:10},
+                callback: v => v >= 1e7 ? (v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? (v/1e5).toFixed(0)+'L' : v
+              }
+            }
+          }
+        }
+      });
+    } catch(e) {}
+  };
+
+  /* ── t400: Milestone Tracker ─────────────────────────────────── */
+  async function loadMilestones() {
+    const el = document.getElementById('milestoneBody');
+    if(!el) return;
+    try {
+      const d = await apiFetch('milestone_status');
+      if(!d.success) return;
+      const r = d.data;
+      const ms = r.all_milestones || [];
+      el.innerHTML = ms.map(m => `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:18px;${m.achieved?'':'opacity:.35'}">${m.emoji}</span>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:${m.achieved?'700':'400'};color:${m.achieved?'var(--text)':'var(--text-secondary)'};">${m.label}</div>
+            ${!m.achieved ? `<div style="height:4px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden;">
+              <div style="width:${m.pct_done}%;height:100%;background:var(--accent);border-radius:2px;"></div>
+            </div>` : ''}
+          </div>
+          ${m.achieved
+            ? '<span style="font-size:11px;background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-weight:600;">✓ Achieved</span>'
+            : `<span style="font-size:11px;color:var(--text-secondary);">${m.pct_done}%</span>`}
+        </div>`).join('');
+      // Also show in banner
+      if(r.last_achieved && r.next_milestone) {
+        const banner = document.getElementById('netWorthMilestoneBanner');
+        if(banner) MilestoneBanner.render(r.net_worth, banner);
+      }
+    } catch(e) {}
+  }
+
+  /* ── t291: Goal Progress Rings ───────────────────────────────── */
+  async function loadGoalRings() {
+    const card = document.getElementById('goalRingsCard');
+    const body = document.getElementById('goalRingsBody');
+    if(!body) return;
+    try {
+      const d = await apiFetch('goal_rings');
+      if(!d.success || !d.data?.length) return;
+      if(card) card.style.display='';
+      const inrC = v => '₹' + Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0});
+
+      body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;">
+        ${d.data.map(g => {
+          const c  = g.svg_circumference;
+          const da = g.svg_dash_offset;
+          return `<div style="text-align:center;padding:12px 8px;background:var(--bg-secondary);border-radius:12px;">
+            <div style="position:relative;width:90px;height:90px;margin:0 auto 8px;">
+              <svg width="90" height="90" viewBox="0 0 90 90" style="transform:rotate(-90deg)">
+                <circle cx="45" cy="45" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>
+                <circle cx="45" cy="45" r="40" fill="none" stroke="${g.color}" stroke-width="7"
+                  stroke-dasharray="${c}" stroke-dashoffset="${da}"
+                  stroke-linecap="round"
+                  style="transition:stroke-dashoffset .8s ease;"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                <div style="font-size:18px;">${g.icon}</div>
+                <div style="font-size:13px;font-weight:700;color:${g.color};">${g.pct}%</div>
+              </div>
+            </div>
+            <div style="font-size:12px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${g.goal_name}">${g.goal_name}</div>
+            <div style="font-size:11px;color:var(--text-secondary);">${inrC(g.current_amount)} / ${inrC(g.target_amount)}</div>
+            ${g.months_left>0 ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">${g.months_left} months left</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    } catch(e) {}
+  }
+
+  /* ── Init all ─────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
+    loadFySummary();
+    loadNwTrend();
+    loadMilestones();
+    loadGoalRings();
+  });
+
+  window.addEventListener('portfolioChanged', () => {
+    loadFySummary(); loadNwTrend(); loadMilestones(); loadGoalRings();
+  });
+})();
+</script>
 
 <?php
 $pageContent = ob_get_clean();

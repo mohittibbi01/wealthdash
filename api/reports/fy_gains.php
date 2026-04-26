@@ -480,3 +480,159 @@ case 'fy_holdings_span':
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success'=>true,'data'=>$rows]);
     break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// t286: schedule_112a — ITR Schedule 112A LTCG table (Equity MF + Stocks)
+// ISIN-wise, FIFO, Grandfathering (Jan 31 2018 fair value)
+// ══════════════════════════════════════════════════════════════════════════
+case 'schedule_112a':
+    $fy    = $_GET['fy'] ?? currentFY();
+    $dates = getFYDates($fy);
+
+    // Jan 31 2018 — grandfathering cutoff for equity assets
+    $GRANDFATHER_DATE = '2018-01-31';
+
+    // Fetch all equity SELL transactions in the FY with ISIN
+    $sellStmt = $db->prepare("
+        SELECT
+          t.id          AS tx_id,
+          t.tx_date     AS sale_date,
+          t.units       AS sold_units,
+          t.price_per_unit AS sale_nav,
+          t.amount      AS sale_amount,
+          t.holding_id,
+          f.fund_name,
+          f.scheme_code,
+          f.isin,
+          f.category,
+          f.amc_name
+        FROM mf_transactions t
+        JOIN mf_holdings mh ON mh.id = t.holding_id
+        JOIN portfolios p   ON p.id  = mh.portfolio_id
+        JOIN funds f        ON f.id  = mh.fund_id
+        WHERE p.user_id = ?
+          AND t.tx_type IN ('sell','swp','switch_out','redemption')
+          AND t.tx_date BETWEEN ? AND ?
+          AND (
+            LOWER(f.category) LIKE '%equity%'
+            OR LOWER(f.category) LIKE '%elss%'
+            OR LOWER(f.category) LIKE '%index%'
+            OR LOWER(f.category) LIKE '%hybrid%'
+          )
+        ORDER BY f.fund_name ASC, t.tx_date ASC
+    ");
+    $sellStmt->execute([$userId, $dates['from'], $dates['to']]);
+    $sells = $sellStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $rows112A    = [];
+    $ltcgTotal   = 0.0;
+    $stcgTotal   = 0.0;
+    $ltcgExempt  = 0.0;
+
+    foreach ($sells as $sell) {
+        $holdingId  = $sell['holding_id'];
+        $soldUnits  = (float)$sell['sold_units'];
+        $saleDate   = $sell['sale_date'];
+        $saleNav    = (float)$sell['sale_nav'];
+        $saleAmt    = (float)$sell['sale_amount'];
+
+        // FIFO: fetch buy transactions for this holding up to sale date
+        $buyStmt = $db->prepare("
+            SELECT tx_date AS buy_date, units AS buy_units, price_per_unit AS buy_nav
+            FROM mf_transactions
+            WHERE holding_id = ?
+              AND tx_type IN ('buy','sip','lumpsum','switch_in')
+              AND tx_date <= ?
+            ORDER BY tx_date ASC
+        ");
+        $buyStmt->execute([$holdingId, $saleDate]);
+        $buyRows = $buyStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $unitsLeft     = $soldUnits;
+        $costBasis     = 0.0;
+        $grandCost     = 0.0;  // grandfathered cost (Jan 31 2018 fair value)
+        $firstBuyDate  = null;
+        $hasGrandfathered = false;
+
+        foreach ($buyRows as $buy) {
+            if ($unitsLeft <= 0) break;
+            $usableUnits = min((float)$buy['buy_units'], $unitsLeft);
+            $buyNav      = (float)$buy['buy_nav'];
+            $buyDate     = $buy['buy_date'];
+
+            if (!$firstBuyDate) $firstBuyDate = $buyDate;
+
+            if ($buyDate < $GRANDFATHER_DATE) {
+                // Grandfathered: cost = max(actual purchase NAV, Jan31 2018 NAV)
+                // We use actual NAV as proxy if grandfather NAV not available in DB
+                $grandfatherNav = $db->prepare("
+                    SELECT nav FROM nav_history
+                    WHERE fund_id = (SELECT fund_id FROM mf_holdings WHERE id = ?)
+                      AND nav_date <= ?
+                    ORDER BY nav_date DESC LIMIT 1
+                ");
+                $grandfatherNav->execute([$holdingId, $GRANDFATHER_DATE]);
+                $jan31Nav = (float)($grandfatherNav->fetchColumn() ?: $buyNav);
+                $effectiveCost = $usableUnits * max($buyNav, $jan31Nav);
+                $hasGrandfathered = true;
+            } else {
+                $effectiveCost = $usableUnits * $buyNav;
+            }
+
+            $costBasis  += $effectiveCost;
+            $unitsLeft  -= $usableUnits;
+        }
+
+        if ($firstBuyDate === null) $firstBuyDate = $saleDate;
+        $holdingDays = (int)((strtotime($saleDate) - strtotime($firstBuyDate)) / 86400);
+        $isLTCG      = $holdingDays >= 365;
+        $gain        = $saleAmt - $costBasis;
+
+        if ($isLTCG) {
+            $ltcgTotal += max(0, $gain);
+        } else {
+            $stcgTotal += max(0, $gain);
+        }
+
+        $rows112A[] = [
+            'isin'               => $sell['isin'] ?: $sell['scheme_code'],
+            'fund_name'          => $sell['fund_name'],
+            'amc'                => $sell['amc_name'] ?? '',
+            'category'           => $sell['category'],
+            'units_sold'         => round($soldUnits, 4),
+            'sale_date'          => $saleDate,
+            'sale_nav'           => round($saleNav, 4),
+            'sale_amount'        => round($saleAmt, 2),
+            'cost_of_acquisition'=> round($costBasis, 2),
+            'gain_loss'          => round($gain, 2),
+            'holding_days'       => $holdingDays,
+            'gain_type'          => $isLTCG ? 'LTCG' : 'STCG',
+            'tax_rate_pct'       => $isLTCG ? 12.5 : 20,  // post-Jul 2024 Budget rates
+            'grandfathered'      => $hasGrandfathered,
+            'purchase_date'      => $firstBuyDate,
+        ];
+    }
+
+    $ltcgExempt   = min($ltcgTotal, ltcgTaxFree());
+    $ltcgTaxable  = max(0, $ltcgTotal - ltcgTaxFree());
+    $ltcgTax      = round($ltcgTaxable * 0.125, 2);  // 12.5% post Jul 2024
+    $stcgTax      = round(max(0, $stcgTotal) * 0.20, 2);  // 20% STCG post Jul 2024
+
+    echo json_encode([
+        'success' => true,
+        'fy'      => $fy,
+        'rows'    => $rows112A,
+        'summary' => [
+            'total_transactions' => count($rows112A),
+            'ltcg_total'         => round($ltcgTotal, 2),
+            'ltcg_exempt'        => round($ltcgExempt, 2),
+            'ltcg_taxable'       => round($ltcgTaxable, 2),
+            'ltcg_tax'           => $ltcgTax,
+            'stcg_total'         => round($stcgTotal, 2),
+            'stcg_tax'           => $stcgTax,
+            'total_estimated_tax'=> round($ltcgTax + $stcgTax, 2),
+            'ltcg_limit'         => ltcgTaxFree(),
+            'note_rates'         => 'Rates: LTCG 12.5% (post Jul 23, 2024), STCG 20%. Grandfathering applied for pre-Jan 2018 units.',
+        ],
+    ]);
+    break;

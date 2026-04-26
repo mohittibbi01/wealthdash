@@ -189,7 +189,7 @@ switch ($action) {
 
         $goalId  = (int)   ($_POST['goal_id'] ?? 0);
         $amount  = (float) ($_POST['amount']  ?? 0);
-        $date    = date_to_db(clean($_POST['date'] ?? date('d-m-Y')));
+        $date    = date_to_db(clean($_POST['date'] ?? date('Y-m-d')));
         $note    = clean($_POST['note'] ?? '');
 
         if (!$goalId || $amount <= 0) json_response(false, 'Goal ID and amount required.');

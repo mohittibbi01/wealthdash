@@ -291,3 +291,4 @@
 [2026-04-18 15:15:12] [ERROR] Uncaught: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'nav_date' in 'field list' in C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php:134
 [2026-04-18 15:15:13] [ERROR] Uncaught: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'retry_count' in 'field list' in C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php:66
 [2026-04-18 15:15:13] [ERROR] Uncaught: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'retry_count' in 'field list' in C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php:66
+[2026-04-24 19:41:52] [ERROR] Uncaught: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'fund_id' in 'field list' in C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php:145

@@ -226,6 +226,20 @@ ob_start();
   <button class="mf-tab" data-tab="sunburst" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
     🌐 Sunburst
   </button>
+  <!-- t233: Overlap Checker -->
+  <button class="mf-tab" data-tab="overlap" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🔗 Overlap
+  </button>
+  <!-- t290: LTCG Harvest -->
+  <button class="mf-tab" data-tab="ltcgharvest" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🌾 LTCG Harvest
+  </button>
+  <button class="mf-tab" data-tab="lossharvest" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    🔴 Loss Harvesting
+  </button>
+  <button class="mf-tab" data-tab="report" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-secondary);cursor:pointer;">
+    📄 Report
+  </button>
 </div>
 
 <!-- ═══ TAB: HOLDINGS ═══ -->
@@ -1087,6 +1101,82 @@ ob_start();
   </div>
 </div><!-- end tabSunburst -->
 
+<!-- ═══ t233: OVERLAP CHECKER TAB ═══════════════════════════════════ -->
+<div id="tabOverlap" style="display:none;padding:16px 0;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div>
+      <h3 style="margin:0;font-size:16px;font-weight:600;">🔗 Portfolio Overlap</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">Duplicate stocks across your mutual funds</p>
+    </div>
+    <button onclick="MF.overlap.load()" class="btn btn-sm btn-ghost">↻ Check Overlap</button>
+  </div>
+  <div id="overlapBody">
+    <div style="text-align:center;padding:40px;color:var(--text-secondary);">Click <strong>Check Overlap</strong> to analyse your portfolio.</div>
+  </div>
+</div>
+
+<!-- ═══ t290: LTCG HARVEST TAB ═══════════════════════════════════════ -->
+<div id="tabLtcgharvest" style="display:none;padding:16px 0;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div>
+      <h3 style="margin:0;font-size:16px;font-weight:600;">🌾 LTCG Harvest Planner</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">Book tax-free gains within ₹1.25L exemption this FY</p>
+    </div>
+    <button onclick="MF.ltcgHarvest.load()" class="btn btn-sm btn-ghost">↻ Refresh</button>
+  </div>
+  <div id="ltcgHarvestBody">
+    <div style="text-align:center;padding:40px;color:var(--text-secondary);">Loading LTCG harvest opportunities…</div>
+  </div>
+</div>
+
+<!-- ═══ TAB: PORTFOLIO REPORT (t374) ═══ -->
+<div id="tabReport" style="display:none;padding:16px 0;">
+  <div class="no-print" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+    <select id="rptMonth" class="form-select" style="width:160px;"></select>
+    <button class="btn btn-primary" onclick="MF.portfolioReport.print()">🖨 Print / Save PDF</button>
+    <button class="btn btn-secondary" onclick="MF.portfolioReport.load()">↻ Refresh</button>
+  </div>
+  <div id="rptBody">
+    <div style="text-align:center;padding:48px;color:var(--text-muted);">📄 Select month and click Refresh</div>
+  </div>
+</div>
+
+<!-- ═══ TAB: LOSS HARVESTING (tv004) ═══ -->
+<div id="tabLossharvest" style="display:none;padding:16px 0;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h3 style="margin:0;font-size:16px;font-weight:600;">🔴 Tax Loss Harvesting</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">Book unrealised losses before March 31 to offset your gains &amp; save tax</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div id="lhCountdown" style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px;background:rgba(220,38,38,.1);color:#dc2626;display:none;"></div>
+      <button onclick="MF.lossHarvest.load()" class="btn btn-sm btn-ghost">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- How it works callout -->
+  <div style="padding:12px 16px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;margin-bottom:16px;font-size:12.5px;line-height:1.7;color:var(--text-secondary);">
+    <strong style="color:var(--text-primary);">How it works:</strong>
+    Sell loss-making MF units before March 31 → book the loss → offset it against your realised gains this FY → pay less tax.
+    <strong>STCL</strong> offsets both STCG &amp; LTCG. <strong>LTCL</strong> offsets LTCG only.
+    Rebuy the same fund after <strong>30 days</strong> to maintain allocation (wash-sale safe in India).
+  </div>
+
+  <!-- Summary cards -->
+  <div id="lhSummaryCards" style="display:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;"></div>
+
+  <!-- Gains context bar -->
+  <div id="lhGainsBar" style="display:none;margin-bottom:16px;"></div>
+
+  <!-- Loss candidates table -->
+  <div id="lhBody">
+    <div style="text-align:center;padding:48px;color:var(--text-secondary);">
+      <div style="font-size:28px;margin-bottom:8px;">🔴</div>
+      <div style="font-size:14px;font-weight:600;">Click Refresh to scan your portfolio for loss-harvesting opportunities</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ ADD/EDIT TRANSACTION MODAL ═══ -->
 <div class="modal-overlay" id="modalAddTxn" style="display:none;">
   <div class="modal" style="max-width:600px;width:95%;">
@@ -1621,6 +1711,13 @@ ob_start();
 
   /* Page margins */
   @page { margin: 15mm 12mm; size: A4 portrait; }
+
+  /* t374: Portfolio PDF Report tab print support */
+  body>*:not(#rptBody), nav, header, .sidebar, .topbar, .mf-tabs, .no-print,
+  .card:not(#tabReport), .page-header { display: none !important; }
+  #tabReport { display: block !important; }
+  .no-print { display: none !important; }
+  .rpt-page-break { page-break-before: always; }
 }
 </style>
 

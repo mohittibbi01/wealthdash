@@ -18,7 +18,7 @@ if (!$portfolioId || !can_access_portfolio($portfolioId, $userId, $isAdmin)) {
 // Get portfolio name for filename
 $portName = DB::fetchVal('SELECT name FROM portfolios WHERE id = ?', [$portfolioId]);
 $portSlug = preg_replace('/[^a-z0-9]+/i', '_', strtolower($portName ?? 'portfolio'));
-$dateStr  = date('d-m-Y');
+$dateStr  = date('Y-m-d');
 
 /* ─── Helper: send CSV to browser ─────────────────────────────────────────── */
 function send_csv(string $filename, array $headers, array $rows): void {

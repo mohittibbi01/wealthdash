@@ -1224,6 +1224,1293 @@ function calcAdvTax() {
     </div>` : ''}`;
 }
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t286 — Schedule 112A: ITR LTCG Table (Equity MF)
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="card112A">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+            <h3 class="card-title">📋 Schedule 112A — ITR LTCG / STCG Statement</h3>
+            <small class="text-secondary">ISIN-wise equity MF gains for ITR-2 / ITR-3. Grandfathering applied for pre-Jan 2018 units.</small>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="fy112A" class="form-select" style="width:120px;">
+                <option value="2025-26">FY 2025-26</option>
+                <option value="2024-25">FY 2024-25</option>
+                <option value="2023-24">FY 2023-24</option>
+                <option value="2022-23">FY 2022-23</option>
+            </select>
+            <button class="btn btn-secondary" onclick="load112A()" id="btn112ALoad">Load</button>
+            <button class="btn btn-primary" onclick="export112AExcel()" id="btn112AExcel" style="display:none;">⬇ Export Excel</button>
+            <button class="btn btn-secondary" onclick="copy112AText()" id="btn112ACopy" style="display:none;">📋 Copy CSV</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Summary Banner -->
+        <div id="s112ASummary" style="display:none;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px;">
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">LTCG Gains</div>
+                    <div id="s112ALtcg" style="font-size:17px;font-weight:800;color:#10b981;">₹0</div>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Exempt (₹1.25L)</div>
+                    <div id="s112AExempt" style="font-size:17px;font-weight:800;color:#3b82f6;">₹0</div>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Taxable LTCG</div>
+                    <div id="s112ATaxableLtcg" style="font-size:17px;font-weight:800;color:#f59e0b;">₹0</div>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+                    <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">STCG Gains</div>
+                    <div id="s112AStcg" style="font-size:17px;font-weight:800;color:#f59e0b;">₹0</div>
+                </div>
+                <div style="background:rgba(220,38,38,.08);border-radius:8px;padding:12px;text-align:center;border:1.5px solid rgba(220,38,38,.2);">
+                    <div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;margin-bottom:4px;">Est. Total Tax</div>
+                    <div id="s112ATax" style="font-size:17px;font-weight:800;color:#dc2626;">₹0</div>
+                </div>
+            </div>
+            <div id="s112ARateNote" style="font-size:11px;color:var(--text-muted);padding:8px 12px;background:var(--bg-secondary);border-radius:6px;"></div>
+        </div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;">
+            <table class="data-table" id="tbl112A" style="display:none;">
+                <thead>
+                    <tr>
+                        <th style="min-width:220px;">Fund / ISIN</th>
+                        <th>Purchase Date</th>
+                        <th>Sale Date</th>
+                        <th class="text-right">Units Sold</th>
+                        <th class="text-right">Sale NAV (₹)</th>
+                        <th class="text-right">Sale Amount (₹)</th>
+                        <th class="text-right">Cost of Acq. (₹)</th>
+                        <th class="text-right">Gain / Loss (₹)</th>
+                        <th>Type</th>
+                        <th class="text-right">Tax Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody112A"></tbody>
+                <tfoot id="tfoot112A"></tfoot>
+            </table>
+        </div>
+
+        <!-- Empty / Loading state -->
+        <div id="s112AEmpty" style="text-align:center;padding:40px;color:var(--text-muted);">
+            <div style="font-size:32px;margin-bottom:8px;">📋</div>
+            <div style="font-size:14px;font-weight:600;">Select FY and click Load to generate Schedule 112A</div>
+            <div style="font-size:12px;margin-top:4px;">Shows equity MF gains with FIFO cost basis and Jan 31 2018 grandfathering</div>
+        </div>
+        <div id="s112ALoading" style="display:none;text-align:center;padding:40px;color:var(--text-muted);">
+            <div style="font-size:14px;font-weight:600;">⏳ Calculating gains with FIFO…</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── t286: Schedule 112A ──────────────────────────────────────────────────
+let _data112A = [];
+
+function fmtI(v) {
+    if (v === null || v === undefined) return '₹0';
+    const n = parseFloat(v) || 0;
+    return '₹' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+
+async function load112A() {
+    const fy = document.getElementById('fy112A').value;
+    document.getElementById('s112AEmpty').style.display = 'none';
+    document.getElementById('s112ALoading').style.display = 'block';
+    document.getElementById('tbl112A').style.display = 'none';
+    document.getElementById('s112ASummary').style.display = 'none';
+    document.getElementById('btn112AExcel').style.display = 'none';
+    document.getElementById('btn112ACopy').style.display = 'none';
+
+    try {
+        const res = await fetch(`/api/reports/fy_gains.php?action=schedule_112a&fy=${fy}`);
+        const data = await res.json();
+        document.getElementById('s112ALoading').style.display = 'none';
+
+        if (!data.success) {
+            document.getElementById('s112AEmpty').style.display = 'block';
+            document.getElementById('s112AEmpty').innerHTML = `<div style="color:#dc2626;font-size:13px;">Error: ${data.msg || 'Failed to load data'}</div>`;
+            return;
+        }
+
+        _data112A = data.rows || [];
+        const s = data.summary || {};
+
+        // Populate summary
+        document.getElementById('s112ALtcg').textContent       = fmtI(s.ltcg_total);
+        document.getElementById('s112AExempt').textContent     = fmtI(s.ltcg_exempt);
+        document.getElementById('s112ATaxableLtcg').textContent = fmtI(s.ltcg_taxable);
+        document.getElementById('s112AStcg').textContent       = fmtI(s.stcg_total);
+        document.getElementById('s112ATax').textContent        = fmtI(s.total_estimated_tax);
+        document.getElementById('s112ARateNote').textContent   = s.note_rates || '';
+        document.getElementById('s112ASummary').style.display  = 'block';
+
+        if (_data112A.length === 0) {
+            document.getElementById('s112AEmpty').style.display = 'block';
+            document.getElementById('s112AEmpty').innerHTML = `<div style="font-size:14px;font-weight:600;color:var(--text-muted);">No equity MF sales found in FY ${fy}</div>`;
+            return;
+        }
+
+        // Build table rows
+        const tbody = document.getElementById('tbody112A');
+        tbody.innerHTML = _data112A.map(r => {
+            const gain = parseFloat(r.gain_loss);
+            const gainColor = gain >= 0 ? '#10b981' : '#dc2626';
+            const gainSign  = gain >= 0 ? '+' : '';
+            const typeColor = r.gain_type === 'LTCG' ? '#3b82f6' : '#f59e0b';
+            const grandBadge = r.grandfathered
+                ? `<span style="font-size:9px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px;margin-left:4px;">GF</span>` : '';
+            return `<tr>
+                <td>
+                    <div style="font-size:12px;font-weight:700;color:var(--text-primary);">${r.fund_name}${grandBadge}</div>
+                    <div style="font-size:10px;color:var(--text-muted);font-family:monospace;">${r.isin || '—'}</div>
+                </td>
+                <td style="font-size:12px;">${r.purchase_date || '—'}</td>
+                <td style="font-size:12px;">${r.sale_date}</td>
+                <td class="text-right" style="font-size:12px;">${parseFloat(r.units_sold).toFixed(4)}</td>
+                <td class="text-right" style="font-size:12px;">₹${parseFloat(r.sale_nav).toFixed(4)}</td>
+                <td class="text-right" style="font-size:12px;">${fmtI(r.sale_amount)}</td>
+                <td class="text-right" style="font-size:12px;">${fmtI(r.cost_of_acquisition)}</td>
+                <td class="text-right" style="font-size:13px;font-weight:700;color:${gainColor};">${gainSign}${fmtI(Math.abs(gain))}</td>
+                <td><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${r.gain_type==='LTCG'?'rgba(59,130,246,.1)':'rgba(245,158,11,.1)'};color:${typeColor};">${r.gain_type}</span></td>
+                <td class="text-right" style="font-size:12px;">${r.tax_rate_pct}%</td>
+            </tr>`;
+        }).join('');
+
+        // Footer totals
+        const ltcgRows = _data112A.filter(r => r.gain_type === 'LTCG');
+        const stcgRows = _data112A.filter(r => r.gain_type === 'STCG');
+        const sumGain = _data112A.reduce((a, r) => a + parseFloat(r.gain_loss), 0);
+        document.getElementById('tfoot112A').innerHTML = `
+            <tr style="background:var(--bg-secondary);font-weight:800;">
+                <td colspan="7" style="font-size:12px;padding:10px 12px;">
+                    Total (${_data112A.length} transactions · LTCG: ${ltcgRows.length} · STCG: ${stcgRows.length})
+                </td>
+                <td class="text-right" style="font-size:13px;color:${sumGain>=0?'#10b981':'#dc2626'};padding:10px 12px;">
+                    ${sumGain>=0?'+':''}${fmtI(Math.abs(sumGain))}
+                </td>
+                <td colspan="2"></td>
+            </tr>`;
+
+        document.getElementById('tbl112A').style.display = '';
+        document.getElementById('btn112AExcel').style.display = '';
+        document.getElementById('btn112ACopy').style.display = '';
+
+    } catch (e) {
+        document.getElementById('s112ALoading').style.display = 'none';
+        document.getElementById('s112AEmpty').style.display = 'block';
+        document.getElementById('s112AEmpty').innerHTML = `<div style="color:#dc2626;">Failed to load Schedule 112A data.</div>`;
+    }
+}
+
+function copy112AText() {
+    const headers = ['ISIN','Fund Name','Purchase Date','Sale Date','Units Sold','Sale NAV','Sale Amount','Cost of Acquisition','Gain/Loss','Type','Tax Rate%'];
+    const rows = _data112A.map(r => [
+        r.isin, r.fund_name, r.purchase_date, r.sale_date,
+        r.units_sold, r.sale_nav, r.sale_amount, r.cost_of_acquisition,
+        r.gain_loss, r.gain_type, r.tax_rate_pct
+    ].join('\t'));
+    const text = [headers.join('\t'), ...rows].join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn112ACopy');
+        const orig = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => btn.textContent = orig, 2000);
+    });
+}
+
+function export112AExcel() {
+    const fy = document.getElementById('fy112A').value;
+    const headers = ['ISIN','Fund Name','Purchase Date','Sale Date','Units Sold','Sale NAV (₹)','Sale Amount (₹)','Cost of Acquisition (₹)','Gain/Loss (₹)','Type','Tax Rate %','Grandfathered'];
+    const rows = _data112A.map(r => [
+        r.isin || '', r.fund_name, r.purchase_date || '', r.sale_date,
+        r.units_sold, r.sale_nav, r.sale_amount, r.cost_of_acquisition,
+        r.gain_loss, r.gain_type, r.tax_rate_pct, r.grandfathered ? 'Yes' : 'No'
+    ]);
+    // Build CSV (BOM for Excel Indian encoding)
+    const csvRows = [headers, ...rows].map(row =>
+        row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')
+    );
+    const csv = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `Schedule_112A_${fy}_WealthDash.csv`;
+    a.click(); URL.revokeObjectURL(url);
+}
+
+// Auto-load current FY on page load
+(function() {
+    const now = new Date();
+    const curFY = now.getMonth() >= 3
+        ? `${now.getFullYear()}-${String(now.getFullYear()-1999).padStart(2,'0')}`
+        : `${now.getFullYear()-1}-${String(now.getFullYear()-2000).padStart(2,'0')}`;
+    const sel = document.getElementById('fy112A');
+    if (sel) {
+        for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === curFY) { sel.selectedIndex = i; break; }
+        }
+    }
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t377 — Tax Computation Sheet (CA-ready, print/PDF export)
+     ════════════════════════════════════════════════════════════════════════ -->
+<style>
+@media print {
+  body > *:not(#printWrap),
+  nav, header, footer, .sidebar, .topbar, .breadcrumb,
+  .page-header, .cards-grid, #taxSummaryCards,
+  .card:not(#cardTaxComp), #card54EC, #card112A,
+  .no-print { display: none !important; }
+  #cardTaxComp { box-shadow: none !important; border: none !important; }
+  #cardTaxComp .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  @page { margin: 18mm 14mm; }
+}
+.print-only { display: none; }
+#tblTaxComp td, #tblTaxComp th { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+#tblTaxComp .row-section { background: var(--bg-secondary, #f3f4f6); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted, #6b7280); }
+#tblTaxComp .row-total { font-weight: 800; font-size: 14px; }
+#tblTaxComp .row-payable { background: rgba(220,38,38,.05); font-weight: 800; font-size: 15px; }
+#tblTaxComp .row-refund  { background: rgba(16,185,129,.05); font-weight: 800; font-size: 15px; }
+#tblTaxComp .amt { text-align: right; font-variant-numeric: tabular-nums; font-family: 'SF Mono', monospace, sans-serif; }
+#tblTaxComp .indent { padding-left: 28px !important; color: var(--text-secondary, #4b5563); }
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t437 — Tax P&L Statement — Complete Income Declaration
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="cardTaxPL">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title">📊 Tax P&amp;L Statement — Complete Income Declaration</h3>
+      <small class="text-secondary">All capital gains · FD interest · Dividends · Estimated tax liability for the FY</small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="tplFY" class="form-select" style="width:130px;">
+        <option value="2025-2026">FY 2025-26</option>
+        <option value="2024-2025">FY 2024-25</option>
+        <option value="2023-2024">FY 2023-24</option>
+      </select>
+      <button class="btn btn-primary" onclick="TaxPL.load()">⟳ Load Statement</button>
+      <button class="btn btn-secondary no-print" onclick="window.print()">🖨 Print</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <!-- Summary tiles -->
+    <div id="tplSummaryTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px;"></div>
+
+    <!-- P&L Table -->
+    <div id="tplTableWrap" style="display:none;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tplTable">
+        <thead>
+          <tr style="background:var(--bg-secondary);border-bottom:2px solid var(--border);">
+            <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Income Head</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Gross (₹)</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Exempt / Deduction</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Taxable (₹)</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Rate</th>
+            <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">Est. Tax (₹)</th>
+          </tr>
+        </thead>
+        <tbody id="tplTbody"></tbody>
+      </table>
+    </div>
+    <div id="tplEmpty" style="text-align:center;padding:40px;color:var(--text-muted);font-size:14px;">
+      ↑ Select a Financial Year and click <strong>Load Statement</strong>
+    </div>
+    <div id="tplLoading" style="display:none;text-align:center;padding:30px;color:var(--text-muted);">Loading P&amp;L data…</div>
+    <div id="tplError" style="display:none;color:#dc2626;padding:14px;background:rgba(220,38,38,.05);border-radius:8px;margin-top:10px;"></div>
+  </div>
+</div>
+
+<style>
+#tplTable tr:hover { background: var(--bg-secondary); }
+#tplTable .tpl-section { background: var(--bg-secondary); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+#tplTable .tpl-total { font-weight: 800; border-top: 2px solid var(--border); }
+#tplTable .tpl-grand { background: rgba(99,102,241,.07); font-weight: 800; font-size: 14px; border-top: 2px solid var(--accent, #6366f1); }
+#tplTable td, #tplTable th { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+#tplTable .ta-r { text-align: right; font-variant-numeric: tabular-nums; }
+#tplTable .tax-red { color: #dc2626; font-weight: 700; }
+#tplTable .tax-green { color: #16a34a; font-weight: 700; }
+.tpl-tile { background: var(--bg-secondary); border-radius: 10px; padding: 14px 16px; text-align: center; }
+.tpl-tile .t-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+.tpl-tile .t-val { font-size: 20px; font-weight: 800; }
+</style>
+
+<script>
+const TaxPL = (() => {
+  const INR = v => {
+    v = Math.abs(+v || 0);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits: 0});
+  };
+
+  function row(label, gross, exempt, taxable, rate, estTax, cls='') {
+    const fmt = v => (v === '' || v === null || v === undefined) ? '—' : INR(v);
+    const taxCls = (estTax > 0) ? 'tax-red' : '';
+    return `<tr class="${cls}">
+      <td>${label}</td>
+      <td class="ta-r">${fmt(gross)}</td>
+      <td class="ta-r">${fmt(exempt)}</td>
+      <td class="ta-r">${fmt(taxable)}</td>
+      <td class="ta-r" style="color:var(--text-muted);font-size:12px;">${rate || '—'}</td>
+      <td class="ta-r ${taxCls}">${fmt(estTax)}</td>
+    </tr>`;
+  }
+
+  function sectionRow(label) {
+    return `<tr class="tpl-section"><td colspan="6" style="padding:10px 12px;">${label}</td></tr>`;
+  }
+
+  async function load() {
+    const fy = document.getElementById('tplFY').value;
+    const [fyStart, fyEnd] = fy.split('-').map((y,i) => i===0 ? y+'-04-01' : y+'-03-31');
+
+    document.getElementById('tplEmpty').style.display = 'none';
+    document.getElementById('tplTableWrap').style.display = 'none';
+    document.getElementById('tplError').style.display = 'none';
+    document.getElementById('tplLoading').style.display = 'block';
+
+    try {
+      const resp = await fetch(`/api/tax/capital_gains.php?action=tax_pl_statement&fy=${fy.replace('-','-')}`);
+      const data = await resp.json();
+      document.getElementById('tplLoading').style.display = 'none';
+
+      if (!data.success) throw new Error(data.message || 'Error loading data');
+
+      const d = data.data;
+      const stcg   = d.equity_stcg  || {};
+      const ltcg   = d.equity_ltcg  || {};
+      const debt   = d.debt_gains   || {};
+      const fdInt  = d.fd_interest  || {};
+
+      const stcgGross  = stcg.total_gain   || 0;
+      const ltcgGross  = ltcg.total_gain   || 0;
+      const ltcgExempt = Math.min(ltcgGross, 125000);
+      const ltcgTax    = ltcg.estimated_tax || 0;
+      const stcgTax    = stcg.estimated_tax || 0;
+      const debtTax    = debt.total_gain    || 0;
+      const fdAmt      = fdInt.amount       || 0;
+      const totalTax   = ltcgTax + stcgTax;
+      const grandTotal = totalTax;
+
+      // Summary tiles
+      document.getElementById('tplSummaryTiles').innerHTML = `
+        <div class="tpl-tile"><div class="t-label">LTCG Gain</div><div class="t-val ${ltcgGross>=0?'tax-red':''}">${INR(ltcgGross)}</div></div>
+        <div class="tpl-tile"><div class="t-label">STCG Gain</div><div class="t-val ${stcgGross>=0&&stcgGross>0?'tax-red':''}">${INR(stcgGross)}</div></div>
+        <div class="tpl-tile"><div class="t-label">Debt / Other Gains</div><div class="t-val">${INR(debtTax)}</div></div>
+        <div class="tpl-tile"><div class="t-label">FD Interest</div><div class="t-val">${INR(fdAmt)}</div></div>
+        <div class="tpl-tile" style="background:rgba(220,38,38,.07);border:1.5px solid #fca5a5;">
+          <div class="t-label">Est. Total Tax</div>
+          <div class="t-val tax-red">${INR(grandTotal)}</div>
+        </div>
+      `;
+
+      // Build table
+      let html = '';
+      html += sectionRow('A · EQUITY CAPITAL GAINS');
+      html += row('LTCG — Equity MF / Stocks (held &gt;1 year)', ltcgGross, ltcgExempt, Math.max(0, ltcgGross - ltcgExempt), '12.5% + 4% cess', ltcgTax);
+      html += row('STCG — Equity MF / Stocks (held &lt;1 year)', stcgGross, 0, stcgGross, '20% + 4% cess', stcgTax);
+      html += row('<strong>Sub-total: Equity Capital Gains Tax</strong>', '', '', '', '', ltcgTax + stcgTax, 'tpl-total');
+
+      html += sectionRow('B · DEBT &amp; OTHER CAPITAL GAINS');
+      html += row('Debt Fund Gains (post Apr 2023 — slab rate)', debt.total_gain || 0, 0, debt.total_gain || 0, 'Slab rate', 0);
+      html += `<tr><td colspan="6" style="padding:6px 12px;font-size:11px;color:var(--text-muted);">⚠️ Add ₹${INR(debt.total_gain||0)} to your total income — taxed at income slab rate. Cannot compute without knowing salary.</td></tr>`;
+
+      html += sectionRow('C · INTEREST &amp; DIVIDEND INCOME');
+      html += row('FD / Savings Interest (taxable)', fdAmt, 10000, Math.max(0, fdAmt - 10000), 'Slab rate', 0);
+      html += `<tr><td colspan="6" style="padding:6px 12px;font-size:11px;color:var(--text-muted);">💡 80TTA deduction: ₹10,000 on savings interest. 80TTB for seniors: ₹50,000.</td></tr>`;
+
+      html += sectionRow('D · TAX SUMMARY');
+      html += row('<strong>Estimated Capital Gains Tax (incl. 4% cess)</strong>', '', '', '', '', ltcgTax + stcgTax, 'tpl-total');
+      html += row('<strong>Add: Slab-rate income (salary + debt + FD) — manual entry needed</strong>', '', '', '', '—', 0, 'tpl-total');
+      html += `<tr class="tpl-grand"><td colspan="5" style="padding:12px;"><strong>Grand Total Est. Tax (capital gains only)</strong></td><td class="ta-r tax-red" style="padding:12px;font-size:16px;">${INR(grandTotal)}</td></tr>`;
+
+      document.getElementById('tplTbody').innerHTML = html;
+      document.getElementById('tplTableWrap').style.display = '';
+    } catch(e) {
+      document.getElementById('tplLoading').style.display = 'none';
+      document.getElementById('tplError').style.display = '';
+      document.getElementById('tplError').textContent = '⚠️ ' + e.message;
+    }
+  }
+  return { load };
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t439 — Form 26AS Reconciler — Full TDS Matching
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="card26AS">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title">🔎 Form 26AS / AIS Reconciler — TDS Matching</h3>
+      <small class="text-secondary">Enter figures from IT portal → spot discrepancies before ITR filing</small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <a href="https://www.incometax.gov.in/iec/foportal/" target="_blank" class="btn btn-secondary" style="font-size:12px;">Open IT Portal ↗</a>
+      <button class="btn btn-primary" onclick="Rec26AS.reconcile()">🔍 Reconcile</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(99,102,241,.06);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:12px;">
+      📋 <strong>How to use:</strong> Download Form 26AS / AIS from <a href="https://www.incometax.gov.in" target="_blank" style="color:var(--accent);">incometax.gov.in</a> → Annual Information Statement → Enter the figures below → Click Reconcile to see mismatches.
+    </div>
+
+    <!-- Input grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;" id="rec26inputs">
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">📄 As per Form 26AS / AIS</div>
+        <div style="display:grid;gap:8px;">
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS from Salary / Employer (₹)</label>
+            <input type="number" id="r26Salary" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS on FD / Bank Interest (₹)</label>
+            <input type="number" id="r26FD" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS on Dividend (₹)</label>
+            <input type="number" id="r26Div" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Securities Sale Proceeds (₹)</label>
+            <input type="number" id="r26Proceeds" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Total TDS as per 26AS (₹)</label>
+            <input type="number" id="r26TotalTDS" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Total Interest Income in AIS (₹)</label>
+            <input type="number" id="r26Interest" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+        </div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">📊 As per Your Records / WealthDash</div>
+        <div style="display:grid;gap:8px;">
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS from Salary (as per Form 16) (₹)</label>
+            <input type="number" id="rWDSalary" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS on FD (from your FD records) (₹)</label>
+            <input type="number" id="rWDFD" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">TDS on Dividend (from broker) (₹)</label>
+            <input type="number" id="rWDDiv" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Actual Sale Proceeds (from broker) (₹)</label>
+            <input type="number" id="rWDProceeds" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Total TDS You Have Records Of (₹)</label>
+            <input type="number" id="rWDTotalTDS" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+          <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Actual Interest Income (₹)</label>
+            <input type="number" id="rWDInterest" placeholder="0" value="0" class="rec26-inp" oninput="Rec26AS.reconcile()"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rec26Result" style="display:none;"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">
+      ⚠️ <strong>Action needed if mismatch &gt; ₹100:</strong> Raise grievance on IT portal or contact TDS deductor before filing ITR. Excess TDS → refund; shortfall → penalty.
+    </div>
+  </div>
+</div>
+
+<style>
+.rec26-inp { width:100%;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg);color:var(--text-primary);box-sizing:border-box; }
+.rec26-row { display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px; }
+.rec26-row:last-child { border-bottom:none; }
+.mismatch-badge { display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700; }
+.mismatch-ok { background:rgba(22,163,74,.12);color:#15803d; }
+.mismatch-warn { background:rgba(234,179,8,.15);color:#854d0e; }
+.mismatch-danger { background:rgba(220,38,38,.12);color:#b91c1c; }
+</style>
+
+<script>
+const Rec26AS = (() => {
+  const INR = v => { v = +v||0; const a=Math.abs(v); const s=v<0?'-':''; if(a>=1e7)return s+'₹'+(a/1e7).toFixed(2)+'Cr'; if(a>=1e5)return s+'₹'+(a/1e5).toFixed(1)+'L'; return s+'₹'+a.toLocaleString('en-IN',{maximumFractionDigits:0}); };
+  const V = id => parseFloat(document.getElementById(id)?.value)||0;
+
+  function reconcile() {
+    const fields = [
+      { label: 'TDS — Salary / Employer',      f26: V('r26Salary'),   wd: V('rWDSalary') },
+      { label: 'TDS — FD / Bank Interest',      f26: V('r26FD'),       wd: V('rWDFD') },
+      { label: 'TDS — Dividend',                f26: V('r26Div'),      wd: V('rWDDiv') },
+      { label: 'Securities Sale Proceeds',      f26: V('r26Proceeds'), wd: V('rWDProceeds') },
+      { label: 'Total TDS Deducted',            f26: V('r26TotalTDS'), wd: V('rWDTotalTDS') },
+      { label: 'Interest Income',               f26: V('r26Interest'), wd: V('rWDInterest') },
+    ];
+
+    const hasData = fields.some(f => f.f26 > 0 || f.wd > 0);
+    const res = document.getElementById('rec26Result');
+    if (!hasData) { res.style.display='none'; return; }
+
+    let rows = '';
+    let totalMismatch = 0;
+    fields.forEach(f => {
+      const diff = f.f26 - f.wd;
+      const adiff = Math.abs(diff);
+      totalMismatch += adiff;
+      const cls = adiff === 0 ? 'mismatch-ok' : adiff < 500 ? 'mismatch-warn' : 'mismatch-danger';
+      const icon = adiff === 0 ? '✅ Match' : (diff > 0 ? `⚠️ 26AS higher by ${INR(adiff)}` : `⚠️ Your records higher by ${INR(adiff)}`);
+      rows += `<div class="rec26-row">
+        <span>${f.label}</span>
+        <span style="text-align:right;">${INR(f.f26)}</span>
+        <span style="text-align:right;">${INR(f.wd)}</span>
+        <span><span class="mismatch-badge ${cls}">${icon}</span></span>
+      </div>`;
+    });
+
+    const overallCls = totalMismatch === 0 ? 'mismatch-ok' : totalMismatch < 1000 ? 'mismatch-warn' : 'mismatch-danger';
+    const tdsCredit = V('r26TotalTDS');
+    res.style.display = '';
+    res.innerHTML = `
+      <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <div class="rec26-row" style="background:var(--bg-secondary);font-weight:700;font-size:11px;text-transform:uppercase;color:var(--text-muted);">
+          <span>Item</span><span style="text-align:right;">Form 26AS / AIS</span><span style="text-align:right;">Your Records</span><span>Status</span>
+        </div>
+        ${rows}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">TDS Credit Available</div>
+          <div style="font-size:18px;font-weight:800;color:#16a34a;">${INR(tdsCredit)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Deduct from tax payable in ITR</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Mismatch</div>
+          <div style="font-size:18px;font-weight:800;" class="${overallCls.replace('mismatch-','')==='ok'?'':'tax-red'}">${INR(totalMismatch)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${totalMismatch===0?'✅ All matched':'Needs resolution before ITR'}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">ITR Pre-fill Status</div>
+          <div style="font-size:16px;font-weight:800;">${totalMismatch===0?'✅ Ready':'⚠️ Resolve First'}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${totalMismatch===0?'26AS data matches your records':'Fix mismatches before submitting ITR'}</div>
+        </div>
+      </div>
+      ${totalMismatch > 0 ? `<div style="margin-top:12px;padding:10px 14px;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.3);border-radius:8px;font-size:12px;">
+        <strong>📌 Action Steps:</strong><br>
+        1. Log in to <a href="https://www.incometax.gov.in" target="_blank" style="color:var(--accent);">incometax.gov.in</a> → AIS → feedback → mark incorrect/not applicable<br>
+        2. Contact the TDS deductor (employer/bank) to correct their TDS filing (TRACES)<br>
+        3. If 26AS shows more TDS than you received credit → check with deductor<br>
+        4. Deadline to update AIS feedback: before ITR filing date
+      </div>` : ''}
+    `;
+  }
+  return { reconcile };
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t440 — Capital Gains Optimizer — Minimize Tax This FY
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="cardCGOptimizer">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title">⚡ Capital Gains Optimizer — Minimize Tax This FY</h3>
+      <small class="text-secondary">LTCG harvest · STCG deferral · Loss set-off · Action plan ranked by tax saving</small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-primary" id="cgoLoadBtn" onclick="CGO.load()">⟳ Load Opportunities</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="cgoLoading" style="display:none;text-align:center;padding:30px;color:var(--text-muted);">Analysing your portfolio for tax saving opportunities…</div>
+    <div id="cgoEmpty" style="text-align:center;padding:40px;color:var(--text-muted);font-size:14px;">↑ Click <strong>Load Opportunities</strong> to analyse your portfolio</div>
+    <div id="cgoResult" style="display:none;"></div>
+
+    <!-- Manual override for quick scenario testing -->
+    <details style="margin-top:16px;">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text-muted);user-select:none;">⚙️ Manual Scenario — Test with custom values</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px;padding:14px;background:var(--bg-secondary);border-radius:8px;">
+        <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">LTCG Realised So Far (₹)</label>
+          <input type="number" id="cgoManualLTCG" placeholder="0" value="0" class="rec26-inp" oninput="CGO.calcManual()"></div>
+        <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Unrealised LTCG in Portfolio (₹)</label>
+          <input type="number" id="cgoManualUnreal" placeholder="0" value="0" class="rec26-inp" oninput="CGO.calcManual()"></div>
+        <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">STCG This FY (₹)</label>
+          <input type="number" id="cgoManualSTCG" placeholder="0" value="0" class="rec26-inp" oninput="CGO.calcManual()"></div>
+        <div><label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Capital Losses (₹)</label>
+          <input type="number" id="cgoManualLoss" placeholder="0" value="0" class="rec26-inp" oninput="CGO.calcManual()"></div>
+      </div>
+      <div id="cgoManualResult" style="margin-top:10px;"></div>
+    </details>
+  </div>
+</div>
+
+<style>
+.cgo-action { display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-secondary); }
+.cgo-action .cgo-rank { width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0; }
+.cgo-action .cgo-body { flex:1; }
+.cgo-action .cgo-title { font-size:13px;font-weight:700;margin-bottom:3px; }
+.cgo-action .cgo-desc { font-size:12px;color:var(--text-muted); }
+.cgo-action .cgo-saving { font-size:14px;font-weight:800;color:#16a34a; }
+</style>
+
+<script>
+const CGO = (() => {
+  const INR = v => { v=+v||0; const a=Math.abs(v),s=v<0?'-':''; if(a>=1e7)return s+'₹'+(a/1e7).toFixed(2)+'Cr'; if(a>=1e5)return s+'₹'+(a/1e5).toFixed(1)+'L'; return s+'₹'+a.toLocaleString('en-IN',{maximumFractionDigits:0}); };
+  const V = id => parseFloat(document.getElementById(id)?.value)||0;
+  const EXEMPTION = 125000;
+
+  function renderResult(ltcgRealised, exemptRemaining, harvestPlan, totalSaving, source='portfolio') {
+    const el = document.getElementById(source==='manual'?'cgoManualResult':'cgoResult');
+    const exemptUsed = Math.min(ltcgRealised, EXEMPTION);
+    const pct = Math.min(100, (ltcgRealised/EXEMPTION)*100);
+    const barColor = pct<60?'#16a34a':pct<90?'#f59e0b':'#dc2626';
+
+    let actionsHtml = '';
+    const colors = ['#6366f1','#3b82f6','#10b981','#f59e0b','#8b5cf6'];
+    harvestPlan.forEach((h, i) => {
+      actionsHtml += `<div class="cgo-action">
+        <div class="cgo-rank" style="background:${colors[i%colors.length]}22;color:${colors[i%colors.length]};">#${i+1}</div>
+        <div class="cgo-body">
+          <div class="cgo-title">${h.fund_name || h.label}</div>
+          <div class="cgo-desc">${h.action || h.desc}</div>
+        </div>
+        <div class="cgo-saving">Save ${INR(h.tax_saving_vs_later||h.saving||0)}</div>
+      </div>`;
+    });
+
+    el.style.display = '';
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">LTCG Realised</div>
+          <div style="font-size:18px;font-weight:800;">${INR(ltcgRealised)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Exemption Left</div>
+          <div style="font-size:18px;font-weight:800;color:#16a34a;">${INR(exemptRemaining)}</div>
+        </div>
+        <div style="background:rgba(22,163,74,.07);border:1.5px solid #86efac;border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Total Tax Saving Possible</div>
+          <div style="font-size:18px;font-weight:800;color:#16a34a;">${INR(totalSaving)}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span>LTCG Exemption Used (₹1,25,000)</span><span><strong>${INR(exemptUsed)}</strong> of ${INR(EXEMPTION)}</span>
+        </div>
+        <div style="height:10px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .6s;"></div>
+        </div>
+      </div>
+      ${harvestPlan.length > 0 ? `
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">🎯 Action Plan — Ranked by Tax Saving</div>
+        ${actionsHtml}
+        <div style="font-size:12px;color:var(--text-muted);padding:10px 14px;background:rgba(99,102,241,.05);border-radius:8px;margin-top:8px;">
+          💡 <strong>Harvest & Reinvest Strategy:</strong> Redeem → same day reinvest in same fund → cost basis resets to higher NAV → future LTCG reduces. Zero exit tax if within ₹1.25L exemption.
+        </div>
+      ` : '<div style="padding:16px;text-align:center;color:#16a34a;font-weight:700;">✅ No harvest opportunities — exemption fully utilised or no eligible holdings.</div>'}
+    `;
+  }
+
+  async function load() {
+    document.getElementById('cgoEmpty').style.display = 'none';
+    document.getElementById('cgoResult').style.display = 'none';
+    document.getElementById('cgoLoading').style.display = '';
+    try {
+      const resp = await fetch('/api/tax/capital_gains.php?action=tax_capital_gains_optimize');
+      const data = await resp.json();
+      document.getElementById('cgoLoading').style.display = 'none';
+      if (!data.success) throw new Error(data.message);
+      const d = data.data;
+      renderResult(d.ltcg_realised_so_far, d.exemption_remaining, d.harvest_opportunities||[], d.total_tax_saving||0);
+    } catch(e) {
+      document.getElementById('cgoLoading').style.display = 'none';
+      document.getElementById('cgoResult').style.display = '';
+      document.getElementById('cgoResult').innerHTML = `<div style="color:#dc2626;padding:12px;background:rgba(220,38,38,.05);border-radius:8px;">⚠️ ${e.message}</div>`;
+    }
+  }
+
+  function calcManual() {
+    const ltcgRealised = V('cgoManualLTCG');
+    const unreal       = V('cgoManualUnreal');
+    const stcg         = V('cgoManualSTCG');
+    const loss         = V('cgoManualLoss');
+    const exemptRemaining = Math.max(0, EXEMPTION - ltcgRealised);
+    const harvestable  = Math.min(unreal, exemptRemaining);
+    const taxSaving    = harvestable * 0.125;
+
+    const plan = [];
+    if (harvestable > 0) {
+      plan.push({ fund_name: 'Unrealised Equity LTCG in Portfolio', action: `Harvest ${INR(harvestable)} → reinvest → cost basis resets → save ${INR(taxSaving)} in tax later`, tax_saving_vs_later: taxSaving });
+    }
+    if (loss > 0 && stcg > 0) {
+      const setoff = Math.min(loss, stcg);
+      plan.push({ fund_name: 'Loss Set-Off Against STCG', action: `Set off ${INR(setoff)} of losses against STCG → saves ${INR(setoff * 0.20)} in STCG tax`, tax_saving_vs_later: setoff * 0.20 });
+    }
+    if (stcg > 50000 && new Date().getMonth() >= 11) {
+      plan.push({ fund_name: 'Defer STCG to Next FY', action: 'You are in Dec-Mar window — consider deferring redemptions to next FY to defer ₹'+INR(stcg*0.20)+' STCG tax by 1 year', tax_saving_vs_later: stcg * 0.02 });
+    }
+
+    renderResult(ltcgRealised, exemptRemaining, plan, plan.reduce((s,p)=>s+(p.tax_saving_vs_later||0),0), 'manual');
+  }
+
+  return { load, calcManual };
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t441 — Advance Tax Planner — Full Quarterly Estimates
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="card mb-4" id="cardAdvTaxPlanner">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title">📅 Advance Tax Planner — Quarterly Estimates</h3>
+      <small class="text-secondary">Section 207–209 · Penalty 234B/234C · Auto-compute from portfolio</small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span class="badge badge-warning" id="atpNextDueBadge" style="display:none;"></span>
+      <button class="btn btn-secondary" onclick="ATP.autoFill()">🔄 Auto-fill from Portfolio</button>
+      <button class="btn btn-primary" onclick="ATP.calc()">Calculate</button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div style="background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;">
+      💡 <strong>Who must pay Advance Tax?</strong> Anyone with estimated tax liability &gt; ₹10,000 after TDS. Senior citizens (75+) with only pension/FD income are exempt.
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Estimated Annual Salary (₹)</label>
+        <input type="number" id="atpSalary" placeholder="1200000" value="" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Business / Freelance Income (₹)</label>
+        <input type="number" id="atpBusiness" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">LTCG — Equity (₹)</label>
+        <input type="number" id="atpLTCG" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">STCG — Equity (₹)</label>
+        <input type="number" id="atpSTCG" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Interest / FD Income (₹)</label>
+        <input type="number" id="atpInterest" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">TDS Already Deducted (₹)</label>
+        <input type="number" id="atpTDS" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">80C / 80D / Other Deductions (₹)</label>
+        <input type="number" id="atpDeductions" placeholder="150000" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Tax Regime</label>
+        <select id="atpRegime" class="rec26-inp" onchange="ATP.calc()">
+          <option value="new">New Regime (default)</option>
+          <option value="old">Old Regime</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Advance Tax Already Paid (₹)</label>
+        <input type="number" id="atpAlreadyPaid" placeholder="0" value="0" class="rec26-inp" oninput="ATP.calc()">
+      </div>
+    </div>
+
+    <div id="atpResult" style="display:none;"></div>
+    <div id="atpEmpty" style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;">Enter your income details above and click <strong>Calculate</strong></div>
+  </div>
+</div>
+
+<script>
+const ATP = (() => {
+  const INR = v => { v=+v||0; const a=Math.abs(v),s=v<0?'-':''; if(a>=1e7)return s+'₹'+(a/1e7).toFixed(2)+'Cr'; if(a>=1e5)return s+'₹'+(a/1e5).toFixed(1)+'L'; return s+'₹'+a.toLocaleString('en-IN',{maximumFractionDigits:0}); };
+  const V = id => parseFloat(document.getElementById(id)?.value)||0;
+
+  function taxSlab(income, regime) {
+    if (regime === 'new') {
+      // New regime FY2024-25+
+      if (income <= 300000) return 0;
+      if (income <= 700000) return (income-300000)*0.05;
+      if (income <= 1000000) return 20000+(income-700000)*0.10;
+      if (income <= 1200000) return 50000+(income-1000000)*0.15;
+      if (income <= 1500000) return 80000+(income-1200000)*0.20;
+      return 140000+(income-1500000)*0.30;
+    }
+    // Old regime
+    if (income <= 250000) return 0;
+    if (income <= 500000) return (income-250000)*0.05;
+    if (income <= 1000000) return 12500+(income-500000)*0.20;
+    return 112500+(income-1000000)*0.30;
+  }
+
+  function rebate87A(tax, income, regime) {
+    // Rebate u/s 87A: if total income ≤ 7L (new) or 5L (old), tax=0
+    if (regime==='new' && income<=700000) return 0;
+    if (regime==='old' && income<=500000) return 0;
+    return tax;
+  }
+
+  function calc() {
+    const salary     = V('atpSalary');
+    const business   = V('atpBusiness');
+    const ltcg       = V('atpLTCG');
+    const stcg       = V('atpSTCG');
+    const interest   = V('atpInterest');
+    const tds        = V('atpTDS');
+    const dedn       = V('atpDeductions');
+    const regime     = document.getElementById('atpRegime')?.value || 'new';
+    const alreadyPaid= V('atpAlreadyPaid');
+
+    if (!salary && !business && !ltcg && !stcg && !interest) {
+      document.getElementById('atpResult').style.display = 'none';
+      document.getElementById('atpEmpty').style.display = '';
+      return;
+    }
+    document.getElementById('atpEmpty').style.display = 'none';
+
+    const stdDedn   = regime === 'new' ? 75000 : 50000;
+    const slabIncome = Math.max(0, salary + business + interest - stdDedn - (regime==='old'?dedn:0));
+    let slabTax      = taxSlab(slabIncome, regime);
+    slabTax          = rebate87A(slabTax, slabIncome, regime);
+
+    const ltcgTaxable = Math.max(0, ltcg - 125000);
+    const ltcgTax     = ltcgTaxable * 0.125;
+    const stcgTax     = stcg * 0.20;
+    const totalTax    = slabTax + ltcgTax + stcgTax;
+    const cess        = totalTax * 0.04;
+    const grossTax    = totalTax + cess;
+    const netDue      = Math.max(0, grossTax - tds - alreadyPaid);
+
+    const today = new Date();
+    const fy    = today.getMonth()+1 >= 4 ? today.getFullYear() : today.getFullYear()-1;
+    const quarters = [
+      {q:'Q1',name:'Jun 15',  deadline:new Date(fy,5,15),  cumPct:0.15},
+      {q:'Q2',name:'Sep 15',  deadline:new Date(fy,8,15),  cumPct:0.45},
+      {q:'Q3',name:'Dec 15',  deadline:new Date(fy,11,15), cumPct:0.75},
+      {q:'Q4',name:'Mar 15',  deadline:new Date(fy+1,2,15),cumPct:1.00},
+    ];
+
+    const nextQ = quarters.find(q => q.deadline >= today);
+    const badge = document.getElementById('atpNextDueBadge');
+    if (nextQ && badge) {
+      const days = Math.ceil((nextQ.deadline - today)/86400000);
+      badge.style.display = '';
+      badge.textContent = `Next: ${nextQ.name} — ${days} days`;
+      badge.className = 'badge ' + (days<=14?'badge-danger':days<=30?'badge-warning':'badge-info');
+    }
+
+    // 234C penalty if net due > 10000
+    let penaltyNote = '';
+    if (netDue > 10000) {
+      const penalty234C = netDue * 0.01 * 3; // approx 3 months
+      penaltyNote = `<div style="margin-top:10px;padding:10px 14px;background:rgba(220,38,38,.06);border:1px solid #fca5a5;border-radius:8px;font-size:12px;">
+        ⚠️ <strong>Section 234C Interest:</strong> If quarterly advance tax not paid on time, interest @1%/month on shortfall.
+        Estimated penalty if no advance tax paid: approx <strong>${INR(penalty234C)}</strong> (3 months @1%).<br>
+        <strong>Section 234B:</strong> If &lt;90% paid by Mar 31, additional 1%/month from Apr 1 to assessment date.
+      </div>`;
+    }
+
+    let qRows = quarters.map((q,i) => {
+      const prevPct = i>0?quarters[i-1].cumPct:0;
+      const installment = Math.max(0, netDue * (q.cumPct - prevPct));
+      const cumDue = netDue * q.cumPct;
+      const past = q.deadline < today;
+      const isNext = !past && q === nextQ;
+      return `<tr style="border-bottom:1px solid var(--border);${isNext?'background:rgba(99,102,241,.05);font-weight:700;':''}${past?'opacity:.6;':''}">
+        <td style="padding:9px 12px;">${q.q}${isNext?' ←':''}${past?' ✓':''}</td>
+        <td style="padding:9px 12px;">${q.name}</td>
+        <td style="padding:9px 12px;text-align:right;">${(q.cumPct*100).toFixed(0)}%</td>
+        <td style="padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums;">${INR(installment)}</td>
+        <td style="padding:9px 12px;text-align:right;font-variant-numeric:tabular-nums;">${INR(cumDue)}</td>
+        <td style="padding:9px 12px;text-align:center;">${past?'<span style="color:#16a34a;">Past</span>':isNext?'<span style="background:#6366f1;color:#fff;padding:2px 10px;border-radius:99px;font-size:11px;">Next Due</span>':'<span style="color:var(--text-muted);">Upcoming</span>'}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('atpResult').style.display = '';
+    document.getElementById('atpResult').innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Slab Tax (income)</div>
+          <div style="font-size:16px;font-weight:800;">${INR(slabTax)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">LTCG Tax (12.5%)</div>
+          <div style="font-size:16px;font-weight:800;">${INR(ltcgTax)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">STCG Tax (20%)</div>
+          <div style="font-size:16px;font-weight:800;">${INR(stcgTax)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Cess (4%)</div>
+          <div style="font-size:16px;font-weight:800;">${INR(cess)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Gross Tax Liability</div>
+          <div style="font-size:16px;font-weight:800;">${INR(grossTax)}</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">TDS Credit</div>
+          <div style="font-size:16px;font-weight:800;color:#16a34a;">${INR(tds + alreadyPaid)}</div>
+        </div>
+        <div style="background:${netDue>0?'rgba(220,38,38,.07)':'rgba(22,163,74,.07)'};border:1.5px solid ${netDue>0?'#fca5a5':'#86efac'};border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">${netDue>0?'Advance Tax Due':'No Advance Tax!'}</div>
+          <div style="font-size:18px;font-weight:800;color:${netDue>0?'#dc2626':'#16a34a'};">${netDue>0?INR(netDue):'NIL ✅'}</div>
+        </div>
+      </div>
+
+      ${netDue > 10000 ? `
+      <div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px;">
+        <div style="background:var(--bg-secondary);padding:10px 12px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);">📅 Quarterly Advance Tax Schedule</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead><tr style="border-bottom:1px solid var(--border);background:var(--bg-secondary);">
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-muted);">Quarter</th>
+            <th style="padding:8px 12px;text-align:left;font-size:11px;color:var(--text-muted);">Due Date</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--text-muted);">Cumul %</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--text-muted);">Instalment</th>
+            <th style="padding:8px 12px;text-align:right;font-size:11px;color:var(--text-muted);">Cumul Due</th>
+            <th style="padding:8px 12px;text-align:center;font-size:11px;color:var(--text-muted);">Status</th>
+          </tr></thead>
+          <tbody>${qRows}</tbody>
+        </table>
+      </div>
+      ` : '<div style="padding:14px;text-align:center;color:#16a34a;font-weight:700;font-size:13px;">✅ Advance tax not applicable (liability ≤ ₹10,000 or fully covered by TDS)</div>'}
+
+      ${penaltyNote}
+
+      <div style="font-size:12px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;margin-top:12px;">
+        <strong>How to pay Advance Tax:</strong> Go to <a href="https://www.incometax.gov.in" target="_blank" style="color:var(--accent);">incometax.gov.in</a> → e-Pay Tax → Challan 280 → Select "Advance Tax (100)" → Pay online via net banking / UPI.
+        Save the BSR code and challan number for ITR filing.
+      </div>
+    `;
+  }
+
+  async function autoFill() {
+    try {
+      const resp = await fetch('/api/tax/capital_gains.php?action=tax_summary');
+      const data = await resp.json();
+      if (data.success && data.data) {
+        const d = data.data;
+        const el = id => document.getElementById(id);
+        if (el('atpLTCG'))    el('atpLTCG').value    = d.equity_ltcg || 0;
+        if (el('atpSTCG'))    el('atpSTCG').value    = d.equity_stcg || 0;
+        calc();
+      }
+    } catch(e) {}
+  }
+
+  return { calc, autoFill };
+})();
+</script>
+
+<div class="card mb-4" id="cardTaxComp">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title">🧾 Tax Computation Sheet</h3>
+      <small class="text-secondary">CA-ready statement · WealthDash tracked assets only</small>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" class="no-print">
+      <select id="tcAY" class="form-select" style="width:130px;">
+        <option value="2026-27">AY 2026-27</option>
+        <option value="2025-26">AY 2025-26</option>
+        <option value="2024-25">AY 2024-25</option>
+      </select>
+      <button class="btn btn-secondary" onclick="TC.load()">⟳ Load</button>
+      <button class="btn btn-primary no-print" onclick="TC.print()">🖨 Print / PDF</button>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <!-- ── Personal Details ── -->
+    <div id="tcPersonal" style="display:none;margin-bottom:20px;padding:14px 16px;background:var(--bg-secondary);border-radius:8px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;align-items:end;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Name</div>
+          <div id="tcName" style="font-size:14px;font-weight:700;"></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">PAN</div>
+          <input id="tcPAN" class="form-control" style="font-size:13px;max-width:160px;text-transform:uppercase;letter-spacing:2px;" placeholder="ABCDE1234F" maxlength="10">
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Assessment Year</div>
+          <div id="tcAYDisplay" style="font-size:14px;font-weight:700;"></div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Statement Date</div>
+          <div id="tcDate" style="font-size:13px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading / Empty ── -->
+    <div id="tcEmpty" style="text-align:center;padding:48px;color:var(--text-muted);">
+      <div style="font-size:32px;margin-bottom:8px;">🧾</div>
+      <div style="font-size:14px;font-weight:600;">Select AY and click Load</div>
+      <div style="font-size:12px;margin-top:4px;">Pulls data from Schedule 112A, FY Gains &amp; 80C Dashboard</div>
+    </div>
+    <div id="tcLoading" style="display:none;text-align:center;padding:48px;">
+      <div style="font-size:14px;font-weight:600;color:var(--text-muted);">⏳ Fetching tax data…</div>
+    </div>
+
+    <!-- ── Main Table ── -->
+    <div id="tcTableWrap" style="display:none;">
+
+      <!-- Print header (hidden on screen) -->
+      <div class="print-only" style="text-align:center;margin-bottom:18px;border-bottom:2px solid #000;padding-bottom:12px;">
+        <div style="font-size:18px;font-weight:800;">TAX COMPUTATION SHEET</div>
+        <div style="font-size:13px;margin-top:4px;">Assessment Year: <span id="tcAYPrint"></span> &nbsp;|&nbsp; Generated by WealthDash</div>
+        <div style="font-size:12px;margin-top:2px;">Name: <span id="tcNamePrint"></span> &nbsp;|&nbsp; PAN: <span id="tcPANPrint"></span> &nbsp;|&nbsp; Date: <span id="tcDatePrint"></span></div>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table id="tblTaxComp" style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:var(--bg-secondary);">
+              <th style="text-align:left;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Particulars</th>
+              <th style="text-align:right;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;width:160px;">Amount (₹)</th>
+              <th style="text-align:right;padding:10px 12px;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;width:160px;">Net (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="tcTbody"></tbody>
+        </table>
+      </div>
+
+      <!-- TDS + Advance Tax inputs -->
+      <div style="margin-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;" id="tcInputsWrap">
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">TDS Deducted (₹)</label>
+          <input type="number" id="tcTDS" class="form-control" placeholder="0" min="0" step="1" oninput="TC.recalc()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">As per Form 26AS / AIS</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">Advance Tax Paid (₹)</label>
+          <input type="number" id="tcAdvTax" class="form-control" placeholder="0" min="0" step="1" oninput="TC.recalc()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Total paid across all installments</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:14px;">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);display:block;margin-bottom:6px;">Self-Assessment Tax (₹)</label>
+          <input type="number" id="tcSAT" class="form-control" placeholder="0" min="0" step="1" oninput="TC.recalc()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Challan 280 payments</div>
+        </div>
+      </div>
+
+      <!-- Net payable/refund -->
+      <div id="tcNetWrap" style="margin-top:14px;padding:16px 20px;border-radius:10px;border:2px solid;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div id="tcNetLabel" style="font-size:13px;font-weight:700;"></div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">After TDS + Advance Tax + Self-Assessment Tax</div>
+        </div>
+        <div id="tcNetAmt" style="font-size:26px;font-weight:900;"></div>
+      </div>
+
+      <!-- Disclaimer -->
+      <div style="margin-top:16px;padding:10px 14px;background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.25);border-radius:7px;font-size:11.5px;color:var(--text-secondary);line-height:1.6;">
+        ⚠️ <strong>Disclaimer:</strong> This is a computer-generated estimate based on data entered in WealthDash.
+        It covers only investment income tracked in this app (MF, stocks, FD). Salary, house property, business income &amp; other sources are <em>not</em> included.
+        Tax rates used: LTCG equity 12.5%, STCG equity 20% (post Budget Jul 2024), Cess 4%.
+        <strong>Verify all figures with your Chartered Accountant before filing ITR.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── t377: Tax Computation Sheet ─────────────────────────────────────────
+const TC = (() => {
+  const INR = v => {
+    const n = Math.abs(Number(v)||0);
+    return '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:0});
+  };
+
+  // AY → FY mapping
+  const ayToFy = ay => {
+    const [s] = ay.split('-');
+    const yr = parseInt(s) - 1;
+    return `${yr}-${String(yr-1999).padStart(2,'0')}`;
+  };
+
+  let _state = null; // last loaded data
+
+  async function load() {
+    const ay = document.getElementById('tcAY').value;
+    const fy = ayToFy(ay);
+
+    document.getElementById('tcEmpty').style.display   = 'none';
+    document.getElementById('tcLoading').style.display = 'block';
+    document.getElementById('tcTableWrap').style.display = 'none';
+    document.getElementById('tcPersonal').style.display  = 'none';
+
+    try {
+      const BASE = window.APP_URL || window.WD?.appUrl || '';
+      const [r112, rFY, r80C] = await Promise.all([
+        fetch(`${BASE}/api/reports/fy_gains.php?action=schedule_112a&fy=${fy}`).then(r=>r.json()),
+        fetch(`${BASE}/api/reports/fy_gains.php?action=fy_gains&fy=${fy}`).then(r=>r.json()),
+        fetch(`${BASE}/api/reports/tax_planning.php?action=calc_80c_dashboard&fy=${fy}`).then(r=>r.json()),
+      ]);
+
+      document.getElementById('tcLoading').style.display = 'none';
+
+      const s112 = (r112.success && r112.summary) ? r112.summary : {};
+      const sFY  = (rFY.success  && rFY.summary)  ? rFY.summary  : {};
+      const s80C = (r80C.success) ? r80C : {};
+
+      // LTCG equity (post-Budget 2024: 12.5%, exempt ₹1.25L)
+      const ltcgGross    = Number(s112.ltcg_total    || sFY.ltcg_total    || 0);
+      const ltcgExempt   = Math.min(ltcgGross, 125000);
+      const ltcgTaxable  = Math.max(0, ltcgGross - ltcgExempt);
+      const ltcgTax      = ltcgTaxable * 0.125;
+
+      // STCG equity (20%)
+      const stcgGross    = Number(s112.stcg_total    || sFY.stcg_total    || 0);
+      const stcgTax      = Math.max(0, stcgGross) * 0.20;
+
+      // Debt fund gains (if sFY has debt gains — flat slab rate, shown as note)
+      const debtGain     = Number(sFY.debt_gain || 0);
+
+      // 80C deductions
+      const dedn80C      = Math.min(Number(s80C.total_80c || s80C.elss_amount || 0), 150000);
+      const dedn80CCD    = Math.min(Number(s80C.nps_80ccd1b || 0), 50000);
+      const totalDedn    = dedn80C + dedn80CCD;
+
+      // Gross investment income
+      const grossIncome  = ltcgGross + stcgGross + debtGain;
+
+      // Tax before cess
+      const taxBeforeCess = ltcgTax + stcgTax;
+      // Cess 4% on tax (not on income)
+      const cess          = taxBeforeCess * 0.04;
+      const totalTaxLiab  = taxBeforeCess + cess;
+
+      _state = { ltcgGross, ltcgExempt, ltcgTaxable, ltcgTax, stcgGross, stcgTax, debtGain, dedn80C, dedn80CCD, totalDedn, grossIncome, taxBeforeCess, cess, totalTaxLiab, ay, fy };
+
+      // Personal details
+      const userName = window.WD?.userName || '<?= htmlspecialchars($currentUser['name'] ?? '') ?>';
+      document.getElementById('tcName').textContent    = userName || '—';
+      document.getElementById('tcNamePrint').textContent = userName || '—';
+      document.getElementById('tcAYDisplay').textContent = `AY ${ay}`;
+      document.getElementById('tcAYPrint').textContent   = `AY ${ay}`;
+      const today = new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'});
+      document.getElementById('tcDate').textContent    = today;
+      document.getElementById('tcDatePrint').textContent = today;
+
+      document.getElementById('tcPersonal').style.display  = '';
+      document.getElementById('tcTableWrap').style.display = '';
+
+      renderTable();
+      recalc();
+
+    } catch(e) {
+      document.getElementById('tcLoading').style.display = 'none';
+      document.getElementById('tcEmpty').style.display   = '';
+      document.getElementById('tcEmpty').innerHTML = `<div style="color:#dc2626;font-size:13px;">Error: ${e.message}</div>`;
+    }
+  }
+
+  function row(label, amt, net, cls = '') {
+    const amtCell = amt !== null ? `<td class="amt">${amt !== '' ? INR(amt) : ''}</td>` : '<td></td>';
+    const netCell = net !== null ? `<td class="amt" style="font-weight:600;">${net !== '' ? INR(net) : ''}</td>` : '<td></td>';
+    return `<tr class="${cls}"><td class="${cls.includes('indent') ? 'indent' : ''}">${label}</td>${amtCell}${netCell}</tr>`;
+  }
+  function sectionRow(label) {
+    return `<tr class="row-section"><td colspan="3" style="padding:10px 12px;font-size:11px;">${label}</td></tr>`;
+  }
+  function blankRow() { return `<tr><td colspan="3" style="padding:4px;border:none;"></td></tr>`; }
+
+  function renderTable() {
+    if (!_state) return;
+    const s = _state;
+    let html = '';
+
+    // A — Capital Gains Income
+    html += sectionRow('A. INCOME FROM CAPITAL GAINS (Investment Assets)');
+    html += row('Long-Term Capital Gains — Equity MF / Stocks (LTCG)',      s.ltcgGross, '', 'indent');
+    html += row('Less: LTCG Exemption u/s 112A (₹1,25,000)',               s.ltcgExempt !== 0 ? -s.ltcgExempt : 0, '', 'indent');
+    html += row('<strong>Taxable LTCG</strong>',                             '', s.ltcgTaxable, 'indent row-total');
+    html += row('Short-Term Capital Gains — Equity MF / Stocks (STCG)',    s.stcgGross,  '', 'indent');
+    html += row('<strong>Taxable STCG</strong>',                             '', Math.max(0,s.stcgGross), 'indent row-total');
+    if (s.debtGain) {
+      html += row('Debt Fund Gains (taxed at slab rate)',                   s.debtGain, '', 'indent');
+    }
+    html += row('<strong>Gross Total Income (from investments)</strong>',    '', s.grossIncome, 'row-total');
+    html += blankRow();
+
+    // B — Deductions
+    html += sectionRow('B. DEDUCTIONS');
+    html += row('80C — ELSS / PPF / LIC / EPF (max ₹1,50,000)',           s.dedn80C,   '', 'indent');
+    if (s.dedn80CCD) {
+      html += row('80CCD(1B) — NPS (additional, max ₹50,000)',             s.dedn80CCD, '', 'indent');
+    }
+    html += row('<strong>Total Deductions</strong>',                         '', s.totalDedn, 'row-total');
+    html += blankRow();
+
+    // C — Tax Computation
+    html += sectionRow('C. TAX COMPUTATION');
+    html += row('Tax on LTCG @ 12.5% (post Budget Jul 2024, u/s 112A)',   s.ltcgTax,  '', 'indent');
+    html += row('Tax on STCG @ 20% (post Budget Jul 2024, u/s 111A)',     s.stcgTax,  '', 'indent');
+    html += row('<strong>Total Tax Before Cess</strong>',                   '', s.taxBeforeCess, 'row-total');
+    html += row('Health &amp; Education Cess @ 4%',                        s.cess,     '', 'indent');
+    html += row('<strong>Gross Tax Liability</strong>',                     '', s.totalTaxLiab, 'row-total');
+    html += blankRow();
+
+    // D — Tax Credits (dynamic, rendered in recalc)
+    html += sectionRow('D. TAX CREDITS &amp; PAYMENTS');
+    html += `<tr id="tcRowTDS"><td class="indent">TDS Deducted (Form 26AS / AIS)</td><td class="amt" id="tcTDSAmt">₹0</td><td></td></tr>`;
+    html += `<tr id="tcRowAdv"><td class="indent">Advance Tax Paid</td><td class="amt" id="tcAdvAmt">₹0</td><td></td></tr>`;
+    html += `<tr id="tcRowSAT"><td class="indent">Self-Assessment Tax Paid (Challan 280)</td><td class="amt" id="tcSATAmt">₹0</td><td></td></tr>`;
+    html += `<tr class="row-total"><td><strong>Total Credits</strong></td><td></td><td class="amt" id="tcCreditsNet">₹0</td></tr>`;
+
+    document.getElementById('tcTbody').innerHTML = html;
+  }
+
+  function recalc() {
+    if (!_state) return;
+    const tds    = Number(document.getElementById('tcTDS')?.value)    || 0;
+    const adv    = Number(document.getElementById('tcAdvTax')?.value) || 0;
+    const sat    = Number(document.getElementById('tcSAT')?.value)    || 0;
+    const totalCredits = tds + adv + sat;
+    const net    = _state.totalTaxLiab - totalCredits;
+
+    const el = id => document.getElementById(id);
+    if (el('tcTDSAmt'))     el('tcTDSAmt').textContent     = INR(tds);
+    if (el('tcAdvAmt'))     el('tcAdvAmt').textContent     = INR(adv);
+    if (el('tcSATAmt'))     el('tcSATAmt').textContent     = INR(sat);
+    if (el('tcCreditsNet')) el('tcCreditsNet').textContent = INR(totalCredits);
+
+    const wrap = el('tcNetWrap');
+    if (!wrap) return;
+    if (net > 0) {
+      wrap.style.borderColor    = '#dc2626';
+      wrap.style.background     = 'rgba(220,38,38,.05)';
+      el('tcNetLabel').textContent = '⚠️ Tax Payable';
+      el('tcNetLabel').style.color = '#dc2626';
+      el('tcNetAmt').textContent   = INR(net);
+      el('tcNetAmt').style.color   = '#dc2626';
+    } else {
+      wrap.style.borderColor    = '#10b981';
+      wrap.style.background     = 'rgba(16,185,129,.05)';
+      el('tcNetLabel').textContent = '✅ Refund Due';
+      el('tcNetLabel').style.color = '#10b981';
+      el('tcNetAmt').textContent   = INR(Math.abs(net));
+      el('tcNetAmt').style.color   = '#10b981';
+    }
+
+    // Update PAN in print header
+    const pan = document.getElementById('tcPAN')?.value || '—';
+    const panPrint = document.getElementById('tcPANPrint');
+    if (panPrint) panPrint.textContent = pan || '—';
+  }
+
+  function print() {
+    recalc();
+    window.print();
+  }
+
+  // Auto-select current AY on load
+  (() => {
+    const now  = new Date();
+    const curAY = now.getMonth() >= 3
+      ? `${now.getFullYear()+1}-${String(now.getFullYear()-1998).padStart(2,'0')}`
+      : `${now.getFullYear()}-${String(now.getFullYear()-1999).padStart(2,'0')}`;
+    const sel = document.getElementById('tcAY');
+    if (sel) for (let i=0;i<sel.options.length;i++) if (sel.options[i].value===curAY) { sel.selectedIndex=i; break; }
+  })();
+
+  return { load, recalc, print };
+})();
+</script>
 <?php
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';

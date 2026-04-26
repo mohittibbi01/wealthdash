@@ -104,7 +104,7 @@ const STOCKS = {
       if (STOCKS.search)       rows = rows.filter(r => r.symbol.toLowerCase().includes(STOCKS.search) || (r.company_name||'').toLowerCase().includes(STOCKS.search));
       if (STOCKS.sectorFilter) rows = rows.filter(r => (r.sector||'') === STOCKS.sectorFilter);
       if (STOCKS.sortCol === 'gain') {
-        rows = [...rows].sort((a,b) => STOCKS.sortDir==='desc' ? (parseFloat(b.gain_pct)||0)-(parseFloat(a.gain_pct)||0) : (parseFloat(a.gain_pct)||0)-(parseFloat(b.gain_pct)||0));
+        rows = [...rows].sort((a,b) => STOCKS.sortDir==='desc' ? (parseFloat(b.gain_pct_live)||0)-(parseFloat(a.gain_pct_live)||0) : (parseFloat(a.gain_pct_live)||0)-(parseFloat(b.gain_pct_live)||0));
       } else if (STOCKS.sortCol === 'cagr') {
         rows = [...rows].sort((a,b) => STOCKS.sortDir==='desc' ? (parseFloat(b.cagr)||0)-(parseFloat(a.cagr)||0) : (parseFloat(a.cagr)||0)-(parseFloat(b.cagr)||0));
       }
@@ -127,11 +127,17 @@ const STOCKS = {
         return;
       }
       body.innerHTML = paged.map(h => {
-        const gl    = parseFloat(h.gain_loss)    || 0;
-        const glPct = parseFloat(h.gain_pct)     || 0;
-        const cagr  = parseFloat(h.cagr)         || 0;
-        const glCls = gl >= 0 ? 'text-success' : 'text-danger';
+        const gl       = parseFloat(h.gain_loss)     || 0;
+        // t36: use gain_pct_live (live price vs avg cost) for accurate gain%
+        const glPct    = (h.gain_pct_live != null) ? parseFloat(h.gain_pct_live) : (parseFloat(h.gain_pct) || 0);
+        const cagrRaw  = (h.cagr !== null && h.cagr !== undefined && h.cagr !== '') ? parseFloat(h.cagr) : null;
+        const yrsHeld  = parseFloat(h.years_held) || 0;
+        const glCls    = gl >= 0 ? 'text-success' : 'text-danger';
         const badgeCls = h.gain_type === 'LTCG' ? 'badge-success' : (h.gain_type === 'STCG' ? 'badge-warning' : 'badge-outline');
+        // t36: CAGR display — show dashes when < 30d, else colour-coded with years held tooltip
+        const cagrHtml = cagrRaw !== null
+          ? `<span class="${cagrRaw>=0?'text-success':'text-danger'}" title="${yrsHeld} yr held">${cagrRaw>=0?'+':''}${cagrRaw.toFixed(2)}%<br><small style="font-size:10px;opacity:.7">${yrsHeld}yr</small></span>`
+          : `<span style="color:var(--text-muted)" title="Less than 30 days held">—</span>`;
         return `<tr>
           <td>
             <div class="fund-name">${escHtml(h.symbol)}</div>
@@ -147,7 +153,7 @@ const STOCKS = {
           <td class="text-right">${fmtInr(h.total_invested)}</td>
           <td class="text-right">${fmtInr(h.current_value)}</td>
           <td class="text-right ${glCls}">${fmtInr(gl)}<br><small>${gl>=0?'+':''}${glPct.toFixed(2)}%</small></td>
-          <td class="text-right ${cagr>=0?'text-success':'text-danger'}">${cagr.toFixed(2)}%</td>
+          <td class="text-right">${cagrHtml}</td>
           <td><span class="badge ${badgeCls}">${h.gain_type||'—'}</span></td>
           <td class="text-center">
             <button class="btn btn-sm btn-ghost" onclick="STOCKS.sellStock(${h.stock_id},'${escHtml(h.symbol)}')" title="Sell">Sell</button>
@@ -375,7 +381,9 @@ const STOCKS = {
 /* ── HELPERS ── */
 function fmtNum(v,d=2){ return parseFloat(v||0).toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 function fmtInr(v){ const n=parseFloat(v||0); return(n<0?'-':'')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}-${m}-${y}`; }
+// [t348]
+const _ST_MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${parseInt(dd,10)} ${_ST_MON[parseInt(m,10)-1]||m} ${y}`; }
 function escHtml(t){ const d=document.createElement('div'); d.appendChild(document.createTextNode(t||'')); return d.innerHTML; }
 
 document.addEventListener('DOMContentLoaded', () => STOCKS.init());
@@ -457,7 +465,7 @@ async function renderStockDividendTracker() {
     const totalAll  = divs.reduce((s, d) => s + parseFloat(d.total_amount||d.amount||0), 0);
     const totalThisFy = divs.filter(d => (d.dividend_fy||d.fy||'') === curFy).reduce((s,d) => s + parseFloat(d.total_amount||d.amount||0), 0);
     const fmtI = v => v >= 1e5 ? '₹'+(v/1e5).toFixed(2)+'L' : '₹'+v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-    const fmtDate = d => { if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}-${m}-${y}`; };
+    const fmtDate = d => { if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${parseInt(dd,10)} ${_ST_MON[parseInt(m,10)-1]||m} ${y}`; }; // [t348]
 
     if (summary) summary.innerHTML = `
       <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;text-align:center;flex:1;">
@@ -484,3 +492,87 @@ async function renderStockDividendTracker() {
     body.innerHTML = `<tr><td colspan="4" class="text-center" style="color:var(--text-muted);padding:16px;">Error: ${escHtml(e.message)}</td></tr>`;
   }
 }
+
+/* ── t281/t285/t433: Stock Fundamentals + 52-Week High/Low ───────────── */
+STOCKS.refreshFundamentals = async function() {
+  const body = document.getElementById('fundamentalsBody');
+  const btn  = document.getElementById('btnRefreshFundamentals');
+  if (!body) return;
+
+  body.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:30px"><span class="spinner"></span> Fetching fundamentals from Yahoo Finance…</td></tr>';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Loading…'; }
+
+  try {
+    const res  = await fetch(APP_URL + '/api/router.php?action=holdings_enriched');
+    const data = await res.json();
+
+    if (!data.success || !data.data?.length) {
+      body.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:30px;color:var(--text-muted);">No stock holdings found.</td></tr>';
+      return;
+    }
+
+    const fmtMktCap = v => {
+      if (!v) return '—';
+      if (v >= 1e12) return '₹' + (v/1e12).toFixed(1) + 'T';
+      if (v >= 1e7)  return '₹' + (v/1e7).toFixed(0)  + 'Cr';
+      return '₹' + (v/1e5).toFixed(1) + 'L';
+    };
+    const fmtP = (v, dec=1) => v != null && v > 0 ? parseFloat(v).toFixed(dec) + 'x' : '—';
+    const fmtPct = v => v != null ? parseFloat(v).toFixed(2) + '%' : '—';
+
+    body.innerHTML = data.data.map(h => {
+      const cmp  = parseFloat(h.current_price || h.latest_price || 0);
+      const h52  = parseFloat(h.high_52 || 0);
+      const l52  = parseFloat(h.low_52  || 0);
+      const pos  = h.pct_from_52w_low;  // 0-100: 0=at 52L, 100=at 52H
+      const pctBelowH = h52 > 0 ? ((h52 - cmp) / h52 * 100).toFixed(1) : null;
+
+      // 52w position bar
+      const posWidth = pos != null ? Math.max(2, Math.min(100, parseFloat(pos))) : 0;
+      const barColor = posWidth > 80 ? '#16a34a' : posWidth < 20 ? '#dc2626' : '#f59e0b';
+      const posBar = pos != null
+        ? `<div style="height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;margin-top:3px">
+             <div style="width:${posWidth}%;height:100%;background:${barColor};border-radius:3px"></div>
+           </div>
+           <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:1px">
+             <span>${l52 ? '₹'+fmtNum(l52,0) : '—'}</span>
+             <span style="font-weight:700;color:${barColor}">${posWidth.toFixed(0)}%</span>
+             <span>${h52 ? '₹'+fmtNum(h52,0) : '—'}</span>
+           </div>`
+        : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+
+      // Signal badge
+      let signal = '';
+      if (pctBelowH !== null && parseFloat(pctBelowH) <= 5) {
+        signal = '<span style="background:#dcfce7;color:#16a34a;border-radius:99px;padding:2px 7px;font-size:10px;font-weight:700;">🚀 Near 52H</span>';
+      } else if (pos !== null && parseFloat(pos) <= 10) {
+        signal = '<span style="background:#fef2f2;color:#dc2626;border-radius:99px;padding:2px 7px;font-size:10px;font-weight:700;">📉 Near 52L</span>';
+      } else {
+        signal = '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+      }
+
+      const pe = h.pe_ratio ? parseFloat(h.pe_ratio).toFixed(1) + 'x' : '—';
+      const pb = h.pb_ratio ? parseFloat(h.pb_ratio).toFixed(1) + 'x' : '—';
+
+      return `<tr>
+        <td>
+          <div style="font-weight:700;">${escHtml(h.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${escHtml(h.sector||'')}</div>
+        </td>
+        <td class="text-right" style="font-weight:700;">₹${fmtNum(cmp,2)}</td>
+        <td class="text-right" style="color:#16a34a;">₹${h52 ? fmtNum(h52,2) : '—'}</td>
+        <td class="text-right" style="color:#dc2626;">₹${l52 ? fmtNum(l52,2) : '—'}</td>
+        <td>${posBar}</td>
+        <td class="text-right">${pe}</td>
+        <td class="text-right">${pb}</td>
+        <td class="text-right" style="font-size:11px;">${fmtMktCap(h.market_cap)}</td>
+        <td class="text-right">${h.dividend_yield ? fmtPct(h.dividend_yield*100) : '—'}</td>
+        <td>${signal}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="10" class="text-center" style="color:#dc2626;padding:20px;">Error: ${escHtml(e.message)}</td></tr>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Data'; }
+  }
+};

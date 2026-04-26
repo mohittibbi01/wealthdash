@@ -66,7 +66,7 @@ if ($mode === 'manual' && $schemeId && $manualNav > 0) {
         HoldingCalculator::recalculate_nps_holding((int)$h['portfolio_id'], $schemeId, $h['tier']);
     }
     audit_log('nps_nav_manual', 'nps_schemes', $schemeId, ['nav' => $manualNav, 'date' => $navDate]);
-    json_response(true, "NAV ₹{$manualNav} saved for " . date('d-m-Y', strtotime($navDate)));
+    json_response(true, "NAV ₹{$manualNav} saved for " . date(DATE_DISPLAY, strtotime($navDate)));
 }
 
 // ── TOGGLE AUTO-UPDATE ────────────────────────────────────────────────────────

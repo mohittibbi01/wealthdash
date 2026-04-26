@@ -911,3 +911,382 @@ window.calcTaxRegime = function() {
     }
   });
 })();
+
+/* ══════════════════════════════════════════════════════════════════════
+   t494 — QUICK TRANSACTION DRAWER
+   Slide-up sheet from bottom — MF / FD / NPS quick add
+══════════════════════════════════════════════════════════════════════ */
+const QuickDrawer = {
+  _type: 'mf',
+  _open: false,
+
+  open() {
+    const overlay = document.getElementById('quickDrawerOverlay');
+    const sheet   = document.getElementById('quickDrawerSheet');
+    if (!overlay || !sheet) return;
+    overlay.style.display = 'block';
+    sheet.style.display   = 'block';
+    // Force reflow then animate
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { sheet.classList.add('open'); });
+    });
+    this._open = true;
+    this.setType(this._type);
+    document.body.style.overflow = 'hidden';
+    // Swipe-down to close
+    this._initSwipe(sheet);
+  },
+
+  close() {
+    const overlay = document.getElementById('quickDrawerOverlay');
+    const sheet   = document.getElementById('quickDrawerSheet');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    setTimeout(() => {
+      if (overlay) overlay.style.display = 'none';
+      sheet.style.display = 'none';
+    }, 320);
+    this._open = false;
+    document.body.style.overflow = '';
+  },
+
+  setType(type) {
+    this._type = type;
+    // Update button styles
+    document.querySelectorAll('.qd-type').forEach(b => {
+      b.classList.toggle('active', b.dataset.type === type);
+    });
+    this._renderForm();
+  },
+
+  _renderForm() {
+    const el = document.getElementById('qdForm');
+    if (!el) return;
+    const APP = window.APP_URL || window.WD?.appUrl || '';
+
+    const inputStyle = 'width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text);font-size:14px;box-sizing:border-box;';
+    const labelStyle = 'display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:500;';
+
+    if (this._type === 'mf') {
+      el.innerHTML = `
+        <div style="margin-bottom:12px;">
+          <label style="${labelStyle}">Fund Name / Scheme Code</label>
+          <input type="text" id="qdFundSearch" placeholder="Search fund…" style="${inputStyle}" oninput="QuickDrawer._searchFund(this.value)">
+          <div id="qdFundSuggestions" style="max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;background:var(--bg);"></div>
+          <input type="hidden" id="qdFundId">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="${labelStyle}">Type</label>
+            <select id="qdTxType" style="${inputStyle}">
+              <option value="sip">SIP</option><option value="buy">Lumpsum</option>
+              <option value="sell">Sell / Redeem</option>
+            </select>
+          </div>
+          <div>
+            <label style="${labelStyle}">Date</label>
+            <input type="date" id="qdTxDate" value="${new Date().toISOString().slice(0,10)}" style="${inputStyle}">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="${labelStyle}">Amount (₹)</label>
+            <input type="number" id="qdAmount" placeholder="e.g. 5000" min="1" style="${inputStyle}">
+          </div>
+          <div>
+            <label style="${labelStyle}">NAV (₹)</label>
+            <input type="number" id="qdNav" placeholder="Auto-fetch" step="0.0001" style="${inputStyle}">
+          </div>
+        </div>
+        <button onclick="QuickDrawer._submitMf()" style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+          Add Transaction ➜
+        </button>`;
+    } else if (this._type === 'fd') {
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="${labelStyle}">Bank Name</label>
+            <input type="text" id="qdFdBank" placeholder="e.g. SBI" style="${inputStyle}">
+          </div>
+          <div>
+            <label style="${labelStyle}">Principal (₹)</label>
+            <input type="number" id="qdFdAmt" placeholder="e.g. 100000" style="${inputStyle}">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="${labelStyle}">Interest Rate (%)</label>
+            <input type="number" id="qdFdRate" placeholder="e.g. 7.25" step="0.01" style="${inputStyle}">
+          </div>
+          <div>
+            <label style="${labelStyle}">Tenure (months)</label>
+            <input type="number" id="qdFdTenure" placeholder="e.g. 12" style="${inputStyle}">
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="${labelStyle}">Start Date</label>
+          <input type="date" id="qdFdStart" value="${new Date().toISOString().slice(0,10)}" style="${inputStyle}">
+        </div>
+        <button onclick="QuickDrawer._submitFd()" style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+          Add FD ➜
+        </button>`;
+    } else {
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="${labelStyle}">Amount (₹)</label>
+            <input type="number" id="qdNpsAmt" placeholder="e.g. 5000" style="${inputStyle}">
+          </div>
+          <div>
+            <label style="${labelStyle}">Date</label>
+            <input type="date" id="qdNpsDate" value="${new Date().toISOString().slice(0,10)}" style="${inputStyle}">
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="${labelStyle}">Tier</label>
+          <select id="qdNpsTier" style="${inputStyle}">
+            <option value="I">Tier I (Pension)</option>
+            <option value="II">Tier II (Savings)</option>
+          </select>
+        </div>
+        <button onclick="QuickDrawer._submitNps()" style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;">
+          Add NPS Contribution ➜
+        </button>`;
+    }
+  },
+
+  _showMsg(msg, ok=true) {
+    const el = document.getElementById('qdMsg');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = '';
+    el.style.background = ok ? 'rgba(22,163,74,.12)' : 'rgba(239,68,68,.12)';
+    el.style.color = ok ? '#16a34a' : '#ef4444';
+    el.style.border = `1px solid ${ok ? '#16a34a44' : '#ef444444'}`;
+    if (ok) setTimeout(() => { el.style.display='none'; this.close(); }, 1500);
+  },
+
+  async _searchFund(q) {
+    const box = document.getElementById('qdFundSuggestions');
+    if (!q || q.length < 2) { if(box) box.style.display='none'; return; }
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    try {
+      const fd = new FormData();
+      fd.append('action','mf_search'); fd.append('q', q);
+      const res = await fetch(`${BASE}/api/?action=mf_search`, {method:'POST',body:fd});
+      const d   = await res.json();
+      if (!box) return;
+      const funds = d.data || d.results || [];
+      if (!funds.length) { box.style.display='none'; return; }
+      box.style.display = '';
+      box.innerHTML = funds.slice(0,8).map(f => `
+        <div onclick="QuickDrawer._selectFund('${f.id||f.fund_id}','${(f.fund_name||f.name||'').replace(/'/g,"\\'")}','${f.latest_nav||0}')"
+             style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
+             onmouseenter="this.style.background='var(--bg-secondary)'" onmouseleave="this.style.background=''">
+          ${f.fund_name || f.name}
+          <span style="font-size:11px;color:var(--text-secondary);margin-left:6px;">NAV: ₹${Number(f.latest_nav||0).toFixed(2)}</span>
+        </div>`).join('');
+    } catch(e) {}
+  },
+
+  _selectFund(id, name, nav) {
+    const s = document.getElementById('qdFundSearch');
+    const h = document.getElementById('qdFundId');
+    const n = document.getElementById('qdNav');
+    if (s) s.value = name;
+    if (h) h.value = id;
+    if (n && !n.value) n.value = nav;
+    const box = document.getElementById('qdFundSuggestions');
+    if (box) box.style.display = 'none';
+  },
+
+  async _submitMf() {
+    const fundId = document.getElementById('qdFundId')?.value;
+    const amt    = document.getElementById('qdAmount')?.value;
+    const nav    = document.getElementById('qdNav')?.value;
+    const txType = document.getElementById('qdTxType')?.value;
+    const date   = document.getElementById('qdTxDate')?.value;
+    if (!fundId || !amt) { this._showMsg('Please select fund and enter amount', false); return; }
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+    const fd = new FormData();
+    fd.append('action','mf_add_transaction');
+    fd.append('fund_id', fundId); fd.append('amount', amt);
+    fd.append('nav', nav||0); fd.append('tx_type', txType); fd.append('tx_date', date);
+    if(CSRF) fd.append('_csrf_token', CSRF);
+    try {
+      const res = await fetch(`${BASE}/api/?action=mf_add_transaction`,{method:'POST',body:fd});
+      const d   = await res.json();
+      if (d.success) {
+        this._showMsg('✅ Transaction added!');
+        if (typeof window.showToast==='function') showToast('MF transaction added','success');
+      } else { this._showMsg(d.error||d.message||'Failed', false); }
+    } catch(e) { this._showMsg('Network error: '+e.message, false); }
+  },
+
+  async _submitFd() {
+    const bank   = document.getElementById('qdFdBank')?.value;
+    const amt    = document.getElementById('qdFdAmt')?.value;
+    const rate   = document.getElementById('qdFdRate')?.value;
+    const tenure = document.getElementById('qdFdTenure')?.value;
+    const start  = document.getElementById('qdFdStart')?.value;
+    if (!bank || !amt) { this._showMsg('Bank and amount required', false); return; }
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+    const fd = new FormData();
+    fd.append('action','fd_add'); fd.append('bank_name',bank);
+    fd.append('principal_amount',amt); fd.append('interest_rate',rate||0);
+    fd.append('tenure_months',tenure||12); fd.append('start_date',start);
+    if(CSRF) fd.append('_csrf_token', CSRF);
+    try {
+      const res = await fetch(`${BASE}/api/?action=fd_add`,{method:'POST',body:fd});
+      const d   = await res.json();
+      if (d.success) {
+        this._showMsg('✅ FD added!');
+        if (typeof window.showToast==='function') showToast('FD added','success');
+      } else { this._showMsg(d.error||d.message||'Failed', false); }
+    } catch(e) { this._showMsg('Error: '+e.message, false); }
+  },
+
+  async _submitNps() {
+    const amt  = document.getElementById('qdNpsAmt')?.value;
+    const date = document.getElementById('qdNpsDate')?.value;
+    const tier = document.getElementById('qdNpsTier')?.value;
+    if (!amt) { this._showMsg('Amount required', false); return; }
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+    const fd = new FormData();
+    fd.append('action','nps_add'); fd.append('amount',amt);
+    fd.append('tx_date',date); fd.append('tier',tier);
+    if(CSRF) fd.append('_csrf_token', CSRF);
+    try {
+      const res = await fetch(`${BASE}/api/?action=nps_add`,{method:'POST',body:fd});
+      const d   = await res.json();
+      if (d.success) {
+        this._showMsg('✅ NPS contribution added!');
+        if (typeof window.showToast==='function') showToast('NPS added','success');
+      } else { this._showMsg(d.error||d.message||'Failed', false); }
+    } catch(e) { this._showMsg('Error: '+e.message, false); }
+  },
+
+  _initSwipe(el) {
+    let startY = 0;
+    el.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+    el.addEventListener('touchmove', e => {
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) el.style.transform = `translateY(${dy}px)`;
+    }, {passive:true});
+    el.addEventListener('touchend', e => {
+      const dy = e.changedTouches[0].clientY - startY;
+      if (dy > 80) { el.style.transform=''; this.close(); }
+      else el.style.transform='';
+    });
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   t298 — MARKET PULSE WIDGET
+   NSE/BSE free API, Gold, USD/INR — auto-refresh during market hours
+══════════════════════════════════════════════════════════════════════ */
+const MarketPulse = {
+  _timer: null,
+  _bar: null,
+
+  init() {
+    this._bar = document.getElementById('marketPulseBar');
+    if (!this._bar) return;
+    this.refresh();
+    // Only refresh during IST market hours (9:15–15:30)
+    const now = new Date();
+    const ist = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Kolkata'}));
+    const h = ist.getHours(), m = ist.getMinutes();
+    const isMarketHours = (h > 9 || (h===9 && m>=15)) && (h < 15 || (h===15 && m<=30));
+    if (isMarketHours) {
+      this._timer = setInterval(() => this.refresh(), 30000);
+    }
+  },
+
+  async refresh() {
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    try {
+      const fd = new FormData(); fd.append('action','market_pulse');
+      const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+      if(CSRF) fd.append('_csrf_token', CSRF);
+      const res  = await fetch(`${BASE}/api/?action=market_pulse`,{method:'POST',body:fd});
+      const data = await res.json();
+      if (data.success) this._render(data.data);
+    } catch(e) { /* silent fail */ }
+  },
+
+  _render(tickers) {
+    const bar = this._bar;
+    if (!bar) return;
+    bar.innerHTML = (tickers||[]).map(t => {
+      const chg     = parseFloat(t.change_pct || 0);
+      const cls     = chg > 0 ? 'up' : chg < 0 ? 'down' : 'flat';
+      const arrow   = chg > 0 ? '▲' : chg < 0 ? '▼' : '—';
+      return `<div class="mp-ticker" title="${t.name}">
+        <span class="mp-name">${t.symbol}</span>
+        <span class="mp-value">${t.value}</span>
+        <span class="mp-change ${cls}">${arrow} ${Math.abs(chg).toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+    // Show bar
+    bar.style.display = 'flex';
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   t400 — WEALTH MILESTONE TRACKER
+══════════════════════════════════════════════════════════════════════ */
+const MilestoneBanner = {
+  MILESTONES: [
+    { value: 100000,    label: '₹1 Lakh',   emoji: '🌱' },
+    { value: 500000,    label: '₹5 Lakh',   emoji: '🌿' },
+    { value: 1000000,   label: '₹10 Lakh',  emoji: '🌳' },
+    { value: 2500000,   label: '₹25 Lakh',  emoji: '⭐' },
+    { value: 5000000,   label: '₹50 Lakh',  emoji: '🌟' },
+    { value: 10000000,  label: '₹1 Crore',  emoji: '🏆' },
+    { value: 50000000,  label: '₹5 Crore',  emoji: '💎' },
+    { value: 100000000, label: '₹10 Crore', emoji: '🚀' },
+  ],
+
+  render(netWorth, containerEl) {
+    if (!containerEl || !netWorth) return;
+    const achieved = this.MILESTONES.filter(m => netWorth >= m.value);
+    const next     = this.MILESTONES.find(m => netWorth < m.value);
+    const last     = achieved[achieved.length - 1];
+
+    let html = '';
+    if (last) {
+      html += `<div class="milestone-badge">
+        ${last.emoji} Milestone reached: <strong>${last.label}</strong>!
+      </div> `;
+    }
+    if (next) {
+      const pct = last ? Math.round((netWorth - last.value) / (next.value - last.value) * 100) : Math.round(netWorth / next.value * 100);
+      const remaining = next.value - netWorth;
+      html += `<span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">
+        Next: ${next.emoji} ${next.label} — ₹${(remaining/100000).toFixed(1)}L to go
+        <span style="display:inline-block;width:60px;height:6px;background:var(--border);border-radius:3px;margin-left:6px;vertical-align:middle;">
+          <span style="display:block;width:${pct}%;height:100%;background:var(--accent);border-radius:3px;"></span>
+        </span>
+      </span>`;
+    }
+    containerEl.innerHTML = html;
+    containerEl.style.display = html ? '' : 'none';
+  },
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   Init all widgets on DOMContentLoaded
+══════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Market Pulse
+  if (document.getElementById('marketPulseBar')) MarketPulse.init();
+
+  // Milestone banner (pass net worth from PHP data attribute if available)
+  const nwEl = document.getElementById('netWorthMilestoneBanner');
+  const nwVal = parseFloat(document.body.dataset.netWorth || 0);
+  if (nwEl && nwVal) MilestoneBanner.render(nwVal, nwEl);
+});

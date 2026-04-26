@@ -1233,4 +1233,492 @@ function calcSSY() {
 const _origPoLoad = typeof PO !== 'undefined' && PO.load ? PO.load.bind(PO) : null;
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(initRdTracker, 1200); // Wait for PO._schemes to populate
+  t318Calc();
+  t319Init();
 });
+
+// ═══════════════════════════════════════════════════════════════
+// t318 — SSY Full Calculator
+// Year-by-year table, rate scenarios, education corpus planner
+// ═══════════════════════════════════════════════════════════════
+function t318Calc() {
+  const dobVal    = document.getElementById('t318Dob')?.value;
+  const openVal   = document.getElementById('t318Open')?.value;
+  const yearly    = parseFloat(document.getElementById('t318Yearly')?.value) || 150000;
+  const balance   = parseFloat(document.getElementById('t318Balance')?.value) || 0;
+  const rate      = (parseFloat(document.getElementById('t318Rate')?.value) || 8.2) / 100;
+  const stepupPct = (parseFloat(document.getElementById('t318Stepup')?.value) || 0) / 100;
+  const res       = document.getElementById('t318Result');
+  if (!res) return;
+
+  const fmtI = v => {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + Math.round(v).toLocaleString('en-IN');
+  };
+  const fmtDate = d => d.toLocaleDateString('en-IN', { year:'numeric', month:'short' });
+
+  const openDate = openVal ? new Date(openVal) : new Date();
+  const dobDate  = dobVal  ? new Date(dobVal)  : null;
+  const now      = new Date();
+
+  // SSY rules
+  const DEPOSIT_YEARS = 15;   // deposit for 15 years
+  const MATURITY_AGE  = 21;   // matures when girl turns 21
+  const PARTIAL_AGE   = 18;   // partial withdrawal at 18
+  const MAX_YEARLY    = 150000;
+  const MIN_YEARLY    = 250;
+
+  // Key dates
+  const depositEndDate = new Date(openDate);
+  depositEndDate.setFullYear(depositEndDate.getFullYear() + DEPOSIT_YEARS);
+
+  const maturityDate = dobDate ? new Date(dobDate) : new Date(openDate);
+  if (dobDate) maturityDate.setFullYear(maturityDate.getFullYear() + MATURITY_AGE);
+  else maturityDate.setFullYear(maturityDate.getFullYear() + 21);
+
+  const partialDate = dobDate ? new Date(dobDate) : null;
+  if (partialDate) partialDate.setFullYear(partialDate.getFullYear() + PARTIAL_AGE);
+
+  // Year-by-year simulation (from opening year)
+  const openYear = openDate.getFullYear();
+  const matYear  = maturityDate.getFullYear();
+
+  let corpus   = balance;
+  let totalDep = balance;
+  let dep      = Math.min(yearly, MAX_YEARLY);
+  const rows   = [];
+
+  const yearsElapsed = Math.max(0, Math.floor((now - openDate) / (365.25 * 86400000)));
+
+  for (let yr = 0; yr <= (matYear - openYear); yr++) {
+    const calYear   = openYear + yr;
+    const isDeposit = yr < DEPOSIT_YEARS;
+    const prevCorpus = corpus;
+    const thisDeposit = isDeposit ? Math.min(dep, MAX_YEARLY) : 0;
+
+    // Interest calculated on opening balance + deposits (per SSY: compounded yearly on 5th of each month min balance)
+    const interest = (corpus + thisDeposit) * rate;
+    corpus = corpus + thisDeposit + interest;
+    if (isDeposit) totalDep += thisDeposit;
+
+    // Girl's age this year
+    const girlAge = dobDate ? calYear - dobDate.getFullYear() : null;
+    const isPast  = calYear <= now.getFullYear();
+    const isPartialYear = partialDate && calYear === partialDate.getFullYear();
+    const isMaturity = calYear === matYear;
+
+    rows.push({
+      year: calYear, deposit: thisDeposit, interest: Math.round(interest),
+      corpus: Math.round(corpus), age: girlAge, isPast, isDeposit,
+      isPartialYear, isMaturity, prevCorpus: Math.round(prevCorpus),
+    });
+
+    // Step-up deposit for next year
+    if (isDeposit) dep = Math.min(dep * (1 + stepupPct), MAX_YEARLY);
+  }
+
+  const finalCorpus   = Math.round(corpus);
+  const partialRow    = rows.find(r => r.isPartialYear);
+  const partialCorpus = partialRow ? partialRow.corpus : 0;
+  const partialMax    = Math.round(partialCorpus * 0.5);
+  const totalInterest = finalCorpus - totalDep;
+  const taxSaving     = Math.round(Math.min(yearly, 150000) * 0.30 * 1.04); // 30% slab + cess
+
+  // Education corpus scenarios
+  const eduScenarios = [
+    { goal: 'Engineering (IIT/NIT)', cost2025: 1200000,  inflRate: 0.08 },
+    { goal: 'MBBS (Govt Medical)',   cost2025: 500000,   inflRate: 0.07 },
+    { goal: 'MBA (IIM)',             cost2025: 2500000,  inflRate: 0.07 },
+    { goal: 'Study Abroad (USA)',    cost2025: 8000000,  inflRate: 0.06 },
+  ];
+  const yearsToPartial = partialDate ? Math.max(0, (partialDate.getFullYear() - now.getFullYear())) : 18;
+  const eduHtml = eduScenarios.map(s => {
+    const futureCost = Math.round(s.cost2025 * Math.pow(1 + s.inflRate, yearsToPartial));
+    const coverage   = partialMax > 0 ? Math.min(100, Math.round(partialMax / futureCost * 100)) : 0;
+    const barColor   = coverage >= 80 ? '#16a34a' : coverage >= 50 ? '#d97706' : '#ef4444';
+    return `
+      <div style="padding:10px;background:var(--bg-secondary);border-radius:8px;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;">${s.goal}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Est. cost in ${yearsToPartial}yrs: <strong>${fmtI(futureCost)}</strong></div>
+        <div style="height:7px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:4px;">
+          <div style="height:100%;width:${coverage}%;background:${barColor};border-radius:99px;"></div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:${barColor};">SSY covers ${coverage}% (₹${fmtI(partialMax)} / ${fmtI(futureCost)})</div>
+      </div>`;
+  }).join('');
+
+  // Yearly table rows (show all years, collapse past ones)
+  const tableRows = rows.map(r => {
+    const rowStyle = r.isMaturity ? 'background:rgba(22,163,74,.08);font-weight:700;'
+      : r.isPartialYear ? 'background:rgba(59,130,246,.07);'
+      : r.isPast ? 'opacity:.7;' : '';
+    const badge = r.isMaturity ? '<span style="font-size:9px;background:#16a34a;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px;">MATURITY</span>'
+      : r.isPartialYear ? '<span style="font-size:9px;background:#3b82f6;color:#fff;padding:1px 5px;border-radius:8px;margin-left:4px;">PARTIAL</span>' : '';
+    return `<tr style="${rowStyle}">
+      <td style="padding:5px 8px;font-size:12px;">${r.year}${badge}</td>
+      <td style="padding:5px 8px;font-size:12px;">${r.age !== null ? r.age + ' yrs' : '—'}</td>
+      <td style="padding:5px 8px;font-size:12px;text-align:right;">${r.isDeposit ? fmtI(r.deposit) : '—'}</td>
+      <td style="padding:5px 8px;font-size:12px;text-align:right;color:#16a34a;">${fmtI(r.interest)}</td>
+      <td style="padding:5px 8px;font-size:12px;text-align:right;font-weight:700;">${fmtI(r.corpus)}</td>
+    </tr>`;
+  }).join('');
+
+  res.innerHTML = `
+    <!-- Key summary cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+      <div style="background:rgba(22,163,74,.07);border-radius:10px;padding:14px;text-align:center;border:1.5px solid #86efac;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Maturity Corpus (Age 21)</div>
+        <div style="font-size:22px;font-weight:800;color:#16a34a;">${fmtI(finalCorpus)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${fmtDate(maturityDate)}</div>
+      </div>
+      <div style="background:rgba(59,130,246,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Education Withdrawal (Age 18)</div>
+        <div style="font-size:18px;font-weight:800;color:#3b82f6;">${fmtI(partialMax)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Max 50% of corpus${partialDate?' @ '+fmtDate(partialDate):''}</div>
+      </div>
+      <div style="background:rgba(139,92,246,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Interest Earned</div>
+        <div style="font-size:18px;font-weight:800;color:#8b5cf6;">${fmtI(totalInterest)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">Invested: ${fmtI(totalDep)}</div>
+      </div>
+      <div style="background:rgba(245,158,11,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Annual Tax Saving (80C)</div>
+        <div style="font-size:18px;font-weight:800;color:#d97706;">${fmtI(taxSaving)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">@ 30% slab + 4% cess</div>
+      </div>
+    </div>
+
+    <!-- Deposit progress bar -->
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;">
+        <span style="font-weight:700;">Deposit Period Progress</span>
+        <span style="font-weight:700;">${yearsElapsed}/15 years (${Math.max(0,DEPOSIT_YEARS-yearsElapsed)} left)</span>
+      </div>
+      <div style="height:10px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(100,yearsElapsed/15*100).toFixed(0)}%;background:#16a34a;border-radius:99px;transition:width .5s;"></div>
+      </div>
+    </div>
+
+    <!-- Education corpus planning -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🎓 Education Corpus Planning (SSY withdrawal @ Age 18)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">${eduHtml}</div>
+    </div>
+
+    <!-- Year-by-year table -->
+    <div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📅 Year-by-Year Projection</div>
+      <div style="overflow-x:auto;max-height:320px;overflow-y:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead style="position:sticky;top:0;background:var(--bg-secondary);">
+            <tr>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:var(--text-muted);">Year</th>
+              <th style="padding:6px 8px;text-align:left;font-weight:700;color:var(--text-muted);">Girl's Age</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text-muted);">Deposit</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text-muted);">Interest</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:700;color:var(--text-muted);">Closing Corpus</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SSY Rate History note -->
+    <div style="margin-top:12px;font-size:11px;color:var(--text-muted);padding:8px 12px;background:var(--bg-secondary);border-radius:6px;">
+      📊 <strong>SSY Rate History:</strong> 9.2% (2014–15) → 8.6% (2016) → 8.5% → 8.4% → 8.3% → 8.0% (2020) → 7.6% (2020–21) → 8.0% (2023) → <strong>8.2% current</strong>. Rates revised quarterly by Govt. All interest is tax-free. Principal deposits qualify for 80C up to ₹1.5L/year (EEE status).
+    </div>`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// t319 — NSC / KVP Maturity Chain
+// Chain multiple certificates, show reinvestment flow
+// ═══════════════════════════════════════════════════════════════
+let t319RowCount = 0;
+
+function t319Init() {
+  // Add one NSC and one KVP row by default
+  t319AddRow('nsc');
+  t319AddRow('kvp');
+}
+
+function t319AddRow(type) {
+  const container = document.getElementById('t319Rows');
+  if (!container) return;
+  const id = ++t319RowCount;
+  const isNsc = type === 'nsc';
+  const label = isNsc ? 'NSC' : 'KVP';
+  const color = isNsc ? '#3b82f6' : '#16a34a';
+  const icon  = isNsc ? '📜' : '🌾';
+
+  const row = document.createElement('div');
+  row.id = `t319Row_${id}`;
+  row.setAttribute('data-type', type);
+  row.style.cssText = `border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;position:relative;`;
+  row.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span style="font-size:12px;font-weight:700;color:${color};">${icon} ${label} #${id}</span>
+      <button onclick="t319RemoveRow(${id})" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:15px;line-height:1;padding:2px;">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Investment Amount (₹)</label>
+        <input type="number" id="t319Amount_${id}" class="form-input" style="font-size:12px;" value="100000" min="1000" placeholder="e.g. 100000">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Purchase Date</label>
+        <input type="date" id="t319Date_${id}" class="form-input" style="font-size:12px;" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+      ${isNsc ? `
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">NSC Interest Rate (%)</label>
+        <select id="t319Rate_${id}" class="form-input" style="font-size:12px;">
+          <option value="7.7" selected>7.7% — Current (2024-25)</option>
+          <option value="7.0">7.0% — Lower scenario</option>
+          <option value="8.0">8.0% — Higher scenario</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Reinvest Maturity?</label>
+        <select id="t319Reinvest_${id}" class="form-input" style="font-size:12px;">
+          <option value="nsc">Reinvest into NSC</option>
+          <option value="kvp">Reinvest into KVP</option>
+          <option value="no" selected>No reinvestment</option>
+        </select>
+      </div>` : `
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">KVP Interest Rate (%)</label>
+        <select id="t319Rate_${id}" class="form-input" style="font-size:12px;">
+          <option value="7.5" selected>7.5% — Current (2024-25)</option>
+          <option value="7.0">7.0% — Lower scenario</option>
+          <option value="8.0">8.0% — Higher scenario</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px;">Reinvest Maturity?</label>
+        <select id="t319Reinvest_${id}" class="form-input" style="font-size:12px;">
+          <option value="nsc">Reinvest into NSC</option>
+          <option value="kvp" selected>Reinvest into KVP</option>
+          <option value="no">No reinvestment</option>
+        </select>
+      </div>`}
+    </div>`;
+  container.appendChild(row);
+}
+
+function t319RemoveRow(id) {
+  document.getElementById(`t319Row_${id}`)?.remove();
+}
+
+function t319Calc() {
+  const res = document.getElementById('t319Result');
+  if (!res) return;
+
+  const fmtI = v => {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + Math.round(v).toLocaleString('en-IN');
+  };
+
+  // NSC: 5-year tenure, compounded annually, payable at maturity
+  // KVP: doubles in ~115 months (9yr 7mo at 7.5%), compounded
+  function nscMaturity(principal, ratePA, tenureYrs = 5) {
+    return Math.round(principal * Math.pow(1 + ratePA/100, tenureYrs));
+  }
+  function kvpMonths(ratePA) {
+    // KVP doubles: months = ln(2) / ln(1 + r/100/12) * 12
+    return Math.ceil(Math.log(2) / Math.log(1 + ratePA/100/12));
+  }
+  function kvpMaturity(principal, ratePA) {
+    const months = kvpMonths(ratePA);
+    return Math.round(principal * Math.pow(1 + ratePA/100/12, months));
+  }
+
+  // NSC deemed reinvestment interest (taxable but auto-reinvested — counts for 80C)
+  function nscYearlyInterest(principal, ratePA) {
+    const rows = [];
+    let p = principal;
+    for (let yr = 1; yr <= 5; yr++) {
+      const interest = Math.round(p * ratePA/100);
+      const cumInterest = Math.round(principal * (Math.pow(1+ratePA/100, yr) - 1));
+      rows.push({ yr, interest, cumInterest, balance: Math.round(principal * Math.pow(1+ratePA/100, yr)) });
+    }
+    return rows;
+  }
+
+  // Gather all rows
+  const allRows = document.querySelectorAll('#t319Rows [id^="t319Row_"]');
+  const investments = [];
+  allRows.forEach(row => {
+    const id       = row.id.split('_')[1];
+    const type     = row.getAttribute('data-type');
+    const amount   = parseFloat(document.getElementById(`t319Amount_${id}`)?.value) || 0;
+    const dateVal  = document.getElementById(`t319Date_${id}`)?.value || new Date().toISOString().split('T')[0];
+    const rate     = parseFloat(document.getElementById(`t319Rate_${id}`)?.value) || (type==='nsc'?7.7:7.5);
+    const reinvest = document.getElementById(`t319Reinvest_${id}`)?.value || 'no';
+    if (amount > 0) investments.push({ id, type, amount, dateVal, rate, reinvest, label: `${type.toUpperCase()} #${id}` });
+  });
+
+  if (!investments.length) {
+    res.innerHTML = '<div style="padding:16px;color:var(--text-muted);text-align:center;">Add at least one NSC or KVP to calculate.</div>';
+    return;
+  }
+
+  // Build chain — for each investment, calculate maturity and optional reinvestment
+  const chain = [];
+  let grandTotalInvested = 0;
+  let grandTotalMaturity = 0;
+
+  investments.forEach(inv => {
+    const purchaseDate = new Date(inv.dateVal);
+    let maturity, maturityDate, tenureDesc, yearlyRows = null;
+
+    if (inv.type === 'nsc') {
+      maturity = nscMaturity(inv.amount, inv.rate);
+      maturityDate = new Date(purchaseDate);
+      maturityDate.setFullYear(maturityDate.getFullYear() + 5);
+      tenureDesc = '5 years';
+      yearlyRows = nscYearlyInterest(inv.amount, inv.rate);
+    } else {
+      const months = kvpMonths(inv.rate);
+      maturity = kvpMaturity(inv.amount, inv.rate);
+      maturityDate = new Date(purchaseDate);
+      maturityDate.setMonth(maturityDate.getMonth() + months);
+      tenureDesc = `${Math.floor(months/12)}yr ${months%12}mo`;
+    }
+
+    const interest    = maturity - inv.amount;
+    grandTotalInvested += inv.amount;
+    grandTotalMaturity += maturity;
+
+    const chainEntry = {
+      ...inv, maturity, maturityDate, tenureDesc, interest, yearlyRows,
+      reinvestEntry: null,
+    };
+
+    // Reinvestment chain
+    if (inv.reinvest !== 'no') {
+      const reinvType = inv.reinvest;
+      const reinvRate = reinvType === 'nsc' ? 7.7 : 7.5;
+      let reinvMaturity, reinvMaturityDate, reinvTenure;
+      if (reinvType === 'nsc') {
+        reinvMaturity = nscMaturity(maturity, reinvRate);
+        reinvMaturityDate = new Date(maturityDate);
+        reinvMaturityDate.setFullYear(reinvMaturityDate.getFullYear() + 5);
+        reinvTenure = '5 years';
+      } else {
+        const mons = kvpMonths(reinvRate);
+        reinvMaturity = kvpMaturity(maturity, reinvRate);
+        reinvMaturityDate = new Date(maturityDate);
+        reinvMaturityDate.setMonth(reinvMaturityDate.getMonth() + mons);
+        reinvTenure = `${Math.floor(mons/12)}yr ${mons%12}mo`;
+      }
+      grandTotalMaturity = grandTotalMaturity - maturity + reinvMaturity; // replace with chain value
+      chainEntry.reinvestEntry = {
+        type: reinvType, principal: maturity, maturity: reinvMaturity,
+        maturityDate: reinvMaturityDate, tenure: reinvTenure,
+        interest: reinvMaturity - maturity,
+      };
+    }
+
+    chain.push(chainEntry);
+  });
+
+  // Build chain timeline HTML
+  const chainHtml = chain.map(c => {
+    const isNsc = c.type === 'nsc';
+    const color  = isNsc ? '#3b82f6' : '#16a34a';
+    const icon   = isNsc ? '📜' : '🌾';
+
+    // NSC year-by-year interest table
+    const nscTable = c.yearlyRows ? `
+      <div style="margin-top:10px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:5px;">Deemed Reinvestment (NSC — taxable but 80C eligible for first 4 yrs)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead><tr style="background:var(--bg-secondary);">
+            <th style="padding:4px 8px;text-align:left;">Year</th>
+            <th style="padding:4px 8px;text-align:right;">Interest</th>
+            <th style="padding:4px 8px;text-align:right;">Cumulative</th>
+            <th style="padding:4px 8px;text-align:right;">Balance</th>
+          </tr></thead>
+          <tbody>${c.yearlyRows.map(r => `
+            <tr style="${r.yr===5?'font-weight:700;background:rgba(22,163,74,.07);':''}">
+              <td style="padding:4px 8px;">Year ${r.yr}${r.yr<5?' (80C)':' (not 80C)'}</td>
+              <td style="padding:4px 8px;text-align:right;color:#16a34a;">${fmtI(r.interest)}</td>
+              <td style="padding:4px 8px;text-align:right;">${fmtI(r.cumInterest)}</td>
+              <td style="padding:4px 8px;text-align:right;font-weight:600;">${fmtI(r.balance)}</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>` : '';
+
+    // Reinvestment chain arrow
+    const reinvHtml = c.reinvestEntry ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px;background:${c.reinvestEntry.type==='nsc'?'rgba(59,130,246,.07)':'rgba(22,163,74,.07)'};border-radius:8px;">
+        <span style="font-size:18px;">⟳</span>
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);">Reinvested in ${c.reinvestEntry.type.toUpperCase()} @ ${c.reinvestEntry.type==='nsc'?'7.7':'7.5'}%</div>
+          <div style="display:flex;gap:16px;font-size:12px;margin-top:4px;flex-wrap:wrap;">
+            <span>Principal: <strong>${fmtI(c.reinvestEntry.principal)}</strong></span>
+            <span>Maturity: <strong style="color:${c.reinvestEntry.type==='nsc'?'#3b82f6':'#16a34a'};">${fmtI(c.reinvestEntry.maturity)}</strong></span>
+            <span>Matures: <strong>${c.reinvestEntry.maturityDate.toLocaleDateString('en-IN',{year:'numeric',month:'short'})}</strong></span>
+            <span>Tenure: <strong>${c.reinvestEntry.tenure}</strong></span>
+          </div>
+        </div>
+      </div>` : '';
+
+    return `
+      <div style="border:1.5px solid ${color}33;border-radius:10px;padding:14px;margin-bottom:12px;position:relative;">
+        <div style="position:absolute;top:-10px;left:14px;background:var(--bg-card);padding:0 6px;font-size:11px;font-weight:700;color:${color};">${icon} ${c.label}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:10px;">
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Invested</span><span style="font-size:15px;font-weight:800;">${fmtI(c.amount)}</span></div>
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Rate</span><span style="font-size:15px;font-weight:800;">${c.rate}% p.a.</span></div>
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Tenure</span><span style="font-size:15px;font-weight:800;">${c.tenureDesc}</span></div>
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Interest Earned</span><span style="font-size:15px;font-weight:800;color:#16a34a;">${fmtI(c.interest)}</span></div>
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Maturity Value</span><span style="font-size:15px;font-weight:800;color:${color};">${fmtI(c.maturity)}</span></div>
+          <div><span style="font-size:10px;color:var(--text-muted);display:block;">Matures On</span><span style="font-size:13px;font-weight:700;">${c.maturityDate.toLocaleDateString('en-IN',{year:'numeric',month:'short',day:'numeric'})}</span></div>
+        </div>
+        ${nscTable}
+        ${reinvHtml}
+      </div>`;
+  }).join('');
+
+  // Grand total
+  const grandInterest = grandTotalMaturity - grandTotalInvested;
+
+  res.innerHTML = `
+    <!-- Grand total -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Invested</div>
+        <div style="font-size:20px;font-weight:800;">${fmtI(grandTotalInvested)}</div>
+      </div>
+      <div style="background:rgba(22,163,74,.08);border-radius:10px;padding:14px;text-align:center;border:1.5px solid #86efac;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Maturity (incl. chains)</div>
+        <div style="font-size:20px;font-weight:800;color:#16a34a;">${fmtI(grandTotalMaturity)}</div>
+      </div>
+      <div style="background:rgba(139,92,246,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Total Interest</div>
+        <div style="font-size:20px;font-weight:800;color:#8b5cf6;">${fmtI(grandInterest)}</div>
+      </div>
+      <div style="background:rgba(59,130,246,.07);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Overall Multiplier</div>
+        <div style="font-size:20px;font-weight:800;color:#3b82f6;">${(grandTotalMaturity/grandTotalInvested).toFixed(2)}×</div>
+      </div>
+    </div>
+
+    <!-- Individual chain cards -->
+    <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🔗 Certificate Chain</div>
+    ${chainHtml}
+
+    <!-- Tax notes -->
+    <div style="padding:10px 14px;background:var(--bg-secondary);border-radius:8px;font-size:11px;color:var(--text-muted);">
+      📋 <strong>Tax Notes:</strong>
+      <strong>NSC:</strong> Deemed reinvestment interest (Yrs 1–4) is taxable as "Income from Other Sources" but qualifies for 80C deduction in the same year — net tax impact is zero for 30% slab if you reinvest. Year 5 interest is taxable with no 80C offset.
+      <strong>KVP:</strong> All interest taxable as income. No 80C benefit. No TDS deducted.
+      Both instruments: No premature withdrawal before maturity in normal circumstances (emergency provisions exist).
+    </div>`;
+}

@@ -23,7 +23,7 @@ if ($manualNav > 0 && $schemeId) {
         HoldingCalculator::recalculate_nps_holding($p['portfolio_id'], $schemeId, $p['tier']);
     }
     audit_log('nps_nav_update', 'nps_schemes', $schemeId);
-    json_response(true, "NPS NAV updated to {$manualNav} for " . date('d-m-Y', strtotime($manualDate)));
+    json_response(true, "NPS NAV updated to {$manualNav} for " . date(DATE_DISPLAY, strtotime($manualDate)));
 }
 
 // Auto-fetch from PFRDA (best-effort scraping)

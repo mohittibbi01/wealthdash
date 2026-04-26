@@ -125,11 +125,15 @@ $navItems = [
         'children' => [
             'report_fy'        => ['label' => 'FY Gains',       'href' => APP_URL . '/templates/pages/report_fy.php',           'icon' => _ic('<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>', 14)],
             'report_tax'       => ['label' => 'Tax Planning',   'href' => APP_URL . '/templates/pages/report_tax.php',          'icon' => _ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="9" y1="14" x2="15" y2="14"/>', 14)],
+            'tax_calculator'   => ['label' => 'Tax Calculator',  'href' => APP_URL . '/templates/pages/tax_calculator.php',      'icon' => _ic('<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="14" x2="14" y2="14"/>', 14)],
+            'tax_regime'       => ['label' => '⚖️ Regime Picker',  'href' => APP_URL . '/templates/pages/tax_regime.php',    'icon' => _ic('<line x1="3" y1="12" x2="21" y2="12"/><polyline points="8 7 3 12 8 17"/><polyline points="16 7 21 12 16 17"/>', 14)],
+            'fire_calculator'  => ['label' => 'FIRE Calculator', 'href' => APP_URL . '/templates/pages/fire_calculator.php',     'icon' => _ic('<path d="M12 2c0 0-4 4-4 8a4 4 0 0 0 8 0c0-4-4-8-4-8z"/>', 14)],
             'report_networth'  => ['label' => 'Net Worth',      'href' => APP_URL . '/templates/pages/report_networth.php',     'icon' => _ic('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>', 14)],
             'report_rebalance' => ['label' => 'Rebalancing',    'href' => APP_URL . '/templates/pages/report_rebalancing.php',  'icon' => _ic('<path d="M18 15l-6-6-6 6"/>', 14)],
             'report_sip'       => ['label' => 'MF SIP/SWP',     'href' => APP_URL . '/templates/pages/report_sip.php',          'icon' => _ic('<path d="M3 3v18h18"/><path d="m7 12 3-3 3 3 5-5"/>', 14)],
             'cap_gains'        => ['label' => 'Capital Gains',  'href' => APP_URL . '/templates/pages/capital_gains_summary.php','icon' => _ic('<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>', 14)],
             'ltcg_harvest'     => ['label' => 'Tax Harvesting', 'href' => APP_URL . '/templates/pages/ltcg_harvesting.php',     'icon' => _ic('<path d="M12 22V12M12 12L8 16M12 12l4 4"/><circle cx="12" cy="6" r="4"/>', 14)],
+            'wealth_statement' => ['label' => 'Wealth Statement','href' => APP_URL . '/templates/pages/wealth_statement.php',   'icon' => _ic('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>', 14)],
         ],
     ],
 

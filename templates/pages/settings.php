@@ -227,6 +227,70 @@ ob_start();
         <button class="save-btn" onclick="saveNotifPrefs()">Save Preferences</button>
         <span class="save-success" id="notifPrefSaved">✓ Saved!</span>
       </div>
+
+      <!-- t379: Scheduled Reports -->
+      <div class="settings-card">
+        <div class="settings-card-title">📅 Scheduled Reports — Auto Email</div>
+        <p style="color:var(--text-muted);font-size:13px;margin:0 0 14px;">Automatically receive portfolio reports by email on a schedule. Up to 5 schedules per account.</p>
+        <div id="scheduledReportsWrap">
+          <div style="color:var(--text-muted);font-size:13px;">⏳ Loading schedules…</div>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="save-btn" onclick="showAddScheduleModal()" style="background:var(--accent-blue,#2563eb);">+ Add Schedule</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- t379: Scheduled Report Modal -->
+    <div id="scheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card,#fff);border-radius:12px;padding:28px;width:100%;max-width:480px;margin:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <h3 style="margin:0 0 20px;font-size:16px;font-weight:700;" id="scheduleModalTitle">Add Scheduled Report</h3>
+        <input type="hidden" id="scheduleId">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Report Type</label>
+            <select id="schedReportType" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;">
+              <option value="portfolio_summary">Portfolio Summary</option>
+              <option value="net_worth">Net Worth</option>
+              <option value="fy_gains">FY Capital Gains</option>
+              <option value="fd_summary">FD Summary</option>
+              <option value="sip_summary">SIP Summary</option>
+              <option value="full_report">Full Wealth Report</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Frequency</label>
+            <select id="schedFrequency" onchange="updateScheduleFreqFields()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+            </select>
+          </div>
+          <div id="schedDowWrap" style="display:none;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Day of Week</label>
+            <select id="schedDow" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;">
+              <option value="0">Sunday</option><option value="1" selected>Monday</option><option value="2">Tuesday</option>
+              <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option>
+            </select>
+          </div>
+          <div id="schedDomWrap">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Day of Month <span style="color:var(--text-muted);font-weight:400;">(1–28)</span></label>
+            <input type="number" id="schedDom" min="1" max="28" value="1" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Send Hour <span style="color:var(--text-muted);font-weight:400;">(IST, 0–23)</span></label>
+            <input type="number" id="schedHour" min="0" max="23" value="8" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px;">Email Override <span style="color:var(--text-muted);font-weight:400;">(blank = account email)</span></label>
+            <input type="email" id="schedEmail" placeholder="other@example.com" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg,#fff);color:var(--text,#111);font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:22px;justify-content:flex-end;">
+          <button onclick="closeScheduleModal()" style="padding:9px 20px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text,#111);cursor:pointer;font-size:13px;">Cancel</button>
+          <button onclick="saveSchedule()" class="save-btn" id="schedSaveBtn">Save Schedule</button>
+        </div>
+      </div>
     </div>
 
     <!-- Data & Export -->
@@ -304,7 +368,7 @@ function showTab(id, btn) {
   document.querySelectorAll('.settings-nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   btn.classList.add('active');
-  if (id === 'notifications') loadNotifPrefs();
+  if (id === 'notifications') { loadNotifPrefs(); loadScheduledReports(); }
   if (id === 'display') initDisplayToggles();
 }
 
@@ -428,6 +492,145 @@ async function clearNotifs() {
   await fetch(`${APP}/api/router.php`, {method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'}, body:JSON.stringify({action:'notif_clear_all'})});
   if (typeof showToast === 'function') showToast('All notifications cleared', 'info');
 }
+/* ── t379: Scheduled Reports ─────────────────────────────────────── */
+const REPORT_TYPE_LABELS = {
+  portfolio_summary: '📊 Portfolio Summary',
+  net_worth:         '💰 Net Worth',
+  fy_gains:          '📋 FY Capital Gains',
+  fd_summary:        '🏦 FD Summary',
+  sip_summary:       '🔁 SIP Summary',
+  full_report:       '📈 Full Wealth Report',
+};
+const FREQ_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+const DOW_LABELS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+async function loadScheduledReports() {
+  const wrap = document.getElementById('scheduledReportsWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">⏳ Loading…</div>';
+  try {
+    const res = await API.post({ action: 'scheduled_reports_list' });
+    if (!res.success) { wrap.innerHTML = '<div style="color:#dc2626;font-size:13px;">Failed to load schedules.</div>'; return; }
+    const schedules = res.data.schedules || [];
+    if (!schedules.length) {
+      wrap.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No scheduled reports yet. Add one below.</div>';
+      return;
+    }
+    wrap.innerHTML = schedules.map(s => {
+      const typeLabel = REPORT_TYPE_LABELS[s.report_type] || s.report_type;
+      const freqLabel = FREQ_LABELS[s.frequency] || s.frequency;
+      let whenStr = '';
+      if (s.frequency === 'weekly' && s.day_of_week != null) whenStr = ' · ' + DOW_LABELS[s.day_of_week];
+      if (s.frequency === 'monthly' && s.day_of_month)       whenStr = ' · Day ' + s.day_of_month;
+      const nextStr = s.next_send_at ? new Date(s.next_send_at + 'Z').toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '—';
+      const isActive = parseInt(s.is_active);
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${typeLabel}</div>
+          <div style="font-size:12px;color:var(--text-muted);">${freqLabel}${whenStr} · ${s.send_hour}:00 IST${s.email ? ' · ' + s.email : ''}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Next: ${nextStr}</div>
+        </div>
+        <button onclick="toggleSchedule(${s.id})" style="padding:5px 10px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;" title="${isActive ? 'Pause' : 'Enable'}">${isActive ? '⏸ Pause' : '▶ Enable'}</button>
+        <button onclick="editSchedule(${s.id})" style="padding:5px 10px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;">✏ Edit</button>
+        <button onclick="deleteSchedule(${s.id})" style="padding:5px 10px;font-size:11px;border-radius:6px;border:1px solid #fca5a5;background:transparent;color:#dc2626;cursor:pointer;">🗑</button>
+      </div>`;
+    }).join('');
+    // store for edit
+    window._schedules = schedules;
+  } catch(e) {
+    wrap.innerHTML = '<div style="color:#dc2626;font-size:13px;">Error loading schedules.</div>';
+  }
+}
+
+function updateScheduleFreqFields() {
+  const freq = document.getElementById('schedFrequency').value;
+  document.getElementById('schedDowWrap').style.display = freq === 'weekly'  ? 'block' : 'none';
+  document.getElementById('schedDomWrap').style.display = freq === 'monthly' ? 'block' : 'none';
+}
+
+function showAddScheduleModal() {
+  document.getElementById('scheduleModalTitle').textContent = 'Add Scheduled Report';
+  document.getElementById('scheduleId').value = '';
+  document.getElementById('schedReportType').value = 'portfolio_summary';
+  document.getElementById('schedFrequency').value = 'monthly';
+  document.getElementById('schedDow').value = '1';
+  document.getElementById('schedDom').value = '1';
+  document.getElementById('schedHour').value = '8';
+  document.getElementById('schedEmail').value = '';
+  updateScheduleFreqFields();
+  const m = document.getElementById('scheduleModal');
+  m.style.display = 'flex';
+}
+
+function editSchedule(id) {
+  const s = (window._schedules || []).find(x => x.id == id);
+  if (!s) return;
+  document.getElementById('scheduleModalTitle').textContent = 'Edit Scheduled Report';
+  document.getElementById('scheduleId').value = s.id;
+  document.getElementById('schedReportType').value = s.report_type;
+  document.getElementById('schedFrequency').value = s.frequency;
+  document.getElementById('schedDow').value = s.day_of_week ?? '1';
+  document.getElementById('schedDom').value = s.day_of_month ?? '1';
+  document.getElementById('schedHour').value = s.send_hour ?? '8';
+  document.getElementById('schedEmail').value = s.email ?? '';
+  updateScheduleFreqFields();
+  document.getElementById('scheduleModal').style.display = 'flex';
+}
+
+function closeScheduleModal() {
+  document.getElementById('scheduleModal').style.display = 'none';
+}
+
+async function saveSchedule() {
+  const btn = document.getElementById('schedSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const freq = document.getElementById('schedFrequency').value;
+  const payload = {
+    action:        'scheduled_report_save',
+    id:            document.getElementById('scheduleId').value || '',
+    report_type:   document.getElementById('schedReportType').value,
+    frequency:     freq,
+    day_of_week:   freq === 'weekly'  ? document.getElementById('schedDow').value : '',
+    day_of_month:  freq === 'monthly' ? document.getElementById('schedDom').value : '',
+    send_hour:     document.getElementById('schedHour').value,
+    email:         document.getElementById('schedEmail').value.trim(),
+    is_active:     1,
+  };
+  try {
+    const res = await API.post(payload);
+    if (res.success) {
+      closeScheduleModal();
+      loadScheduledReports();
+      if (typeof showToast === 'function') showToast(res.message || 'Saved!', 'success');
+    } else {
+      if (typeof showToast === 'function') showToast(res.message || 'Error saving schedule', 'error');
+    }
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Network error', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Schedule';
+  }
+}
+
+async function deleteSchedule(id) {
+  if (!confirm('Delete this scheduled report?')) return;
+  const res = await API.post({ action: 'scheduled_report_delete', id });
+  if (res.success) {
+    loadScheduledReports();
+    if (typeof showToast === 'function') showToast('Schedule deleted', 'info');
+  } else {
+    if (typeof showToast === 'function') showToast(res.message || 'Error', 'error');
+  }
+}
+
+async function toggleSchedule(id) {
+  const res = await API.post({ action: 'scheduled_report_toggle', id });
+  if (res.success) {
+    loadScheduledReports();
+    if (typeof showToast === 'function') showToast(res.message, 'info');
+  }
+}
+/* ─────────────────────────────────────────────────────────────────── */
 </script>
 
 <?php $pageContent = ob_get_clean(); require_once APP_ROOT . '/templates/layout.php'; ?>

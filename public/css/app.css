@@ -1994,3 +1994,146 @@ html, body { overflow-x: hidden; }
 /* Tooltip below (for elements near top of page) */
 .wd-info-btn.tip-below::after { bottom: auto; top: calc(100% + 8px); }
 .wd-info-btn.tip-below::before { bottom: auto; top: calc(100% + 2px); border-top-color: transparent; border-bottom-color: #1e293b; }
+/* ══════════════════════════════════════════════════════════════
+   t370 — MOBILE BOTTOM NAVIGATION BAR
+   t494 — Quick Transaction Drawer
+══════════════════════════════════════════════════════════════ */
+
+/* Bottom nav — only mobile */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 62px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  z-index: 900;
+  flex-direction: row;
+  align-items: stretch;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -2px 16px rgba(0,0,0,.08);
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  /* Push page content above bottom nav */
+  .page-content {
+    padding-bottom: 72px !important;
+  }
+  /* Hide desktop sidebar on mobile when bottom nav active */
+  .sidebar { display: none !important; }
+  .main-wrapper { margin-left: 0 !important; }
+  .topbar { left: 0 !important; }
+}
+
+.mbn-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 6px 4px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mbn-item:active { transform: scale(.92); }
+.mbn-item.active { color: var(--accent); }
+.mbn-item.active svg { stroke: var(--accent); }
+
+/* Centre add button */
+.mbn-add { flex: 1.1; }
+.mbn-add-circle {
+  width: 46px; height: 46px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 2px;
+  box-shadow: 0 4px 12px rgba(99,102,241,.4);
+  transition: transform .15s, box-shadow .15s;
+}
+.mbn-add:active .mbn-add-circle {
+  transform: scale(.88);
+  box-shadow: 0 2px 6px rgba(99,102,241,.3);
+}
+.mbn-add-circle svg { stroke: #fff; }
+
+/* Badge on nav items */
+.mbn-badge {
+  position: absolute;
+  top: 5px; right: calc(50% - 18px);
+  min-width: 16px; height: 16px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px; font-weight: 700;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+  border: 2px solid var(--bg);
+}
+
+/* Quick drawer swipe indicator */
+#quickDrawerSheet.open {
+  transform: translateY(0) !important;
+}
+
+/* Quick drawer type buttons active state */
+.qd-type.active {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   t298 — MARKET PULSE WIDGET
+══════════════════════════════════════════════════════════════ */
+.market-pulse-bar {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 10px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.market-pulse-bar::-webkit-scrollbar { display: none; }
+.mp-ticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  cursor: default;
+  flex-shrink: 0;
+}
+.mp-name { font-weight: 600; color: var(--text-secondary); }
+.mp-value { font-weight: 700; }
+.mp-change.up   { color: #16a34a; }
+.mp-change.down { color: #ef4444; }
+.mp-change.flat { color: var(--text-secondary); }
+
+/* t400 — Milestone badge */
+.milestone-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+  background: linear-gradient(135deg, #f59e0b22, #f59e0b44);
+  border: 1px solid #f59e0b66;
+  color: #b45309;
+}
+[data-theme="dark"] .milestone-badge { color: #fcd34d; }

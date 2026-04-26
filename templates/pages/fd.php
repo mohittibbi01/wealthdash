@@ -78,6 +78,21 @@ ob_start();
   </div>
 </div>
 
+<!-- t421: Page-level tab switcher -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px">
+  <button id="fdTabMyFDs" onclick="fdSwitchTab('my_fds')"
+    style="padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--primary);margin-bottom:-2px;color:var(--primary)">
+    📋 My FDs
+  </button>
+  <button id="fdTabRates" onclick="fdSwitchTab('rate_tracker')"
+    style="padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-muted)">
+    📊 Rate Tracker
+  </button>
+</div>
+
+<!-- ─── MY FDs PANEL ──────────────────────────────────────── -->
+<div id="fdPanelMyFDs">
+
 <!-- Summary Cards -->
 <div class="stats-grid" style="margin-bottom:24px">
   <div class="stat-card">
@@ -268,6 +283,21 @@ function fdToggleDiv() {
 </div>
 <?php endif; ?>
 
+<!-- t421: Page-level tab switcher: My FDs | Rate Tracker -->
+<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px" id="fdPageTabs">
+  <button onclick="fdSwitchTab('my_fds')" id="fdTabMyFDs"
+    style="padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--primary);margin-bottom:-2px;color:var(--primary)">
+    📋 My FDs
+  </button>
+  <button onclick="fdSwitchTab('rate_tracker')" id="fdTabRates"
+    style="padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-muted)">
+    📊 Rate Tracker
+  </button>
+</div>
+
+<!-- ─── MY FDs PANEL ──────────────────────────────────────── -->
+<div id="fdPanelMyFDs">
+
 <!-- FD Table -->
 <div class="card">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
@@ -430,7 +460,111 @@ function fdToggleDiv() {
   </div>
 </div>
 
+</div><!-- /fdPanelMyFDs -->
+
+<!-- ─── RATE TRACKER PANEL (t421) ────────────────────────── -->
+<div id="fdPanelRates" style="display:none">
+
+  <div id="rateTrackerSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px"></div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header" style="display:flex;gap:0;padding-bottom:0;border-bottom:1px solid var(--border)">
+      <button onclick="RateTracker.subTab('grid')" id="rtSubGrid"
+        class="rt-sub"
+        style="padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--primary);margin-bottom:-1px;color:var(--primary)">
+        Bank Rate Grid
+      </button>
+      <button onclick="RateTracker.subTab('compare')" id="rtSubCompare"
+        class="rt-sub"
+        style="padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--text-muted)">
+        Compare My FDs
+      </button>
+      <button onclick="RateTracker.subTab('opportunities')" id="rtSubOpp"
+        class="rt-sub"
+        style="padding:10px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--text-muted)">
+        Opportunities
+        <span id="rtOppBadge" style="display:none;background:#dc2626;color:#fff;border-radius:99px;font-size:10px;padding:1px 6px;margin-left:4px"></span>
+      </button>
+    </div>
+    <div style="padding:6px 16px 12px">
+
+      <!-- Rate Grid sub-panel -->
+      <div id="rtPanelGrid">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0 8px">
+          <select id="rtFilterType" onchange="RateTracker.filterGrid()"
+            style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px">
+            <option value="">All Bank Types</option>
+            <option value="small_finance">Small Finance Banks 🔥</option>
+            <option value="private">Private Banks</option>
+            <option value="private_large">Large Private Banks</option>
+            <option value="public">PSU Banks</option>
+            <option value="government">Govt. Schemes</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer">
+            <input type="checkbox" id="rtSeniorToggle" onchange="RateTracker.filterGrid()" style="cursor:pointer">
+            Senior Citizen Rates
+          </label>
+          <span style="margin-left:auto;font-size:11px;color:var(--text-muted)" id="rtLastUpdated"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px" id="rtGridTable">
+            <thead id="rtGridHead"></thead>
+            <tbody id="rtGridBody">
+              <tr><td colspan="10" style="padding:32px;text-align:center;color:var(--text-muted)">
+                <span class="spinner"></span> Loading rates…
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin:8px 0 0;padding-top:8px;border-top:1px solid var(--border)">
+          ⚠ Rates are indicative and updated periodically. DICGC insures up to ₹5L per bank per depositor. Always verify with the bank before investing.
+        </p>
+      </div>
+
+      <!-- Compare sub-panel -->
+      <div id="rtPanelCompare" style="display:none">
+        <div id="rtCompareBody" style="padding:12px 0">
+          <div style="text-align:center;padding:32px;color:var(--text-muted)"><span class="spinner"></span> Comparing your FDs with market…</div>
+        </div>
+      </div>
+
+      <!-- Opportunities sub-panel -->
+      <div id="rtPanelOpp" style="display:none">
+        <div id="rtOppBody" style="padding:12px 0">
+          <div style="text-align:center;padding:32px;color:var(--text-muted)"><span class="spinner"></span> Finding renewal opportunities…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div><!-- /fdPanelRates -->
+
+<script>
+function fdSwitchTab(tab) {
+  const activeCSS = 'border-bottom:2px solid var(--primary);color:var(--primary)';
+  const inactCSS  = 'border-bottom:2px solid transparent;color:var(--text-muted)';
+  const tabMy   = document.getElementById('fdTabMyFDs');
+  const tabRate = document.getElementById('fdTabRates');
+  const pMy     = document.getElementById('fdPanelMyFDs');
+  const pRate   = document.getElementById('fdPanelRates');
+  if (!tabMy) return;
+  if (tab === 'my_fds') {
+    tabMy.style.cssText   = 'padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px;' + activeCSS;
+    tabRate.style.cssText = 'padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px;' + inactCSS;
+    pMy.style.display    = '';
+    pRate.style.display  = 'none';
+  } else {
+    tabMy.style.cssText   = 'padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px;' + inactCSS;
+    tabRate.style.cssText = 'padding:10px 22px;font-size:14px;font-weight:600;border:none;background:none;cursor:pointer;margin-bottom:-2px;' + activeCSS;
+    pMy.style.display    = 'none';
+    pRate.style.display  = '';
+    RateTracker.init();
+  }
+}
+</script>
+
 <script src="<?= APP_URL ?>/public/js/fd.js?v=<?= ASSET_VERSION ?>"></script>
+<script src="<?= APP_URL ?>/public/js/fd_rates.js?v=<?= ASSET_VERSION ?>"></script>
 <?php
 $pageContent = ob_get_clean();
 include APP_ROOT . '/templates/layout.php';

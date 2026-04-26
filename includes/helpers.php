@@ -2,62 +2,40 @@
 /**
  * WealthDash — Helper Functions
  * INR formatting, date helpers, CAGR calc, CSRF, FY utils
+ * Task: t347 — WDNumberFormat integrated as canonical Indian formatting engine
  */
 declare(strict_types=1);
+
+// Load canonical Indian number formatter (t347)
+require_once __DIR__ . '/../api/format/number_format.php';
+require_once __DIR__ . '/../api/format/format_helper.php';
 
 // -------------------------------------------------------
 // CURRENCY HELPERS
 // -------------------------------------------------------
 
 /**
- * Format number as INR with ₹ symbol
+ * Format number as INR with ₹ symbol — Indian numbering system
  * e.g. 1234567.89 → ₹12,34,567.89
+ * Delegates to WDNumberFormat for consistency across PHP + JS (t347)
  */
-function inr(float|int|string $amount, int $decimals = 2): string {
-    $amount = (float) $amount;
-    $abs    = abs($amount);
-    $sign   = $amount < 0 ? '-' : '';
-
-    if ($abs < 1000) {
-        return $sign . '₹' . number_format($abs, $decimals);
-    }
-
-    // Indian numbering: last 3 digits, then groups of 2
-    $formatted = number_format($abs, $decimals, '.', '');
-    [$whole, $decimal] = array_pad(explode('.', $formatted), 2, '');
-
-    if (strlen($whole) <= 3) {
-        $result = $whole;
-    } else {
-        $last3 = substr($whole, -3);
-        $rest  = substr($whole, 0, -3);
-        $rest  = preg_replace('/\B(?=(\d{2})+(?!\d))/', ',', $rest);
-        $result = $rest . ',' . $last3;
-    }
-
-    return $sign . '₹' . $result . ($decimals > 0 ? '.' . str_pad($decimal, $decimals, '0') : '');
+function inr(float|int|string|null $amount, int $decimals = 2): string {
+    return WDNumberFormat::currency($amount, $decimals);
 }
 
 /**
- * Format large numbers in lakhs/crores
+ * Format large numbers in lakhs/crores with ₹ symbol
+ * e.g. 15000000 → ₹1.50Cr | 250000 → ₹2.50L
  */
-function inr_compact(float $amount): string {
-    $abs = abs($amount);
-    $sign = $amount < 0 ? '-' : '';
-    if ($abs >= 1_00_00_000) { // 1 Crore
-        return $sign . '₹' . number_format($abs / 1_00_00_000, 2) . ' Cr';
-    }
-    if ($abs >= 1_00_000) { // 1 Lakh
-        return $sign . '₹' . number_format($abs / 1_00_000, 2) . ' L';
-    }
-    return $sign . inr($abs);
+function inr_compact(float|int|string|null $amount): string {
+    return WDNumberFormat::compact($amount);
 }
 
 /**
- * Format percentage with color class
+ * Format percentage
  */
 function pct(float $value, int $decimals = 2): string {
-    return number_format($value, $decimals) . '%';
+    return WDNumberFormat::percent($value, $decimals);
 }
 
 function gain_class(float $value): string {
@@ -77,9 +55,18 @@ function date_display(string|null $dbDate): string {
 }
 
 /**
- * Convert display date (DD-MM-YYYY) to DB format (YYYY-MM-DD)
+ * Convert display date to DB format (YYYY-MM-DD)
+ * Accepts: "25 Apr 2026" (d M Y), "25-04-2026" (d-m-Y), "2026-04-25" (passthrough)  [t348]
  */
 function date_to_db(string $displayDate): string {
+    if (empty($displayDate)) return $displayDate;
+    // Already DB format
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $displayDate)) return $displayDate;
+    // dd MMM YYYY  e.g. "25 Apr 2026"
+    $d = DateTime::createFromFormat('j M Y', $displayDate)
+      ?? DateTime::createFromFormat('d M Y', $displayDate);
+    if ($d) return $d->format('Y-m-d');
+    // Legacy DD-MM-YYYY
     $d = DateTime::createFromFormat('d-m-Y', $displayDate);
     return $d ? $d->format('Y-m-d') : $displayDate;
 }

@@ -1272,3 +1272,443 @@ document.addEventListener('DOMContentLoaded', () => {
         if (body) body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px;">Click <strong>Load Comparison</strong> to refresh.</div>`;
     });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t376 — ANNUAL REPORT FY-wise PDF Generator
+   Fetches data from annual_report_data API, renders a full-page printable
+   HTML report in a new tab (browser Print → Save as PDF).
+═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+    'use strict';
+
+    const btn = document.getElementById('btnAnnualReportPdf');
+    if (!btn) return;
+
+    // FY selector — reuse the existing fyFilter select on the page
+    function selectedFy() {
+        return document.getElementById('fyFilter')?.value || '';
+    }
+
+    btn.addEventListener('click', async () => {
+        const fy = selectedFy() || '';
+        const fyLabel = fy ? 'FY ' + fy : 'Current FY';
+
+        btn.disabled = true;
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Generating…`;
+
+        try {
+            const pid = window.WD?.selectedPortfolio || 0;
+            const res = await fetch(`${window.WD?.appUrl || ''}/api/?action=annual_report_data`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ fy, portfolio_id: pid, csrf: window.CSRF_TOKEN || '' })
+            });
+            const json = await res.json();
+
+            if (!json.success) {
+                window.showToast?.(json.message || 'Failed to fetch report data', 'error');
+                return;
+            }
+
+            _renderAnnualReport(json);
+
+        } catch (e) {
+            window.showToast?.('Error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg> Annual Report PDF`;
+        }
+    });
+
+    function _inr(n) {
+        return '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function _pct(n, dec = 2) {
+        const v = Number(n || 0);
+        return (v >= 0 ? '+' : '') + v.toFixed(dec) + '%';
+    }
+    function _clr(n) {
+        return Number(n) >= 0 ? '#16a34a' : '#dc2626';
+    }
+    function _bar(pct, max, color) {
+        const w = Math.min(100, Math.abs(pct / max) * 100).toFixed(1);
+        return `<div style="background:#f3f4f6;border-radius:4px;height:8px;width:100%;"><div style="width:${w}%;background:${color};height:8px;border-radius:4px;"></div></div>`;
+    }
+
+    function _renderAnnualReport(d) {
+        const fy   = d.fy_label || 'FY ' + d.fy;
+        const user = d.user_name || 'Investor';
+        const mf   = d.mf_activity || {};
+        const cg   = d.cap_gains  || {};
+        const h    = d.holdings   || {};
+        const tot  = h.totals     || {};
+        const fd   = d.fd         || {};
+        const sips = d.active_sips || {};
+
+        /* ── Category allocation rows ── */
+        const totalVal = d.net_worth || 1;
+        const catRows = Object.entries(h.cat_alloc || {}).map(([cat, val]) => {
+            const pct = totalVal > 0 ? (val / totalVal * 100) : 0;
+            return `<tr>
+                <td>${cat}</td>
+                <td style="text-align:right">${_inr(val)}</td>
+                <td style="text-align:right">${pct.toFixed(1)}%</td>
+                <td style="padding:0 8px;vertical-align:middle;">${_bar(pct, 40, '#3b82f6')}</td>
+            </tr>`;
+        }).join('');
+
+        /* ── Top performers ── */
+        const topRows = (h.top || []).map(f => `
+            <tr>
+                <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.fund_name}">${(f.fund_name||'').substring(0,38)}</td>
+                <td>${f.category || ''}</td>
+                <td style="text-align:right">${_inr(f.total_invested)}</td>
+                <td style="text-align:right">${_inr(f.value_now)}</td>
+                <td style="text-align:right;color:${_clr(f.gain_pct)};font-weight:700;">${_pct(f.gain_pct)}</td>
+            </tr>`).join('');
+
+        /* ── Bottom performers ── */
+        const bottomRows = (h.bottom || []).map(f => `
+            <tr>
+                <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.fund_name}">${(f.fund_name||'').substring(0,38)}</td>
+                <td style="text-align:right">${_inr(f.value_now)}</td>
+                <td style="text-align:right;color:${_clr(f.gain_pct)};font-weight:700;">${_pct(f.gain_pct)}</td>
+            </tr>`).join('');
+
+        /* ── Capital gains detail ── */
+        const cgDetailRows = (cg.detail || []).slice(0, 20).map(g => `
+            <tr>
+                <td>${g.fund}</td>
+                <td>${g.date}</td>
+                <td>${g.hold_days}d</td>
+                <td>${g.type}</td>
+                <td style="text-align:right;color:${_clr(g.gain)};font-weight:600;">${_inr(g.gain)}</td>
+                <td style="text-align:right;color:#dc2626;">${_inr(g.tax_est)}</td>
+            </tr>`).join('');
+
+        /* ── SIP by month ── */
+        const sipMonthRows = (d.sip_by_month || []).map(m => `
+            <tr>
+                <td>${m.month_label}</td>
+                <td style="text-align:right">${m.count} SIPs</td>
+                <td style="text-align:right">${_inr(m.amount)}</td>
+            </tr>`).join('');
+
+        /* ── Active SIPs ── */
+        const activeSipRows = (sips.list || []).map(s => `
+            <tr>
+                <td>${(s.fund_name||'').substring(0,40)}</td>
+                <td>${s.frequency || 'Monthly'}</td>
+                <td style="text-align:right;font-weight:600;">${_inr(s.amount)}</td>
+            </tr>`).join('');
+
+        const gainLoss   = tot.gain_loss || 0;
+        const gainPct    = tot.gain_pct  || 0;
+        const nps        = d.nps         || {};
+        const stocks     = d.stocks      || {};
+        const savings    = d.savings     || {};
+
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WealthDash Annual Report — ${fy}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
+  .page { max-width: 900px; margin: 0 auto; padding: 32px 28px; }
+
+  /* ── Cover ── */
+  .cover { background: linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%); color:#fff; padding:40px 36px 32px; border-radius:12px; margin-bottom:28px; }
+  .cover-logo { font-size:22px; font-weight:900; letter-spacing:-0.5px; margin-bottom:8px; }
+  .cover-logo span { color:#93c5fd; }
+  .cover-title { font-size:28px; font-weight:800; margin-bottom:4px; }
+  .cover-fy { font-size:15px; opacity:0.85; margin-bottom:20px; }
+  .cover-meta { display:flex; gap:24px; flex-wrap:wrap; }
+  .cover-meta-item label { font-size:10px; opacity:0.7; display:block; text-transform:uppercase; letter-spacing:.5px; }
+  .cover-meta-item span { font-size:18px; font-weight:700; }
+
+  /* ── Sections ── */
+  .section { margin-bottom:24px; }
+  h2 { font-size:14px; font-weight:800; color:#1e3a5f; border-bottom:2px solid #dbeafe; padding-bottom:6px; margin-bottom:12px; text-transform:uppercase; letter-spacing:.3px; }
+  h3 { font-size:12px; font-weight:700; color:#374151; margin-bottom:8px; }
+
+  /* ── KPI Grid ── */
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+  .kpi { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; }
+  .kpi label { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:.4px; display:block; margin-bottom:4px; }
+  .kpi .val { font-size:16px; font-weight:800; color:#0f172a; }
+  .kpi .sub { font-size:10px; color:#64748b; margin-top:2px; }
+  .kpi.green .val { color:#16a34a; }
+  .kpi.red .val   { color:#dc2626; }
+  .kpi.blue .val  { color:#2563eb; }
+
+  /* ── Tables ── */
+  table { width:100%; border-collapse:collapse; font-size:10.5px; margin-bottom:12px; }
+  th { background:#f1f5f9; padding:6px 8px; text-align:left; font-weight:700; color:#374151; border:1px solid #e2e8f0; font-size:10px; text-transform:uppercase; letter-spacing:.3px; }
+  td { padding:5px 8px; border:1px solid #e8ecf0; vertical-align:middle; }
+  tr:nth-child(even) td { background:#fafafa; }
+  .total-row td { font-weight:700; background:#f1f5f9!important; border-top:2px solid #cbd5e1; }
+
+  /* ── Net Worth Bar ── */
+  .nw-breakdown { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
+  .nw-item { text-align:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 8px; }
+  .nw-item label { font-size:10px; color:#64748b; display:block; margin-bottom:4px; }
+  .nw-item .val { font-size:13px; font-weight:700; color:#0f172a; }
+
+  /* ── Tax box ── */
+  .tax-box { background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+  .tax-box h3 { color:#c2410c; margin-bottom:8px; }
+
+  /* ── Footer ── */
+  .footer { margin-top:28px; padding-top:14px; border-top:1px solid #e2e8f0; font-size:10px; color:#94a3b8; }
+  .disclaimer { background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px; font-size:10px; color:#64748b; margin-top:12px; line-height:1.6; }
+
+  /* ── Print ── */
+  @media print {
+    body { font-size: 10px; }
+    .no-print { display:none!important; }
+    .page { padding:16px; }
+    .cover { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .kpi { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    h2 { page-break-after:avoid; }
+    table { page-break-inside:avoid; }
+    .section { page-break-inside:avoid; }
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ COVER ══════════════════════════════════════════════════════════════ -->
+  <div class="cover">
+    <div class="cover-logo">Wealth<span>Dash</span></div>
+    <div class="cover-title">Annual Wealth Report</div>
+    <div class="cover-fy">${fy} &nbsp;·&nbsp; Personal Finance Statement</div>
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <label>Investor</label>
+        <span>${user}</span>
+      </div>
+      <div class="cover-meta-item">
+        <label>Net Worth</label>
+        <span>${_inr(d.net_worth)}</span>
+      </div>
+      <div class="cover-meta-item">
+        <label>MF Portfolio</label>
+        <span>${_inr(tot.value_now || 0)}</span>
+      </div>
+      <div class="cover-meta-item">
+        <label>Overall Return</label>
+        <span>${_pct(gainPct)}</span>
+      </div>
+      <div class="cover-meta-item">
+        <label>Generated</label>
+        <span style="font-size:12px;">${d.generated_at || ''}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ NET WORTH BREAKDOWN ════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>Net Worth Breakdown</h2>
+    <div class="nw-breakdown">
+      <div class="nw-item">
+        <label>Mutual Funds</label>
+        <div class="val">${_inr(tot.value_now || 0)}</div>
+      </div>
+      <div class="nw-item">
+        <label>NPS</label>
+        <div class="val">${_inr(nps.value_now || 0)}</div>
+      </div>
+      <div class="nw-item">
+        <label>Stocks</label>
+        <div class="val">${_inr(stocks.value_now || 0)}</div>
+      </div>
+      <div class="nw-item">
+        <label>Fixed Deposits</label>
+        <div class="val">${_inr(fd.active?.invested || 0)}</div>
+      </div>
+      <div class="nw-item">
+        <label>Savings</label>
+        <div class="val">${_inr(savings.balance || 0)}</div>
+      </div>
+      <div class="nw-item" style="background:#dbeafe;border-color:#93c5fd;">
+        <label>Total Net Worth</label>
+        <div class="val" style="color:#1d4ed8;">${_inr(d.net_worth)}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MF ACTIVITY THIS FY ════════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>Mutual Fund Activity — ${fy}</h2>
+    <div class="kpi-grid">
+      <div class="kpi blue">
+        <label>Invested</label>
+        <div class="val">${_inr(mf.invested)}</div>
+        <div class="sub">${mf.lumpsum_count || 0} lumpsum + ${mf.sip_count || 0} SIPs</div>
+      </div>
+      <div class="kpi">
+        <label>Redeemed</label>
+        <div class="val">${_inr(mf.redeemed)}</div>
+        <div class="sub">${mf.redemption_count || 0} transactions</div>
+      </div>
+      <div class="kpi ${gainLoss >= 0 ? 'green' : 'red'}">
+        <label>Unrealised Gain/Loss</label>
+        <div class="val">${_inr(gainLoss)}</div>
+        <div class="sub">${_pct(gainPct)}</div>
+      </div>
+      <div class="kpi">
+        <label>Total Invested (All-time)</label>
+        <div class="val">${_inr(tot.invested)}</div>
+        <div class="sub">${tot.fund_count || 0} active funds</div>
+      </div>
+    </div>
+
+    ${sipMonthRows ? `
+    <h3>SIP Activity by Month</h3>
+    <table>
+      <thead><tr><th>Month</th><th style="text-align:right">SIPs</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${sipMonthRows}</tbody>
+    </table>` : '<p style="color:#94a3b8;font-size:11px;">No SIP transactions found for this FY.</p>'}
+  </div>
+
+  <!-- ══ PORTFOLIO PERFORMANCE ══════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>Portfolio Performance</h2>
+
+    ${catRows ? `
+    <h3>Category Allocation (by current value)</h3>
+    <table>
+      <thead><tr><th>Category</th><th style="text-align:right">Value</th><th style="text-align:right">Allocation</th><th>Share</th></tr></thead>
+      <tbody>${catRows}</tbody>
+    </table>` : ''}
+
+    ${topRows ? `
+    <h3>Top Performers</h3>
+    <table>
+      <thead><tr><th>Fund</th><th>Category</th><th style="text-align:right">Invested</th><th style="text-align:right">Value</th><th style="text-align:right">Return</th></tr></thead>
+      <tbody>${topRows}</tbody>
+    </table>` : ''}
+
+    ${bottomRows ? `
+    <h3>Funds to Watch (Lowest Returns)</h3>
+    <table>
+      <thead><tr><th>Fund</th><th style="text-align:right">Value</th><th style="text-align:right">Return</th></tr></thead>
+      <tbody>${bottomRows}</tbody>
+    </table>` : ''}
+  </div>
+
+  <!-- ══ CAPITAL GAINS SUMMARY ══════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>Capital Gains Summary — ${fy}</h2>
+    <div class="tax-box">
+      <h3>⚖️ Tax Summary (Estimated)</h3>
+      <div class="kpi-grid" style="margin-bottom:0;">
+        <div class="kpi">
+          <label>LTCG Equity</label>
+          <div class="val" style="color:${_clr(cg.ltcg_equity)}">${_inr(cg.ltcg_equity)}</div>
+          <div class="sub">12.5% above ₹1.25L</div>
+        </div>
+        <div class="kpi">
+          <label>STCG Equity</label>
+          <div class="val" style="color:${_clr(cg.stcg_equity)}">${_inr(cg.stcg_equity)}</div>
+          <div class="sub">20% flat</div>
+        </div>
+        <div class="kpi">
+          <label>LTCG Debt</label>
+          <div class="val">${_inr(cg.ltcg_debt)}</div>
+          <div class="sub">As per slab</div>
+        </div>
+        <div class="kpi">
+          <label>STCG Debt</label>
+          <div class="val">${_inr(cg.stcg_debt)}</div>
+          <div class="sub">As per slab</div>
+        </div>
+        <div class="kpi red">
+          <label>Est. Tax Liability</label>
+          <div class="val">${_inr(cg.tax_estimate)}</div>
+          <div class="sub">Consult CA for exact figure</div>
+        </div>
+      </div>
+    </div>
+
+    ${cgDetailRows ? `
+    <h3>Redemption / Sale Detail (up to 20 transactions)</h3>
+    <table>
+      <thead><tr><th>Fund</th><th>Date</th><th>Held</th><th>Type</th><th style="text-align:right">Gain/Loss</th><th style="text-align:right">Est. Tax</th></tr></thead>
+      <tbody>${cgDetailRows}</tbody>
+    </table>` : '<p style="color:#94a3b8;font-size:11px;padding:8px 0;">No redemptions/sales in this FY.</p>'}
+  </div>
+
+  <!-- ══ FD SUMMARY ═════════════════════════════════════════════════════════ -->
+  ${(fd.active?.count > 0 || fd.interest_this_fy?.interest_earned > 0) ? `
+  <div class="section">
+    <h2>Fixed Deposits</h2>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <label>Active FDs</label>
+        <div class="val">${fd.active?.count || 0}</div>
+        <div class="sub">Total: ${_inr(fd.active?.invested)}</div>
+      </div>
+      <div class="kpi green">
+        <label>Interest Earned (${fy})</label>
+        <div class="val">${_inr(fd.interest_this_fy?.interest_earned)}</div>
+        <div class="sub">${fd.interest_this_fy?.matured_count || 0} FDs matured</div>
+      </div>
+    </div>
+  </div>` : ''}
+
+  <!-- ══ ACTIVE SIPs ════════════════════════════════════════════════════════ -->
+  ${sips.count > 0 ? `
+  <div class="section">
+    <h2>Active SIPs</h2>
+    <div class="kpi-grid">
+      <div class="kpi blue">
+        <label>Active SIPs</label>
+        <div class="val">${sips.count}</div>
+      </div>
+      <div class="kpi">
+        <label>Monthly Outflow</label>
+        <div class="val">${_inr(sips.total_monthly)}</div>
+        <div class="sub">Approx. per month</div>
+      </div>
+      <div class="kpi">
+        <label>Annual SIP Commitment</label>
+        <div class="val">${_inr((sips.total_monthly || 0) * 12)}</div>
+      </div>
+    </div>
+    ${activeSipRows ? `
+    <table>
+      <thead><tr><th>Fund</th><th>Frequency</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>${activeSipRows}</tbody>
+      <tr class="total-row"><td colspan="2">Total Monthly SIP</td><td style="text-align:right">${_inr(sips.total_monthly)}</td></tr>
+    </table>` : ''}
+  </div>` : ''}
+
+  <!-- ══ DISCLAIMER + FOOTER ════════════════════════════════════════════════ -->
+  <div class="disclaimer">
+    <strong>⚖️ Disclaimer:</strong> This report is for personal reference only. Capital gains tax estimates are approximate and based on simplified FIFO cost basis calculation. LTCG exemption of ₹1.25L is applied as a flat deduction (may not reflect actual per-transaction treatment). NAVs, values, and tax figures may not reflect real-time data. Consult a SEBI-registered financial advisor or CA before making investment or tax decisions. WealthDash does not provide financial or tax advice.
+  </div>
+  <div class="footer">
+    Generated by WealthDash &nbsp;·&nbsp; ${d.generated_at || ''} &nbsp;·&nbsp; For personal use only
+  </div>
+
+</div><!-- /.page -->
+<script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+        const w = window.open('', '_blank', 'width=960,height=750,scrollbars=yes');
+        if (w) {
+            w.document.write(html);
+            w.document.close();
+        } else {
+            window.showToast?.('Popup blocked — allow popups and try again', 'warning');
+        }
+    }
+
+})(); // end t376 IIFE

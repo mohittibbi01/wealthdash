@@ -76,7 +76,7 @@ define('STOCK_PLATFORMS', [
 // -------------------------------------------------------
 // DATE FORMAT
 // -------------------------------------------------------
-define('DATE_DISPLAY',  'd-m-Y');       // DD-MM-YYYY for display
+define('DATE_DISPLAY',  'j M Y');       // dd MMM YYYY for display  [t348]
 define('DATE_DB',       'Y-m-d');       // YYYY-MM-DD for MySQL
 define('CURRENCY',      '₹');
 define('CURRENCY_CODE', 'INR');

@@ -977,7 +977,9 @@ const NPS = {
 /* ── HELPERS ── */
 function fmtNum(v, d=2) { return parseFloat(v||0).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 function fmtInr(v) { const n=parseFloat(v||0); return (n<0?'-':'')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtDate(d) { if(!d)return'—'; const [y,m,day]=d.split('-'); return `${day}-${m}-${y}`; }
+// [t348] dd MMM YYYY
+const _NPS_MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d) { if(!d)return'—'; const[y,m,day]=d.split('-'); return `${parseInt(day,10)} ${_NPS_MON[parseInt(m,10)-1]||m} ${y}`; }
 function escHtml(t) { const d=document.createElement('div'); d.appendChild(document.createTextNode(t||'')); return d.innerHTML; }
 
 document.addEventListener('DOMContentLoaded', () => NPS.init());

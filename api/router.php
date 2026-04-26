@@ -54,7 +54,8 @@ $csrfExempt = [
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
     'admin_import_exit_load',
-    'get_portfolio_summary', 'get_dashboard_data',
+    'get_portfolio_summary', 'get_dashboard_data', 'global_search', 'wealth_statement',
+    'scheduled_reports_list',
     'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
     'stocks_list', 'stocks_get',
     'nps_list', 'nps_nav_history',
@@ -65,6 +66,7 @@ $csrfExempt = [
     'sip_xirr', 'sip_nav_status', 'sip_nav_token', 'sip_sync_txns',
     'indexes_fetch',
     'report_fy_gains',
+    'annual_report_data',   // t376
     'nps_statement',
     'admin_nps_nav_trigger',
     'fund_notes_get',
@@ -129,6 +131,16 @@ $csrfExempt = [
     '2fa_status',
     // t387: Session Security (read-only list)
     'sessions_list',
+    // t396: Net Worth Projection (read-only)
+    'nw_projection',
+    // t197: NPS Contribution SIP Tracker (read-only)
+    'nps_sip_tracker',
+    // t320: PO Rate Change Alert (read-only)
+    'po_rate_alert',
+    // t46 + t339: EPF Tracker + Interest Calculator
+    'epf_list',
+    // t341: Gratuity Tracker
+    'gratuity_list',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -431,6 +443,8 @@ try {
         // ── Phase 3: Reports ─────────────────────────────────
         case 'report_fy_gains':
             require APP_ROOT . '/api/reports/fy_gains.php'; exit;
+        case 'annual_report_data':  // t376
+            require APP_ROOT . '/api/reports/annual_report.php'; exit;
         case 'report_tax_planning':
             require APP_ROOT . '/api/reports/tax_planning.php'; exit;
         case 'report_net_worth':
@@ -438,6 +452,12 @@ try {
         case 'nw_timeline':        // t207: Net Worth Timeline fetch
         case 'nw_snapshot_save':   // t207: Save monthly snapshot
             require APP_ROOT . '/api/reports/net_worth_timeline.php'; exit;
+        case 'nw_projection':      // t396: Net Worth Projection 5/10/20yr
+            require APP_ROOT . '/api/reports/networth_projection.php'; exit;
+        case 'nps_sip_tracker':    // t197: NPS Contribution SIP Tracker
+            require APP_ROOT . '/api/nps/nps_sip_tracker.php'; exit;
+        case 'po_rate_alert':      // t320: PO Rate Change Alert
+            require APP_ROOT . '/api/post_office/po_rate_alert.php'; exit;
         case 'report_rebalancing':
             require APP_ROOT . '/api/reports/rebalancing.php'; exit;
         case 'export_csv':
@@ -479,6 +499,17 @@ try {
             require APP_ROOT . '/api/stocks/stocks_refresh_prices.php'; exit;
         case 'stocks_price':
             require APP_ROOT . '/api/stocks/stocks_price.php'; exit;
+        case 'stocks_fundamentals':
+        case 'fundamentals_all':
+        case 'holdings_enriched':
+        case 'week52_tracker':
+            require APP_ROOT . '/api/stocks/fundamentals.php'; exit;
+        case 'stocks_alert_list':    // t344/t345
+        case 'stocks_alert_save':
+        case 'stocks_alert_delete':
+        case 'stocks_alert_toggle':
+        case 'stocks_alert_check':
+            require APP_ROOT . '/api/stocks/alerts.php'; exit;
 
         // ── Phase 4: FD ───────────────────────────────────────
         case 'fd_list':
@@ -757,6 +788,82 @@ try {
         // ── t484: Sunburst Chart Data ────────────────────────────────────
         case 'sunburst_data':
             require APP_ROOT . '/api/mutual_funds/sunburst_data.php'; exit;
+
+        // ── t298: Market Pulse Widget ────────────────────────────────
+        case 'market_pulse':
+            require APP_ROOT . '/api/dashboard/market_pulse.php'; exit;
+
+        // ── t254/t291/t295/t400: Dashboard Widgets ───────────────────
+        case 'fy_summary_card':
+        case 'goal_rings':
+        case 'networth_trend':
+        case 'milestone_status':
+            require APP_ROOT . '/api/dashboard/widgets.php'; exit;
+
+        // ── t496: Tax Slab Calculator ────────────────────────────────
+        case 'tax_slab_calc':
+            require APP_ROOT . '/api/reports/tax_slab_calc.php'; exit;
+
+        // ── t413: Data Integrity Check ───────────────────────────────
+        case 'data_integrity_check':
+        case 'data_integrity_fix':
+            require APP_ROOT . '/api/mutual_funds/data_integrity.php'; exit;
+
+        // ── t293: FIRE Calculator ────────────────────────────────────
+        case 'fire_calc':
+            // Handled client-side; no server action needed
+            json_response(false, 'Use the FIRE Calculator page directly.', [], 400); exit;
+
+        // ── t233: Portfolio Overlap Checker ──────────────────────────
+        case 'portfolio_overlap':
+            require APP_ROOT . '/api/mutual_funds/portfolio_overlap.php'; exit;
+
+        // ── t287+t290: Tax Intelligence (Debt Tax + LTCG Harvest) ────
+        case 'debt_fund_tax':
+        case 'ltcg_harvest_schedule':
+            require APP_ROOT . '/api/reports/tax_intelligence.php'; exit;
+
+        // ── t259: Data Backup ────────────────────────────────────────
+        case 'data_backup_download':
+        case 'data_backup_status':
+            require APP_ROOT . '/api/user/data_backup.php'; exit;
+
+        // ── t88: Ctrl+K Global Search ─────────────────────────────────────
+        case 'global_search':
+            require APP_ROOT . '/api/search/global_search.php'; exit;
+
+        // ── t313: Wealth Statement ────────────────────────────────────────
+        case 'wealth_statement':
+            require APP_ROOT . '/api/reports/wealth_statement.php'; exit;
+
+        // ── t379: Scheduled Reports ───────────────────────────────────────
+        case 'scheduled_reports_list':
+        case 'scheduled_report_save':
+        case 'scheduled_report_delete':
+        case 'scheduled_report_toggle':
+            require APP_ROOT . '/api/reports/scheduled_reports.php'; exit;
+
+        // ── t46 + t339: EPF Tracker + Interest Calculator ─────────────────
+        case 'epf_list':
+        case 'epf_add':
+        case 'epf_update_balance':
+        case 'epf_delete':
+        case 'epf_interest_calc':
+            require APP_ROOT . '/api/epf/epf_list.php'; exit;
+
+        // ── t341: Gratuity Tracker ────────────────────────────────────────
+        case 'gratuity_list':
+        case 'gratuity_add':
+        case 'gratuity_update':
+        case 'gratuity_delete':
+        case 'gratuity_calc':
+            require APP_ROOT . '/api/epf/gratuity.php'; exit;
+
+        case 'eps_pension_calc':
+            require APP_ROOT . '/api/epf/eps_pension.php'; exit;
+
+        case 'retirement_combined':
+            require APP_ROOT . '/api/epf/retirement_combined.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

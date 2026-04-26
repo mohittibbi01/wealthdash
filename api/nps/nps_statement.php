@@ -116,7 +116,7 @@ if ($format === 'csv') {
     fputcsv($out, ['Portfolio', $portfolio['name'] ?? '']);
     fputcsv($out, ['Member', $user['name'] ?? '']);
     fputcsv($out, ['Period', $dateFrom . ' to ' . $dateTo]);
-    fputcsv($out, ['Generated', date('d-m-Y H:i')]);
+    fputcsv($out, ['Generated', date(DATE_DISPLAY . ' H:i')]);
     fputcsv($out, []);
 
     // Holdings summary
@@ -328,7 +328,7 @@ tr:nth-child(even) td{background:#fafbff}
   <tbody>
     <?php foreach ($txns as $t): ?>
     <tr>
-      <td><?= date('d-m-Y', strtotime($t['txn_date'])) ?></td>
+      <td><?= date(DATE_DISPLAY, strtotime($t['txn_date'])) ?></td>
       <td><?= e($t['scheme_name']) ?></td>
       <td><?= e($t['pfm_name']) ?></td>
       <td><span class="badge <?= str_replace(' ','_',$t['tier']) ?>"><?= strtoupper($t['tier']) ?></span></td>

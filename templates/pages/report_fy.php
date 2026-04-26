@@ -60,6 +60,16 @@ ob_start();
             </svg>
             Print / PDF
         </button>
+        <!-- t376: Annual Report FY-wise PDF -->
+        <button class="btn btn-primary" id="btnAnnualReportPdf" title="Download full FY Annual Report as PDF">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <polyline points="9 15 12 18 15 15"/>
+            </svg>
+            Annual Report PDF
+        </button>
     </div>
 
 <script>

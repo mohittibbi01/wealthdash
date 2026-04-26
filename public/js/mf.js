@@ -2029,59 +2029,280 @@ function downloadImportResultCsv(base64data, filename) {
 /* ═══════════════════════════════════════════════════════════════════════════
    EXCEL DOWNLOAD
 ═══════════════════════════════════════════════════════════════════════════ */
+/* ── t375: Excel Export — XLSX with formulas ──────────────────────────────
+   Uses SheetJS (xlsx.full.min.js) loaded in layout.php.
+   Generates a proper .xlsx file with:
+     • Holdings sheet  — data + SUM/formula row + conditional formatting hints
+     • Summary sheet   — category-wise allocation totals with formulas
+     • Transactions sheet — raw txn data if available
+   Falls back to CSV if SheetJS is not available.
+─────────────────────────────────────────────────────────────────────────── */
 function downloadHoldingsExcel() {
   if (!MF.filtered || !MF.filtered.length) {
     showToast('No holdings to download', 'error'); return;
   }
 
-  const headers = ['Fund Name','Fund House','Category','Folio','Invested (₹)','Current Value (₹)','Gain/Loss (₹)','Returns (%)','XIRR (%)','Units','NAV (₹)','Peak NAV (₹)','Drawdown (%)','Type','LTCG Date','First Purchase'];
+  // Fallback: SheetJS not loaded → use old CSV export
+  if (typeof XLSX === 'undefined') {
+    _downloadHoldingsCsvFallback();
+    return;
+  }
 
+  const date    = new Date().toISOString().split('T')[0];
+  const wb      = XLSX.utils.book_new();
+  wb.Props      = { Title: 'WealthDash MF Holdings', Author: 'WealthDash', CreatedDate: new Date() };
+
+  /* ── 1. HOLDINGS SHEET ──────────────────────────────────────── */
+  const holdHeaders = [
+    'Fund Name', 'Fund House', 'Category', 'Folio',
+    'Invested (₹)', 'Current Value (₹)', 'Gain/Loss (₹)', 'Returns (%)',
+    'XIRR (%)', 'Units', 'NAV (₹)', 'Peak NAV (₹)', 'Drawdown (%)',
+    'Type', 'LTCG Date', 'First Purchase'
+  ];
+
+  // Data rows start at row 2 (row 1 = header), using 1-based for Excel formulas
+  const dataStartRow = 2;
+  const holdData = MF.filtered.map((h, i) => {
+    const rowNum     = dataStartRow + i;
+    const invested   = Number(h.total_invested || 0);
+    const valueNow   = Number(h.value_now || 0);
+    const units      = Number(h.total_units || 0);
+    const nav        = Number(h.latest_nav || 0);
+    const peakNav    = h.highest_nav ? Number(h.highest_nav) : null;
+
+    return {
+      'Fund Name'         : h.scheme_name   || '',
+      'Fund House'        : h.fund_house     || '',
+      'Category'          : h.category       || '',
+      'Folio'             : h.folio_number   || '',
+      'Invested (₹)'     : invested,
+      'Current Value (₹)': valueNow,
+      // Gain/Loss as formula: CurrentValue - Invested
+      'Gain/Loss (₹)'    : { f: `F${rowNum}-E${rowNum}`, t: 'n' },
+      // Returns as formula: (Gain/Invested)*100
+      'Returns (%)'      : invested > 0 ? { f: `(G${rowNum}/E${rowNum})*100`, t: 'n' } : 0,
+      'XIRR (%)'         : Number(h.cagr || 0),
+      'Units'             : units,
+      'NAV (₹)'          : nav,
+      'Peak NAV (₹)'     : peakNav !== null ? peakNav : '',
+      // Drawdown as formula: ((PeakNAV-NAV)/PeakNAV)*100 if peak exists, else blank
+      'Drawdown (%)'     : (peakNav && peakNav > 0)
+                            ? { f: `((L${rowNum}-K${rowNum})/L${rowNum})*100`, t: 'n' }
+                            : '',
+      'Type'              : h.gain_type || '',
+      'LTCG Date'         : h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '',
+      'First Purchase'    : h.first_purchase_date ? formatDateDisplay(h.first_purchase_date) : ''
+    };
+  });
+
+  // Totals row with SUM formulas
+  const lastDataRow  = dataStartRow + MF.filtered.length - 1;
+  const totalsRow    = {
+    'Fund Name'         : 'TOTAL',
+    'Fund House'        : '',
+    'Category'          : `${MF.filtered.length} funds`,
+    'Folio'             : '',
+    'Invested (₹)'     : { f: `SUM(E${dataStartRow}:E${lastDataRow})`, t: 'n' },
+    'Current Value (₹)': { f: `SUM(F${dataStartRow}:F${lastDataRow})`, t: 'n' },
+    'Gain/Loss (₹)'    : { f: `SUM(G${dataStartRow}:G${lastDataRow})`, t: 'n' },
+    'Returns (%)'      : { f: `IF(E${lastDataRow+1}>0,(G${lastDataRow+1}/E${lastDataRow+1})*100,0)`, t: 'n' },
+    'XIRR (%)'         : '',
+    'Units'             : { f: `SUM(J${dataStartRow}:J${lastDataRow})`, t: 'n' },
+    'NAV (₹)'          : '',
+    'Peak NAV (₹)'     : '',
+    'Drawdown (%)'     : '',
+    'Type'              : '',
+    'LTCG Date'         : '',
+    'First Purchase'    : ''
+  };
+  holdData.push(totalsRow);
+
+  const holdWS = XLSX.utils.json_to_sheet(holdData, { header: holdHeaders });
+
+  // Column widths
+  holdWS['!cols'] = [
+    { wch: 45 }, // Fund Name
+    { wch: 22 }, // Fund House
+    { wch: 20 }, // Category
+    { wch: 16 }, // Folio
+    { wch: 16 }, // Invested
+    { wch: 16 }, // Current Value
+    { wch: 16 }, // Gain/Loss
+    { wch: 12 }, // Returns %
+    { wch: 10 }, // XIRR
+    { wch: 12 }, // Units
+    { wch: 12 }, // NAV
+    { wch: 12 }, // Peak NAV
+    { wch: 12 }, // Drawdown
+    { wch: 8  }, // Type
+    { wch: 14 }, // LTCG Date
+    { wch: 14 }  // First Purchase
+  ];
+
+  // Freeze header row + first column
+  holdWS['!freeze'] = { xSplit: 1, ySplit: 1 };
+
+  // Number formats for numeric columns (E through M)
+  const numFmt  = '#,##0.00';
+  const pctFmt  = '0.00"%"';
+  const unitFmt = '#,##0.0000';
+  const totalRowIdx = dataStartRow + MF.filtered.length; // 1-based Excel row of totals
+
+  MF.filtered.forEach((_, i) => {
+    const r = dataStartRow + i; // 1-based
+    _setCellFmt(holdWS, 4, r, numFmt);   // E = Invested
+    _setCellFmt(holdWS, 5, r, numFmt);   // F = Current Value
+    _setCellFmt(holdWS, 6, r, numFmt);   // G = Gain/Loss
+    _setCellFmt(holdWS, 7, r, pctFmt);   // H = Returns %
+    _setCellFmt(holdWS, 8, r, pctFmt);   // I = XIRR %
+    _setCellFmt(holdWS, 9, r, unitFmt);  // J = Units
+    _setCellFmt(holdWS, 10, r, numFmt);  // K = NAV
+    _setCellFmt(holdWS, 11, r, numFmt);  // L = Peak NAV
+    _setCellFmt(holdWS, 12, r, pctFmt);  // M = Drawdown %
+  });
+  // Format totals row
+  [4,5,6,9].forEach(col => _setCellFmt(holdWS, col, totalRowIdx, numFmt));
+  [7,8,12].forEach(col  => _setCellFmt(holdWS, col, totalRowIdx, pctFmt));
+
+  XLSX.utils.book_append_sheet(wb, holdWS, 'Holdings');
+
+  /* ── 2. SUMMARY SHEET (Category-wise) ────────────────────────── */
+  const catMap = {};
+  MF.filtered.forEach(h => {
+    const cat = h.category || 'Uncategorised';
+    if (!catMap[cat]) catMap[cat] = { invested: 0, value: 0, count: 0 };
+    catMap[cat].invested += Number(h.total_invested || 0);
+    catMap[cat].value    += Number(h.value_now || 0);
+    catMap[cat].count    += 1;
+  });
+
+  const totInvAll = MF.filtered.reduce((s,h) => s + Number(h.total_invested||0), 0);
+  const totValAll = MF.filtered.reduce((s,h) => s + Number(h.value_now||0), 0);
+
+  const summaryData = Object.entries(catMap).map(([cat, d]) => ({
+    'Category'          : cat,
+    'Funds'             : d.count,
+    'Invested (₹)'     : d.invested,
+    'Current Value (₹)': d.value,
+    'Gain/Loss (₹)'    : d.value - d.invested,
+    'Returns (%)'      : d.invested > 0 ? ((d.value - d.invested) / d.invested * 100) : 0,
+    'Allocation (%)'   : totValAll > 0 ? (d.value / totValAll * 100) : 0
+  }));
+
+  // Summary totals (hardcoded numbers — summary sheet is reference, not formula-linked to Holdings)
+  summaryData.push({
+    'Category'          : 'TOTAL',
+    'Funds'             : MF.filtered.length,
+    'Invested (₹)'     : totInvAll,
+    'Current Value (₹)': totValAll,
+    'Gain/Loss (₹)'    : totValAll - totInvAll,
+    'Returns (%)'      : totInvAll > 0 ? ((totValAll - totInvAll) / totInvAll * 100) : 0,
+    'Allocation (%)'   : 100
+  });
+
+  const summaryHeaders = ['Category','Funds','Invested (₹)','Current Value (₹)','Gain/Loss (₹)','Returns (%)','Allocation (%)'];
+  const summaryWS = XLSX.utils.json_to_sheet(summaryData, { header: summaryHeaders });
+  summaryWS['!cols'] = [
+    { wch: 28 }, { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 }
+  ];
+
+  const sDataRows = summaryData.length;
+  for (let r = 2; r <= sDataRows + 1; r++) {
+    _setCellFmt(summaryWS, 2, r, numFmt);  // C Invested
+    _setCellFmt(summaryWS, 3, r, numFmt);  // D Current Value
+    _setCellFmt(summaryWS, 4, r, numFmt);  // E Gain/Loss
+    _setCellFmt(summaryWS, 5, r, pctFmt);  // F Returns %
+    _setCellFmt(summaryWS, 6, r, pctFmt);  // G Allocation %
+  }
+
+  XLSX.utils.book_append_sheet(wb, summaryWS, 'Category Summary');
+
+  /* ── 3. TRANSACTIONS SHEET (if txn data available) ───────────── */
+  if (MF.txns && MF.txns.length) {
+    const txnHeaders = ['Date','Fund Name','Type','Units','NAV (₹)','Amount (₹)','Folio'];
+    const txnData = MF.txns.map(t => ({
+      'Date'       : t.txn_date ? formatDateDisplay(t.txn_date) : '',
+      'Fund Name'  : t.scheme_name || '',
+      'Type'       : t.txn_type || '',
+      'Units'      : Number(t.units || 0),
+      'NAV (₹)'   : Number(t.nav || 0),
+      'Amount (₹)': Number(t.amount || 0),
+      'Folio'      : t.folio_number || ''
+    }));
+    const txnWS = XLSX.utils.json_to_sheet(txnData, { header: txnHeaders });
+    txnWS['!cols'] = [
+      { wch: 12 }, { wch: 45 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }
+    ];
+    const txnCount = txnData.length;
+    for (let r = 2; r <= txnCount + 1; r++) {
+      _setCellFmt(txnWS, 3, r, unitFmt);  // D Units
+      _setCellFmt(txnWS, 4, r, numFmt);   // E NAV
+      _setCellFmt(txnWS, 5, r, numFmt);   // F Amount
+    }
+    XLSX.utils.book_append_sheet(wb, txnWS, 'Transactions');
+  }
+
+  /* ── 4. INFO SHEET ───────────────────────────────────────────── */
+  const infoData = [
+    { 'Field': 'Generated By', 'Value': 'WealthDash' },
+    { 'Field': 'Generated On', 'Value': new Date().toLocaleString('en-IN') },
+    { 'Field': 'Total Funds',  'Value': MF.filtered.length },
+    { 'Field': 'Total Invested', 'Value': totInvAll },
+    { 'Field': 'Current Value',  'Value': totValAll },
+    { 'Field': 'Overall Gain/Loss', 'Value': totValAll - totInvAll },
+    { 'Field': 'Overall Returns %',
+      'Value': totInvAll > 0 ? +((totValAll - totInvAll) / totInvAll * 100).toFixed(2) : 0 },
+    { 'Field': 'Note', 'Value': 'Columns G,H,M in Holdings sheet use Excel formulas. Gain/Loss = Current Value - Invested. Drawdown = (PeakNAV-NAV)/PeakNAV.' }
+  ];
+  const infoWS = XLSX.utils.json_to_sheet(infoData, { header: ['Field','Value'] });
+  infoWS['!cols'] = [{ wch: 22 }, { wch: 55 }];
+  XLSX.utils.book_append_sheet(wb, infoWS, 'Info');
+
+  /* ── 5. WRITE & DOWNLOAD ─────────────────────────────────────── */
+  XLSX.writeFile(wb, `WealthDash_MF_Holdings_${date}.xlsx`);
+  showToast(`✅ Excel downloaded — ${MF.filtered.length} holdings, ${Object.keys(catMap).length} categories`);
+}
+
+/**
+ * Helper: set number format on a cell (col/row both 1-based)
+ */
+function _setCellFmt(ws, col1, row1, fmt) {
+  const addr = XLSX.utils.encode_cell({ c: col1 - 1, r: row1 - 1 });
+  if (!ws[addr]) return;
+  if (!ws[addr].s) ws[addr].s = {};
+  ws[addr].z = fmt; // SheetJS uses .z for number format string
+}
+
+/**
+ * CSV fallback if SheetJS is not available
+ */
+function _downloadHoldingsCsvFallback() {
+  const headers = ['Fund Name','Fund House','Category','Folio','Invested (₹)','Current Value (₹)','Gain/Loss (₹)','Returns (%)','XIRR (%)','Units','NAV (₹)','Peak NAV (₹)','Drawdown (%)','Type','LTCG Date','First Purchase'];
   const rows = MF.filtered.map(h => [
-    h.scheme_name || '',
-    h.fund_house || '',
-    h.category || '',
-    h.folio_number || '',
-    Number(h.total_invested || 0).toFixed(2),
-    Number(h.value_now || 0).toFixed(2),
-    Number(h.gain_loss || 0).toFixed(2),
-    Number(h.gain_pct || 0).toFixed(2),
-    Number(h.cagr || 0).toFixed(2),
-    Number(h.total_units || 0).toFixed(4),
-    Number(h.latest_nav || 0).toFixed(4),
+    h.scheme_name || '', h.fund_house || '', h.category || '', h.folio_number || '',
+    Number(h.total_invested||0).toFixed(2), Number(h.value_now||0).toFixed(2),
+    Number(h.gain_loss||0).toFixed(2), Number(h.gain_pct||0).toFixed(2),
+    Number(h.cagr||0).toFixed(2), Number(h.total_units||0).toFixed(4),
+    Number(h.latest_nav||0).toFixed(4),
     h.highest_nav ? Number(h.highest_nav).toFixed(4) : '',
     h.drawdown_pct !== null && h.drawdown_pct !== undefined ? Number(h.drawdown_pct).toFixed(2) : '',
-    h.gain_type || '',
-    h.ltcg_date ? formatDateDisplay(h.ltcg_date) : '',
-    h.first_purchase_date ? formatDateDisplay(h.first_purchase_date) : ''
+    h.gain_type||'', h.ltcg_date ? formatDateDisplay(h.ltcg_date):'',
+    h.first_purchase_date ? formatDateDisplay(h.first_purchase_date):''
   ]);
-
-  // Add totals row
-  const totInv  = MF.filtered.reduce((s,h) => s + (Number(h.total_invested)||0), 0);
-  const totVal  = MF.filtered.reduce((s,h) => s + (Number(h.value_now)||0), 0);
+  const totInv  = MF.filtered.reduce((s,h)=>s+Number(h.total_invested||0),0);
+  const totVal  = MF.filtered.reduce((s,h)=>s+Number(h.value_now||0),0);
   const totGain = totVal - totInv;
-  const totPct  = totInv > 0 ? ((totGain/totInv)*100).toFixed(2) : '0.00';
-  rows.push(['TOTAL','','','', totInv.toFixed(2), totVal.toFixed(2), totGain.toFixed(2), totPct, '', '', '', '', '', '', '', '']);
-
-  // Build CSV content (Excel opens CSV with UTF-8 BOM)
+  rows.push(['TOTAL','','','',totInv.toFixed(2),totVal.toFixed(2),totGain.toFixed(2),
+    totInv>0?((totGain/totInv)*100).toFixed(2):'0.00','','','','','','','','']);
   const BOM = '\uFEFF';
-  const csvLines = [headers, ...rows].map(row =>
-    row.map(cell => {
-      const s = String(cell).replace(/"/g, '""');
-      return /[,\n"]/.test(s) ? `"${s}"` : s;
-    }).join(',')
-  );
-
-  const blob = new Blob([BOM + csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  const date = new Date().toISOString().split('T')[0];
-  a.href     = url;
-  a.download = `MF_Holdings_${date}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast(`Downloaded ${MF.filtered.length} holdings`);
+  const csv = [headers,...rows].map(r=>r.map(c=>{const s=String(c).replace(/"/g,'""');return /[,\n"]/.test(s)?`"${s}"`:s;}).join(',')).join('\n');
+  const blob = new Blob([BOM+csv],{type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `MF_Holdings_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  showToast(`Downloaded ${MF.filtered.length} holdings (CSV fallback)`);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2114,10 +2335,19 @@ async function getCsrf() {
   return document.getElementById('txnCsrf')?.value || '';
 }
 
+// [t348] Date format updated to dd MMM YYYY
+const _MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatDateDisplay(d) {
   if (!d) return '—';
-  const [y,m,day] = d.split('-');
-  return `${day}-${m}-${y}`;
+  // Accepts YYYY-MM-DD or DD-MM-YYYY
+  let y, m, day;
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+    [y, m, day] = d.split('-');
+  } else {
+    [day, m, y] = d.split('-');
+  }
+  const mon = _MONTHS_SHORT[parseInt(m, 10) - 1] || m;
+  return `${parseInt(day, 10)} ${mon} ${y}`;
 }
 
 function setEl(id, val) {
@@ -2238,6 +2468,22 @@ document.addEventListener('DOMContentLoaded', () => {
       if (which === 'sunburst') {
         if (!MF.sunburst._loaded) MF.sunburst.load();
       }
+      // t233: Overlap Checker
+      const olTab = document.getElementById('tabOverlap');
+      if (olTab) olTab.style.display = which === 'overlap' ? '' : 'none';
+      if (which === 'overlap' && !MF.overlap._loaded) MF.overlap.load();
+      // t290: LTCG Harvest
+      const lhTab = document.getElementById('tabLtcgharvest');
+      if (lhTab) lhTab.style.display = which === 'ltcgharvest' ? '' : 'none';
+      if (which === 'ltcgharvest' && !MF.ltcgHarvest._loaded) MF.ltcgHarvest.load();
+      // tv004: Loss Harvesting
+      const lossTab = document.getElementById('tabLossharvest');
+      if (lossTab) lossTab.style.display = which === 'lossharvest' ? '' : 'none';
+      if (which === 'lossharvest' && !MF.lossHarvest._loaded) MF.lossHarvest.load();
+      // t374: Portfolio PDF Report
+      const rptTab = document.getElementById('tabReport');
+      if (rptTab) rptTab.style.display = which === 'report' ? '' : 'none';
+      if (which === 'report' && !MF.portfolioReport._loaded) MF.portfolioReport.load();
     });
   });
 
@@ -8735,4 +8981,597 @@ document.addEventListener('DOMContentLoaded', () => {
       // Treemap/Donut modes can be added via Chart.js canvas later
     });
   }
+});
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   t233 — PORTFOLIO OVERLAP CHECKER
+══════════════════════════════════════════════════════════════════════ */
+MF.overlap = {
+  _loaded: false,
+  async load() {
+    const body = document.getElementById('overlapBody');
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span> Analysing overlap…</div>';
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+    const PID  = window.WD?.selectedPortfolio || document.getElementById('portfolioSelect')?.value || '';
+    try {
+      const fd = new FormData();
+      fd.append('action','portfolio_overlap');
+      if(PID) fd.append('portfolio_id', PID);
+      if(CSRF) fd.append('_csrf_token', CSRF);
+      const res  = await fetch(`${BASE}/api/?action=portfolio_overlap`,{method:'POST',body:fd});
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error||'API error');
+      this._loaded = true;
+      this._render(data.data);
+    } catch(e) {
+      body.innerHTML = `<p style="color:var(--text-secondary);text-align:center;">${e.message}</p>`;
+    }
+  },
+  _render(d) {
+    const body = document.getElementById('overlapBody');
+    if (!body) return;
+    const inr = v => '₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0});
+
+    if (d.message) { body.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text-secondary);">${d.message}</div>`; return; }
+
+    const overlapColor = d.overlap_pct > 50 ? '#ef4444' : d.overlap_pct > 25 ? '#f59e0b' : '#16a34a';
+
+    let html = `
+    <!-- Summary -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:24px;font-weight:800;color:var(--accent);">${d.fund_count}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Funds Held</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:24px;font-weight:800;color:var(--accent);">${d.total_stocks||0}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Unique Stocks</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:24px;font-weight:800;color:${overlapColor};">${d.overlap_pct}%</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Overlap Score</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:24px;font-weight:800;">${d.overlapping_count||0}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Shared Stocks</div>
+      </div>
+    </div>
+    <div style="padding:10px 14px;border-left:3px solid ${overlapColor};background:var(--bg-secondary);border-radius:0 8px 8px 0;margin-bottom:20px;font-size:13px;">
+      ${d.recommendation || ''}
+    </div>`;
+
+    // Fund matrix
+    if (d.fund_matrix?.length) {
+      html += `<div style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Fund-vs-Fund Overlap</div>
+        <div style="overflow-x:auto;"><table class="table" style="font-size:12px;">
+          <thead><tr><th>Fund 1</th><th>Fund 2</th><th class="text-right">Common Stocks</th><th class="text-right">Overlap %</th><th>Severity</th></tr></thead>
+          <tbody>${d.fund_matrix.map(m => `<tr>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.fund1_name}">${m.fund1_name}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.fund2_name}">${m.fund2_name}</td>
+            <td class="text-right">${m.common_stocks}</td>
+            <td class="text-right" style="font-weight:700;color:${m.severity==='high'?'#ef4444':m.severity==='medium'?'#f59e0b':'#16a34a'}">${m.overlap_pct}%</td>
+            <td><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${m.severity==='high'?'#fee2e2':m.severity==='medium'?'#fef3c7':'#dcfce7'};color:${m.severity==='high'?'#dc2626':m.severity==='medium'?'#d97706':'#16a34a'}">${m.severity}</span></td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+    }
+
+    // Top overlapping stocks
+    if (d.overlapping_stocks?.length) {
+      html += `<div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Top Overlapping Stocks</div>
+        <div style="overflow-x:auto;"><table class="table" style="font-size:12px;">
+          <thead><tr><th>Stock</th><th>Sector</th><th class="text-right">Appears In</th><th class="text-right">Avg Weight</th></tr></thead>
+          <tbody>${d.overlapping_stocks.slice(0,15).map(s => `<tr>
+            <td><strong>${s.stock_name}</strong>${s.isin?`<span style="font-size:10px;color:var(--text-secondary);margin-left:6px;">${s.isin}</span>`:''}</td>
+            <td style="font-size:11px;color:var(--text-secondary);">${s.sector||'—'}</td>
+            <td class="text-right">${s.fund_count} funds</td>
+            <td class="text-right">${s.avg_weight}%</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+    }
+
+    body.innerHTML = html;
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════════════
+   t290 — LTCG HARVEST PLANNER
+══════════════════════════════════════════════════════════════════════ */
+MF.ltcgHarvest = {
+  _loaded: false,
+  async load() {
+    const body = document.getElementById('ltcgHarvestBody');
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span> Finding harvest opportunities…</div>';
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const CSRF = window.WD?.csrf || window.CSRF_TOKEN || '';
+    const PID  = window.WD?.selectedPortfolio || document.getElementById('portfolioSelect')?.value || '';
+    try {
+      const fd = new FormData();
+      fd.append('action','ltcg_harvest_schedule');
+      if(PID) fd.append('portfolio_id', PID);
+      if(CSRF) fd.append('_csrf_token', CSRF);
+      const res  = await fetch(`${BASE}/api/?action=ltcg_harvest_schedule`,{method:'POST',body:fd});
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error||'API error');
+      this._loaded = true;
+      this._render(data.data);
+    } catch(e) {
+      body.innerHTML = `<p style="color:var(--text-secondary);text-align:center;">${e.message}</p>`;
+    }
+  },
+  _render(d) {
+    const body = document.getElementById('ltcgHarvestBody');
+    if (!body) return;
+    const inr = v => '₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0});
+    const exemPct = Math.min(100, Math.round(d.ltcg_booked_this_fy / d.ltcg_exemption * 100));
+
+    let html = `
+    <!-- FY Status -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:var(--accent);">${inr(d.ltcg_exemption)}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Annual Exemption</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;">${inr(d.ltcg_booked_this_fy)}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Booked This FY</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:#16a34a;">${inr(d.remaining_exemption)}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Remaining</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:#f59e0b;">${d.days_to_fy_end}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">Days to March 31</div>
+      </div>
+    </div>
+    <!-- Exemption bar -->
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-bottom:4px;">
+        <span>Exemption used this FY</span><span>${exemPct}%</span>
+      </div>
+      <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+        <div style="width:${exemPct}%;height:100%;background:${exemPct>90?'#ef4444':'var(--accent)'};border-radius:4px;"></div>
+      </div>
+    </div>
+    <!-- Strategy -->
+    <div style="padding:12px 16px;border-left:3px solid var(--accent);background:var(--bg-secondary);border-radius:0 8px 8px 0;margin-bottom:20px;font-size:13px;">
+      💡 ${d.strategy}
+    </div>`;
+
+    if (d.candidates?.length) {
+      html += `
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">
+        Harvest Candidates — ${inr(d.total_potential_savings)} potential tax saved
+      </div>
+      <div style="overflow-x:auto;"><table class="table" style="font-size:12px;">
+        <thead><tr>
+          <th>Fund</th>
+          <th class="text-right">Held (yrs)</th>
+          <th class="text-right">Unrealised LTCG</th>
+          <th class="text-right">Units to Redeem</th>
+          <th class="text-right">LTCG if Redeemed</th>
+          <th class="text-right">Tax Saved</th>
+        </tr></thead>
+        <tbody>${d.candidates.map(c => `<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.fund_name}">${c.fund_name}</td>
+          <td class="text-right">${c.holding_years}</td>
+          <td class="text-right" style="color:#16a34a;font-weight:600;">${inr(c.total_unrealised_ltcg)}</td>
+          <td class="text-right">${c.units_to_redeem} <span style="font-size:10px;color:var(--text-secondary);">(${inr(c.value_to_redeem)})</span></td>
+          <td class="text-right">${inr(c.ltcg_if_redeemed)}</td>
+          <td class="text-right" style="color:#f59e0b;font-weight:700;">${inr(c.tax_saved)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text-secondary);">
+        ℹ️ After redemption, immediately reinvest in same/similar fund to reset cost basis while maintaining allocation.
+      </div>`;
+    } else {
+      html += `<div style="text-align:center;padding:32px;color:var(--text-secondary);">
+        No LTCG harvest candidates found — either no equity holdings held >1 year, or exemption already fully used.
+      </div>`;
+    }
+
+    body.innerHTML = html;
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// tv004 — Tax Loss Harvesting
+// Scans holdings for unrealised losses → offset against STCG/LTCG → save tax
+// ══════════════════════════════════════════════════════════════════════════
+MF.lossHarvest = {
+  _loaded: false,
+  async load() {
+    this._loaded = true;
+    const body = document.getElementById('lhBody');
+    if (!body) return;
+
+    body.innerHTML = '<div style="text-align:center;padding:32px;"><span class="spinner"></span> Scanning portfolio for loss-harvesting opportunities…</div>';
+
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const now  = new Date();
+    const fy   = now.getMonth() >= 3
+      ? `${now.getFullYear()}-${String(now.getFullYear()-1999).padStart(2,'0')}`
+      : `${now.getFullYear()-1}-${String(now.getFullYear()-2000).padStart(2,'0')}`;
+
+    // March 31 countdown
+    const mar31    = new Date(now.getMonth() >= 3 ? now.getFullYear()+1 : now.getFullYear(), 2, 31);
+    const daysLeft = Math.ceil((mar31 - now) / 86400000);
+    const cd = document.getElementById('lhCountdown');
+    if (cd) {
+      cd.style.display = '';
+      cd.textContent   = daysLeft <= 30 ? `⚠️ ${daysLeft}d left to harvest` : `📅 ${daysLeft}d to March 31`;
+      cd.style.background = daysLeft <= 15 ? 'rgba(220,38,38,.15)' : 'rgba(245,158,11,.1)';
+      cd.style.color      = daysLeft <= 15 ? '#dc2626' : '#b45309';
+    }
+
+    try {
+      const [lossRes, gainsRes] = await Promise.all([
+        fetch(`${BASE}/api/reports/fy_gains.php?action=tax_loss_harvest&fy=${fy}`),
+        fetch(`${BASE}/api/reports/fy_gains.php?action=fy_gains&fy=${fy}`)
+      ]);
+      const lossData  = await lossRes.json();
+      const gainsData = await gainsRes.json();
+      if (!lossData.success) throw new Error(lossData.msg || 'Failed to load loss data');
+      this._render(lossData, gainsData.success ? gainsData.summary : null, daysLeft, fy);
+    } catch(e) {
+      if (body) body.innerHTML = `<div style="color:#dc2626;text-align:center;padding:32px;">${e.message}</div>`;
+    }
+  },
+
+  _render(lossData, gainsSummary, daysLeft, fy) {
+    const inr = v => '₹' + Math.abs(Number(v||0)).toLocaleString('en-IN', {maximumFractionDigits:0});
+    const candidates   = lossData.candidates || [];
+    const realisedLTCG = lossData.realised_ltcg || 0;
+    const realisedSTCG = lossData.realised_stcg || 0;
+
+    // Summary cards
+    const scEl = document.getElementById('lhSummaryCards');
+    if (scEl) {
+      scEl.style.display = 'grid';
+      const totalLoss     = candidates.reduce((s,c) => s + Number(c.unrealised_loss||0), 0);
+      const stclCount     = candidates.filter(c => c.loss_type === 'STCL').length;
+      const ltclCount     = candidates.filter(c => c.loss_type === 'LTCL').length;
+      const potentialSave = candidates.reduce((s,c) => s + Number(c.tax_saving||0), 0);
+      scEl.innerHTML = [
+        { label:'Loss Candidates',       val: candidates.length,    color:'#dc2626' },
+        { label:'Total Unrealised Loss', val: inr(totalLoss),       color:'#dc2626' },
+        { label:'STCL (offsets both)',   val: stclCount + ' funds', color:'#f59e0b' },
+        { label:'LTCL (LTCG only)',      val: ltclCount + ' funds', color:'#3b82f6' },
+        { label:'Potential Tax Saved',   val: inr(potentialSave),   color:'#10b981' },
+      ].map(c => `
+        <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:${c.color};">${c.val}</div>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">${c.label}</div>
+        </div>`).join('');
+    }
+
+    // Realised gains context
+    const gbEl = document.getElementById('lhGainsBar');
+    if (gbEl && (realisedLTCG || realisedSTCG)) {
+      gbEl.style.display = 'block';
+      gbEl.innerHTML = `
+        <div style="padding:12px 16px;background:var(--bg-secondary);border-radius:8px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;font-size:13px;margin-bottom:12px;">
+          <span style="font-weight:600;color:var(--text-secondary);">FY ${fy} Realised Gains:</span>
+          <span>LTCG <strong style="color:#3b82f6;">${inr(realisedLTCG)}</strong></span>
+          <span>STCG <strong style="color:#f59e0b;">${inr(realisedSTCG)}</strong></span>
+          <span style="font-size:12px;color:#10b981;margin-left:auto;">← Harvest losses below to offset these</span>
+        </div>`;
+    }
+
+    const body = document.getElementById('lhBody');
+    if (!body) return;
+
+    if (!candidates.length) {
+      body.innerHTML = `
+        <div style="text-align:center;padding:48px;color:var(--text-secondary);">
+          <div style="font-size:32px;margin-bottom:10px;">✅</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">No Loss Candidates Found</div>
+          <div style="font-size:13px;">All holdings are in profit — nothing to harvest this FY.</div>
+        </div>`;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">
+        ${candidates.length} Holdings in Loss — Ranked by Tax Saving
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="table" style="font-size:12.5px;">
+          <thead><tr>
+            <th style="min-width:200px;">Fund</th>
+            <th>Type</th>
+            <th class="text-right">Current Value</th>
+            <th class="text-right">Invested</th>
+            <th class="text-right">Unrealised Loss</th>
+            <th class="text-right">Loss %</th>
+            <th class="text-right">Tax Saved</th>
+            <th>Offset</th>
+            <th>Rebuy Window</th>
+          </tr></thead>
+          <tbody>
+            ${candidates.map(c => {
+              const holdDays  = parseInt(c.holding_days||0);
+              const rebuyOk   = holdDays >= 30;
+              const typeColor = c.loss_type === 'STCL' ? '#f59e0b' : '#3b82f6';
+              return `<tr>
+                <td>
+                  <div style="font-weight:600;">${c.fund_name}</div>
+                  <div style="font-size:10px;color:var(--text-secondary);">${c.category||''} · held ${Math.round(holdDays/30)}m</div>
+                </td>
+                <td>
+                  <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:${c.loss_type==='STCL'?'rgba(245,158,11,.1)':'rgba(59,130,246,.1)'};color:${typeColor};">
+                    ${c.loss_type}
+                  </span>
+                </td>
+                <td class="text-right">${inr(c.current_value)}</td>
+                <td class="text-right">${inr(c.invested_amount)}</td>
+                <td class="text-right" style="font-weight:700;color:#dc2626;">-${inr(c.unrealised_loss)}</td>
+                <td class="text-right" style="color:#dc2626;">${c.loss_pct}%</td>
+                <td class="text-right" style="font-weight:700;color:#10b981;">${inr(c.tax_saving)}</td>
+                <td style="font-size:11px;color:var(--text-secondary);max-width:150px;">${c.offset_type}</td>
+                <td>
+                  <span style="font-size:10px;padding:3px 7px;border-radius:5px;background:${rebuyOk?'rgba(16,185,129,.1)':'rgba(245,158,11,.1)'};color:${rebuyOk?'#10b981':'#b45309'};white-space:nowrap;">
+                    ${rebuyOk ? '✅ Safe to harvest' : `Wait ${30-holdDays}d more`}
+                  </span>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+        <strong style="color:var(--text-primary);">📌 Wash-Sale (India):</strong> No strict law, but wait <strong>30 days</strong> before rebuying the same fund.
+        You can immediately switch to a similar fund (e.g. Axis Bluechip → HDFC Bluechip) to stay invested.
+        <strong style="color:var(--text-primary);display:block;margin-top:4px;">⏰ Deadline:</strong> All redemptions must settle by <strong>March 31</strong> to count for current FY.
+      </div>`;
+  }
+};
+
+// ═══ t374: Portfolio PDF Report ═══════════════════════════════════════════
+MF.portfolioReport = {
+  _loaded: false,
+
+  initMonths() {
+    const sel = document.getElementById('rptMonth');
+    if (!sel || sel.options.length) return;
+    const now = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const label = d.toLocaleString('en-IN',{month:'long',year:'numeric'});
+      sel.add(new Option(label, val));
+    }
+  },
+
+  async load() {
+    this._loaded = true;
+    const body = document.getElementById('rptBody');
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center;padding:32px;">⏳ Loading report…</div>';
+    const BASE = window.APP_URL || window.WD?.appUrl || '';
+    const PID  = window.WD?.selectedPortfolio || document.getElementById('portfolioSelect')?.value || '';
+    const mon  = document.getElementById('rptMonth')?.value || '';
+    const fy   = this._monToFY(mon);
+    try {
+      const [rSum, rList, rSIP, rGains] = await Promise.all([
+        fetch(`${BASE}/api/mf/holdings.php?action=summary&portfolio_id=${PID}`).then(r=>r.json()),
+        fetch(`${BASE}/api/mf/holdings.php?action=list&portfolio_id=${PID}`).then(r=>r.json()),
+        fetch(`${BASE}/api/mf/sip.php?action=list&portfolio_id=${PID}`).then(r=>r.json()),
+        fetch(`${BASE}/api/reports/fy_gains.php?action=fy_gains&fy=${fy}`).then(r=>r.json()),
+      ]);
+      body.innerHTML = this._render(rSum, rList, rSIP, rGains, mon);
+    } catch(e) {
+      body.innerHTML = `<div style="color:#dc2626;padding:32px;text-align:center;">${e.message}</div>`;
+    }
+  },
+
+  _monToFY(mon) {
+    if (!mon) { const n=new Date(); mon=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
+    const [y,m] = mon.split('-').map(Number);
+    return m >= 4 ? `${y}-${String(y-1999).padStart(2,'0')}` : `${y-1}-${String(y-2000).padStart(2,'0')}`;
+  },
+
+  _inr(v) { return '₹'+Math.abs(Number(v)||0).toLocaleString('en-IN',{maximumFractionDigits:0}); },
+  _pct(v) { const n=Number(v)||0; return (n>=0?'+':'')+n.toFixed(2)+'%'; },
+  _gc(v)  { return Number(v)>=0 ? 'color:#16a34a;font-weight:700' : 'color:#dc2626;font-weight:700'; },
+
+  _donut(cats) {
+    let cum = 0;
+    const stops = cats.map(c => {
+      const s = `${c.color} ${cum}% ${cum+c.pct}%`;
+      cum += c.pct;
+      return s;
+    }).join(',');
+    const legend = cats.map(c =>
+      `<div style="display:flex;align-items:center;gap:6px;font-size:11px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:${c.color};flex-shrink:0;"></span>
+        ${c.label} <strong>${c.pct.toFixed(1)}%</strong>
+      </div>`
+    ).join('');
+    return `<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+      <div style="width:90px;height:90px;border-radius:50%;background:conic-gradient(${stops});flex-shrink:0;"></div>
+      <div style="display:flex;flex-direction:column;gap:5px;">${legend}</div>
+    </div>`;
+  },
+
+  _render(rSum, rList, rSIP, rGains, mon) {
+    const inr=this._inr.bind(this), pct=this._pct.bind(this), gc=this._gc.bind(this);
+    const s   = rSum.success  ? (rSum.data  || rSum.summary || {}) : {};
+    const hlds= rList.success ? (rList.data || rList.holdings || []) : [];
+    const sips= rSIP.success  ? (rSIP.data  || rSIP.sips    || []) : [];
+    const gsum= rGains.success? (rGains.summary || {}) : {};
+
+    const invested = Number(s.total_invested||s.invested||0);
+    const current  = Number(s.current_value||s.value||0);
+    const gain     = current - invested;
+    const gainPct  = invested ? (gain/invested*100) : 0;
+    const xirr     = s.xirr || s.portfolio_xirr || null;
+
+    const sorted = [...hlds].sort((a,b)=>Number(b.current_value||0)-Number(a.current_value||0));
+
+    const catMap = {};
+    hlds.forEach(h => {
+      const cat = h.category || h.fund_category || 'Other';
+      catMap[cat] = (catMap[cat]||0) + Number(h.current_value||0);
+    });
+    const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#84cc16'];
+    const total  = Object.values(catMap).reduce((a,v)=>a+v,0)||1;
+    const catArr = Object.entries(catMap)
+      .map(([label,val],i)=>({label,pct:val/total*100,color:COLORS[i%COLORS.length]}))
+      .sort((a,b)=>b.pct-a.pct);
+
+    const withGain = hlds.map(h=>({...h,_g:Number(h.gain_pct||h.returns_pct||0)}));
+    const gainers  = [...withGain].sort((a,b)=>b._g-a._g).slice(0,3);
+    const losers   = [...withGain].sort((a,b)=>a._g-b._g).slice(0,3);
+
+    const monLabel = mon ? new Date(mon+'-01').toLocaleString('en-IN',{month:'long',year:'numeric'}) : '';
+    const today    = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+    const userName = window.WD?.userName || '';
+    const totalSIP = sips.filter(s=>s.status==='active').reduce((a,s)=>a+Number(s.amount||0),0);
+
+    return `
+<div id="rptContent" style="font-family:'Segoe UI',sans-serif;color:#111;max-width:900px;margin:0 auto;background:#fff;padding:24px 32px;">
+
+  <!-- HEADER -->
+  <div style="border-bottom:3px solid #1d4ed8;padding-bottom:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;">
+    <div>
+      <div style="font-size:22px;font-weight:900;color:#1d4ed8;">WealthDash</div>
+      <div style="font-size:15px;font-weight:600;color:#374151;margin-top:2px;">Portfolio Report — ${monLabel}</div>
+    </div>
+    <div style="text-align:right;font-size:12px;color:#6b7280;">
+      ${userName ? `<div style="font-weight:600;">${userName}</div>` : ''}
+      <div>Generated: ${today}</div>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+    ${[
+      ['Total Invested', inr(invested), '#1d4ed8'],
+      ['Current Value',  inr(current),  '#059669'],
+      ['Gain / Loss',    `${inr(Math.abs(gain))} (${pct(gainPct)})`, gain>=0?'#059669':'#dc2626'],
+      xirr ? ['Portfolio XIRR', pct(xirr), '#7c3aed'] : null,
+    ].filter(Boolean).map(([label,val,col])=>`
+      <div style="background:#f8fafc;border-radius:8px;padding:12px;border-top:3px solid ${col};">
+        <div style="font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">${label}</div>
+        <div style="font-size:15px;font-weight:800;color:${col};">${val}</div>
+      </div>`).join('')}
+  </div>
+
+  <!-- ASSET ALLOCATION -->
+  ${catArr.length ? `
+  <div style="margin-bottom:20px;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:10px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">Asset Allocation</div>
+    ${this._donut(catArr)}
+  </div>` : ''}
+
+  <!-- HOLDINGS TABLE -->
+  <div style="margin-bottom:20px;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">Holdings (${sorted.length} funds)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <thead>
+        <tr style="background:#f1f5f9;">
+          <th style="text-align:left;padding:7px 8px;">Fund</th>
+          <th style="text-align:left;padding:7px 8px;">Category</th>
+          <th style="text-align:right;padding:7px 8px;">Units</th>
+          <th style="text-align:right;padding:7px 8px;">Avg NAV</th>
+          <th style="text-align:right;padding:7px 8px;">Cur NAV</th>
+          <th style="text-align:right;padding:7px 8px;">Invested</th>
+          <th style="text-align:right;padding:7px 8px;">Value</th>
+          <th style="text-align:right;padding:7px 8px;">Gain%</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map((h,i)=>{
+          const gp = Number(h.gain_pct||h.returns_pct||0);
+          return `<tr style="background:${i%2?'#f9fafb':'#fff'};">
+            <td style="padding:6px 8px;font-weight:600;max-width:200px;">${h.fund_name||h.name||'—'}</td>
+            <td style="padding:6px 8px;color:#6b7280;">${h.category||'—'}</td>
+            <td style="padding:6px 8px;text-align:right;">${Number(h.units||0).toFixed(3)}</td>
+            <td style="padding:6px 8px;text-align:right;">₹${Number(h.avg_nav||h.average_nav||0).toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right;">₹${Number(h.current_nav||h.nav||0).toFixed(2)}</td>
+            <td style="padding:6px 8px;text-align:right;">${inr(h.invested_amount||h.invested||0)}</td>
+            <td style="padding:6px 8px;text-align:right;font-weight:600;">${inr(h.current_value||0)}</td>
+            <td style="padding:6px 8px;text-align:right;${gc(gp)}">${pct(gp)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- GAINERS & LOSERS -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    ${[['🏆 Top Gainers',gainers,'#16a34a'],['📉 Top Losers',losers,'#dc2626']].map(([title,list,col])=>`
+    <div>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">${title}</div>
+      ${list.map(h=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:12px;">
+          <span style="color:#374151;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h.fund_name||h.name||'—'}</span>
+          <span style="color:${col};font-weight:700;">${pct(h._g)}</span>
+        </div>`).join('')}
+    </div>`).join('')}
+  </div>
+
+  <!-- SIP SUMMARY -->
+  ${sips.length ? `
+  <div style="margin-bottom:20px;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">
+      Active SIPs — Monthly Commitment: <span style="color:#1d4ed8;">${inr(totalSIP)}</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <thead><tr style="background:#f1f5f9;">
+        <th style="text-align:left;padding:7px 8px;">Fund</th>
+        <th style="text-align:right;padding:7px 8px;">Amount</th>
+        <th style="text-align:center;padding:7px 8px;">Date</th>
+        <th style="text-align:center;padding:7px 8px;">Status</th>
+      </tr></thead>
+      <tbody>${sips.map((s,i)=>`
+        <tr style="background:${i%2?'#f9fafb':'#fff'};">
+          <td style="padding:6px 8px;">${s.fund_name||'—'}</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:600;">${inr(s.amount)}</td>
+          <td style="padding:6px 8px;text-align:center;">${s.sip_date||s.date||'—'}</td>
+          <td style="padding:6px 8px;text-align:center;">
+            <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${s.status==='active'?'rgba(16,185,129,.12)':'rgba(156,163,175,.12)'};color:${s.status==='active'?'#059669':'#6b7280'};font-weight:700;text-transform:uppercase;">${s.status||'—'}</span>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- REALIZED GAINS -->
+  ${(gsum.ltcg_total||gsum.stcg_total) ? `
+  <div style="margin-bottom:20px;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;">Realised Gains — FY</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
+      <div>LTCG <strong style="color:#3b82f6;">${inr(gsum.ltcg_total||0)}</strong></div>
+      <div>STCG <strong style="color:#f59e0b;">${inr(gsum.stcg_total||0)}</strong></div>
+      ${gsum.total_estimated_tax?`<div>Est. Tax <strong style="color:#dc2626;">${inr(gsum.total_estimated_tax)}</strong></div>`:''}
+    </div>
+  </div>` : ''}
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid #e5e7eb;padding-top:10px;margin-top:8px;display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;flex-wrap:wrap;gap:4px;">
+    <span>Generated by WealthDash · For personal use only · Not financial advice</span>
+  </div>
+
+</div>`;
+  },
+
+  print() {
+    if (!this._loaded) { this.load().then(()=>setTimeout(()=>window.print(),500)); return; }
+    window.print();
+  }
+};
+
+// t374: Init month selector after object is defined
+document.addEventListener('DOMContentLoaded', () => {
+  if (MF.portfolioReport) MF.portfolioReport.initMonths();
 });

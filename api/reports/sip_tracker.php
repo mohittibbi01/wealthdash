@@ -188,7 +188,7 @@ switch ($action) {
 
         $goalId  = (int)   ($_POST['goal_id'] ?? 0);
         $amount  = (float) ($_POST['amount']  ?? 0);
-        $date    = date_to_db(clean($_POST['date'] ?? date('d-m-Y')));
+        $date    = date_to_db(clean($_POST['date'] ?? date('Y-m-d')));
         $note    = clean($_POST['note'] ?? '');
 
         if (!$goalId || $amount <= 0) json_response(false, 'Goal ID and amount required.');
@@ -419,7 +419,7 @@ switch ($action) {
         $amount      = (float)($_POST['sip_amount'] ?? 0);
         $freq        = trim($_POST['frequency']     ?? 'monthly');
         $day         = max(1, min(28, (int)($_POST['sip_day'] ?? 1)));
-        $startDate   = date_to_db(trim($_POST['start_date'] ?? date('d-m-Y')));
+        $startDate   = date_to_db(trim($_POST['start_date'] ?? date('Y-m-d')));
         $endDate     = (trim($_POST['end_date'] ?? '') !== '') ? date_to_db(trim($_POST['end_date'])) : null;
         $platform    = trim($_POST['platform']       ?? '') ?: null;
         $notes       = trim($_POST['notes']          ?? '') ?: null;

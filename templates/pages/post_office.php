@@ -490,6 +490,91 @@ ob_start();
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════
+     t318 — SSY Calculator (Full featured)
+     Year-by-year table, rate history, education planner
+     ═══════════════════════════════════════════════════════ -->
+<div class="card" style="margin-top:20px;margin-bottom:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title" style="margin:0;">👧 SSY Calculator — t318</h3>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">Full SSY projection with year-by-year table, rate scenarios & education corpus plan</p>
+    </div>
+  </div>
+  <div class="card-body" style="padding:16px;">
+
+    <!-- Inputs -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Girl's Date of Birth</label>
+        <input type="date" id="t318Dob" class="form-input" oninput="t318Calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Account Opening Date</label>
+        <input type="date" id="t318Open" class="form-input" value="<?= date('Y-m-d') ?>" oninput="t318Calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Annual Deposit (₹)</label>
+        <input type="number" id="t318Yearly" class="form-input" value="150000" min="250" max="150000" oninput="t318Calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Current Balance (₹)</label>
+        <input type="number" id="t318Balance" class="form-input" value="0" min="0" oninput="t318Calc()">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Interest Rate Scenario</label>
+        <select id="t318Rate" class="form-input" onchange="t318Calc()">
+          <option value="8.2" selected>8.2% — Current (Q1 FY25-26)</option>
+          <option value="7.6">7.6% — Conservative</option>
+          <option value="8.5">8.5% — Optimistic</option>
+          <option value="9.0">9.0% — Historical High</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Annual Step-Up (%)</label>
+        <select id="t318Stepup" class="form-input" onchange="t318Calc()">
+          <option value="0" selected>No step-up</option>
+          <option value="5">5% per year</option>
+          <option value="10">10% per year</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="t318Result"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     t319 — NSC / KVP Maturity Chain
+     Chain multiple NSCs/KVPs, show reinvestment flow
+     ═══════════════════════════════════════════════════════ -->
+<div class="card" style="margin-top:20px;margin-bottom:20px;">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h3 class="card-title" style="margin:0;">📜🌾 NSC / KVP Maturity Chain — t319</h3>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);">Chain multiple NSCs and KVPs — see reinvestment flow, cumulative maturity, year-wise interest</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="t319AddRow('nsc')" class="btn btn-sm btn-ghost" style="font-size:12px;">+ Add NSC</button>
+      <button onclick="t319AddRow('kvp')" class="btn btn-sm btn-ghost" style="font-size:12px;">+ Add KVP</button>
+    </div>
+  </div>
+  <div class="card-body" style="padding:16px;">
+
+    <!-- Entry rows -->
+    <div id="t319Rows" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+
+    <!-- Chain button -->
+    <div style="margin-bottom:16px;">
+      <button onclick="t319Calc()" class="btn btn-primary" style="width:100%;">🔗 Calculate Maturity Chain</button>
+    </div>
+
+    <!-- Result -->
+    <div id="t319Result"></div>
+  </div>
+</div>
+
 <!-- t203: PPF Annual Deposit Tracker -->
 <?php
 // Fetch user's PPF accounts from po_schemes
@@ -645,6 +730,197 @@ function savePpfDeposit(ppfId, fy) {
       else showToast('Save failed', 'error');
     }).catch(() => showToast('Network error', 'error'));
 }
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     t320 — Post Office Rate Change Alert
+     ════════════════════════════════════════════════════════════════════════ -->
+<style>
+/* t320 */
+.por-rate-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-bottom:18px; }
+.por-rate-card { background:var(--bg-secondary); border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; }
+.por-rate-card.rate-up   { border-color:#86efac; background:rgba(22,163,74,.06); }
+.por-rate-card.rate-down { border-color:#fca5a5; background:rgba(220,38,38,.05); }
+.por-rate-card.stable    { border-color:var(--border); }
+.por-rate-scheme { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-bottom:3px; }
+.por-rate-val    { font-size:22px; font-weight:800; color:var(--text-primary); }
+.por-rate-badge  { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; margin-top:3px; }
+.por-rate-badge.up   { background:rgba(22,163,74,.15); color:#16a34a; }
+.por-rate-badge.down { background:rgba(220,38,38,.12); color:#dc2626; }
+.por-rate-badge.flat { background:var(--bg-tertiary,var(--bg-secondary)); color:var(--text-muted); }
+.por-alert-row { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:8px; margin-bottom:8px; font-size:13px; }
+.por-alert-row.up   { background:rgba(22,163,74,.07); border:1px solid #86efac; }
+.por-alert-row.down { background:rgba(220,38,38,.06); border:1px solid #fca5a5; }
+.por-holding-row { display:grid; grid-template-columns:2fr 1fr 1fr 1fr 1fr; gap:8px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; }
+.por-holding-row:last-child { border-bottom:none; }
+.por-holding-hdr { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; }
+.por-diff-pill { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; }
+.por-diff-pill.up   { background:rgba(22,163,74,.15); color:#16a34a; }
+.por-diff-pill.down { background:rgba(220,38,38,.12); color:#dc2626; }
+.por-diff-pill.flat { background:var(--bg-tertiary,var(--bg-secondary)); color:var(--text-muted); }
+.por-countdown { display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:20px; background:rgba(234,179,8,.10); border:1.5px solid #fde047; color:#a16207; font-size:13px; font-weight:700; }
+@media(max-width:600px){ .por-holding-row{grid-template-columns:1fr 1fr;} }
+</style>
+
+<div class="card mb-4" id="poRateAlertCard">
+  <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+    <h3 class="card-title">📣 Post Office Rate Change Alert — t320</h3>
+    <span id="poRateAsOf" style="font-size:11px;color:var(--text-muted);"></span>
+  </div>
+  <div class="card-body">
+    <div id="poRateLoading" style="text-align:center;padding:36px;color:var(--text-muted);">Loading rate data…</div>
+    <div id="poRateError"   style="display:none;color:#dc2626;padding:12px;background:rgba(220,38,38,.05);border-radius:8px;margin-bottom:12px;"></div>
+    <div id="poRateContent" style="display:none;">
+
+      <!-- Next revision countdown -->
+      <div style="margin-bottom:16px;" id="poRateCountdownWrap"></div>
+
+      <!-- Alerts for user's holdings -->
+      <div id="poRateAlertsSection" style="display:none;margin-bottom:18px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">⚠️ Your Holdings — Rate Mismatch Alerts</div>
+        <div id="poRateAlertsList"></div>
+      </div>
+
+      <!-- Current rates grid -->
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">📊 Current Quarter Rates (Official)</div>
+      <div class="por-rate-grid" id="poRateGrid"></div>
+
+      <!-- Holdings comparison table -->
+      <div id="poHoldingsCmpSection" style="display:none;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">📋 Your Holdings vs Current Rates</div>
+        <div style="background:var(--bg-secondary);border-radius:10px;border:1.5px solid var(--border);overflow:hidden;">
+          <div class="por-holding-row" style="background:var(--bg-tertiary,var(--bg-secondary));border-bottom:2px solid var(--border);">
+            <div class="por-holding-hdr">Scheme / Holder</div>
+            <div class="por-holding-hdr" style="text-align:right;">Principal</div>
+            <div class="por-holding-hdr" style="text-align:center;">Booked Rate</div>
+            <div class="por-holding-hdr" style="text-align:center;">Current Rate</div>
+            <div class="por-holding-hdr" style="text-align:center;">Difference</div>
+          </div>
+          <div id="poHoldingsTable"></div>
+        </div>
+      </div>
+
+      <!-- Rate history mini-table -->
+      <div style="margin-top:18px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">📅 Rate History (Last 4 Quarters)</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;font-size:12px;border-collapse:collapse;" id="poRateHistTable"></table>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;font-size:11px;color:var(--text-muted);font-style:italic;">
+        * Rates as notified by Ministry of Finance. Post Office schemes (except PPF) have variable rates revised quarterly. Existing investments in schemes like NSC, KVP, TD are locked at the rate prevailing on the date of investment. PPF, SCSS, MIS, RD — new deposits earn the rate applicable on date of deposit for that quarter.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function poRateAlert() {
+  try {
+    const params = new URLSearchParams({ action: 'po_rate_alert' });
+    const pid = document.querySelector('meta[name="portfolio-id"]')?.content || '';
+    if (pid) params.append('portfolio_id', pid);
+
+    const res  = await fetch(`${window.APP_URL||''}/api/?${params}`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || 'Failed');
+    const d = json.data;
+
+    document.getElementById('poRateLoading').style.display = 'none';
+    document.getElementById('poRateContent').style.display = '';
+    document.getElementById('poRateAsOf').textContent = 'As of ' + d.as_of;
+
+    // Countdown
+    if (d.next_revision && d.days_to_revision !== null) {
+      const dt = new Date(d.next_revision).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+      document.getElementById('poRateCountdownWrap').innerHTML =
+        `<span class="por-countdown">🗓️ Next Rate Revision: ${dt} &nbsp;|&nbsp; ${d.days_to_revision} days away</span>`;
+    }
+
+    // Alerts for holdings
+    if (d.alerts && d.alerts.length) {
+      document.getElementById('poRateAlertsSection').style.display = '';
+      document.getElementById('poRateAlertsList').innerHTML = d.alerts.map(a =>
+        `<div class="por-alert-row ${a.diff > 0 ? 'up' : 'down'}">
+          <span style="font-size:18px;">${a.icon}</span>
+          <div>
+            <strong>${a.label} — ${a.holder}</strong>
+            <div style="color:var(--text-secondary);margin-top:2px;">${a.message}</div>
+          </div>
+          <div style="margin-left:auto;white-space:nowrap;">
+            <span class="por-diff-pill ${a.diff > 0 ? 'up' : 'down'}">${a.diff > 0 ? '+' : ''}${a.diff}%</span>
+          </div>
+        </div>`
+      ).join('');
+    }
+
+    // Current rates grid
+    const cr = d.current_rates;
+    const lb = d.labels;
+    const ic = d.icons;
+    document.getElementById('poRateGrid').innerHTML = Object.entries(cr).map(([k, r]) => {
+      const chg = r.change;
+      const cls = chg > 0 ? 'rate-up' : chg < 0 ? 'rate-down' : 'stable';
+      const badgeCls = chg > 0 ? 'up' : chg < 0 ? 'down' : 'flat';
+      const badgeTxt = chg === 0 ? '— Unchanged' : (chg > 0 ? `▲ +${chg}%` : `▼ ${chg}%`);
+      const note = r.note ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${r.note}</div>` : '';
+      return `<div class="por-rate-card ${cls}">
+        <div class="por-rate-scheme">${ic[k]||'📋'} ${lb[k]||k}</div>
+        <div class="por-rate-val">${r.rate}%</div>
+        <div><span class="por-rate-badge ${badgeCls}">${badgeTxt}</span></div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${r.quarter}</div>
+        ${note}
+      </div>`;
+    }).join('');
+
+    // Holdings comparison
+    if (d.holdings_cmp && d.holdings_cmp.length) {
+      document.getElementById('poHoldingsCmpSection').style.display = '';
+      document.getElementById('poHoldingsTable').innerHTML = d.holdings_cmp.map(h => {
+        const diff    = h.rate_diff;
+        const pillCls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+        const pillTxt = diff === 0 ? '—' : (diff > 0 ? '+' : '') + diff + '%';
+        return `<div class="por-holding-row">
+          <div><strong>${h.icon} ${h.scheme_label}</strong><div style="font-size:11px;color:var(--text-muted);">${h.holder}</div></div>
+          <div style="text-align:right;">${INR(h.principal,true)}</div>
+          <div style="text-align:center;font-weight:700;">${h.booked_rate}%</div>
+          <div style="text-align:center;font-weight:700;">${h.current_rate}%</div>
+          <div style="text-align:center;"><span class="por-diff-pill ${pillCls}">${pillTxt}</span></div>
+        </div>`;
+      }).join('');
+    }
+
+    // Rate history table
+    const hist  = d.rate_history;
+    const schemes = Object.keys(hist);
+    const quarters = hist[schemes[0]]?.map(h => h.q) || [];
+    let tableHtml = `<thead><tr style="border-bottom:2px solid var(--border);">
+      <th style="padding:6px 10px;text-align:left;color:var(--text-muted);">Scheme</th>
+      ${quarters.map(q=>`<th style="padding:6px 10px;text-align:center;color:var(--text-muted);">${q}</th>`).join('')}
+    </tr></thead><tbody>`;
+    schemes.forEach(k => {
+      const rows = hist[k] || [];
+      const cells = rows.map((r,i) => {
+        const prev = rows[i+1]?.rate;
+        const chg  = prev != null ? r.rate - prev : 0;
+        const color = chg > 0 ? '#16a34a' : chg < 0 ? '#dc2626' : 'var(--text-primary)';
+        const arrow = chg > 0 ? '▲' : chg < 0 ? '▼' : '';
+        return `<td style="padding:6px 10px;text-align:center;font-weight:600;color:${color};">${arrow}${r.rate}%</td>`;
+      }).join('');
+      tableHtml += `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px 10px;font-weight:700;">${ic[k]||''} ${lb[k]||k}</td>${cells}
+      </tr>`;
+    });
+    tableHtml += '</tbody>';
+    document.getElementById('poRateHistTable').innerHTML = tableHtml;
+
+  } catch(e) {
+    document.getElementById('poRateLoading').style.display = 'none';
+    document.getElementById('poRateError').style.display   = '';
+    document.getElementById('poRateError').textContent = '⚠️ ' + e.message;
+  }
+})();
 </script>
 
 <script src="<?= APP_URL ?>/public/js/post_office.js?v=<?= ASSET_VERSION ?>"></script>

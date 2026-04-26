@@ -257,7 +257,9 @@ const SAV = {
 };
 
 function fmtInr(v){ const n=parseFloat(v||0); return(n<0?'-':'')+'₹'+Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${dd}-${m}-${y}`; }
+// [t348]
+const _SAV_MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d){ if(!d)return'—'; const[y,m,dd]=d.split('-'); return`${parseInt(dd,10)} ${_SAV_MON[parseInt(m,10)-1]||m} ${y}`; }
 function escHtml(t){ const d=document.createElement('div'); d.appendChild(document.createTextNode(t||'')); return d.innerHTML; }
 
 document.addEventListener('DOMContentLoaded', () => SAV.init());

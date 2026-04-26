@@ -77,6 +77,60 @@ $flashMsgs     = flash_get();
      =========================== -->
 <?php include APP_ROOT . '/templates/modals.php'; ?>
 
+<!-- ═══════════════════════════════════════════════════════
+     t370: MOBILE BOTTOM NAVIGATION BAR
+     Only visible on screens < 768px
+════════════════════════════════════════════════════════ -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile navigation">
+  <a class="mbn-item <?= $activePage==='dashboard'?'active':'' ?>" href="<?= APP_URL ?>?page=dashboard">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a class="mbn-item <?= in_array($activePage,['mf_holdings','mf_screener','mf_report','mf_transactions'])?'active':'' ?>" href="<?= APP_URL ?>?page=mf_holdings">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>MF</span>
+  </a>
+  <!-- t494: Quick Add floating centre button -->
+  <button class="mbn-item mbn-add" id="mbnQuickAdd" onclick="QuickDrawer.open()" aria-label="Quick add">
+    <span class="mbn-add-circle">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </span>
+    <span>Add</span>
+  </button>
+  <a class="mbn-item <?= strpos($activePage,'report')===0?'active':'' ?>" href="<?= APP_URL ?>?page=report_fy">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>Reports</span>
+    <span class="mbn-badge" id="mbnAlertBadge" style="display:none;"></span>
+  </a>
+  <a class="mbn-item <?= $activePage==='settings'?'active':'' ?>" href="<?= APP_URL ?>?page=settings">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93"/><path d="M4.93 19.07A10 10 0 0 0 19.07 19.07"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/></svg>
+    <span>Settings</span>
+  </a>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════
+     t494: QUICK TRANSACTION DRAWER
+     Slide-up sheet for fast data entry
+════════════════════════════════════════════════════════ -->
+<div id="quickDrawerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1100;" onclick="QuickDrawer.close()"></div>
+<div id="quickDrawerSheet" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:20px 20px 0 0;z-index:1101;padding:0 0 env(safe-area-inset-bottom,16px);max-height:85vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);">
+  <!-- Handle bar -->
+  <div style="display:flex;justify-content:center;padding:12px 0 8px;">
+    <div style="width:40px;height:4px;background:var(--border);border-radius:2px;"></div>
+  </div>
+  <div style="padding:0 20px 20px;">
+    <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;">⚡ Quick Add</h3>
+    <!-- Type selector -->
+    <div style="display:flex;gap:8px;margin-bottom:20px;">
+      <button class="qd-type active" data-type="mf" onclick="QuickDrawer.setType('mf')" style="flex:1;padding:10px 8px;border-radius:10px;border:2px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">📈 MF</button>
+      <button class="qd-type" data-type="fd" onclick="QuickDrawer.setType('fd')" style="flex:1;padding:10px 8px;border-radius:10px;border:2px solid var(--border);background:var(--bg-secondary);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">🏦 FD</button>
+      <button class="qd-type" data-type="nps" onclick="QuickDrawer.setType('nps')" style="flex:1;padding:10px 8px;border-radius:10px;border:2px solid var(--border);background:var(--bg-secondary);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;">🏛️ NPS</button>
+    </div>
+    <div id="qdForm"></div>
+    <div id="qdMsg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:13px;"></div>
+  </div>
+</div>
+
 <!-- ===========================
      SCRIPTS
      =========================== -->
@@ -163,6 +217,8 @@ $flashMsgs     = flash_get();
     });
   }
 </script>
+<!-- SheetJS — XLSX export with formulas (t375) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="<?= APP_URL ?>/public/js/app.js?v=<?= filemtime(APP_ROOT.'/public/js/app.js') ?>"></script>
 <?php if (!empty($pageScript)): ?>
   <script src="<?= APP_URL ?>/public/js/<?= e($pageScript) ?>"></script>
