@@ -13,6 +13,10 @@
 declare(strict_types=1);
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once APP_ROOT . '/includes/cron_logger.php';
+
+$_cronLog = new CronLogger('fd_maturity_alert');
+$_cronLog->start();
 
 echo '[' . date('Y-m-d H:i:s') . "] FD Maturity Alert Cron started\n";
 
@@ -93,6 +97,7 @@ foreach ($TIERS as $tier) {
 }
 
 echo '[' . date('Y-m-d H:i:s') . "] Done. Batches sent: {$totalSent}\n";
+$_cronLog->finish('success', "FD maturity alerts sent: {$totalSent} batch(es).", $totalSent);
 
 /* ── email builder ───────────────────────────────────────────────────── */
 function sendTieredFdAlert(array $user, array $fds, int $days, array $mktRates): bool

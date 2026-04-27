@@ -199,6 +199,20 @@ ob_start();
 
 </div>
 
+<!-- ═══ t343: LIVE NAV WIDGET ═══ -->
+<div id="liveNavWidget" style="display:none;margin-bottom:16px;">
+  <div id="liveNavBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-radius:10px;background:var(--bg-secondary);border:1px solid var(--border-color);">
+    <span id="liveNavStatusDot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span>
+    <span id="liveNavLabel" style="font-size:12px;font-weight:600;color:var(--text-muted);">Loading estimated NAV…</span>
+    <span id="liveNavPortfolioChange" style="font-size:13px;font-weight:700;display:none;"></span>
+    <span id="liveNavBenchmark" style="font-size:11px;color:var(--text-muted);display:none;"></span>
+    <span style="flex:1"></span>
+    <span id="liveNavDisclaimer" style="font-size:10px;color:var(--text-muted);font-style:italic;display:none;">Est. based on index movement</span>
+    <span id="liveNavTime" style="font-size:11px;color:var(--text-muted);"></span>
+    <button onclick="loadLiveNav()" style="padding:3px 10px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-surface);font-size:11px;cursor:pointer;color:var(--text-secondary);">↺</button>
+  </div>
+</div>
+
 <!-- ═══ PAGE TABS ═══ -->
 <div class="mf-page-tabs" style="display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:20px;">
   <button class="mf-tab active" data-tab="holdings" style="padding:10px 20px;font-size:14px;font-weight:500;background:none;border:none;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent);cursor:pointer;">
@@ -1720,6 +1734,121 @@ ob_start();
   .rpt-page-break { page-break-before: always; }
 }
 </style>
+
+</style>
+
+<script>
+/* ── t343: Live NAV Widget ──────────────────────────────────────────────── */
+let _liveNavTimer = null;
+let _liveNavData  = null;
+
+function isMarketHoursIST() {
+  const now = new Date();
+  // Convert to IST (UTC+5:30)
+  const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+  const day = ist.getUTCDay(); // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return false;
+  const hhmm = ist.getUTCHours() * 100 + ist.getUTCMinutes();
+  return hhmm >= 915 && hhmm <= 1530;
+}
+
+async function loadLiveNav() {
+  document.getElementById('liveNavWidget').style.display = 'block';
+  const label = document.getElementById('liveNavLabel');
+  label.textContent = 'Fetching index data…';
+
+  try {
+    const d = await API.post('/api/router.php', { action: 'live_nav_estimate' });
+    if (!d?.success) throw new Error(d?.message || 'Failed');
+    _liveNavData = d.data;
+
+    applyLiveNavToWidget(d.data);
+    applyLiveNavToHoldingsTable(d.data.holdings || []);
+
+    // Auto-refresh every 5 min if market open
+    clearTimeout(_liveNavTimer);
+    if (d.data.market_open && !d.data.nav_updated) {
+      _liveNavTimer = setTimeout(loadLiveNav, 5 * 60 * 1000);
+    }
+  } catch(e) {
+    document.getElementById('liveNavLabel').textContent = '⚠️ Could not fetch index data';
+  }
+}
+
+function applyLiveNavToWidget(d) {
+  const dot     = document.getElementById('liveNavStatusDot');
+  const label   = document.getElementById('liveNavLabel');
+  const chEl    = document.getElementById('liveNavPortfolioChange');
+  const bmEl    = document.getElementById('liveNavBenchmark');
+  const discEl  = document.getElementById('liveNavDisclaimer');
+  const timeEl  = document.getElementById('liveNavTime');
+
+  if (d.nav_updated) {
+    dot.style.background = '#22c55e';
+    label.textContent    = '✅ Official NAV updated (post 7 PM)';
+    chEl.style.display   = 'none';
+    bmEl.style.display   = 'none';
+    discEl.style.display = 'none';
+  } else if (!d.market_open) {
+    dot.style.background = '#9ca3af';
+    label.textContent    = '🔔 Market closed — showing official NAV';
+    chEl.style.display   = 'none';
+    bmEl.style.display   = 'none';
+    discEl.style.display = 'none';
+  } else {
+    // Market open — estimated
+    dot.style.background = '#f59e0b';
+    label.textContent    = '📊 Est. NAV (live index):';
+    chEl.style.display   = 'inline';
+    bmEl.style.display   = 'inline';
+    discEl.style.display = 'inline';
+
+    const pct = d.portfolio_change_pct || 0;
+    const pos = pct >= 0;
+    chEl.textContent  = (pos ? '▲ +' : '▼ ') + pct.toFixed(2) + '% est. today';
+    chEl.style.color  = pos ? '#22c55e' : '#ef4444';
+
+    if (d.nifty_change_pct !== null) {
+      const nPct = d.nifty_change_pct;
+      bmEl.textContent = `Nifty 50: ${nPct >= 0 ? '+' : ''}${nPct.toFixed(2)}%`;
+      bmEl.style.color = nPct >= 0 ? '#22c55e' : '#ef4444';
+    }
+  }
+
+  timeEl.textContent = d.time_ist ? `IST ${d.time_ist}` : '';
+}
+
+function applyLiveNavToHoldingsTable(holdings) {
+  if (!holdings.length) return;
+  const byHolding = {};
+  holdings.forEach(h => { byHolding[h.holding_id] = h; });
+
+  // Inject est NAV into holdings table rows (if rendered)
+  document.querySelectorAll('[data-holding-id]').forEach(row => {
+    const hid  = parseInt(row.dataset.holdingId);
+    const h    = byHolding[hid];
+    if (!h || !h.is_estimated) return;
+
+    // Try to find current NAV cell and annotate
+    const navCell = row.querySelector('.holding-nav, [data-col="nav"], td:nth-child(5)');
+    if (navCell && !navCell.querySelector('.est-nav-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'est-nav-badge';
+      badge.style.cssText = 'display:block;font-size:10px;color:#f59e0b;margin-top:2px;';
+      badge.title = 'Estimated based on ' + h.benchmark + ' movement';
+      const pct = h.change_pct;
+      badge.textContent = `Est. ₹${h.est_nav.toFixed(3)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+      navCell.appendChild(badge);
+    }
+  });
+}
+
+// Auto-init: show widget and load if market open
+document.addEventListener('DOMContentLoaded', () => {
+  // Always show widget (market closed state is also useful info)
+  loadLiveNav();
+});
+</script>
 
 <?php
 $pageContent = ob_get_clean();

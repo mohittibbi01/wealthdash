@@ -50,6 +50,7 @@ $isAdmin = is_admin();
 // Read-only actions don't need CSRF (no state change)
 $csrfExempt = [
     'admin_stats', 'admin_users',
+    'admin_cron_status', 'admin_cron_history',
     'admin_settings_get', 'admin_audit_log', 'admin_db_list', 'admin_db_status',
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
@@ -648,12 +649,23 @@ try {
         case 'admin_audit_log':
             require APP_ROOT . '/api/admin/settings.php'; exit;
 
+        // ── t309: Admin — Cron Job Dashboard ────────────────
+        case 'admin_cron_status':
+        case 'admin_cron_history':
+        case 'admin_cron_trigger':
+        case 'admin_cron_clear':
+            require APP_ROOT . '/api/admin/cron_dashboard.php'; exit;
+
         // ── tv13: Admin — Data Quality ───────────────────────
         case 'data_quality_report':
         case 'data_quality_fix_nav':
             require APP_ROOT . '/api/admin/data_quality.php'; exit;
 
         // ── tv08: NFO Tracker ────────────────────────────────
+        // ── t343: Live NAV Widget ─────────────────────────────────────
+        case 'live_nav_estimate':
+            require APP_ROOT . '/api/mutual_funds/live_nav.php'; exit;
+
         case 'nfo_list':
             require APP_ROOT . '/api/mutual_funds/nfo_list.php'; exit;
 
@@ -864,6 +876,13 @@ try {
 
         case 'retirement_combined':
             require APP_ROOT . '/api/epf/retirement_combined.php'; exit;
+
+        // ── t134: 54EC Bond Tracker ──────────────────────────────────────────
+        case 'bonds54ec_list':
+        case 'bonds54ec_add':
+        case 'bonds54ec_edit':
+        case 'bonds54ec_delete':
+            require APP_ROOT . '/api/bonds/bonds_54ec.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

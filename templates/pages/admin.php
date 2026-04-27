@@ -66,6 +66,10 @@ ob_start();
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
     Setup &amp; Backup
   </button>
+  <button class="admin-tab" data-tab="cron" onclick="adminSwitchTab('cron',this)">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    Cron Jobs
+  </button>
 </div>
 
 <!-- ═══════ TAB: OVERVIEW ═══════ -->
@@ -1615,6 +1619,7 @@ function adminSwitchTab(name, btn) {
   if (name==='audit') loadAuditLog();
   if (name==='dbmgr') loadDbTables();
   if (name==='setup') { ssRenderAll(); refreshDbStatus(); }
+  if (name==='cron')  { cronLoadStatus(); }
 }
 
 async function loadStats() {
@@ -3415,7 +3420,262 @@ async function apiGet(params) {
   });
   return resp.json();
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   t309 — CRON JOB DASHBOARD
+═══════════════════════════════════════════════════════════════ */
+
+let _cronData = [];
+
+async function cronLoadStatus() {
+  const grid  = document.getElementById('cronJobGrid');
+  const sumEl = document.getElementById('cronSummaryBar');
+  grid.innerHTML  = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">⏳ Loading cron status...</div>';
+  sumEl.innerHTML = '';
+  try {
+    const d = await API.post('/api/router.php', { action: 'admin_cron_status' });
+    if (!d?.success) throw new Error(d?.message || 'Failed');
+    _cronData = d.data.jobs || [];
+    const s   = d.data.summary || {};
+
+    // Summary bar
+    sumEl.innerHTML = `
+      <div class="cron-sum-item"><span class="cron-sum-num">${s.total_runs||0}</span><span class="cron-sum-label">Runs (30d)</span></div>
+      <div class="cron-sum-item"><span class="cron-sum-num" style="color:#22c55e">${s.successes||0}</span><span class="cron-sum-label">Successes</span></div>
+      <div class="cron-sum-item"><span class="cron-sum-num" style="color:#ef4444">${s.failures||0}</span><span class="cron-sum-label">Failures</span></div>
+      <div class="cron-sum-item"><span class="cron-sum-num" style="color:#f59e0b">${s.running||0}</span><span class="cron-sum-label">Running</span></div>
+      <div class="cron-sum-item"><span class="cron-sum-num">${s.avg_duration_ms ? Math.round(s.avg_duration_ms/1000)+'s' : '—'}</span><span class="cron-sum-label">Avg Duration</span></div>`;
+
+    // Job cards
+    grid.innerHTML = _cronData.map(j => cronCardHtml(j)).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="padding:16px;color:#dc2626;font-size:13px;">⚠️ ${e.message}</div>`;
+  }
+}
+
+function cronCardHtml(j) {
+  const statusColor = {
+    success: '#22c55e', failed: '#ef4444', warning: '#f59e0b',
+    running: '#3b82f6', never: '#9ca3af'
+  };
+  const statusIcon = {
+    success: '✅', failed: '❌', warning: '⚠️', running: '⏳', never: '–'
+  };
+  const st  = j.last_status || 'never';
+  const col = statusColor[st] || '#9ca3af';
+  const ico = statusIcon[st] || '–';
+  const lastRun  = j.last_run  ? new Date(j.last_run).toLocaleString('en-IN') : 'Never run';
+  const duration = j.last_duration_ms ? (j.last_duration_ms >= 1000 ? Math.round(j.last_duration_ms/1000)+'s' : j.last_duration_ms+'ms') : '';
+  const successRate = j.success_rate != null ? `${j.success_rate}%` : '—';
+
+  return `
+  <div class="cron-card" id="cronCard_${j.job_name}">
+    <div class="cron-card-head">
+      <div>
+        <div class="cron-card-title">${esc(j.label)}</div>
+        <div class="cron-card-sub">${esc(j.schedule)}</div>
+      </div>
+      <span class="cron-badge" style="background:${col}22;color:${col};border-color:${col}44;">${ico} ${st}</span>
+    </div>
+    <div class="cron-card-meta">
+      <div><span class="cron-meta-key">Last Run</span><span class="cron-meta-val">${lastRun}</span></div>
+      ${duration ? `<div><span class="cron-meta-key">Duration</span><span class="cron-meta-val">${duration}</span></div>` : ''}
+      ${j.last_records ? `<div><span class="cron-meta-key">Records</span><span class="cron-meta-val">${j.last_records.toLocaleString('en-IN')}</span></div>` : ''}
+      <div><span class="cron-meta-key">Total Runs</span><span class="cron-meta-val">${j.total_runs}</span></div>
+      <div><span class="cron-meta-key">Success Rate</span><span class="cron-meta-val">${successRate}</span></div>
+    </div>
+    ${j.last_message ? `<div class="cron-msg">${esc(j.last_message.substring(0,120))}${j.last_message.length>120?'...':''}</div>` : ''}
+    <div class="cron-card-actions">
+      <button class="cron-btn-hist" onclick="cronShowHistory('${j.job_name}','${esc(j.label)}')">📋 History</button>
+      <button class="cron-btn-run"  onclick="cronTrigger('${j.job_name}','${esc(j.label)}')">▶ Run Now</button>
+    </div>
+  </div>`;
+}
+
+async function cronTrigger(jobName, label) {
+  if (!confirm(`Trigger "${label}" now?`)) return;
+  try {
+    const d = await API.post('/api/router.php', { action: 'admin_cron_trigger', job_name: jobName });
+    showToast(d?.success ? '✅ ' + d.message : '❌ ' + (d?.message || 'Failed'), d?.success ? 'success' : 'error');
+    if (d?.success) setTimeout(cronLoadStatus, 3000);
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+let _cronHistPage = 1;
+let _cronHistJob  = '';
+
+async function cronShowHistory(jobName, label) {
+  _cronHistJob  = jobName;
+  _cronHistPage = 1;
+  document.getElementById('cronHistTitle').textContent = label + ' — Run History';
+  document.getElementById('cronModal').style.display = 'flex';
+  await cronLoadHistory();
+}
+
+async function cronLoadHistory() {
+  const body = document.getElementById('cronHistBody');
+  body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">⏳ Loading...</td></tr>';
+  try {
+    const d = await API.post('/api/router.php', {
+      action: 'admin_cron_history', job_name: _cronHistJob, page: _cronHistPage
+    });
+    if (!d?.success) throw new Error(d?.message || 'Failed');
+    const runs  = d.data.runs  || [];
+    const pages = d.data.pages || 1;
+    const total = d.data.total || 0;
+
+    document.getElementById('cronHistPager').innerHTML = total > 20
+      ? `<span style="color:var(--text-muted);font-size:12px">Page ${_cronHistPage} of ${pages} (${total} total)</span>
+         <button class="cron-pg-btn" onclick="_cronHistPage=Math.max(1,_cronHistPage-1);cronLoadHistory()" ${_cronHistPage<=1?'disabled':''}>‹ Prev</button>
+         <button class="cron-pg-btn" onclick="_cronHistPage=Math.min(${pages},_cronHistPage+1);cronLoadHistory()" ${_cronHistPage>=pages?'disabled':''}>Next ›</button>`
+      : '';
+
+    if (!runs.length) {
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No runs recorded yet</td></tr>';
+      return;
+    }
+
+    const statusColor = { success:'#22c55e', failed:'#ef4444', warning:'#f59e0b', running:'#3b82f6' };
+    body.innerHTML = runs.map(r => {
+      const col = statusColor[r.status] || '#9ca3af';
+      const dur = r.duration_ms ? (r.duration_ms >= 1000 ? Math.round(r.duration_ms/1000)+'s' : r.duration_ms+'ms') : '—';
+      return `<tr>
+        <td style="font-size:12px;color:var(--text-muted)">${new Date(r.started_at).toLocaleString('en-IN')}</td>
+        <td><span style="font-size:11px;font-weight:700;color:${col};background:${col}22;padding:2px 8px;border-radius:4px;border:1px solid ${col}44">${r.status}</span></td>
+        <td style="font-size:12px;text-align:center">${dur}</td>
+        <td style="font-size:12px;text-align:center">${r.records != null ? parseInt(r.records).toLocaleString('en-IN') : '—'}</td>
+        <td style="font-size:11px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.message||'')}">${esc(r.message||'')}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="5" style="color:#dc2626;padding:12px">⚠️ ${e.message}</td></tr>`;
+  }
+}
+
+function cronCloseModal() {
+  document.getElementById('cronModal').style.display = 'none';
+}
+
+async function cronClearLogs() {
+  const days = parseInt(document.getElementById('cronClearDays').value) || 30;
+  if (!confirm(`Delete cron logs older than ${days} days?`)) return;
+  try {
+    const d = await API.post('/api/router.php', { action: 'admin_cron_clear', days });
+    showToast(d?.success ? '✅ ' + d.message : '❌ ' + (d?.message || 'Failed'), d?.success ? 'success' : 'error');
+    if (d?.success) cronLoadStatus();
+  } catch(e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
 </script>
+
+<!-- ═══════ TAB: CRON JOBS ═══════ -->
+<div id="tab-cron" class="admin-tab-content" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+    <div>
+      <h2 style="font-size:16px;font-weight:700;margin:0">⏱ Cron Job Dashboard</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0">Monitor scheduled jobs, run history, and manual triggers</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="cronClearDays" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);font-size:12px;color:var(--text-primary)">
+        <option value="30">Clear &gt; 30 days</option>
+        <option value="60">Clear &gt; 60 days</option>
+        <option value="90">Clear &gt; 90 days</option>
+        <option value="7">Clear &gt; 7 days</option>
+      </select>
+      <button onclick="cronClearLogs()" style="padding:6px 14px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-muted);font-size:12px;cursor:pointer;">🗑 Clear Old Logs</button>
+      <button onclick="cronLoadStatus()" style="padding:6px 14px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Summary Bar -->
+  <div id="cronSummaryBar" class="cron-summary-bar"></div>
+
+  <!-- Job Cards Grid -->
+  <div id="cronJobGrid" class="cron-job-grid"></div>
+
+  <!-- Cron Reference -->
+  <div style="margin-top:20px;padding:14px 16px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border-color)">
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px;">📋 Server Cron Schedule Reference</div>
+    <code style="font-size:11px;color:var(--text-secondary);line-height:1.9;display:block;white-space:pre-wrap">0 19 * * *     php /path/to/wealthdash/cron/update_nav_daily.php
+0 20 * * *     php /path/to/wealthdash/cron/calculate_returns.php
+30 18 * * 1-5  php /path/to/wealthdash/cron/update_stocks_daily.php
+0 9  * * *     php /path/to/wealthdash/cron/fd_maturity_alert.php
+0 20 * * *     php /path/to/wealthdash/cron/nps_nav_scraper.php
+*/15 * * * *   php /path/to/wealthdash/cron/check_price_alerts.php
+0 8  * * *     php /path/to/wealthdash/cron/send_scheduled_reports.php
+0 9  * * 1     php /path/to/wealthdash/cron/ai_weekly_digest.php
+0 1  1 * *     php /path/to/wealthdash/cron/monthly_summary.php</code>
+    <p style="font-size:11px;color:var(--text-muted);margin:6px 0 0">💡 XAMPP pe cron kaam nahi karta — upar ke "Run Now" buttons manually use karo.</p>
+  </div>
+</div>
+
+<!-- Cron History Modal -->
+<div id="cronModal" style="display:none;position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--bg-surface);border-radius:14px;width:100%;max-width:750px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border-color);">
+      <h3 id="cronHistTitle" style="font-size:14px;font-weight:700;margin:0"></h3>
+      <button onclick="cronCloseModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1">&times;</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-secondary);">
+            <th style="padding:10px 12px;font-size:11px;font-weight:700;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border-color)">Started At</th>
+            <th style="padding:10px 12px;font-size:11px;font-weight:700;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border-color)">Status</th>
+            <th style="padding:10px 12px;font-size:11px;font-weight:700;color:var(--text-muted);text-align:center;border-bottom:1px solid var(--border-color)">Duration</th>
+            <th style="padding:10px 12px;font-size:11px;font-weight:700;color:var(--text-muted);text-align:center;border-bottom:1px solid var(--border-color)">Records</th>
+            <th style="padding:10px 12px;font-size:11px;font-weight:700;color:var(--text-muted);text-align:left;border-bottom:1px solid var(--border-color)">Message</th>
+          </tr>
+        </thead>
+        <tbody id="cronHistBody"></tbody>
+      </table>
+    </div>
+    <div id="cronHistPager" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--border-color);justify-content:flex-end;"></div>
+  </div>
+</div>
+
+<style>
+.cron-summary-bar {
+  display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;
+}
+.cron-sum-item {
+  flex:1; min-width:100px; background:var(--bg-secondary); border:1px solid var(--border-color);
+  border-radius:10px; padding:12px 14px; text-align:center;
+}
+.cron-sum-num   { display:block; font-size:22px; font-weight:800; color:var(--text-primary); }
+.cron-sum-label { display:block; font-size:11px; color:var(--text-muted); margin-top:2px; }
+
+.cron-job-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px;
+}
+.cron-card {
+  background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px;
+  padding:14px 16px; transition:box-shadow .2s;
+}
+.cron-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); }
+.cron-card-head  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:8px; }
+.cron-card-title { font-size:14px; font-weight:700; color:var(--text-primary); }
+.cron-card-sub   { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.cron-badge      { font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; border:1px solid; white-space:nowrap; flex-shrink:0; }
+.cron-card-meta  { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin-bottom:10px; }
+.cron-meta-key   { font-size:11px; color:var(--text-muted); display:block; }
+.cron-meta-val   { font-size:12px; font-weight:600; color:var(--text-primary); display:block; }
+.cron-msg        { font-size:11px; color:var(--text-muted); background:var(--bg-secondary); border-radius:6px; padding:6px 8px; margin-bottom:10px; word-break:break-word; }
+.cron-card-actions { display:flex; gap:8px; justify-content:flex-end; }
+.cron-btn-hist   { padding:5px 12px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-secondary); font-size:12px; cursor:pointer; transition:background .15s; }
+.cron-btn-hist:hover { background:var(--bg-surface-2); }
+.cron-btn-run    { padding:5px 12px; border-radius:6px; border:none; background:var(--accent); color:#fff; font-size:12px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+.cron-btn-run:hover { opacity:.85; }
+.cron-pg-btn     { padding:4px 10px; border-radius:5px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:12px; cursor:pointer; }
+.cron-pg-btn:disabled { opacity:.4; cursor:default; }
+@media(max-width:600px) {
+  .cron-job-grid { grid-template-columns:1fr; }
+  .cron-card-meta { grid-template-columns:1fr; }
+}
+</style>
 
 <?php
 $pageContent = ob_get_clean();

@@ -8,9 +8,13 @@
 
 define('WEALTHDASH', true);
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/cron_logger.php';
 
 $log = fn(string $msg) => print('[' . date('H:i:s') . '] ' . $msg . PHP_EOL);
 $log("Daily NAV update starting...");
+
+$cronLog = new CronLogger('update_nav_daily');
+$cronLog->start();
 
 $db = DB::conn();
 
@@ -121,3 +125,4 @@ $log("Daily NAV update complete. Triggering calculate_returns.php...");
 @exec('php ' . __DIR__ . '/calculate_returns.php --limit=2000 > /dev/null 2>&1 &');
 
 $log("Done.");
+$cronLog->finish('success', "NAV update complete. Returns recalc queued.");

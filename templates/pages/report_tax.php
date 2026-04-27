@@ -2307,6 +2307,148 @@ const ATP = (() => {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════
+     t134 — 54EC Bond Tracker
+     ═══════════════════════════════════════════════════════════ -->
+<div class="card mt-4" id="card54EC">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h3 class="card-title">🏛️ 54EC Bond Tracker
+        <span style="font-size:11px;background:#3b82f6;color:#fff;padding:2px 8px;border-radius:20px;margin-left:8px;">t134</span>
+      </h3>
+      <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">REC · NHAI · PFC · IRFC — Capital Gains Exemption u/s 54EC (₹50L limit per FY)</p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="Bonds54EC.openAdd()">+ Add Bond</button>
+  </div>
+  <div class="card-body">
+    <!-- Info banner -->
+    <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:16px;line-height:1.7;">
+      <strong>Section 54EC:</strong> Exempts Long-Term Capital Gains (from land/building) if invested in specified bonds within
+      <strong>6 months</strong> of transfer. Max exemption: <strong>₹50 lakh per FY</strong>. Lock-in: <strong>5 years</strong>
+      (redemption before maturity = LTCG taxable). Interest is <strong>taxable</strong> as per slab rate.
+    </div>
+
+    <!-- Summary row -->
+    <div id="b54Summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;"></div>
+
+    <!-- Table -->
+    <div style="overflow-x:auto;">
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-secondary);">
+            <th style="padding:8px 12px;text-align:left;">Issuer / Bonds</th>
+            <th style="padding:8px 12px;text-align:right;">Invested</th>
+            <th style="padding:8px 12px;text-align:right;">Rate</th>
+            <th style="padding:8px 12px;text-align:left;">Investment Date</th>
+            <th style="padding:8px 12px;text-align:left;">Maturity</th>
+            <th style="padding:8px 12px;text-align:right;">Interest Earned</th>
+            <th style="padding:8px 12px;text-align:right;">Maturity Value</th>
+            <th style="padding:8px 12px;text-align:right;">LTCG Exempted</th>
+            <th style="padding:8px 12px;text-align:left;">Asset Sale Date</th>
+            <th style="padding:8px 12px;text-align:center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="b54Body">
+          <tr><td colspan="10" style="text-align:center;padding:40px;"><span class="spinner"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 54EC limit reminder -->
+    <div id="b54LimitWarning" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.3);border-radius:8px;font-size:12px;color:#dc2626;"></div>
+  </div>
+</div>
+
+<!-- Add/Edit 54EC Modal -->
+<div class="modal-overlay" id="modal54EC" style="display:none;">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="b54ModalTitle">Add 54EC Bond</h3>
+      <button class="modal-close" onclick="hideModal('modal54EC')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="b54Id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Bond Issuer *</label>
+          <select id="b54Issuer" class="form-select" onchange="Bonds54EC.onIssuerChange()">
+            <option value="REC">REC Ltd</option>
+            <option value="NHAI">NHAI</option>
+            <option value="PFC">PFC Ltd</option>
+            <option value="IRFC">IRFC</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div class="form-group" id="b54IssuerNameRow" style="display:none;">
+          <label class="form-label">Issuer Name</label>
+          <input type="text" id="b54IssuerName" class="form-input" placeholder="Enter issuer name">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Investment Date *</label>
+          <input type="date" id="b54InvDate" class="form-input" oninput="Bonds54EC.autoSetMaturity()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Maturity Date *</label>
+          <input type="date" id="b54MatDate" class="form-input">
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Auto-set to investment + 5 years</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Face Value per Bond (₹)</label>
+          <input type="number" id="b54FaceVal" class="form-input" value="10000">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Number of Bonds *</label>
+          <input type="number" id="b54NumBonds" class="form-input" placeholder="e.g. 5" min="1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Interest Rate (% p.a.)</label>
+          <input type="number" id="b54Rate" class="form-input" value="5.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Interest Type</label>
+          <select id="b54Freq" class="form-select">
+            <option value="annual">Annual Payout</option>
+            <option value="cumulative">Cumulative</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">LTCG Amount Exempted (₹)</label>
+          <input type="number" id="b54Ltcg" class="form-input" placeholder="e.g. 2500000">
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Original capital gain claimed exempt</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Original Asset Sale Date</label>
+          <input type="date" id="b54SaleDate" class="form-input">
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Must invest within 6 months of this date</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Folio / Certificate No.</label>
+          <input type="text" id="b54Folio" class="form-input" placeholder="Optional">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes</label>
+          <input type="text" id="b54Notes" class="form-input" placeholder="Optional notes">
+        </div>
+      </div>
+      <div id="b54Error" class="form-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="hideModal('modal54EC')">Cancel</button>
+      <button class="btn btn-primary" onclick="Bonds54EC.save()">Save Bond</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── t377: Tax Computation Sheet ─────────────────────────────────────────
 const TC = (() => {
@@ -2509,6 +2651,220 @@ const TC = (() => {
   })();
 
   return { load, recalc, print };
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   t134 — 54EC Bond Tracker
+   ═══════════════════════════════════════════════════════════ */
+const Bonds54EC = (() => {
+  let _bonds = [];
+
+  const ISSUERS = {
+    REC:   { label:'REC Ltd',              rate: 5.00, color:'#3b82f6' },
+    NHAI:  { label:'NHAI',                 rate: 5.00, color:'#10b981' },
+    PFC:   { label:'PFC Ltd',              rate: 5.00, color:'#8b5cf6' },
+    IRFC:  { label:'IRFC',                 rate: 5.25, color:'#f59e0b' },
+    OTHER: { label:'Other',                rate: 5.00, color:'#6b7280' },
+  };
+
+  function fmtI(v) {
+    v = Math.abs(v);
+    if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + 'Cr';
+    if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+    return '₹' + Math.round(v).toLocaleString('en-IN');
+  }
+  function fmtDate(d) {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  }
+  function daysUntil(dateStr) {
+    const diff = new Date(dateStr) - new Date();
+    return Math.ceil(diff / 86400000);
+  }
+
+  async function load() {
+    const res  = await fetch(`${APP_URL}/api/router.php?action=bonds54ec_list`);
+    const data = await res.json();
+    if (!data.success) return;
+    _bonds = data.data.bonds || [];
+    renderSummary(data.data.summary || {});
+    renderTable();
+  }
+
+  function renderSummary(s) {
+    const el = document.getElementById('b54Summary');
+    if (!el) return;
+    el.innerHTML = `
+      <div style="background:rgba(59,130,246,.08);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);">Bonds Held</div>
+        <div style="font-size:24px;font-weight:800;color:#3b82f6;">${s.count||0}</div>
+      </div>
+      <div style="background:rgba(99,102,241,.08);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);">Total Invested</div>
+        <div style="font-size:24px;font-weight:800;color:#6366f1;">${fmtI(s.total_invested||0)}</div>
+      </div>
+      <div style="background:rgba(16,185,129,.08);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);">LTCG Exempted</div>
+        <div style="font-size:24px;font-weight:800;color:#10b981;">${fmtI(s.total_ltcg_saved||0)}</div>
+        <div style="font-size:10px;color:var(--text-muted);">u/s 54EC</div>
+      </div>
+      <div style="background:rgba(245,158,11,.08);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);">Interest Earned (to date)</div>
+        <div style="font-size:24px;font-weight:800;color:#f59e0b;">${fmtI(s.total_interest||0)}</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+        <div style="font-size:11px;color:var(--text-muted);">Total at Maturity</div>
+        <div style="font-size:24px;font-weight:800;">${fmtI(s.total_maturity||0)}</div>
+      </div>`;
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('b54Body');
+    if (!tbody) return;
+    if (!_bonds.length) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:48px;color:var(--text-muted);">
+        No 54EC bonds added yet. Click <strong>+ Add Bond</strong> to start tracking.
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = _bonds.map(b => {
+      const c      = b.calc || {};
+      const days   = daysUntil(b.maturity_date);
+      const iss    = ISSUERS[b.bond_issuer] || ISSUERS.OTHER;
+      const name   = b.bond_issuer === 'OTHER' && b.issuer_name ? b.issuer_name : iss.label;
+      const badge  = c.is_matured
+        ? `<span style="background:#10b981;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;">Matured</span>`
+        : days <= 90
+          ? `<span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;">Due in ${days}d</span>`
+          : days <= 365
+            ? `<span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;">${days}d left</span>`
+            : `<span style="background:#6366f1;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;">${Math.round(days/365*10)/10}yr left</span>`;
+
+      const lockNote = c.lock_status
+        ? `<div style="font-size:10px;color:#dc2626;margin-top:2px;">🔒 ${c.lock_status}</div>` : '';
+
+      return `<tr>
+        <td>
+          <div style="font-weight:600;">${escHtml54(name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${b.num_bonds} bonds × ₹${Number(b.face_value).toLocaleString('en-IN')}</div>
+          ${b.folio_number ? `<div style="font-size:10px;color:var(--text-muted);">Folio: ${escHtml54(b.folio_number)}</div>` : ''}
+        </td>
+        <td style="text-align:right;font-weight:700;">${fmtI(b.total_invested)}</td>
+        <td style="text-align:right;color:#f59e0b;font-weight:600;">${b.interest_rate}%</td>
+        <td>${fmtDate(b.investment_date)}</td>
+        <td>
+          ${fmtDate(b.maturity_date)}<br>
+          ${badge}
+          ${lockNote}
+        </td>
+        <td style="text-align:right;color:#10b981;">${fmtI(c.interest_earned||0)}</td>
+        <td style="text-align:right;font-weight:700;">${fmtI(c.maturity_value||0)}</td>
+        <td style="text-align:right;color:#16a34a;font-weight:700;">${fmtI(b.ltcg_exempted||0)}</td>
+        <td style="font-size:11px;color:var(--text-muted);">${b.sale_asset_date ? fmtDate(b.sale_asset_date) : '—'}</td>
+        <td style="text-align:center;">
+          <button class="btn btn-xs btn-ghost" onclick="Bonds54EC.openEdit(${b.id})" title="Edit">✎</button>
+          <button class="btn btn-xs btn-ghost" onclick="Bonds54EC.del(${b.id})" title="Delete">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function openAdd() {
+    // Reset form
+    ['b54Issuer','b54InvDate','b54MatDate','b54FaceVal','b54NumBonds',
+     'b54Rate','b54Freq','b54Ltcg','b54SaleDate','b54Folio','b54Notes','b54IssuerName'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('b54Id').value = '';
+    document.getElementById('b54Issuer').value = 'REC';
+    document.getElementById('b54FaceVal').value = '10000';
+    document.getElementById('b54NumBonds').value = '1';
+    document.getElementById('b54Rate').value = '5.00';
+    document.getElementById('b54Freq').value = 'annual';
+    // Auto set maturity = investment + 5yr when investment date changes
+    document.getElementById('b54InvDate').value = new Date().toISOString().slice(0,10);
+    autoSetMaturity();
+    document.getElementById('b54ModalTitle').textContent = 'Add 54EC Bond';
+    document.getElementById('b54IssuerNameRow').style.display = 'none';
+    showModal('modal54EC');
+  }
+
+  function openEdit(id) {
+    const b = _bonds.find(x => x.id == id);
+    if (!b) return;
+    document.getElementById('b54Id').value          = b.id;
+    document.getElementById('b54Issuer').value      = b.bond_issuer;
+    document.getElementById('b54InvDate').value     = b.investment_date;
+    document.getElementById('b54MatDate').value     = b.maturity_date;
+    document.getElementById('b54FaceVal').value     = b.face_value;
+    document.getElementById('b54NumBonds').value    = b.num_bonds;
+    document.getElementById('b54Rate').value        = b.interest_rate;
+    document.getElementById('b54Freq').value        = b.interest_freq;
+    document.getElementById('b54Ltcg').value        = b.ltcg_exempted;
+    document.getElementById('b54SaleDate').value    = b.sale_asset_date || '';
+    document.getElementById('b54Folio').value       = b.folio_number || '';
+    document.getElementById('b54Notes').value       = b.notes || '';
+    document.getElementById('b54IssuerName').value  = b.issuer_name || '';
+    document.getElementById('b54IssuerNameRow').style.display = b.bond_issuer === 'OTHER' ? '' : 'none';
+    document.getElementById('b54ModalTitle').textContent = 'Edit 54EC Bond';
+    showModal('modal54EC');
+  }
+
+  async function save() {
+    const id = document.getElementById('b54Id').value;
+    const payload = {
+      action:          id ? 'bonds54ec_edit' : 'bonds54ec_add',
+      id:              id || undefined,
+      bond_issuer:     document.getElementById('b54Issuer').value,
+      issuer_name:     document.getElementById('b54IssuerName').value,
+      investment_date: document.getElementById('b54InvDate').value,
+      maturity_date:   document.getElementById('b54MatDate').value,
+      face_value:      document.getElementById('b54FaceVal').value,
+      num_bonds:       document.getElementById('b54NumBonds').value,
+      interest_rate:   document.getElementById('b54Rate').value,
+      interest_freq:   document.getElementById('b54Freq').value,
+      ltcg_exempted:   document.getElementById('b54Ltcg').value || 0,
+      sale_asset_date: document.getElementById('b54SaleDate').value || '',
+      folio_number:    document.getElementById('b54Folio').value || '',
+      notes:           document.getElementById('b54Notes').value || '',
+    };
+    const res = await apiPost(payload);
+    if (res.success) {
+      hideModal('modal54EC');
+      showToast(id ? 'Bond updated.' : 'Bond added!', 'success');
+      load();
+    } else {
+      document.getElementById('b54Error').textContent = res.message;
+      document.getElementById('b54Error').style.display = '';
+    }
+  }
+
+  async function del(id) {
+    if (!confirm('Delete this 54EC bond record?')) return;
+    const res = await apiPost({action:'bonds54ec_delete', id});
+    if (res.success) { showToast('Deleted.', 'success'); load(); }
+  }
+
+  function onIssuerChange() {
+    const val = document.getElementById('b54Issuer').value;
+    document.getElementById('b54IssuerNameRow').style.display = val === 'OTHER' ? '' : 'none';
+    if (ISSUERS[val]) document.getElementById('b54Rate').value = ISSUERS[val].rate.toFixed(2);
+  }
+
+  function autoSetMaturity() {
+    const inv = document.getElementById('b54InvDate').value;
+    if (!inv || document.getElementById('b54MatDate').value) return;
+    const d = new Date(inv);
+    d.setFullYear(d.getFullYear() + 5);
+    document.getElementById('b54MatDate').value = d.toISOString().slice(0,10);
+  }
+
+  function escHtml54(t){const d=document.createElement('div');d.appendChild(document.createTextNode(t||''));return d.innerHTML;}
+
+  document.addEventListener('DOMContentLoaded', load);
+  return { load, openAdd, openEdit, save, del, onIssuerChange, autoSetMaturity };
 })();
 </script>
 <?php
