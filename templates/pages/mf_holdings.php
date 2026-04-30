@@ -33,6 +33,14 @@ $gainLoss      = (float)($summary['gain_loss'] ?? 0);
 $gainPct       = $totalInvested > 0 ? round(($gainLoss / $totalInvested) * 100, 2) : 0;
 $fundCount     = (int)($summary['fund_count'] ?? 0);
 
+// Fetch all portfolios for current user (used in CAS import modal)
+$portfoliosStmt = $db->prepare("SELECT id, name FROM portfolios WHERE user_id = ? ORDER BY id ASC");
+$portfoliosStmt->execute([$currentUser['id']]);
+$portfolios = $portfoliosStmt->fetchAll(PDO::FETCH_ASSOC);
+if (empty($portfolios)) {
+    $portfolios = [['id' => $portfolioId ?: 0, 'name' => 'My Portfolio']];
+}
+
 ob_start();
 ?>
 <div class="page-header">

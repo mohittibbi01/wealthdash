@@ -1,4 +1,5 @@
 <?php
+// WD-FIX-V7
 /**
  * WealthDash — MF Holdings List API
  * Tasks: t07–t13, t70–t75, tmfi01–tmfi08, t366, t268
@@ -8,13 +9,39 @@
  *          what_if_simulate | cleanup_suggestions | sip_optimize
  */
 
-if (!defined('WEALTHDASH')) die('Direct access not allowed.');
+// Allow both: direct access (JS calls) and router include
+if (!defined('WEALTHDASH')) {
+    define('WEALTHDASH', true);
+    ob_start();
+    require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
+    require_once APP_ROOT . '/includes/auth_check.php';
+    require_once APP_ROOT . '/includes/helpers.php';
+    header('Content-Type: application/json; charset=utf-8');
+    error_reporting(0);
+    ini_set('display_errors', '0');
+}
+require_once APP_ROOT . '/includes/holding_calculator.php';
 
-require_once ROOT . '/includes/holding_calculator.php';
+// Global error → JSON handler
+set_exception_handler(function(Throwable $e) {
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error'   => $e->getMessage(),
+        'file'    => basename($e->getFile()),
+        'line'    => $e->getLine(),
+    ]);
+    exit;
+});
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+});
 
 $currentUser = require_auth();
 $userId      = (int)$currentUser['id'];
-$action      = $_POST['action'] ?? $_GET['action'] ?? 'mf_list';
+// Support both ?action=X and ?view=X (JS uses view= for transactions/export calls)
+$action      = $_POST['action'] ?? $_GET['action'] ?? $_GET['view'] ?? 'mf_list';
 $db          = DB::conn();
 
 // ── Ensure nav_download_progress (t191) ──────────────────────────────────
@@ -35,81 +62,60 @@ switch ($action) {
 // mf_list — Active holdings with full metrics
 // ══════════════════════════════════════════════════════════════════════════
 case 'mf_list':
+    // Uses actual DB schema from 01_schema_complete.sql
     $portfolioId = getOrCreatePortfolio($db, $userId);
-    $sortBy  = $_GET['sort']    ?? 'current_value';
     $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
-
-    $allowed = ['current_value','invested_amount','abs_return_pct','xirr',
-                'fund_name','category','expense_ratio','returns_1y','sharpe_ratio'];
-    if (!in_array($sortBy, $allowed)) $sortBy = 'current_value';
 
     $holdings = $db->prepare("
         SELECT
-          mh.id            AS holding_id,
+          mh.id              AS holding_id,
           mh.fund_id,
           mh.units,
-          mh.avg_buy_nav,
-          mh.current_nav,
-          mh.current_value,
+          mh.avg_nav         AS avg_buy_nav,
           mh.invested_amount,
-          mh.abs_return_pct,
+          mh.current_value,
+          mh.gain_loss,
           mh.xirr,
-          mh.first_investment_date,
           mh.folio_number,
-          mh.is_active,
-          mh.plan_type,
+          mh.platform,
+          mh.first_investment_date,
+          mh.last_transaction_date,
+          mh.sip_active,
+          mh.swp_active,
+          CASE WHEN mh.invested_amount > 0
+               THEN ROUND((mh.current_value - mh.invested_amount) / mh.invested_amount * 100, 2)
+               ELSE 0 END    AS abs_return_pct,
           f.scheme_code,
-          f.fund_name,
-          f.fund_house,
-          f.category,
-          f.sub_category,
+          f.scheme_name      AS fund_name,
+          f.scheme_category  AS category,
+          f.scheme_sub_category AS sub_category,
           f.risk_level,
-          f.expense_ratio,
-          f.returns_1y,
-          f.returns_3y,
-          f.returns_5y,
-          f.sharpe_ratio,
-          f.sortino_ratio,
-          f.max_drawdown,
-          f.standard_deviation,
-          f.alpha,
-          f.beta,
-          f.momentum_score,
-          f.rating_stars,
-          f.health_score,
-          f.category_avg_1y,
+          f.nav              AS current_nav,
           f.nav_date,
-          f.exit_load_percent,
-          f.lock_in_months,
-          (SELECT COUNT(*) FROM mf_sip_schedules s
-           WHERE s.fund_id = mh.fund_id AND s.user_id = ? AND s.status = 'active') AS active_sip_count,
-          (SELECT COUNT(*) FROM mf_swp_schedules sw
-           WHERE sw.fund_id = mh.fund_id AND sw.user_id = ? AND sw.status = 'active') AS active_swp_count,
-          (SELECT monthly_amount FROM mf_sip_schedules s2
-           WHERE s2.fund_id = mh.fund_id AND s2.user_id = ? AND s2.status = 'active'
-           ORDER BY s2.id DESC LIMIT 1) AS sip_amount
+          f.return_1y        AS returns_1y,
+          f.return_3y        AS returns_3y,
+          f.return_5y        AS returns_5y,
+          f.expense_ratio,
+          f.exit_load_pct    AS exit_load_percent,
+          f.aum_cr           AS aum,
+          f.fund_manager     AS manager_name
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
-        ORDER BY mh.$sortBy $sortDir
+        WHERE mh.portfolio_id = ?
+        ORDER BY mh.current_value $sortDir
     ");
-    $holdings->execute([$userId, $userId, $userId, $portfolioId]);
+    $holdings->execute([$portfolioId]);
     $rows = $holdings->fetchAll(PDO::FETCH_ASSOC);
 
-    // Totals
-    $totals = [
-        'total_invested'  => 0,
-        'total_current'   => 0,
-        'total_gain_loss' => 0,
-    ];
+    $totals = ['total_invested' => 0, 'total_current' => 0, 'total_gain_loss' => 0];
     foreach ($rows as $r) {
         $totals['total_invested'] += (float)$r['invested_amount'];
         $totals['total_current']  += (float)$r['current_value'];
+        $totals['total_gain_loss']+= (float)$r['gain_loss'];
     }
-    $totals['total_gain_loss']   = $totals['total_current'] - $totals['total_invested'];
-    $totals['abs_return_pct']    = $totals['total_invested'] > 0
+    $totals['abs_return_pct'] = $totals['total_invested'] > 0
         ? round(($totals['total_gain_loss'] / $totals['total_invested']) * 100, 2) : 0;
-    $totals['fund_count']        = count($rows);
+    $totals['fund_count'] = count($rows);
 
     echo json_encode(['success' => true, 'data' => $rows, 'totals' => $totals]);
     break;
@@ -136,13 +142,13 @@ case 'portfolio_health':
 case 'asset_allocation':
     $portfolioId = getOrCreatePortfolio($db, $userId);
     $rows = $db->prepare("
-        SELECT f.category, f.sub_category, f.risk_level,
+        SELECT f.scheme_category, f.scheme_sub_category, f.risk_level,
                SUM(mh.current_value) AS value,
                SUM(mh.invested_amount) AS invested
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
-        GROUP BY f.category, f.sub_category, f.risk_level
+        WHERE mh.portfolio_id = ? AND 1 = 1
+        GROUP BY f.scheme_category, f.scheme_sub_category, f.risk_level
         ORDER BY value DESC
     ");
     $rows->execute([$portfolioId]);
@@ -175,10 +181,10 @@ case 'overlap_check':
     $portfolioId = getOrCreatePortfolio($db, $userId);
     // Get all active fund IDs in portfolio
     $fundIds = $db->prepare("
-        SELECT DISTINCT mh.fund_id, f.fund_name, f.category
+        SELECT DISTINCT mh.fund_id, f.scheme_name, f.scheme_category
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
+        WHERE mh.portfolio_id = ? AND 1 = 1
     ");
     $fundIds->execute([$portfolioId]);
     $portfolioFunds = $fundIds->fetchAll(PDO::FETCH_ASSOC);
@@ -249,12 +255,12 @@ case 'smart_insights':
     // Fetch basic holding data
     $stmt = $db->prepare("
         SELECT mh.fund_id, mh.current_value, mh.invested_amount, mh.xirr,
-               f.fund_name, f.category, f.expense_ratio, f.returns_1y,
-               f.category_avg_1y, f.sharpe_ratio, mh.first_investment_date,
+               f.scheme_name, f.scheme_category, f.expense_ratio, f.return_1y,
+               f.scheme_category_avg_1y, f.expense_ratio, mh.first_investment_date,
                (SELECT COUNT(*) FROM mf_sip_schedules s WHERE s.fund_id=mh.fund_id AND s.user_id=? AND s.status='active') AS has_sip
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
+        WHERE mh.portfolio_id = ? AND 1 = 1
     ");
     $stmt->execute([$userId, $portfolioId]);
     $funds = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -343,10 +349,10 @@ case 'what_if_simulate':
     $portfolioId = getOrCreatePortfolio($db, $userId);
 
     $holdings = $db->prepare("
-        SELECT mh.current_value, f.category, f.beta, f.standard_deviation
+        SELECT mh.current_value, f.scheme_category, NULL, NULL
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
+        WHERE mh.portfolio_id = ? AND 1 = 1
     ");
     $holdings->execute([$portfolioId]);
     $funds = $holdings->fetchAll(PDO::FETCH_ASSOC);
@@ -380,8 +386,8 @@ case 'sip_optimize':
     $portfolioId = getOrCreatePortfolio($db, $userId);
     $stmt = $db->prepare("
         SELECT s.id, s.fund_id, s.monthly_amount, s.start_date, s.status,
-               f.fund_name, f.category, f.returns_1y, f.category_avg_1y,
-               f.sharpe_ratio, f.expense_ratio, mh.xirr
+               f.scheme_name, f.scheme_category, f.return_1y, f.scheme_category_avg_1y,
+               f.expense_ratio, f.expense_ratio, mh.xirr
         FROM mf_sip_schedules s
         JOIN funds f ON f.id = s.fund_id
         LEFT JOIN mf_holdings mh ON mh.fund_id = s.fund_id AND mh.portfolio_id = ?
@@ -459,19 +465,19 @@ case 'dividend_history':
 case 'portfolio_risk':
     $portfolioId = getOrCreatePortfolio($db, $userId);
     $stmt = $db->prepare("
-        SELECT mh.current_value, f.beta, f.standard_deviation, f.sharpe_ratio,
-               f.sortino_ratio, f.max_drawdown, f.fund_name, f.category
+        SELECT mh.current_value, NULL, NULL, f.expense_ratio,
+               NULL, NULL, f.scheme_name, f.scheme_category
         FROM mh_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
+        WHERE mh.portfolio_id = ? AND 1 = 1
     ");
     // Use correct table
     $stmt2 = $db->prepare("
-        SELECT mh.current_value, f.beta, f.standard_deviation, f.sharpe_ratio,
-               f.sortino_ratio, f.max_drawdown, f.fund_name, f.category
+        SELECT mh.current_value, NULL, NULL, f.expense_ratio,
+               NULL, NULL, f.scheme_name, f.scheme_category
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND mh.is_active = 1
+        WHERE mh.portfolio_id = ? AND 1 = 1
     ");
     $stmt2->execute([$portfolioId]);
     $funds = $stmt2->fetchAll(PDO::FETCH_ASSOC);
@@ -499,6 +505,112 @@ case 'portfolio_risk':
         'fund_breakdown'       => $funds,
     ]]);
     break;
+
+// ══════════════════════════════════════════════════════════════════════════
+// transactions — Full transaction history with filters & pagination
+// Called by loadTransactions() in mf.js via ?view=transactions
+// Uses actual DB schema: holding_id, user_id, tx_type, tx_date, price_per_unit, amount
+// ══════════════════════════════════════════════════════════════════════════
+case 'transactions':
+    // Uses actual mf_transactions schema: portfolio_id, fund_id, txn_type, txn_date, nav, amount
+    $portfolioId = (int)($_GET['portfolio_id'] ?? 0);
+    if (!$portfolioId) $portfolioId = getOrCreatePortfolio($db, $userId);
+
+    $page    = max(1, (int)($_GET['page']     ?? 1));
+    $perPage = max(1, min(200, (int)($_GET['per_page'] ?? 10)));
+    $offset  = ($page - 1) * $perPage;
+
+    // Filters
+    $txnType = $_GET['txn_type'] ?? '';
+    $fy      = $_GET['fy']      ?? '';
+    $from    = $_GET['from']    ?? '';
+    $to      = $_GET['to']      ?? '';
+    $q       = trim($_GET['q']  ?? '');
+    $fundId  = (int)($_GET['fund_id'] ?? 0);
+
+    $where  = ["t.portfolio_id = ?"];
+    $params = [$portfolioId];
+
+    if ($txnType) { $where[] = "t.txn_type = ?";           $params[] = $txnType; }
+    if ($from)    { $where[] = "t.txn_date >= ?";           $params[] = $from; }
+    if ($to)      { $where[] = "t.txn_date <= ?";           $params[] = $to; }
+    if ($fy)      { $where[] = "t.investment_fy = ?";       $params[] = $fy; }
+    if ($fundId)  { $where[] = "t.fund_id = ?";             $params[] = $fundId; }
+    if ($q)       { $where[] = "f.scheme_name LIKE ?";      $params[] = '%' . $q . '%'; }
+
+    $whereStr = implode(' AND ', $where);
+
+    $joinSql = "FROM mf_transactions t
+        JOIN funds f ON f.id = t.fund_id
+        WHERE $whereStr";
+
+    // Count
+    $cntStmt = $db->prepare("SELECT COUNT(*) $joinSql");
+    $cntStmt->execute($params);
+    $total = (int)$cntStmt->fetchColumn();
+
+    // Summary
+    $sumStmt = $db->prepare("
+        SELECT
+            COUNT(*)                                                            AS total_txns,
+            SUM(CASE WHEN t.txn_type IN ('purchase','sip','switch_in','dividend_reinvest')
+                     THEN t.amount ELSE 0 END)                                 AS total_buy,
+            SUM(CASE WHEN t.txn_type IN ('redemption','swp','switch_out')
+                     THEN t.amount ELSE 0 END)                                 AS total_sell,
+            COUNT(DISTINCT t.fund_id)                                           AS unique_funds
+        $joinSql
+    ");
+    $sumStmt->execute($params);
+    $summary = $sumStmt->fetch(PDO::FETCH_ASSOC);
+
+    // FY list
+    $fyStmt = $db->prepare("SELECT DISTINCT investment_fy FROM mf_transactions t
+        JOIN funds f ON f.id = t.fund_id WHERE $whereStr AND investment_fy IS NOT NULL ORDER BY investment_fy");
+    $fyStmt->execute($params);
+    $fyList = $fyStmt->fetchAll(PDO::FETCH_COLUMN);
+
+    // Data
+    $paramsPage = array_merge($params, [$perPage, $offset]);
+    $dataStmt = $db->prepare("
+        SELECT
+            t.id,
+            t.fund_id,
+            t.txn_date,
+            t.txn_type         AS transaction_type,
+            t.units,
+            t.nav,
+            t.amount           AS value_at_cost,
+            t.folio_number,
+            t.platform,
+            t.investment_fy,
+            t.notes,
+            f.scheme_name      AS scheme_name,
+            f.scheme_category  AS category
+        $joinSql
+        ORDER BY t.txn_date DESC
+        LIMIT ? OFFSET ?
+    ");
+    $dataStmt->execute($paramsPage);
+    $rows = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success'  => true,
+        'data'     => $rows,
+        'total'    => $total,
+        'page'     => $page,
+        'per_page' => $perPage,
+        'pages'    => (int)ceil($total / max(1, $perPage)),
+        'summary'  => [
+            'total_txns'   => (int)($summary['total_txns']  ?? 0),
+            'total_buy'    => (float)($summary['total_buy'] ?? 0),
+            'total_sell'   => (float)($summary['total_sell']?? 0),
+            'net_invested' => (float)(($summary['total_buy'] ?? 0) - ($summary['total_sell'] ?? 0)),
+            'unique_funds' => (int)($summary['unique_funds']?? 0),
+        ],
+        'fy_list' => $fyList,
+    ]);
+    break;
+
 
 default:
     echo json_encode(['success' => false, 'msg' => "Unknown action: $action"]);

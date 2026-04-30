@@ -165,7 +165,7 @@ $selectedPortfolioId = $portfolios[0]['id'] ?? null;
   <script>
   /* ── Notification Centre JS ── */
   (function(){
-    const APP = window.APP_URL || '';
+    const APP = '<?= defined("APP_URL") ? rtrim(APP_URL, "/") : "" ?>';
     let _open = false;
 
     function bellBtn() { return document.getElementById('notifBellBtn'); }

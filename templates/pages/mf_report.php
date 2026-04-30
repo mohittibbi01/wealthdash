@@ -454,8 +454,8 @@ kbd{display:inline-block;padding:2px 7px;border:1.5px solid var(--border);border
 (function(){
 'use strict';
 
-const CSRF   = window.CSRF_TOKEN || '';
-const API_BASE = (window.WD?.appUrl || '') + '/api/router.php';
+const CSRF   = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const API_BASE = '<?= rtrim(APP_URL, "/") ?>' + '/api/router.php';
 
 // ── Helpers ────────────────────────────────────────────────────
 const inr = n => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n);

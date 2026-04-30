@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WealthDash — Dev Dashboard MASTER (v51 Consolidated)</title>
+<title>WealthDash — Dev Dashboard MASTER (v52 Consolidated)</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -311,7 +311,7 @@ const DESIGN_STEPS = [];
     <span class="logo-ver">v51</span>
   </div>
   <div class="topbar-right">
-    <span class="last-saved" id="lastSaved">📅 27 Apr 2026 — MASTER v51</span>
+    <span class="last-saved" id="lastSaved">📅 24 Apr 2026 — MASTER v51</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">⊟ Collapse</button>
     <button class="tbtn tbtn-gray" onclick="expandAll()">⊞ Expand</button>
     <button class="tbtn tbtn-indigo" onclick="exportStatus()">📤 Export MD</button>
@@ -333,6 +333,8 @@ const DESIGN_STEPS = [];
   <div class="mtab" onclick="switchTab('notes',this)" style="font-weight:700;color:#be185d">📝 Notes & Setup</div>
   <div class="mtab" onclick="switchTab('security',this)" style="font-weight:700;color:#dc2626">🔐 Security</div>
   <div class="mtab" onclick="switchTab('pagechecklist',this)" style="font-weight:700;color:#7c3aed">📋 Page Checklist</div>
+  <div class="mtab" onclick="switchTab('phpguide',this)" style="font-weight:700;color:#0891b2">🛠️ PHP Fix Guide</div>
+  <div class="mtab" onclick="switchTab('validation',this)" style="font-weight:700;color:#0d9f57">✅ Validation Guide</div>
 </div>
 
 <!-- ========== TAB: OVERVIEW ========== -->
@@ -573,7 +575,7 @@ const DESIGN_STEPS = [];
         ✨ <b>MASTER Consolidation (19 Apr 2026):</b> All versioned files (v43/v44/v45/v46 MF + Other) merged into single source of truth. MF_SEQUENCE fully updated with ✅ status. _completedTasks array updated: t168/t172/t174-t178/t186-t187/t190/tmfi01-tmfi08 all marked done. ALL known bugs BUG-01 thru BUG-07 addressed. 500 Error root cause: mod_rewrite/AllowOverride not enabled in XAMPP httpd.conf.
       </div>
       <div style="margin-top:8px;font-size:11px;padding:8px 12px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;color:var(--green)">
-        ✨ <b>v51 Changes (27 Apr 2026):</b> t309 Cron Job Dashboard + t343 Live NAV Widget — (1) t309: Admin panel Cron Jobs tab, cron_run_log table, CronLogger class, api/admin/cron_dashboard.php, 4 admin_cron_* routes, per-job cards with status/history/Run Now. (2) t343: Live NAV Widget on MF Holdings page — api/mutual_funds/live_nav.php estimates intraday NAV from Nifty 50/Midcap150 via stooq.com (5-min cache during market hours). Category→benchmark map (20+ categories), beta-adjusted estimation (0.75–0.90), portfolio-level change%, status bar widget (market open/closed/updated states), auto-refresh every 5 min during market hours, est-NAV badge injection in holdings table rows. Router: live_nav_estimate route added. 2 tasks completed. &#x2014; ✨ <b>v51 Changes (25 Apr 2026):</b> t426 NPS Allocation Optimizer + t427 NPS Pension Estimator + t318 SSY Calculator + t319 NSC/KVP Maturity Chain + t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t426: nps.php Allocation Optimizer (LC-75/50/25 + custom sliders, blended return, PFM rec, CRA steps). t427: nps.php Pension Estimator (step-up SIP, 4 annuity scenarios, sufficiency check, milestone table, bucket strategy). t318: post_office.php SSY Calculator (year-by-year table, 4 rate scenarios, step-up, education corpus planner for 4 goals, 80C tax saving). t319: post_office.php NSC/KVP Maturity Chain (dynamic add rows, reinvestment chain, NSC yearly interest table with 80C deemed reinvestment notes, KVP auto-tenure, grand totals). 4 tasks completed. &#x2014; t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t36: stocks_list.php gain_pct_live column, weighted portfolio CAGR SQL, stocks.js sort fix, CAGR cell with years-held tooltip, 5th summary card. t85: NEW templates/pages/tax_regime.php — full standalone calculator: 10 deduction fields (80C/NPS/HRA/24b/80D/80E/80TTA/80G/Other), Budget 2024 revised new regime slabs (₹75K std ded, 87A rebate ≤₹7L), old regime age-based slabs (general/senior/super-senior), verdict banner, side-by-side regime cards, monthly take-home comparison, visual slab bars, deduction impact table, breakeven finder. Sidebar: Regime Picker added. 2 tasks completed. &#x2014; ✨ <b>v51 Changes (22 Apr 2026):</b> PWA Sprint — t369 PWA fully implemented: sw.js complete (cache-first static, network-first API, offline fallback, push notifications, background sync, message handler, stale cache cleanup), manifest.json updated (4 shortcuts: MF Holdings/Dashboard/Add Txn/Tax, lang=en-IN, categories), offline.html created (last-synced badge, auto-reload on reconnect). t247 showToast() + t251 confirmDelete() confirmed in app.js — both marked done. t220 MFAPI.in already done via nav_proxy.php — title updated. 4 tasks marked complete. &#x2014; ✨ <b>v50 Changes (21 Apr 2026):</b> Deep Features Sprint — t293 FIRE Calculator (FI number, 3 FIRE variants, projection chart, scenarios table, auto-fill from portfolio), t233 Portfolio Overlap Checker (stock-level overlap, fund matrix, severity scoring), t287 Debt Fund Tax (pre/post Apr 2023 cutoff, indexation vs slab rate), t290 LTCG Harvest Scheduler (remaining ₹1.25L exemption, optimal redeem candidates, tax saved estimate), t259 Data Backup (full JSON export, all tables, PII redaction), t282 Concentration Risk (via overlap module). New files: fire_calculator.php, portfolio_overlap.php, tax_intelligence.php, data_backup.php. FIRE Calculator added to sidebar. Overlap+LTCG tabs added to MF Holdings page. 6 tasks completed. &#x2014; ✨ <b>v49 Changes (21 Apr 2026):</b> UX Sprint — t370 Mobile Bottom Nav (5-tab fixed bar, safe-area, active states), t494 Quick Transaction Drawer (slide-up sheet, MF/FD/NPS, swipe-to-close, fund search), t298 Market Pulse Widget (NSE/Yahoo Finance ticker bar, 5-min cache, market-hours auto-refresh), t254 FY Summary Card (invested/LTCG/STCG/tax/SIPs, ₹1.25L exemption meter), t291 Goal Progress Rings (SVG circles, color-coded, all goals dashboard), t295 Net Worth Trend chart (Chart.js area, 6/12/24 months, simulated fallback), t400 Milestone Tracker (₹1L→₹10Cr journey, progress bars), t496 Tax Calculator 2024-25 (old vs new regime, all deductions, slab visual, verdict banner), t413 Data Integrity Checker (8 checks: orphans/negatives/stale-NAV/duplicates/date-errors). New: api/dashboard/market_pulse.php, api/dashboard/widgets.php, api/reports/tax_slab_calc.php, api/mutual_funds/data_integrity.php, templates/pages/tax_calculator.php. 9 tasks completed. &#x2014; ✨ <b>v48 Changes (20 Apr 2026):</b> MF Pending Tasks Sprint — 8 features implemented: t273 NPS Auto-Allocation Analyzer (LC-75/50/25 vs actual), t408 Investment Journal (mood+tags+calendar), t482 Portfolio Audit Log UI (filterable timeline, CSV export), t484 Sunburst Chart (3-level Asset→Category→Fund SVG, no D3 needed), t491 Cross-FY Comparison (all years side-by-side bar chart + table), t499 Behavioral Nudge Engine (7 smart triggers: LTCG/idle cash/SIP miss/FD maturity/80C/concentration/inactive), t503 Credit Card Optimizer (debt avalanche payoff, CIBIL utilization), tj003 Spending Discipline Score (grade A-F, 12-month trend, badges). Router: 12 new action routes. Dashboard: nudge banner + discipline widget. NPS page: allocation analyzer card. 80+ tasks synced to _completedTasks array. &#x2014; <b>v47 Changes (19 Apr 2026):</b> BUG-04 FIXED — .htaccess updated: .bak/.tmp/.orig/.swp/.old files blocked (FilesMatch). BUG-05 FIXED — DirectoryMatch added: database/, debug/, cron/, config/, includes/, nav_download/logs/ all blocked from direct web access. Security headers added: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy. ALL 7 bugs now fully resolved in codebase.
+        ✨ <b>v52 Changes (25 Apr 2026):</b> t426 NPS Allocation Optimizer + t427 NPS Pension Estimator + t318 SSY Calculator + t319 NSC/KVP Maturity Chain + t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t426: nps.php Allocation Optimizer (LC-75/50/25 + custom sliders, blended return, PFM rec, CRA steps). t427: nps.php Pension Estimator (step-up SIP, 4 annuity scenarios, sufficiency check, milestone table, bucket strategy). t318: post_office.php SSY Calculator (year-by-year table, 4 rate scenarios, step-up, education corpus planner for 4 goals, 80C tax saving). t319: post_office.php NSC/KVP Maturity Chain (dynamic add rows, reinvestment chain, NSC yearly interest table with 80C deemed reinvestment notes, KVP auto-tenure, grand totals). 4 tasks completed. &#x2014; t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t36: stocks_list.php gain_pct_live column, weighted portfolio CAGR SQL, stocks.js sort fix, CAGR cell with years-held tooltip, 5th summary card. t85: NEW templates/pages/tax_regime.php — full standalone calculator: 10 deduction fields (80C/NPS/HRA/24b/80D/80E/80TTA/80G/Other), Budget 2024 revised new regime slabs (₹75K std ded, 87A rebate ≤₹7L), old regime age-based slabs (general/senior/super-senior), verdict banner, side-by-side regime cards, monthly take-home comparison, visual slab bars, deduction impact table, breakeven finder. Sidebar: Regime Picker added. 2 tasks completed. &#x2014; ✨ <b>v51 Changes (22 Apr 2026):</b> PWA Sprint — t369 PWA fully implemented: sw.js complete (cache-first static, network-first API, offline fallback, push notifications, background sync, message handler, stale cache cleanup), manifest.json updated (4 shortcuts: MF Holdings/Dashboard/Add Txn/Tax, lang=en-IN, categories), offline.html created (last-synced badge, auto-reload on reconnect). t247 showToast() + t251 confirmDelete() confirmed in app.js — both marked done. t220 MFAPI.in already done via nav_proxy.php — title updated. 4 tasks marked complete. &#x2014; ✨ <b>v50 Changes (21 Apr 2026):</b> Deep Features Sprint — t293 FIRE Calculator (FI number, 3 FIRE variants, projection chart, scenarios table, auto-fill from portfolio), t233 Portfolio Overlap Checker (stock-level overlap, fund matrix, severity scoring), t287 Debt Fund Tax (pre/post Apr 2023 cutoff, indexation vs slab rate), t290 LTCG Harvest Scheduler (remaining ₹1.25L exemption, optimal redeem candidates, tax saved estimate), t259 Data Backup (full JSON export, all tables, PII redaction), t282 Concentration Risk (via overlap module). New files: fire_calculator.php, portfolio_overlap.php, tax_intelligence.php, data_backup.php. FIRE Calculator added to sidebar. Overlap+LTCG tabs added to MF Holdings page. 6 tasks completed. &#x2014; ✨ <b>v49 Changes (21 Apr 2026):</b> UX Sprint — t370 Mobile Bottom Nav (5-tab fixed bar, safe-area, active states), t494 Quick Transaction Drawer (slide-up sheet, MF/FD/NPS, swipe-to-close, fund search), t298 Market Pulse Widget (NSE/Yahoo Finance ticker bar, 5-min cache, market-hours auto-refresh), t254 FY Summary Card (invested/LTCG/STCG/tax/SIPs, ₹1.25L exemption meter), t291 Goal Progress Rings (SVG circles, color-coded, all goals dashboard), t295 Net Worth Trend chart (Chart.js area, 6/12/24 months, simulated fallback), t400 Milestone Tracker (₹1L→₹10Cr journey, progress bars), t496 Tax Calculator 2024-25 (old vs new regime, all deductions, slab visual, verdict banner), t413 Data Integrity Checker (8 checks: orphans/negatives/stale-NAV/duplicates/date-errors). New: api/dashboard/market_pulse.php, api/dashboard/widgets.php, api/reports/tax_slab_calc.php, api/mutual_funds/data_integrity.php, templates/pages/tax_calculator.php. 9 tasks completed. &#x2014; ✨ <b>v48 Changes (20 Apr 2026):</b> MF Pending Tasks Sprint — 8 features implemented: t273 NPS Auto-Allocation Analyzer (LC-75/50/25 vs actual), t408 Investment Journal (mood+tags+calendar), t482 Portfolio Audit Log UI (filterable timeline, CSV export), t484 Sunburst Chart (3-level Asset→Category→Fund SVG, no D3 needed), t491 Cross-FY Comparison (all years side-by-side bar chart + table), t499 Behavioral Nudge Engine (7 smart triggers: LTCG/idle cash/SIP miss/FD maturity/80C/concentration/inactive), t503 Credit Card Optimizer (debt avalanche payoff, CIBIL utilization), tj003 Spending Discipline Score (grade A-F, 12-month trend, badges). Router: 12 new action routes. Dashboard: nudge banner + discipline widget. NPS page: allocation analyzer card. 80+ tasks synced to _completedTasks array. &#x2014; <b>v47 Changes (19 Apr 2026):</b> BUG-04 FIXED — .htaccess updated: .bak/.tmp/.orig/.swp/.old files blocked (FilesMatch). BUG-05 FIXED — DirectoryMatch added: database/, debug/, cron/, config/, includes/, nav_download/logs/ all blocked from direct web access. Security headers added: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy. ALL 7 bugs now fully resolved in codebase.
       </div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2293,7 +2295,7 @@ const EXTRA_PHASES = [
    files:['templates/pages/stocks.php'],
    sub:['Weighted average P/E of your stock portfolio','Compare: Nifty 50 P/E (current market)','Assessment: overvalued (P/E > Nifty) or undervalued','Historical: your investments P/E trend last 12 months','Graham Number: intrinsic value estimate per stock'],cat:'stocks'},
   {id:'t433',title:'52-Week High/Low Tracker — Entry/exit signals',done:true,
-   desc:'✅ DONE — api/stocks/fundamentals.php: week52_tracker action + holdings_enriched with pct_from_52w_low. Near-52H/52L signals.',pr:'p1',type:'feat',eff:'2-3 hr',
+   desc:'✅ DONE — Dedicated tracker card (card52WeekTracker) in stocks.php. W52 JS module: summary stats (Near High / Near Low / Neutral counts), signal filter buttons, sortable table (% from 52H, % from 52L, position bar). Auto-loads on page open via W52.load(). API: week52_tracker action in fundamentals.php.',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['api/stocks/stocks_list.php','templates/pages/stocks.php'],
    sub:['Show: current price vs 52W high/low','Proximity alert: near 52W high (overbought signal)','Opportunity: near 52W low (potential entry)','Color: orange = within 10% of 52W high/low','Filter: show only near-52W-low stocks'],cat:'stocks'},
   {id:'t434',title:'Corporate Actions — Bonus, split, rights tracking',done:true,
@@ -4415,7 +4417,7 @@ const MEGA_PHASES = [
    files:['templates/pages/admin.php','debug/tests/test_db.php'],
    desc:'Admin panel mein: which APIs are slow? MySQL slow queries? Missing indexes? DB size growing fast?',
    sub:['PHP: log API response times to perf_log table','MySQL: slow query log enable in XAMPP','Admin panel: "Slowest 10 API endpoints (avg response time)"','DB size trend: chart of database size over time','Missing index detector: EXPLAIN on top 20 queries'],cat:'admin'},
-  {id:'t309',title:'Cron Job Dashboard — All scheduled tasks status',done:true,pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+  {id:'t309',title:'Cron Job Dashboard — All scheduled tasks status',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['templates/pages/admin.php'],
    desc:'Admin panel pe: all cron jobs with last run time, status, and next scheduled run. Quick visibility into what\'s running.',
    sub:['DB: cron_log — job_name, last_run, duration_ms, status (success/fail), error_msg','Each cron PHP file: log to cron_log at start and end','Admin panel: cron jobs table with status badges','Alert: cron not run in >2 days → red badge','Manual trigger: "Run Now" button per cron'],cat:'admin'},
@@ -4580,7 +4582,7 @@ const MEGA_PHASES = [
 ]},
 
 {id:'p_realtime',ico:'⚡',color:'#dc2626',title:'Phase 65 — Real-Time Data & Live Prices',cat:'general',tasks:[
-  {id:'t343',title:'Live NAV Widget — Real-time NAV during market hours',done:true,pr:'p1',type:'feat',eff:'2-3 hr',
+  {id:'t343',title:'Live NAV Widget — Real-time NAV during market hours',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['api/mutual_funds/nav_proxy.php','public/js/mf.js'],
    desc:'MF NAV updates at 9PM-11PM daily. During day: estimate from benchmark movement. "Live est. NAV: ₹52.34 (based on Nifty movement)".',
    sub:['Benchmark proxy: if fund is large cap, use Nifty 50 movement','Estimated NAV = yesterday_nav × (1 + nifty_change%)','Clearly labeled: "Estimated" not "Live"','Auto-update: every 5 minutes during market hours','Switch: official NAV after 11PM'],cat:'general'},
@@ -4790,7 +4792,7 @@ const V20_PHASES = [
    files:['api/goals/goal_links.php (NEW)','database/migrations/074_goal_links.sql'],
    desc:'Currently goals and SIPs are separate. Link specific SIPs to specific goals. See exactly which SIP is funding which goal.',
    sub:['DB: goal_sip_links — goal_id, sip_schedule_id, allocation_pct','UI: goal drawer → "Add SIP" to link existing SIP','Percentage split: one SIP can fund multiple goals proportionally','Progress: goal progress = sum of linked SIP contributions + lump sums','Alert: SIP paused → goal falls behind, suggest action'],cat:'dashboard'},
-  {id:'tg004',title:'Inflation-Adjusted Goals — Real value planning',pr:'p1',type:'feat',eff:'1-2 hr',
+  {id:'tg004',title:'Inflation-Adjusted Goals — Real value planning',pr:'p1',type:'feat',eff:'1-2 hr',done:true,
    files:['templates/pages/goals.php','public/js/goals.js'],
    desc:'₹50L for child education in 2035 = ₹X today. Show both nominal and real values. Use education inflation (10-12%) not CPI.',
    sub:['Goal creation: input today\'s cost OR future cost (toggle)','Inflation rate per goal type: education 10%, medical 8%, general 6%, custom','Display: "Target ₹50L in 2035 = ₹21L in today\'s money"','SIP required: calculate in real terms','Milestone: "Goal value has increased ₹X due to inflation this year — review SIP amount"'],cat:'dashboard'},
@@ -5794,7 +5796,7 @@ Change karo to:
       <button onclick="secClearLog()" style="font-size:11px;padding:4px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--border);cursor:pointer;font-family:inherit">🗑 Clear</button>
     </div>
     <div id="secAuditLog" style="max-height:200px;overflow-y:auto;font-family:monospace;font-size:11px;padding:10px 14px;color:var(--muted);line-height:2">
-      <div style="color:var(--green)">● [<span id="secLogTime"></span>] Session started — WealthDash v40 loaded</div>
+      <div style="color:var(--green)">● [<span id="secLogTime"></span>] Session started — WealthDash v52 loaded</div>
     </div>
   </div>
 
@@ -6023,7 +6025,7 @@ function secClearLog() {
 setTimeout(() => {
   secRenderChecklist();
   secInitIdleTimer();
-  secAddLog('Security Center initialized — v40 merged build');
+  secAddLog('Security Center initialized — v52 merged build');
 }, 500);
 
 // =============================================
@@ -6244,6 +6246,849 @@ if (_origSwitchTab) {
     if (typeof secAddLog === 'function') secAddLog('Tab switched: ' + name);
   };
 }
+
+<!-- ========== TAB: PHP FIX GUIDE ========== -->
+<div class="tab-pane" id="tab-phpguide">
+<div style="max-width:1100px;margin:0 auto;padding:18px 18px 80px">
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:18px;font-weight:800;color:#0891b2;letter-spacing:-.4px">🛠️ PHP Fix Guide — Exception Handling & Security</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Har fix ka code snippet, file location, aur "Mark Done" button. Ye guide apke PHP backend ke liye hai.</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)">✅ Done: <span id="fixDone">0</span></span>
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:#fef2f2;color:var(--red);border:1px solid var(--red-border)">⬜ Todo: <span id="fixTodo">0</span></span>
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border)"><span id="fixPct">0%</span></span>
+    </div>
+    <div style="margin-top:10px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:var(--radius);padding:10px 14px;font-size:12px;color:#b45309">
+      ⚠️ <strong>Important:</strong> Koi bhi fix apply karne se pehle — working pages ka backup lo. Ek ek fix karo, test karo, phir agla karo. Regression prevent karo!
+    </div>
+  </div>
+
+  <!-- Fix Principles -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:20px">
+    <div style="background:var(--surface);border:1.5px solid var(--green-border);border-radius:var(--radius);padding:12px">
+      <div style="font-size:12px;font-weight:800;color:var(--green);margin-bottom:4px">✅ Safe karne ka tarika</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">Pehle ek file fix karo → test karo → commit karo. Kabhi saari files ek saath mat badlo.</div>
+    </div>
+    <div style="background:var(--surface);border:1.5px solid var(--red-border);border-radius:var(--radius);padding:12px">
+      <div style="font-size:12px;font-weight:800;color:var(--red);margin-bottom:4px">❌ Regression se bacho</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">Already kaam kar rahe pages ko touch mat karo. Sirf broken / unsafe code fix karo.</div>
+    </div>
+    <div style="background:var(--surface);border:1.5px solid var(--blue-border);border-radius:var(--radius);padding:12px">
+      <div style="font-size:12px;font-weight:800;color:var(--blue);margin-bottom:4px">🔍 Test har fix ke baad</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">Page reload, form submit, API call — sab verify karo ki pehle jaisa kaam ho raha hai.</div>
+    </div>
+    <div style="background:var(--surface);border:1.5px solid var(--accent-border);border-radius:var(--radius);padding:12px">
+      <div style="font-size:12px;font-weight:800;color:var(--accent);margin-bottom:4px">📋 Order of fixes</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">1. Exception handler → 2. DB queries → 3. XSS escape → 4. CSRF tokens → 5. Security headers</div>
+    </div>
+  </div>
+
+  <div id="phpFixWrap"></div>
+
+</div>
+</div>
+
+<!-- ========== TAB: VALIDATION GUIDE ========== -->
+<div class="tab-pane" id="tab-validation">
+<div style="max-width:1100px;margin:0 auto;padding:18px 18px 80px">
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:18px;font-weight:800;color:#0d9f57;letter-spacing:-.4px">✅ Validation Guide — Har Page Ka Expected Output</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Yeh tumhara "goal file" hai. Har PHP page kholo, yahan likha expected output check karo, aur tick karo.</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)">✅ <span id="valDone">0</span> Verified</span>
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:#fef2f2;color:var(--red);border:1px solid var(--red-border)">⬜ <span id="valPending">0</span> Pending</span>
+      <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border)"><span id="valPct">0%</span> Complete</span>
+      <button onclick="valResetAll()" style="font-size:11px;padding:3px 10px;border-radius:99px;background:var(--bg);color:var(--muted);border:1px solid var(--border);cursor:pointer;font-family:inherit">↺ Reset All</button>
+    </div>
+  </div>
+
+  <div id="valWrap"></div>
+
+</div>
+</div>
+
+
+<script>
+
+// =============================================
+// PHP FIX GUIDE TAB DATA
+// =============================================
+const PHP_FIXES = [
+  {
+    cat: '🔒 Exception Handling',
+    color: '#dc2626',
+    fixes: [
+      {
+        id:'fix01',
+        title: 'Global Exception Handler — index.php / bootstrap',
+        status: 'todo',
+        file: 'config/config.php ya index.php',
+        problem: 'Uncaught exceptions mein sensitive PHP file paths aur stack traces user ko dikh jaati hain.',
+        code: `// config/config.php mein add karo (session_start ke baad)
+set_exception_handler(function(Throwable $e) {
+    error_log('[EXCEPTION] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    if (defined('IS_API') && IS_API) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Server error. Please try again.']);
+    } else {
+        http_response_code(500);
+        include APP_ROOT . '/templates/pages/500.php'; // error page banao
+    }
+    exit;
+});
+
+set_error_handler(function(int $errno, string $errstr, string $errfile, int $errline): bool {
+    if (!(error_reporting() & $errno)) return false;
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+});`
+      },
+      {
+        id:'fix02',
+        title: 'Database Query Exception Handling — DB::run(), DB::fetchOne()',
+        status: 'partial',
+        file: 'config/database.php',
+        problem: 'PDO exceptions agar uncaught rahein to SQL errors user ko dikh sakti hain.',
+        code: `// config/database.php — DB class mein
+public static function run(string $sql, array $params = []): PDOStatement {
+    try {
+        $pdo  = self::conn();
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt;
+    } catch (PDOException $e) {
+        error_log('[DB ERROR] ' . $e->getMessage() . ' | SQL: ' . $sql);
+        throw new RuntimeException('Database operation failed. Please try again.', 0, $e);
+    }
+}`
+      },
+      {
+        id:'fix03',
+        title: 'API File Template — Try-Catch Wrapper',
+        status: 'todo',
+        file: 'Saare api/*.php files',
+        problem: 'Agar koi API file exception throw kare, JSON response broken ho jaata hai.',
+        code: `<?php
+defined('WEALTHDASH') or die('Direct access not allowed.');
+header('Content-Type: application/json');
+
+try {
+    $user   = require_auth();
+    $userId = (int)$user['id'];
+    $db     = DB::conn();
+    $action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+    // ... apna logic yahan ...
+
+    json_out(['success' => true, 'data' => $result]);
+
+} catch (PDOException $e) {
+    error_log('[API PDO] ' . $_SERVER['REQUEST_URI'] . ' | ' . $e->getMessage());
+    json_out(['success' => false, 'error' => 'Database error.'], 500);
+} catch (Throwable $e) {
+    error_log('[API ERROR] ' . $_SERVER['REQUEST_URI'] . ' | ' . $e->getMessage());
+    json_out(['success' => false, 'error' => 'Server error.'], 500);
+}
+
+function json_out(array $data, int $code = 200): never {
+    http_response_code($code);
+    echo json_encode($data);
+    exit;
+}`
+      }
+    ]
+  },
+  {
+    cat: '🛡️ SQL Injection Prevention',
+    color: '#7c3aed',
+    fixes: [
+      {
+        id:'fix04',
+        title: 'Prepared Statements — WRONG vs RIGHT',
+        status: 'partial',
+        file: 'Saare API files — grep karo: $db->query(',
+        problem: 'User input directly SQL mein concat karna SQL Injection ka open door hai.',
+        code: `// ❌ GALAT — KABHI MAT KARO:
+$sql = "SELECT * FROM mutual_funds WHERE scheme_code = " . $_GET['id'];
+$db->query($sql);
+
+// ✅ SAHI — Prepared Statement:
+$stmt = $db->prepare("SELECT * FROM mutual_funds WHERE scheme_code = ?");
+$stmt->execute([$_GET['id']]);
+$fund = $stmt->fetch();
+
+// ✅ DB Helper ke saath:
+$fund = DB::fetchOne("SELECT * FROM mutual_funds WHERE scheme_code = ?", [$_GET['id']]);
+
+// ✅ Multiple params:
+$result = DB::fetchAll(
+    "SELECT * FROM mf_holdings WHERE user_id = ? AND status = ? ORDER BY invested_at DESC LIMIT ?",
+    [$userId, 'active', 50]
+);`
+      },
+      {
+        id:'fix05',
+        title: 'Dynamic ORDER BY / Column Names — Whitelist',
+        status: 'todo',
+        file: 'api/mutual_funds/, api/stocks/, mf_screener',
+        problem: 'ORDER BY mein user input directly nahi daal sakte — prepared statements kaam nahi karte.',
+        code: `// ✅ Whitelist approach for dynamic column sorting:
+$allowedSortCols = ['nav', 'scheme_name', 'return_1y', 'return_3y', 'aum', 'expense_ratio'];
+$sortBy = in_array($_GET['sort'] ?? '', $allowedSortCols) ? $_GET['sort'] : 'scheme_name';
+
+$allowedOrders = ['ASC', 'DESC'];
+$order = in_array(strtoupper($_GET['order'] ?? ''), $allowedOrders) ? strtoupper($_GET['order']) : 'ASC';
+
+$sql = "SELECT * FROM mutual_funds ORDER BY {$sortBy} {$order} LIMIT ?";
+$stmt = $db->prepare($sql);
+$stmt->execute([100]);`
+      }
+    ]
+  },
+  {
+    cat: '🔑 CSRF Protection',
+    color: '#0891b2',
+    fixes: [
+      {
+        id:'fix06',
+        title: 'CSRF Token Generation & Verification',
+        status: 'partial',
+        file: 'includes/helpers.php — already has csrf_token() & csrf_verify()',
+        problem: 'Kuch forms mein CSRF token hidden field missing hai.',
+        code: `// ✅ Form mein add karo (PHP template):
+<form method="POST" action="/api/mf/add">
+    <?= csrf_field() ?>   <!-- ✅ hidden input with token -->
+    <input type="text" name="scheme_code">
+    <button type="submit">Add Fund</button>
+</form>
+
+// includes/helpers.php mein (agar nahi hai):
+function csrf_field(): string {
+    return '<input type="hidden" name="_csrf" value="' . htmlspecialchars(csrf_token()) . '">';
+}
+
+// API mein verify karo:
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify(); // Throws exception if invalid
+}`
+      }
+    ]
+  },
+  {
+    cat: '🔍 XSS Prevention',
+    color: '#c2410c',
+    fixes: [
+      {
+        id:'fix07',
+        title: 'HTML Output Escaping — htmlspecialchars()',
+        status: 'partial',
+        file: 'Saare templates/pages/*.php files',
+        problem: 'User ka naam, notes, ya koi bhi user-generated text bina escaping ke echo karna XSS vulnerability hai.',
+        code: `// ❌ GALAT:
+echo $user['name'];
+echo "<td>" . $fund['scheme_name'] . "</td>";
+
+// ✅ SAHI — har echo mein htmlspecialchars:
+echo htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8');
+
+// ✅ Shorthand helper (includes/helpers.php mein banao):
+function e(string|null $val): string {
+    return htmlspecialchars((string)($val ?? ''), ENT_QUOTES, 'UTF-8');
+}
+// Use karo:
+echo e($user['name']);
+echo "<td>" . e($fund['scheme_name']) . "</td>";
+
+// ✅ JSON output mein (pehle se safe, but confirm karo):
+header('Content-Type: application/json');
+echo json_encode(['name' => $user['name']]); // json_encode auto-escapes`
+      }
+    ]
+  },
+  {
+    cat: '🔐 Session Security',
+    color: '#15803d',
+    fixes: [
+      {
+        id:'fix08',
+        title: 'Session Regeneration After Login',
+        status: 'implemented',
+        file: 'auth/login.php — already done ✅',
+        problem: 'Session fixation attack: attacker ek session ID set kare, user login kare, attacker use kare.',
+        code: `// ✅ auth/login.php mein — login success ke baad:
+session_regenerate_id(true); // TRUE = old session delete karo
+$_SESSION['user_id']    = $user['id'];
+$_SESSION['user_name']  = $user['name'];
+$_SESSION['_last_activity'] = time();
+
+// ✅ Config mein (config/config.php — already set):
+session_set_cookie_params([
+    'httponly' => true,   // JS se access nahi
+    'secure'   => true,   // HTTPS only (production)
+    'samesite' => 'Lax',  // CSRF protection
+]);`
+      },
+      {
+        id:'fix09',
+        title: 'Session Timeout Check',
+        status: 'implemented',
+        file: 'includes/auth_check.php — already done ✅',
+        problem: 'Idle sessions automatically logout nahi hote.',
+        code: `// ✅ includes/auth_check.php mein already hai:
+$sessionTimeout = (int) env('SESSION_LIFETIME', 86400);
+if (isset($_SESSION['_last_activity']) && 
+    (time() - $_SESSION['_last_activity']) > $sessionTimeout) {
+    session_unset();
+    session_destroy();
+    flash_set('error', 'Your session has expired. Please log in again.');
+    redirect('auth/login.php');
+}
+$_SESSION['_last_activity'] = time();`
+      }
+    ]
+  },
+  {
+    cat: '📁 File Upload Security',
+    color: '#9d174d',
+    fixes: [
+      {
+        id:'fix10',
+        title: 'File Upload Validation — MIME Type + Size + Extension',
+        status: 'missing',
+        file: 'api/mutual_funds/cas_import.php ya similar',
+        problem: 'Extension check enough nahi — attacker .php file ko .pdf rename karke upload kar sakta hai.',
+        code: `// ✅ Proper file upload validation:
+function validateUploadedFile(array $file, array $opts = []): void {
+    $maxSize      = $opts['maxSize'] ?? 5 * 1024 * 1024; // 5MB default
+    $allowedMimes = $opts['mimes']   ?? ['application/pdf', 'text/plain'];
+    $allowedExts  = $opts['exts']    ?? ['pdf', 'txt'];
+
+    if ($file['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Upload failed. Error: ' . $file['error']);
+    if ($file['size'] > $maxSize) throw new RuntimeException('File too large. Max ' . ($maxSize/1024/1024) . 'MB allowed.');
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExts, true)) throw new RuntimeException('Invalid file type: .' . $ext);
+
+    // MIME type check — extension se zyada reliable
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime  = $finfo->file($file['tmp_name']);
+    if (!in_array($mime, $allowedMimes, true)) throw new RuntimeException('Invalid file content: ' . $mime);
+
+    // Safe filename generate karo
+    $safeFilename = bin2hex(random_bytes(8)) . '.' . $ext;
+    $uploadDir    = APP_ROOT . '/storage/uploads/'; // Web root ke bahar!
+    move_uploaded_file($file['tmp_name'], $uploadDir . $safeFilename);
+}`
+      }
+    ]
+  },
+  {
+    cat: '🔑 Password Security',
+    color: '#4338ca',
+    fixes: [
+      {
+        id:'fix11',
+        title: 'Password Hashing — password_hash() & password_verify()',
+        status: 'implemented',
+        file: 'auth/register.php & auth/login.php — already done ✅',
+        problem: 'Plain text passwords store karna. MD5/SHA1 ka use karna.',
+        code: `// ✅ Registration mein:
+$passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+DB::run("INSERT INTO users (email, password_hash) VALUES (?, ?)", [$email, $passwordHash]);
+
+// ✅ Login mein:
+$user = DB::fetchOne("SELECT * FROM users WHERE email = ?", [$email]);
+if ($user && password_verify($inputPassword, $user['password_hash'])) {
+    // Login success
+}
+
+// ✅ Password change ke liye:
+if (!password_verify($oldPassword, $user['password_hash'])) {
+    throw new RuntimeException('Current password incorrect.');
+}
+$newHash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
+DB::run("UPDATE users SET password_hash = ? WHERE id = ?", [$newHash, $userId]);`
+      }
+    ]
+  },
+  {
+    cat: '🌐 Security Headers',
+    color: '#0f766e',
+    fixes: [
+      {
+        id:'fix12',
+        title: 'Security Headers — .htaccess mein add karo',
+        status: 'missing',
+        file: '.htaccess (project root)',
+        problem: 'Clickjacking, MIME sniffing, XSS attacks ke liye browser-level protection nahi hai.',
+        code: `# .htaccess mein add karo:
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    # Content Security Policy — adjust as needed:
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:;"
+</IfModule>
+
+# Production pe HTTPS enforce karo:
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>`
+      }
+    ]
+  },
+  {
+    cat: '📋 Error Logging',
+    color: '#b45309',
+    fixes: [
+      {
+        id:'fix13',
+        title: 'Production Error Config — display_errors OFF',
+        status: 'implemented',
+        file: 'config/config.php — already set ✅',
+        problem: 'Production mein PHP errors user ko file paths aur sensitive info reveal karte hain.',
+        code: `// ✅ config/config.php mein already hai:
+if (IS_LOCAL && !IS_API) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(0);
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+    ini_set('error_log', APP_ROOT . '/logs/php_errors.log');
+}
+
+// ✅ Logs folder protect karo — .htaccess (logs/.htaccess):
+// Deny from all`
+      },
+      {
+        id:'fix14',
+        title: 'Action Logging — audit_log() function',
+        status: 'partial',
+        file: 'includes/helpers.php — audit_log() function check karo',
+        problem: 'Login, data changes, exports — inka record nahi hai toh debugging impossible hota hai.',
+        code: `// includes/helpers.php mein agar nahi hai:
+function audit_log(string $action, string $entity = '', int $entityId = 0, array $extra = []): void {
+    try {
+        $userId = $_SESSION['user_id'] ?? 0;
+        $ip     = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $ua     = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        DB::run(
+            "INSERT INTO audit_logs (user_id, action, entity, entity_id, ip, user_agent, extra, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+            [$userId, $action, $entity, $entityId, $ip, $ua, json_encode($extra)]
+        );
+    } catch (Throwable $e) {
+        error_log('[AUDIT LOG FAIL] ' . $e->getMessage());
+    }
+}
+
+// Usage examples:
+audit_log('login', 'user', $userId);
+audit_log('mf_add', 'holding', $holdingId, ['scheme' => $schemeName]);
+audit_log('data_export', 'report', 0, ['type' => 'tax_report']);`
+      }
+    ]
+  }
+];
+
+const FIX_STATE_KEY = 'wd_fix_state_v52';
+let fixState = JSON.parse(localStorage.getItem(FIX_STATE_KEY) || '{}');
+
+function fixRender() {
+  const wrap = document.getElementById('phpFixWrap');
+  if (!wrap) return;
+  let totalDone = 0, totalTodo = 0;
+  let html = '';
+
+  PHP_FIXES.forEach(cat => {
+    const doneCnt = cat.fixes.filter(f => fixState[f.id] === 'done').length;
+    html += `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:14px">
+      <div style="padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
+        <span style="font-size:13px;font-weight:800;flex:1">${cat.cat}</span>
+        <span style="font-size:11px;color:var(--muted)">${doneCnt}/${cat.fixes.length} done</span>
+      </div>`;
+    
+    cat.fixes.forEach(fix => {
+      const isDone = fixState[fix.id] === 'done';
+      const defStatus = fix.status === 'implemented' ? '✅' : fix.status === 'partial' ? '⚠️' : '❌';
+      const defColor = fix.status === 'implemented' ? '#0d9f57' : fix.status === 'partial' ? '#b45309' : '#dc2626';
+      totalDone += isDone ? 1 : 0;
+      totalTodo += isDone ? 0 : 1;
+
+      html += `<div style="padding:14px 16px;border-bottom:1px solid var(--border);${isDone?'background:var(--green-bg);opacity:.8':''}">
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
+          <span style="font-size:16px;flex-shrink:0">${defStatus}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:2px">${fix.title}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:monospace;margin-bottom:4px">📁 ${fix.file}</div>
+            <div style="font-size:11px;color:var(--muted);line-height:1.6;background:var(--bg);padding:6px 10px;border-radius:6px;border-left:3px solid ${defColor}">⚠️ Problem: ${fix.problem}</div>
+          </div>
+          <button onclick="fixToggleDone('${fix.id}')" style="font-size:11px;padding:4px 12px;border-radius:6px;border:1.5px solid;cursor:pointer;font-family:inherit;flex-shrink:0;${isDone?'background:#0d9f57;color:#fff;border-color:#0d9f57':'background:var(--green-bg);color:var(--green);border-color:var(--green-border)'}">
+            ${isDone ? '✅ Done' : '⬜ Mark Done'}
+          </button>
+        </div>
+        <details style="margin-top:4px">
+          <summary style="font-size:11px;font-weight:700;color:var(--accent);cursor:pointer;padding:4px 0">📋 Fix Code Dekhna</summary>
+          <pre style="margin-top:8px;background:#1e1e2e;color:#cdd6f4;padding:12px 14px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.6;white-space:pre-wrap">${fix.code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </details>
+      </div>`;
+    });
+    
+    html += '</div>';
+  });
+
+  wrap.innerHTML = html;
+  const el1 = document.getElementById('fixDone'); if(el1) el1.textContent = totalDone;
+  const el2 = document.getElementById('fixTodo'); if(el2) el2.textContent = totalTodo;
+  const total = totalDone + totalTodo;
+  const pct = total > 0 ? Math.round(totalDone/total*100) : 0;
+  const el3 = document.getElementById('fixPct'); if(el3) el3.textContent = pct + '%';
+}
+
+function fixToggleDone(id) {
+  fixState[id] = fixState[id] === 'done' ? 'todo' : 'done';
+  localStorage.setItem(FIX_STATE_KEY, JSON.stringify(fixState));
+  fixRender();
+  if(typeof secAddLog === 'function') secAddLog('PHP Fix marked: ' + id + ' → ' + fixState[id]);
+}
+
+setTimeout(() => { fixRender(); }, 700);
+
+// =============================================
+// VALIDATION GUIDE DATA
+// =============================================
+const VALIDATION_PAGES = [
+  {
+    page: '🔑 Login Page',
+    url: '/auth/login.php',
+    color: '#dc2626',
+    description: 'User login form — email & password authentication',
+    expected: 'Login form with email, password fields + Google OAuth button',
+    behavior: 'Correct credentials → dashboard redirect. Wrong → error message shown. 5 fails → rate limit.',
+    table: [['Field','Expected Value'],['Email','valid@email.com format required'],['Password','Any length, verified against bcrypt hash'],['Remember me','Cookie set for extended session'],['Google OAuth','Redirects to Google, callback to /auth/google_callback.php']],
+    items: [
+      {id:'v01', label:'Login form render hota hai (email + password + submit button)'},
+      {id:'v02', label:'Empty form submit → validation error dikhai deta hai'},
+      {id:'v03', label:'Wrong password → "Invalid email or password" message (generic, no info leak)'},
+      {id:'v04', label:'5 fail attempts → rate limit error message dikhai deta hai'},
+      {id:'v05', label:'Correct login → dashboard (index.php) pe redirect hota hai'},
+      {id:'v06', label:'Session mein user_id, user_name, user_email set hain (DevTools check)'},
+      {id:'v07', label:'Google OAuth button click → Google login page khuulta hai'},
+      {id:'v08', label:'Already logged in user → automatically dashboard pe redirect'},
+    ]
+  },
+  {
+    page: '📝 Register Page',
+    url: '/auth/register.php',
+    color: '#7c3aed',
+    description: 'New user registration form',
+    expected: 'Name, email, password, confirm password fields',
+    behavior: 'Valid data → user created → login redirect. Duplicate email → error.',
+    table: [['Validation','Rule'],['Name','Required, 2-100 chars'],['Email','Valid format, unique in DB'],['Password','Min 8 chars recommended'],['Confirm Password','Must match password']],
+    items: [
+      {id:'v09', label:'Registration form sab fields ke saath render hota hai'},
+      {id:'v10', label:'Duplicate email → "Email already registered" error'},
+      {id:'v11', label:'Password mismatch → error dikhai deta hai'},
+      {id:'v12', label:'Successful registration → login page ya dashboard pe redirect'},
+      {id:'v13', label:'Password bcrypt hash ke saath DB mein store hoti hai (plain text nahi)'},
+    ]
+  },
+  {
+    page: '📊 Dashboard',
+    url: '/index.php (main dashboard)',
+    color: '#2563eb',
+    description: 'Main financial dashboard — net worth, portfolio summary, market pulse',
+    expected: 'Net worth card, asset allocation chart, recent transactions, market indices, quick actions',
+    behavior: 'Page load → fetch user portfolio → render charts aur summary cards. Auth required.',
+    table: [['Section','Expected Content'],['Net Worth Card','₹X,XX,XXX format — total portfolio value'],['Asset Allocation','Pie/donut chart: MF/Stocks/FD/NPS/Gold percentages'],['MF Summary','Top holdings, XIRR, total invested vs current'],['Market Pulse','Nifty, Sensex, Gold price (live ya cached)'],['Quick Actions','Add MF, Add FD, Add Transaction buttons']],
+    items: [
+      {id:'v14', label:'Dashboard auth-protected hai — logout karke directly access karo → login redirect'},
+      {id:'v15', label:'Net worth card INR format mein dikh raha hai (₹ symbol, Indian numbering)'},
+      {id:'v16', label:'Asset allocation chart render ho raha hai'},
+      {id:'v17', label:'MF holdings summary dikh raha hai'},
+      {id:'v18', label:'Market indices (Nifty/Sensex) dikh rahe hain'},
+      {id:'v19', label:'Page load time reasonable hai (< 3 sec on localhost)'},
+    ]
+  },
+  {
+    page: '📈 MF Holdings',
+    url: '/templates/pages/mf_holdings.php',
+    color: '#0891b2',
+    description: 'Mutual fund portfolio — all holdings, XIRR, P&L',
+    expected: 'Table/cards: Fund name, Units, NAV, Current Value, Invested, Gain%, XIRR',
+    behavior: 'List all MF holdings → calculate returns → show sortable table. Export button.',
+    table: [['Column','Expected Format'],['Fund Name','Full scheme name'],['Units','4 decimal places'],['Current NAV','₹XXX.XXXX'],['Current Value','₹X,XX,XXX'],['Invested','₹X,XX,XXX'],['Gain/Loss','₹ amount + % in green/red'],['XIRR','X.XX% per annum']],
+    items: [
+      {id:'v20', label:'Holdings table render ho raha hai (saare funds list mein hain)'},
+      {id:'v21', label:'Gain/Loss column green (profit) ya red (loss) color mein hai'},
+      {id:'v22', label:'XIRR value calculate ho rahi hai (0 nahi hai agar transactions hain)'},
+      {id:'v23', label:'Sort by column kaam karta hai (NAV, Return, etc.)'},
+      {id:'v24', label:'Export button (CSV/PDF) kaam karta hai'},
+      {id:'v25', label:'NAV last updated date dikh raha hai'},
+    ]
+  },
+  {
+    page: '🔍 MF Screener',
+    url: '/templates/pages/mf_screener.php',
+    color: '#4338ca',
+    description: 'Mutual fund discovery — filter, sort, compare 1000s of funds',
+    expected: 'Search bar, filters (Category, AMC, Rating), sortable table with 10000+ funds',
+    behavior: 'Default → top funds. Filter → filtered results. Click fund → detail modal/page.',
+    table: [['Filter','Options'],['Category','Equity/Debt/Hybrid/ELSS/Index etc.'],['AMC','Dropdown: HDFC/SBI/ICICI etc.'],['Return Period','1Y/3Y/5Y sort'],['Fund Type','Direct/Regular'],['Min AUM','Slider ya input']],
+    items: [
+      {id:'v26', label:'Fund list render ho raha hai (100+ funds visible)'},
+      {id:'v27', label:'Category filter kaam karta hai (Equity select → sirf equity funds)'},
+      {id:'v28', label:'Search by fund name kaam karta hai'},
+      {id:'v29', label:'Return columns (1Y, 3Y, 5Y) populate hain'},
+      {id:'v30', label:'Sort by return % kaam karta hai'},
+      {id:'v31', label:'Fund card/row click → detail ya add to portfolio option'},
+    ]
+  },
+  {
+    page: '🏦 FD Manager',
+    url: '/templates/pages/fd.php',
+    color: '#b45309',
+    description: 'Fixed deposit portfolio — all FDs, maturity tracking, interest calculation',
+    expected: 'FD cards/table: Bank, Amount, Rate%, Start Date, Maturity Date, Maturity Amount',
+    behavior: 'List all FDs → calculate maturity amounts → show timeline. Add/Edit/Delete FD.',
+    table: [['Field','Format'],['Principal','₹X,XX,XXX'],['Interest Rate','X.XX% p.a.'],['Start Date','DD-MM-YYYY'],['Maturity Date','DD-MM-YYYY (auto-calculated)'],['Maturity Amount','₹X,XX,XXX (with compound interest)'],['Status','Active / Matured / Broken']],
+    items: [
+      {id:'v32', label:'FD list render ho rahi hai'},
+      {id:'v33', label:'Maturity amount correct calculate ho raha hai (compound interest)'},
+      {id:'v34', label:'Maturity date ke order mein sorted hai (upcoming maturities pehle)'},
+      {id:'v35', label:'Add FD form kaam karta hai (form submit → FD list mein appear)'},
+      {id:'v36', label:'Delete FD confirmation dialog ata hai'},
+      {id:'v37', label:'Total FD value summary card dikh raha hai'},
+    ]
+  },
+  {
+    page: '🏛️ NPS Portfolio',
+    url: '/templates/pages/nps.php',
+    color: '#0f766e',
+    description: 'National Pension System — Tier-I/II holdings, asset allocation, NAV tracking',
+    expected: 'NPS account summary, Tier-I/II breakdown, fund-wise units & NAV, total corpus',
+    behavior: 'Show NPS holdings by PFM (pension fund manager) → calculate corpus → show graphs.',
+    table: [['Section','Expected'],['Tier I Corpus','₹X,XX,XXX'],['Tier II Corpus','₹X,XX,XXX (if any)'],['Asset Allocation','E/C/G percentage bars'],['PFM Name','HDFC Pension / SBI Pension etc.'],['NAV Date','Last update date']],
+    items: [
+      {id:'v38', label:'NPS account details dikh rahe hain'},
+      {id:'v39', label:'Tier-I aur Tier-II separate dikh rahe hain'},
+      {id:'v40', label:'Asset allocation (E/C/G) percentage correct hai'},
+      {id:'v41', label:'Total corpus INR mein dikh raha hai'},
+      {id:'v42', label:'NAV date aur source mention hai'},
+    ]
+  },
+  {
+    page: '📊 Stocks Portfolio',
+    url: '/templates/pages/stocks.php',
+    color: '#c2410c',
+    description: 'Indian stock market holdings — NSE/BSE, P&L, XIRR, dividends',
+    expected: 'Stock table: Company, Qty, Avg Cost, CMP, Current Value, P&L, P&L%',
+    behavior: 'List all stock holdings → fetch CMP → calculate P&L → show portfolio summary.',
+    table: [['Column','Format'],['Company','NSE symbol + full name'],['Qty','Number of shares'],['Avg Cost','₹XXX.XX per share'],['CMP','₹XXX.XX (live/delayed)'],['P&L','₹ amount (green/red)'],['P&L%','XX.XX% (green/red)']],
+    items: [
+      {id:'v43', label:'Stock holdings list render ho rahi hai'},
+      {id:'v44', label:'P&L green (profit) ya red (loss) color mein hai'},
+      {id:'v45', label:'Portfolio total value summary dikh raha hai'},
+      {id:'v46', label:'Sort by P&L kaam karta hai'},
+      {id:'v47', label:'Sector allocation chart visible hai (agar implemented)'},
+    ]
+  },
+  {
+    page: '🪙 Gold Holdings',
+    url: '/templates/pages/gold.php',
+    color: '#b45309',
+    description: 'Physical gold, digital gold, SGB — unified view',
+    expected: 'Gold type breakdown: Physical/SGB/Digital, total grams, current value in INR',
+    behavior: 'List all gold holdings → fetch gold price → calculate current value → P&L.',
+    table: [['Type','Fields'],['Physical Gold','Grams, Purity (24K/22K), Purchase price'],['SGB','Units, Issue price, Current price, Interest earned'],['Digital Gold','Grams, Purchase value']],
+    items: [
+      {id:'v48', label:'Gold holdings list render ho rahi hai'},
+      {id:'v49', label:'Current gold price fetch ho raha hai (live ya cached)'},
+      {id:'v50', label:'Total gold value INR mein dikh raha hai'},
+      {id:'v51', label:'P&L calculate ho raha hai'},
+    ]
+  },
+  {
+    page: '🏡 Real Estate',
+    url: '/templates/pages/realestate.php',
+    color: '#0f766e',
+    description: 'Property portfolio — residential, commercial, plots',
+    expected: 'Property cards: Address, Purchase price, Current value, Rental income, Loan outstanding',
+    behavior: 'List all properties → show current value vs purchase → rental yield calculation.',
+    table: [['Field','Format'],['Property Name','Text description'],['Purchase Price','₹X,XX,XXX'],['Current Value','₹X,XX,XXX (manual entry)'],['EMI','₹XX,XXX/month (if loan)'],['Rental Income','₹XX,XXX/month']],
+    items: [
+      {id:'v52', label:'Property list render ho rahi hai'},
+      {id:'v53', label:'Total real estate value net worth mein include ho raha hai'},
+      {id:'v54', label:'Add property form kaam karta hai'},
+    ]
+  },
+  {
+    page: '💰 Post Office Savings',
+    url: '/templates/pages/post_office.php',
+    color: '#4338ca',
+    description: 'NSC, PPF, KVP, SSY — post office savings schemes',
+    expected: 'Scheme-wise list, maturity calculation, interest accrual',
+    behavior: 'List all post office investments → calculate maturity → show interest earned.',
+    items: [
+      {id:'v55', label:'Post office schemes list render ho rahi hai'},
+      {id:'v56', label:'Maturity amount correctly calculate ho raha hai'},
+      {id:'v57', label:'Interest earned (accrued) dikh raha hai'},
+      {id:'v58', label:'Add scheme form kaam karta hai'},
+    ]
+  },
+  {
+    page: '🎯 Goals Planner',
+    url: '/templates/pages/goals.php',
+    color: '#7c3aed',
+    description: 'Financial goals — retirement, education, home purchase tracking',
+    expected: 'Goal cards: Name, Target amount, Target date, Current corpus, Progress bar, Monthly SIP needed',
+    behavior: 'List all goals → link to investments → calculate progress → show gap analysis.',
+    table: [['Section','Expected'],['Goal Name','Custom name e.g. "Retirement"'],['Target Amount','₹X,XX,XXX'],['Target Date','Month/Year'],['Current Corpus','₹X,XX,XXX (linked investments)'],['Progress','XX% bar'],['Monthly SIP Needed','₹X,XXX to meet goal']],
+    items: [
+      {id:'v59', label:'Goals list render ho rahi hai'},
+      {id:'v60', label:'Progress bar correct percentage dikh raha hai'},
+      {id:'v61', label:'Monthly SIP needed calculate ho raha hai'},
+      {id:'v62', label:'Add Goal form kaam karta hai'},
+      {id:'v63', label:'Goal linked investments dikh rahe hain'},
+    ]
+  },
+  {
+    page: '💸 Tax Report',
+    url: '/templates/pages/report_tax.php',
+    color: '#dc2626',
+    description: 'Capital gains tax report — LTCG, STCG, dividend income, 80C deductions',
+    expected: 'FY-wise tax summary: LTCG from equity, STCG from equity, LTCG from debt, total tax liability',
+    behavior: 'Select FY → calculate all capital gains from transactions → show tax computation.',
+    table: [['Tax Type','Rate'],['STCG (Equity < 1yr)','20% (post Budget 2024)'],['LTCG (Equity > 1yr)','12.5% above ₹1.25L'],['STCG (Debt < 3yr)','Slab rate'],['LTCG (Debt > 3yr)','12.5% without indexation'],['Dividend','Slab rate (add to income)']],
+    items: [
+      {id:'v64', label:'Tax report FY select karne pe generate hoti hai'},
+      {id:'v65', label:'LTCG/STCG amounts correct calculate ho rahe hain'},
+      {id:'v66', label:'Harvesting opportunities dikh rahe hain (agar implemented)'},
+      {id:'v67', label:'PDF/Excel export kaam karta hai'},
+      {id:'v68', label:'80C deduction summary dikh raha hai'},
+    ]
+  },
+  {
+    page: '⚙️ Settings',
+    url: '/templates/pages/settings.php',
+    color: '#6b7280',
+    description: 'User profile, preferences, API keys, notification settings',
+    expected: 'Profile form, password change, theme toggle, API key management, linked accounts',
+    behavior: 'Update profile → save → success message. Change password → verify old → update.',
+    items: [
+      {id:'v69', label:'Profile information pre-filled hai (naam, email)'},
+      {id:'v70', label:'Password change form kaam karta hai (old password verify hota hai)'},
+      {id:'v71', label:'Theme toggle (dark/light) kaam karta hai'},
+      {id:'v72', label:'Success message save ke baad dikh raha hai'},
+      {id:'v73', label:'Form CSRF token present hai (DevTools > Network check)'},
+    ]
+  },
+  {
+    page: '🧮 FIRE Calculator',
+    url: '/templates/pages/fire_calculator.php',
+    color: '#0891b2',
+    description: 'Financial Independence, Retire Early — corpus calculation',
+    expected: 'Input form: current age, monthly expenses, expected returns → FIRE number + timeline',
+    behavior: 'Enter expenses → calculate corpus needed → show years to FIRE → monthly investment needed.',
+    items: [
+      {id:'v74', label:'FIRE calculator form render ho raha hai'},
+      {id:'v75', label:'FIRE corpus amount calculate ho raha hai (25x rule ya custom)'},
+      {id:'v76', label:'Years to FIRE graph ya timeline dikh raha hai'},
+      {id:'v77', label:'Monthly investment needed dikh raha hai'},
+    ]
+  },
+  {
+    page: '🔐 Admin Panel',
+    url: '/templates/pages/admin.php',
+    color: '#dc2626',
+    description: 'Admin only — user management, DB tools, cron status, system health',
+    expected: 'Admin-only access. User list, system stats, cron job management.',
+    behavior: 'Non-admin user access → 403 page. Admin → full panel.',
+    items: [
+      {id:'v78', label:'Non-admin user access kare → 403 Forbidden page dikhai deta hai'},
+      {id:'v79', label:'Admin user access kare → admin panel render hota hai'},
+      {id:'v80', label:'User list dikh rahi hai'},
+      {id:'v81', label:'Cron job status dikh raha hai'},
+    ]
+  },
+];
+
+const VAL_STATE_KEY = 'wd_val_state_v52';
+let valState = JSON.parse(localStorage.getItem(VAL_STATE_KEY) || '{}');
+
+function valRender() {
+  const wrap = document.getElementById('valWrap');
+  if (!wrap) return;
+  let totalDone = 0, totalPending = 0;
+  const allItems = VALIDATION_PAGES.flatMap(g => g.items);
+  allItems.forEach(i => { if(valState[i.id]) totalDone++; else totalPending++; });
+  const pct = allItems.length > 0 ? Math.round(totalDone/allItems.length*100) : 0;
+  const dEl = document.getElementById('valDone'); if(dEl) dEl.textContent = totalDone;
+  const pEl = document.getElementById('valPending'); if(pEl) pEl.textContent = totalPending;
+  const pPct = document.getElementById('valPct'); if(pPct) pPct.textContent = pct + '%';
+
+  let html = '';
+  VALIDATION_PAGES.forEach(group => {
+    const doneCnt = group.items.filter(i => valState[i.id]).length;
+    const pct2 = group.items.length > 0 ? Math.round(doneCnt/group.items.length*100) : 0;
+    html += `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:14px">
+      <div style="padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${group.color};flex-shrink:0"></div>
+          <span style="font-size:14px;font-weight:800;flex:1">${group.page}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--muted);margin-right:6px">${doneCnt}/${group.items.length}</span>
+          <div style="width:80px;height:5px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div style="height:100%;background:${group.color};border-radius:3px;width:${pct2}%;transition:width .3s"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--muted)"><span style="font-weight:700;color:var(--text)">URL:</span> <code style="background:var(--bg);padding:1px 5px;border-radius:3px;border:1px solid var(--border)">${group.url}</code></div>
+        </div>
+        ${group.description ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📝 ${group.description}</div>` : ''}
+        ${group.behavior ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;background:var(--accent-bg);padding:5px 8px;border-radius:5px;border-left:3px solid var(--accent)">🔄 Behavior: ${group.behavior}</div>` : ''}
+        ${group.table ? `<details style="margin-top:8px"><summary style="font-size:11px;font-weight:700;color:var(--accent);cursor:pointer">📊 Expected Data Format</summary><div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:11px">${group.table.map((row,ri) => `<tr style="background:${ri===0?'var(--bg)':ri%2===0?'var(--surface)':'var(--surface2)'}">${row.map(cell => `<${ri===0?'th':'td'} style="padding:5px 10px;border:1px solid var(--border);${ri===0?'font-weight:700;text-align:left':''}">${cell}</${ri===0?'th':'td'}>`).join('')}</tr>`).join('')}</table></div></details>` : ''}
+      </div>
+      <div>
+        ${group.items.map(item => {
+          const done = !!valState[item.id];
+          return `<div onclick="valToggle('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);cursor:pointer;${done?'background:var(--green-bg)':''}">
+            <div style="width:15px;height:15px;border-radius:4px;border:2px solid ${done?group.color:'var(--border2)'};background:${done?group.color:'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s">
+              ${done ? '<svg width="8" height="6" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+            </div>
+            <div style="flex:1;font-size:12px;font-weight:600;color:${done?'var(--muted)':'var(--text)'};${done?'text-decoration:line-through':''}">${item.label}</div>
+            <span>${done ? '✅' : '⬜'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+  wrap.innerHTML = html;
+}
+
+function valToggle(id) {
+  valState[id] = !valState[id];
+  localStorage.setItem(VAL_STATE_KEY, JSON.stringify(valState));
+  valRender();
+}
+
+function valResetAll() {
+  if(confirm('Sab validation checks reset karo?')) {
+    valState = {};
+    localStorage.removeItem(VAL_STATE_KEY);
+    valRender();
+  }
+}
+
+setTimeout(() => { valRender(); }, 800);
+
 </script>
 
 </body>

@@ -84,6 +84,8 @@ const STOCKS = {
 
     this.loadHoldings();
     this.loadTransactions();
+    // t433: Auto-load 52-Week tracker
+    setTimeout(() => W52.load(), 800);
   },
 
   /* ── HOLDINGS ── */
@@ -574,5 +576,190 @@ STOCKS.refreshFundamentals = async function() {
     body.innerHTML = `<tr><td colspan="10" class="text-center" style="color:#dc2626;padding:20px;">Error: ${escHtml(e.message)}</td></tr>`;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🔄 Refresh Data'; }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   t433 — 52-WEEK HIGH / LOW TRACKER (Dedicated Module)
+   Standalone tracker with summary stats, signal filters, sortable table
+   API: /api/router.php?action=week52_tracker
+═══════════════════════════════════════════════════════════════════════════ */
+
+const W52 = {
+  _data:       [],
+  _filter:     'all',   // 'all' | 'near_high' | 'near_low' | 'neutral'
+  _sortCol:    'pct_below_52h',
+  _sortDir:    'asc',
+  _loaded:     false,
+
+  /* ── Load data from API ── */
+  async load(force = false) {
+    if (W52._loaded && !force) return;
+    const wrap = document.getElementById('w52TrackerBody');
+    const sum  = document.getElementById('w52Summary');
+    if (!wrap) return;
+
+    wrap.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:30px"><span class="spinner"></span> Loading 52-Week data…</td></tr>';
+    if (sum) sum.innerHTML = '';
+
+    try {
+      const res  = await fetch(APP_URL + '/api/router.php?action=week52_tracker');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'API error');
+
+      W52._data   = json.data || [];
+      W52._loaded = true;
+      W52._renderSummary();
+      W52._renderTable();
+    } catch (e) {
+      wrap.innerHTML = `<tr><td colspan="7" class="text-center" style="padding:24px;color:#dc2626;">Error: ${escHtml(e.message)}</td></tr>`;
+    }
+  },
+
+  /* ── Reload (force) ── */
+  reload() {
+    W52._loaded = false;
+    W52.load(true);
+  },
+
+  /* ── Set signal filter ── */
+  setFilter(f) {
+    W52._filter = f;
+    document.querySelectorAll('.w52-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.signal === f);
+    });
+    W52._renderTable();
+  },
+
+  /* ── Set sort column ── */
+  sortBy(col) {
+    if (W52._sortCol === col) {
+      W52._sortDir = W52._sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      W52._sortCol = col;
+      W52._sortDir = col === 'pct_below_52h' ? 'asc' : 'desc';
+    }
+    // Update arrows
+    document.querySelectorAll('.w52-sort-btn').forEach(b => {
+      const arrow = b.querySelector('.w52-arr');
+      if (!arrow) return;
+      if (b.dataset.col === col) {
+        arrow.textContent = W52._sortDir === 'asc' ? '↑' : '↓';
+        b.style.color = 'var(--primary)';
+      } else {
+        arrow.textContent = '↕';
+        b.style.color = 'var(--text-muted)';
+      }
+    });
+    W52._renderTable();
+  },
+
+  /* ── Render summary stats ── */
+  _renderSummary() {
+    const el = document.getElementById('w52Summary');
+    if (!el || !W52._data.length) return;
+
+    const nearH   = W52._data.filter(r => r.signal === 'near_high').length;
+    const nearL   = W52._data.filter(r => r.signal === 'near_low').length;
+    const neutral = W52._data.filter(r => r.signal === 'neutral').length;
+    const total   = W52._data.length;
+
+    const stat = (icon, label, count, color, signal) =>
+      `<div class="w52-stat-chip" data-signal="${signal}" onclick="W52.setFilter(W52._filter===signal?'all':'${signal}')"
+            style="cursor:pointer;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:10px 16px;display:flex;flex-direction:column;align-items:center;min-width:90px;transition:all .15s;">
+         <span style="font-size:20px;">${icon}</span>
+         <span style="font-size:22px;font-weight:800;color:${color};">${count}</span>
+         <span style="font-size:10px;color:var(--text-muted);text-align:center;line-height:1.3;">${label}</span>
+       </div>`;
+
+    el.innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+        ${stat('📊', 'Total Holdings', total, 'var(--text-primary)', 'all')}
+        ${stat('🚀', 'Near 52W High', nearH, '#16a34a', 'near_high')}
+        ${stat('📉', 'Near 52W Low', nearL, '#dc2626', 'near_low')}
+        ${stat('➖', 'Neutral', neutral, '#f59e0b', 'neutral')}
+      </div>
+      ${nearH > 0 ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;margin-bottom:10px;">
+        💡 <strong>${nearH} stock${nearH>1?'s':''}</strong> near 52-week high — possible breakout or exit opportunity.
+      </div>` : ''}
+      ${nearL > 0 ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:12px;color:#991b1b;margin-bottom:10px;">
+        ⚠️ <strong>${nearL} stock${nearL>1?'s':''}</strong> near 52-week low — potential value pick or further downside risk.
+      </div>` : ''}`;
+  },
+
+  /* ── Render table ── */
+  _renderTable() {
+    const wrap = document.getElementById('w52TrackerBody');
+    if (!wrap) return;
+
+    // Filter
+    let rows = W52._filter === 'all' ? [...W52._data] : W52._data.filter(r => r.signal === W52._filter);
+
+    // Sort
+    const dir = W52._sortDir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+      const av = parseFloat(a[W52._sortCol] ?? 9999);
+      const bv = parseFloat(b[W52._sortCol] ?? 9999);
+      return (av - bv) * dir;
+    });
+
+    if (!rows.length) {
+      wrap.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:24px;color:var(--text-muted);">No stocks match this filter.</td></tr>';
+      return;
+    }
+
+    wrap.innerHTML = rows.map(r => {
+      const cmp      = parseFloat(r.latest_price || 0);
+      const h52      = parseFloat(r.high_52 || 0);
+      const l52      = parseFloat(r.low_52  || 0);
+      const pctH     = r.pct_below_52h !== null ? parseFloat(r.pct_below_52h) : null;
+      const pctL     = r.pct_above_52l !== null ? parseFloat(r.pct_above_52l) : null;
+
+      // Position 0=at 52L, 100=at 52H
+      let posWidth = 50;
+      if (h52 > 0 && l52 > 0 && h52 > l52) {
+        posWidth = Math.max(2, Math.min(98, ((cmp - l52) / (h52 - l52)) * 100));
+      }
+      const barColor = posWidth >= 80 ? '#16a34a' : posWidth <= 20 ? '#dc2626' : '#f59e0b';
+
+      const posBar = (h52 > 0 && l52 > 0)
+        ? `<div style="min-width:110px;">
+             <div style="height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;">
+               <div style="width:${posWidth.toFixed(1)}%;height:100%;background:${barColor};border-radius:3px;transition:width .3s;"></div>
+             </div>
+             <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:2px;">
+               <span>₹${fmtNum(l52,0)}</span>
+               <span style="font-weight:700;color:${barColor};">${posWidth.toFixed(0)}%</span>
+               <span>₹${fmtNum(h52,0)}</span>
+             </div>
+           </div>`
+        : '<span style="color:var(--text-muted);font-size:11px;">—</span>';
+
+      const signalBadge = {
+        near_high: '<span style="background:#dcfce7;color:#16a34a;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">🚀 Near 52H</span>',
+        near_low:  '<span style="background:#fef2f2;color:#dc2626;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">📉 Near 52L</span>',
+        neutral:   '<span style="background:#fefce8;color:#854d0e;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:700;white-space:nowrap;">➖ Neutral</span>',
+      }[r.signal] || '—';
+
+      const pctHDisplay = pctH !== null
+        ? `<span style="color:${pctH <= 5 ? '#16a34a' : pctH <= 15 ? '#f59e0b' : 'var(--text-muted)'};">${pctH.toFixed(1)}% ↓</span>`
+        : '—';
+      const pctLDisplay = pctL !== null
+        ? `<span style="color:${pctL <= 10 ? '#dc2626' : pctL <= 25 ? '#f59e0b' : 'var(--text-muted)'};">${pctL.toFixed(1)}% ↑</span>`
+        : '—';
+
+      return `<tr>
+        <td>
+          <div style="font-weight:700;font-size:13px;">${escHtml(r.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.company_name||'')} ${r.sector?'· '+escHtml(r.sector):''}</div>
+        </td>
+        <td class="text-right" style="font-weight:700;">₹${fmtNum(cmp,2)}</td>
+        <td class="text-right">${pctHDisplay}</td>
+        <td class="text-right">${pctLDisplay}</td>
+        <td>${posBar}</td>
+        <td class="text-right" style="font-size:11px;color:var(--text-muted);">${r.quantity ? fmtNum(r.quantity,0)+' units' : '—'}</td>
+        <td>${signalBadge}</td>
+      </tr>`;
+    }).join('');
   }
 };

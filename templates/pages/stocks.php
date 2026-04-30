@@ -210,6 +210,72 @@ ob_start();
   </div>
 </div>
 
+<!-- t433: 52-Week High/Low Dedicated Tracker -->
+<div class="card" style="margin-top:20px;margin-bottom:20px;" id="card52WeekTracker">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h3 class="card-title">📈 52-Week High / Low Tracker</h3>
+      <span style="font-size:11px;color:var(--text-muted);">Entry &amp; exit signals · % from 52W high/low · Position bar</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <!-- Signal filter buttons -->
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-sm btn-ghost w52-filter-btn active" data-signal="all"
+                onclick="W52.setFilter('all')" style="font-size:11px;">All</button>
+        <button class="btn btn-sm btn-ghost w52-filter-btn" data-signal="near_high"
+                onclick="W52.setFilter('near_high')" style="font-size:11px;color:#16a34a;">🚀 Near High</button>
+        <button class="btn btn-sm btn-ghost w52-filter-btn" data-signal="near_low"
+                onclick="W52.setFilter('near_low')" style="font-size:11px;color:#dc2626;">📉 Near Low</button>
+        <button class="btn btn-sm btn-ghost w52-filter-btn" data-signal="neutral"
+                onclick="W52.setFilter('neutral')" style="font-size:11px;color:#f59e0b;">➖ Neutral</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="W52.reload()">🔄 Refresh</button>
+    </div>
+  </div>
+  <div class="card-body" style="padding:16px 16px 4px;">
+    <!-- Summary chips -->
+    <div id="w52Summary"></div>
+  </div>
+  <div class="table-responsive">
+    <table class="table" style="font-size:12px;">
+      <thead>
+        <tr>
+          <th>Symbol / Company</th>
+          <th class="text-right">
+            <button class="w52-sort-btn" data-col="latest_price" onclick="W52.sortBy('latest_price')"
+                    style="background:none;border:none;cursor:pointer;font-weight:600;color:var(--text-muted);font-size:12px;">
+              CMP <span class="w52-arr">↕</span>
+            </button>
+          </th>
+          <th class="text-right">
+            <button class="w52-sort-btn" data-col="pct_below_52h" onclick="W52.sortBy('pct_below_52h')"
+                    style="background:none;border:none;cursor:pointer;font-weight:600;color:var(--primary);font-size:12px;">
+              % from 52H <span class="w52-arr">↑</span>
+            </button>
+          </th>
+          <th class="text-right">
+            <button class="w52-sort-btn" data-col="pct_above_52l" onclick="W52.sortBy('pct_above_52l')"
+                    style="background:none;border:none;cursor:pointer;font-weight:600;color:var(--text-muted);font-size:12px;">
+              % from 52L <span class="w52-arr">↕</span>
+            </button>
+          </th>
+          <th style="min-width:130px;">52W Range Position</th>
+          <th class="text-right">Qty</th>
+          <th>Signal</th>
+        </tr>
+      </thead>
+      <tbody id="w52TrackerBody">
+        <tr><td colspan="7" class="text-center" style="padding:30px;color:var(--text-muted);">
+          Loading 52-week data…
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="padding:10px 16px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border);">
+    🚀 Near 52H = within 5% of 52-week high &nbsp;|&nbsp; 📉 Near 52L = within 10% of 52-week low &nbsp;|&nbsp; Data from Yahoo Finance via Fundamentals refresh
+  </div>
+</div>
+
 <!-- t216: Stocks Sector-wise Analytics -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;margin-bottom:20px;">
   <div class="card">

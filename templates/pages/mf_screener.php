@@ -2146,7 +2146,6 @@ function drCalcStepUp(retRate) {
       </div>
     </div>`;
 }
-}
 
 /* ══════════════════════════════════════════════════
    t262 — ROLLING RETURNS CHART

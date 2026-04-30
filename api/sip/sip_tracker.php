@@ -201,7 +201,7 @@ case 'swp_stop':
 // sip_performance — t72: Actual vs Expected XIRR per SIP
 // ══════════════════════════════════════════════════════════════════════════
 case 'sip_performance':
-    require_once ROOT . '/includes/holding_calculator.php';
+    require_once APP_ROOT . '/includes/holding_calculator.php';
 
     $stmt = $db->prepare("
         SELECT s.id AS sip_id, s.fund_id, s.monthly_amount, s.start_date, s.step_up_pct,

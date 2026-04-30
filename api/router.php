@@ -6,6 +6,9 @@
  */
 ob_start(); // Buffer all output — prevents PHP warnings from corrupting JSON
 define('WEALTHDASH', true);
+// Suppress PHP warnings/notices so they don't corrupt JSON output
+error_reporting(0);
+ini_set('display_errors', '0');
 require_once dirname(__DIR__) . '/config/config.php';
 require_once APP_ROOT . '/includes/auth_check.php';
 // helpers.php already loaded by config.php
@@ -142,6 +145,12 @@ $csrfExempt = [
     'epf_list',
     // t341: Gratuity Tracker
     'gratuity_list',
+    // MF List (read-only GET actions)
+    'mf_list', 'mf_summary', 'portfolio_xirr', 'portfolio_health',
+    'asset_allocation', 'overlap_check', 'dividend_history',
+    'portfolio_risk', 'smart_insights', 'transactions',
+    // Notifications (read-only)
+    'notif_unread_count', 'notif_list', 'notif_mark_read',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();

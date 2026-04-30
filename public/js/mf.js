@@ -3839,7 +3839,6 @@ function renderDirectVsRegular() {
       </div>
     </div>`;
 }
-}
 
 // Hook into renderMfAnalytics
 const _origRenderMfAnalytics = renderMfAnalytics;

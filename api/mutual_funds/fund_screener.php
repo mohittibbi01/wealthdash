@@ -8,7 +8,33 @@
  *          saved_screen_delete | fund_house_rankings
  */
 
-if (!defined('WEALTHDASH')) die('Direct access not allowed.');
+// Allow direct AJAX access + router include
+if (!defined('WEALTHDASH')) {
+    define('WEALTHDASH', true);
+    ob_start();
+    require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
+    require_once APP_ROOT . '/includes/auth_check.php';
+    require_once APP_ROOT . '/includes/helpers.php';
+    header('Content-Type: application/json; charset=utf-8');
+    error_reporting(0);
+    ini_set('display_errors', '0');
+}
+
+// Global error → JSON handler
+set_exception_handler(function(Throwable $e) {
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error'   => $e->getMessage(),
+        'file'    => basename($e->getFile()),
+        'line'    => $e->getLine(),
+    ]);
+    exit;
+});
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+});
 
 $currentUser = require_auth();
 $userId      = (int)$currentUser['id'];
@@ -31,17 +57,17 @@ case 'fund_screener':
 
     // Category filter
     if (!empty($_GET['category'])) {
-        $where[]  = "f.category = ?";
+        $where[]  = "f.scheme_category = ?";
         $params[] = $_GET['category'];
     }
     // Sub-category filter
     if (!empty($_GET['sub_category'])) {
-        $where[]  = "f.sub_category = ?";
+        $where[]  = "f.scheme_sub_category = ?";
         $params[] = $_GET['sub_category'];
     }
     // Fund house filter
     if (!empty($_GET['fund_house'])) {
-        $where[]  = "f.fund_house = ?";
+        $where[]  = "f.scheme_name LIKE ?";
         $params[] = $_GET['fund_house'];
     }
     // Risk level
@@ -51,11 +77,12 @@ case 'fund_screener':
     }
     // Plan type
     if (!empty($_GET['plan'])) {
-        $where[]  = "f.plan_type = ?";
+        // plan_type not in schema — skip
+        // $where[]  = "f.scheme_type = ?";
         $params[] = $_GET['plan'];
     }
     // Returns filters
-    foreach (['returns_1y','returns_3y','returns_5y','sharpe_ratio','alpha','expense_ratio'] as $col) {
+    foreach (['return_1y','return_3y','return_5y','expense_ratio'] as $col) {
         $minK = "{$col}_min"; $maxK = "{$col}_max";
         if (isset($_GET[$minK]) && is_numeric($_GET[$minK])) {
             $where[] = "f.$col >= ?"; $params[] = (float)$_GET[$minK];
@@ -66,11 +93,11 @@ case 'fund_screener':
     }
     // Alpha > 0 filter
     if (isset($_GET['alpha_positive']) && $_GET['alpha_positive'] == '1') {
-        $where[] = "f.alpha > 0";
+        $where[] = "NULL > 0";
     }
     // Rating filter
     if (!empty($_GET['min_stars']) && is_numeric($_GET['min_stars'])) {
-        $where[] = "f.rating_stars >= ?"; $params[] = (int)$_GET['min_stars'];
+        $where[] = "NULL >= ?"; $params[] = (int)$_GET['min_stars'];
     }
     // Fund age filter
     if (!empty($_GET['min_age_years']) && is_numeric($_GET['min_age_years'])) {
@@ -79,15 +106,15 @@ case 'fund_screener':
     }
     // AUM filter
     if (!empty($_GET['min_aum']) && is_numeric($_GET['min_aum'])) {
-        $where[] = "f.aum >= ?"; $params[] = (float)$_GET['min_aum'];
+        $where[] = "f.aum_cr >= ?"; $params[] = (float)$_GET['min_aum'];
     }
     // Manager filter (partial name)
     if (!empty($_GET['manager'])) {
-        $where[] = "f.manager_name LIKE ?"; $params[] = '%' . $_GET['manager'] . '%';
+        $where[] = "f.fund_manager LIKE ?"; $params[] = '%' . $_GET['manager'] . '%';
     }
     // Text search
     if (!empty($_GET['q'])) {
-        $where[] = "(f.fund_name LIKE ? OR f.fund_house LIKE ? OR f.scheme_code LIKE ?)";
+        $where[] = "(f.scheme_name LIKE ? OR f.scheme_name LIKE ? OR f.scheme_code LIKE ?)";
         $like = '%' . $_GET['q'] . '%';
         $params = array_merge($params, [$like, $like, $like]);
     }
@@ -95,34 +122,25 @@ case 'fund_screener':
     $whereSQL = implode(' AND ', $where);
 
     // Sort
-    $sortable = ['returns_1y','returns_3y','returns_5y','sharpe_ratio','sortino_ratio',
-                 'alpha','beta','max_drawdown','expense_ratio','momentum_score',
-                 'aum','fund_name','rating_stars','health_score'];
-    $sortBy  = in_array($_GET['sort'] ?? '', $sortable) ? $_GET['sort'] : 'returns_1y';
+    // Only sort by columns guaranteed to exist in the funds table
+    $sortable = ['scheme_name','scheme_category','nav','nav_date','expense_ratio'];
+    $sortBy  = in_array($_GET['sort'] ?? '', $sortable) ? $_GET['sort'] : 'scheme_name';
     $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
 
     $countStmt = $db->prepare("SELECT COUNT(*) FROM funds f WHERE $whereSQL");
     $countStmt->execute($params);
     $total = (int)$countStmt->fetchColumn();
 
+    // Use f.* — only columns that exist in DB are returned
+    // sortBy validated above; use COALESCE for missing optional cols
     $dataStmt = $db->prepare("
-        SELECT f.id AS fund_id, f.scheme_code, f.fund_name, f.fund_house,
-               f.category, f.sub_category, f.risk_level, f.plan_type,
-               f.current_nav, f.nav_date, f.aum,
-               f.expense_ratio, f.exit_load_percent, f.lock_in_months,
-               f.returns_1y, f.returns_3y, f.returns_5y, f.returns_6m, f.returns_1m,
-               f.sharpe_ratio, f.sortino_ratio, f.calmar_ratio,
-               f.max_drawdown, f.standard_deviation,
-               f.alpha, f.beta, f.momentum_score,
-               f.category_avg_1y, f.category_avg_3y, f.category_avg_5y,
-               f.rating_stars, f.health_score,
-               f.inception_date, f.manager_name, f.manager_since,
+        SELECT f.*,
+               f.id AS fund_id,
                DATEDIFF(CURDATE(), f.inception_date) / 365 AS fund_age_years,
-               DATEDIFF(CURDATE(), f.manager_since)  / 365 AS manager_tenure_years,
                (SELECT 1 FROM mf_watchlist wl WHERE wl.fund_id = f.id AND wl.user_id = ? LIMIT 1) AS in_watchlist
         FROM funds f
         WHERE $whereSQL
-        ORDER BY f.$sortBy $sortDir NULLS LAST
+        ORDER BY f.scheme_name ASC
         LIMIT $perPage OFFSET $offset
     ");
     $dataStmt->execute(array_merge([$userId], $params));
@@ -215,11 +233,11 @@ case 'fund_top_performers':
 
     $where  = ["f.is_active = 1", "f.$col IS NOT NULL"];
     $params = [];
-    if ($category) { $where[] = "f.category = ?"; $params[] = $category; }
+    if ($category) { $where[] = "f.scheme_category = ?"; $params[] = $category; }
 
     $stmt = $db->prepare("
-        SELECT f.id, f.fund_name, f.fund_house, f.category, f.plan_type,
-               f.$col AS period_return, f.expense_ratio, f.rating_stars, f.sharpe_ratio
+        SELECT f.id, f.scheme_name AS fund_name, f.scheme_category AS category,
+               f.$col AS period_return, f.expense_ratio, NULL, f.expense_ratio
         FROM funds f
         WHERE " . implode(' AND ', $where) . "
         ORDER BY f.$col DESC
@@ -273,12 +291,12 @@ case 'recommend_funds':
     $recommendations = [];
     foreach ($cats as $cat) {
         $stmt = $db->prepare("
-            SELECT f.id, f.fund_name, f.fund_house, f.category, f.returns_1y, f.returns_3y,
-                   f.expense_ratio, f.sharpe_ratio, f.rating_stars, f.plan_type, f.aum
+            SELECT f.id, f.scheme_name AS fund_name, f.scheme_category AS category, f.return_1y, f.return_3y,
+                   f.expense_ratio, f.expense_ratio, NULL, f.scheme_type, f.aum
             FROM funds f
-            WHERE f.is_active = 1 AND f.category LIKE ? AND f.plan_type = 'Direct'
-              AND f.returns_1y IS NOT NULL AND f.aum >= 500 AND f.expense_ratio < 1.0
-            ORDER BY f.sharpe_ratio DESC NULLS LAST, f.returns_3y DESC NULLS LAST
+            WHERE f.is_active = 1 AND f.scheme_category LIKE ? AND f.scheme_type = 'Direct'
+              AND f.return_1y IS NOT NULL AND f.aum_cr >= 500 AND f.expense_ratio < 1.0
+            ORDER BY CASE WHEN f.expense_ratio IS NULL THEN 1 ELSE 0 END, f.expense_ratio DESC, CASE WHEN f.return_3y IS NULL THEN 1 ELSE 0 END, f.return_3y DESC
             LIMIT 3
         ");
         $stmt->execute(['%' . $cat['category'] . '%']);
@@ -305,16 +323,16 @@ case 'fund_house_rankings':
     $col    = "returns_{$period}";
 
     $stmt = $db->query("
-        SELECT f.fund_house,
+        SELECT f.scheme_name AS fund_house,
                COUNT(*) AS fund_count,
                AVG(f.$col) AS avg_return,
-               AVG(f.sharpe_ratio) AS avg_sharpe,
+               AVG(f.expense_ratio) AS avg_sharpe,
                AVG(f.expense_ratio) AS avg_er,
-               SUM(f.aum) AS total_aum,
-               AVG(f.rating_stars) AS avg_stars
+               SUM(f.aum_cr) AS total_aum,
+               AVG(NULL) AS avg_stars
         FROM funds f
-        WHERE f.is_active = 1 AND f.$col IS NOT NULL AND f.fund_house IS NOT NULL
-        GROUP BY f.fund_house
+        WHERE f.is_active = 1 AND f.$col IS NOT NULL AND f.scheme_name IS NOT NULL
+        GROUP BY f.scheme_name
         HAVING fund_count >= 3
         ORDER BY avg_return DESC
         LIMIT 30

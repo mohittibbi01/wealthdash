@@ -1112,6 +1112,319 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════
+     tg004 — INFLATION-ADJUSTED GOALS
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4" id="inflationGoalsCard">
+  <div class="card-header">
+    <h3 class="card-title">💸 Inflation-Adjusted Goals — Real Purchasing Power</h3>
+    <span style="font-size:11px;color:var(--text-muted);">Today's ₹1 Lakh ≠ Future ₹1 Lakh · See true cost in today's money</span>
+  </div>
+  <div class="card-body">
+
+    <!-- Global inflation settings bar -->
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;padding:12px 14px;background:rgba(99,102,241,.05);border-radius:10px;margin-bottom:18px;border:1px solid rgba(99,102,241,.15);">
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;display:block;margin-bottom:4px;">General Inflation (% pa)</label>
+        <input type="number" id="igInflation" value="6" min="2" max="15" step="0.5" class="form-control" style="width:90px;" oninput="renderInflationGoals()">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;display:block;margin-bottom:4px;">Education Inflation (% pa)</label>
+        <input type="number" id="igEduInflation" value="10" min="5" max="20" step="0.5" class="form-control" style="width:90px;" oninput="renderInflationGoals()">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;display:block;margin-bottom:4px;">Medical Inflation (% pa)</label>
+        <input type="number" id="igMedInflation" value="8" min="3" max="20" step="0.5" class="form-control" style="width:90px;" oninput="renderInflationGoals()">
+      </div>
+      <div>
+        <label style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;display:block;margin-bottom:4px;">Housing Inflation (% pa)</label>
+        <input type="number" id="igHouseInflation" value="7" min="2" max="15" step="0.5" class="form-control" style="width:90px;" oninput="renderInflationGoals()">
+      </div>
+      <div style="margin-left:auto;">
+        <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">India CPI (2024 avg)</div>
+        <div style="font-size:13px;font-weight:800;color:var(--accent);">~5.4%</div>
+      </div>
+    </div>
+
+    <!-- Add custom goal for inflation calculator -->
+    <div style="margin-bottom:18px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;">➕ Add a Goal to Calculate Inflation Impact</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Goal Name</label>
+          <input type="text" id="igGoalName" class="form-control" placeholder="e.g. Daughter's Wedding" style="width:180px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Today's Cost (₹)</label>
+          <input type="number" id="igGoalAmt" class="form-control" placeholder="e.g. 2000000" style="width:140px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Years Away</label>
+          <input type="number" id="igGoalYears" class="form-control" value="10" min="1" max="40" style="width:80px;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Category</label>
+          <select id="igGoalCat" class="form-control" style="width:130px;">
+            <option value="general">General</option>
+            <option value="education">Education</option>
+            <option value="medical">Medical</option>
+            <option value="housing">Housing</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addInflationGoal()">Add</button>
+      </div>
+    </div>
+
+    <!-- Results grid -->
+    <div id="igResultsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;"></div>
+
+    <!-- Purchasing power erosion chart -->
+    <div id="igChartWrap" style="margin-top:20px;display:none;">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;">📉 Purchasing Power Erosion — What ₹10 Lakh Buys Over Time</div>
+      <div id="igChart" style="height:160px;position:relative;overflow:hidden;"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center;">At 6% inflation, ₹10L today = ₹<span id="igPpValue">—</span>L purchasing power in 10 years</div>
+    </div>
+
+    <!-- Key insight -->
+    <div style="margin-top:16px;padding:12px 14px;background:rgba(245,158,11,.07);border-radius:8px;border-left:3px solid #f59e0b;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+      <strong>💡 Why Inflation-Adjusted Goals Matter:</strong>
+      A ₹50L target set today for a goal 15 years away actually needs <strong id="igExampleFuture">₹1.20 Cr</strong> in nominal terms
+      (at 6% inflation). If you invest for ₹50L, you'll only meet 42% of the real need.
+      Always set targets in <em>today's money</em> — WealthDash adjusts the SIP requirement for you.
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── tg004: Inflation-Adjusted Goals ─────────────────────────────────── */
+const igGoals = [
+  { name:'Child Education', amt:1500000, years:12, cat:'education' },
+  { name:'Home Purchase',   amt:5000000, years:8,  cat:'housing'   },
+  { name:'Retirement',      amt:10000000,years:20, cat:'general'   },
+  { name:'Emergency Fund',  amt:600000,  years:2,  cat:'general'   },
+];
+
+function igGetRate(cat) {
+  const map = {
+    education: parseFloat(document.getElementById('igEduInflation')?.value)  || 10,
+    medical:   parseFloat(document.getElementById('igMedInflation')?.value)  || 8,
+    housing:   parseFloat(document.getElementById('igHouseInflation')?.value)|| 7,
+    general:   parseFloat(document.getElementById('igInflation')?.value)     || 6,
+  };
+  return (map[cat] || 6) / 100;
+}
+
+function igFmt(v) {
+  v = Math.abs(v);
+  if (v >= 1e7) return '₹' + (v/1e7).toFixed(2) + ' Cr';
+  if (v >= 1e5) return '₹' + (v/1e5).toFixed(1) + 'L';
+  return '₹' + v.toLocaleString('en-IN', {maximumFractionDigits:0});
+}
+
+function igCalcSip(futureAmt, years, retPct = 0.12) {
+  if (years <= 0) return futureAmt;
+  const n = years * 12;
+  const r = retPct / 12;
+  return futureAmt * r / (((Math.pow(1+r, n)) - 1) * (1+r));
+}
+
+function addInflationGoal() {
+  const name  = document.getElementById('igGoalName')?.value.trim();
+  const amt   = parseFloat(document.getElementById('igGoalAmt')?.value);
+  const years = parseInt(document.getElementById('igGoalYears')?.value);
+  const cat   = document.getElementById('igGoalCat')?.value || 'general';
+  if (!name || !amt || amt <= 0 || !years || years <= 0) {
+    alert('Please fill all fields.'); return;
+  }
+  igGoals.push({ name, amt, years, cat, custom: true });
+  document.getElementById('igGoalName').value = '';
+  document.getElementById('igGoalAmt').value  = '';
+  renderInflationGoals();
+}
+
+function removeInflationGoal(idx) {
+  igGoals.splice(idx, 1);
+  renderInflationGoals();
+}
+
+function renderInflationGoals() {
+  const grid = document.getElementById('igResultsGrid');
+  if (!grid) return;
+
+  const catColors = {
+    education: { bg:'rgba(59,130,246,.07)', accent:'#3b82f6', label:'📚 Education' },
+    medical:   { bg:'rgba(239,68,68,.07)',  accent:'#ef4444', label:'🏥 Medical'   },
+    housing:   { bg:'rgba(245,158,11,.07)', accent:'#f59e0b', label:'🏠 Housing'   },
+    general:   { bg:'rgba(99,102,241,.07)', accent:'#6366f1', label:'🎯 General'   },
+  };
+
+  grid.innerHTML = igGoals.map((g, i) => {
+    const rate      = igGetRate(g.cat);
+    const ratePct   = (rate * 100).toFixed(1);
+    const future    = g.amt * Math.pow(1 + rate, g.years);
+    const nominal   = Math.round(future);
+    const inflation = Math.round(future - g.amt);
+    const sipNominal= igCalcSip(nominal, g.years);
+    const sipToday  = igCalcSip(g.amt, g.years);
+    const sipGap    = sipNominal - sipToday;
+    const erosion   = ((1 - g.amt/future) * 100).toFixed(0);
+    const c         = catColors[g.cat] || catColors.general;
+    const multiplier= (future / g.amt).toFixed(2);
+
+    // Milestone markers for bar
+    const bars = [5,10,15,20].filter(y => y < g.years).map(y => {
+      const fv = g.amt * Math.pow(1+rate, y);
+      return { y, pct: Math.min(98, (fv/nominal*100)).toFixed(0), label: igFmt(fv) };
+    });
+
+    return `
+    <div style="background:${c.bg};border:1px solid ${c.accent}22;border-radius:12px;padding:16px;position:relative;">
+      ${g.custom ? `<button onclick="removeInflationGoal(${i})" title="Remove" style="position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;">✕</button>` : ''}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:10px;font-weight:700;background:${c.accent}22;color:${c.accent};padding:2px 8px;border-radius:99px;">${c.label}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text-primary);">${g.name}</span>
+      </div>
+
+      <!-- Today vs Future -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div style="text-align:center;padding:10px;background:rgba(255,255,255,.5);border-radius:8px;">
+          <div style="font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px;">Today's Target</div>
+          <div style="font-size:17px;font-weight:900;color:var(--text-primary);">${igFmt(g.amt)}</div>
+          <div style="font-size:10px;color:var(--text-muted);">in today's ₹</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:${c.accent}18;border-radius:8px;border:1.5px solid ${c.accent}44;">
+          <div style="font-size:9px;font-weight:700;color:${c.accent};text-transform:uppercase;margin-bottom:3px;">Need in ${g.years}Y (${ratePct}% inflation)</div>
+          <div style="font-size:17px;font-weight:900;color:${c.accent};">${igFmt(nominal)}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${multiplier}× multiplier</div>
+        </div>
+      </div>
+
+      <!-- Inflation cost highlight -->
+      <div style="padding:8px 12px;background:rgba(220,38,38,.06);border-radius:7px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:#b91c1c;font-weight:600;">🔥 Inflation adds</span>
+        <span style="font-size:13px;font-weight:900;color:#dc2626;">${igFmt(inflation)}</span>
+        <span style="font-size:10px;color:#b91c1c;">(+${erosion}%)</span>
+      </div>
+
+      <!-- Nominal cost growth bar -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:3px;">
+          <span>Cost Growth Over ${g.years} Years</span><span>${ratePct}% pa</span>
+        </div>
+        <div style="position:relative;height:20px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
+          <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100, (g.amt/nominal*100)).toFixed(0)}%;background:#94a3b8;border-radius:99px;transition:width .4s;"></div>
+          <div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(90deg,${c.accent}66,${c.accent});border-radius:99px;"></div>
+          <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100,(g.amt/nominal*100)).toFixed(0)}%;background:#e2e8f0;border-radius:99px;"></div>
+          ${bars.map(b => `<div title="${b.y}Y: ${b.label}" style="position:absolute;left:${b.pct}%;top:2px;bottom:2px;width:2px;background:rgba(255,255,255,.7);border-radius:1px;"></div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);margin-top:2px;">
+          <span>${igFmt(g.amt)} (today)</span><span>${igFmt(nominal)} (year ${g.years})</span>
+        </div>
+      </div>
+
+      <!-- SIP comparison -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div style="padding:8px;background:rgba(255,255,255,.5);border-radius:7px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;color:var(--text-muted);margin-bottom:2px;">SIP for Today's Target</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text-secondary);">${igFmt(sipToday)}/mo</div>
+          <div style="font-size:9px;color:var(--text-muted);">under-estimates inflation</div>
+        </div>
+        <div style="padding:8px;background:${c.accent}12;border-radius:7px;text-align:center;border:1px solid ${c.accent}33;">
+          <div style="font-size:9px;font-weight:700;color:${c.accent};margin-bottom:2px;">Correct SIP (inflation-adj)</div>
+          <div style="font-size:14px;font-weight:800;color:${c.accent};">${igFmt(sipNominal)}/mo</div>
+          <div style="font-size:9px;color:${c.accent};">+${igFmt(sipGap)}/mo more needed</div>
+        </div>
+      </div>
+
+      <!-- Tips per category -->
+      <div style="font-size:10px;color:var(--text-muted);padding:6px 8px;background:rgba(255,255,255,.4);border-radius:6px;line-height:1.5;">
+        ${g.cat === 'education' ? '📚 Education costs rise 10-12% in India. Use equity MF for 10+ yr horizon.' :
+          g.cat === 'medical'   ? '🏥 Medical inflation at 8-10% outpaces CPI. Health insurance is essential.' :
+          g.cat === 'housing'   ? '🏠 Real estate prices rise 7-9% pa in metro areas. Add rent savings.' :
+          '💡 Lock in the inflation-adjusted SIP today — every year of delay increases the gap.'}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Update example in insight box
+  const exampleFuture = 5000000 * Math.pow(1 + igGetRate('general'), 15);
+  const el = document.getElementById('igExampleFuture');
+  if (el) el.textContent = igFmt(exampleFuture);
+
+  // Show/hide chart
+  renderIgChart();
+  document.getElementById('igChartWrap').style.display = igGoals.length ? 'block' : 'none';
+}
+
+function renderIgChart() {
+  const chart = document.getElementById('igChart');
+  if (!chart) return;
+  const inf = parseFloat(document.getElementById('igInflation')?.value) || 6;
+  const r   = inf / 100;
+  const base = 1000000; // ₹10L
+  const years = 20;
+
+  const pp = document.getElementById('igPpValue');
+  const v10 = base * Math.pow(1+r, -10); // purchasing power of ₹10L in 10yr terms
+  if (pp) pp.textContent = (v10/100000).toFixed(1);
+
+  const svgW = chart.offsetWidth || 600;
+  const svgH = 150;
+  const pad  = { l:60, r:20, t:10, b:30 };
+  const W    = svgW - pad.l - pad.r;
+  const H    = svgH - pad.t - pad.b;
+
+  const pts = [];
+  for (let y = 0; y <= years; y++) {
+    const nominal = base * Math.pow(1+r, y);     // future cost
+    const realPP  = base * Math.pow(1+r, -y);    // purchasing power of ₹10L
+    pts.push({ y, nominal, realPP });
+  }
+
+  const maxNom = pts[years].nominal;
+  const xScale = y  => pad.l + (y/years)*W;
+  const yScaleN = v => pad.t + H - (v/maxNom)*H;
+  const yScalePP= v => pad.t + H - (v/base)*H;
+
+  const pathNom = pts.map((p,i) => `${i===0?'M':'L'}${xScale(p.y).toFixed(1)},${yScaleN(p.nominal).toFixed(1)}`).join(' ');
+  const pathPP  = pts.map((p,i) => `${i===0?'M':'L'}${xScale(p.y).toFixed(1)},${yScalePP(p.realPP).toFixed(1)}`).join(' ');
+
+  // Y-axis labels
+  const yLabels = [0, 0.25, 0.5, 0.75, 1.0].map(f => ({
+    v: f * maxNom, y: pad.t + H - f*H,
+    label: f===0?'₹0': f===1.0?igFmt(maxNom): igFmt(f*maxNom)
+  }));
+
+  chart.innerHTML = `<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:100%;" xmlns="http://www.w3.org/2000/svg">
+    <!-- Grid -->
+    ${yLabels.map(l=>`
+      <line x1="${pad.l}" y1="${l.y}" x2="${svgW-pad.r}" y2="${l.y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,3"/>
+      <text x="${pad.l-4}" y="${l.y+4}" text-anchor="end" font-size="8" fill="var(--text-muted)">${l.label}</text>
+    `).join('')}
+    <!-- Nominal cost line (red) -->
+    <path d="${pathNom}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Purchasing power line (green) -->
+    <path d="${pathPP}"  fill="none" stroke="#22c55e" stroke-width="2" stroke-linejoin="round" stroke-dasharray="5,3"/>
+    <!-- Base line -->
+    <line x1="${xScale(0)}" y1="${yScalePP(base)}" x2="${xScale(years)}" y2="${yScalePP(base)}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,2"/>
+    <!-- X-axis labels -->
+    ${[0,5,10,15,20].map(y=>`
+      <text x="${xScale(y)}" y="${svgH-4}" text-anchor="middle" font-size="8" fill="var(--text-muted)">Y${y}</text>
+    `).join('')}
+    <!-- Legend -->
+    <line x1="${pad.l}" y1="12" x2="${pad.l+20}" y2="12" stroke="#ef4444" stroke-width="2"/>
+    <text x="${pad.l+24}" y="16" font-size="8" fill="var(--text-muted)">Future Cost (nominal)</text>
+    <line x1="${pad.l+130}" y1="12" x2="${pad.l+150}" y2="12" stroke="#22c55e" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="${pad.l+154}" y="16" font-size="8" fill="var(--text-muted)">Purchasing Power of ₹10L</text>
+  </svg>`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderInflationGoals();
+  window.addEventListener('resize', renderIgChart);
+});
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
      t128 — MONTE CARLO SIMULATION
 ═══════════════════════════════════════════════════════════════ -->
 <div class="card mt-4">

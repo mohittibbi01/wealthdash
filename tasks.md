@@ -198,7 +198,7 @@
 | ✅ t377 | Tax Computation Sheet — CA-ready | p1 | 2-3h |
 | ✅ t496 | Tax Calculator 2024-25 | p1 | 2-3h |
 | ✅ t85 | New vs Old Tax Regime Calculator | p2 | 2-3h |
-| ✅ t134 | 54EC Bond Tracker | p2 | 1-2h |
+| t134 | 54EC Bond Tracker | p2 | 1-2h |
 | t136 | AIS / TIS Reconciliation | p2 | 2-3h |
 | t138 | Indexation Benefit | p2 | 2-3h |
 | ✅ t437 | Tax P&L Statement | p1 | 3-4h |
@@ -293,12 +293,12 @@
 | t145 | Stock Picker Reality Check vs Nifty | p2 | 2-3h |
 | t301 | Zerodha Kite API sync | p1 | 4-5h |
 | t302 | Groww Portfolio Import | p1 | 3-4h |
-| ✅ t343 | Live NAV Widget | p1 | 2-3h |
+| t343 | Live NAV Widget | p1 | 2-3h |
 | ✅ t344 | NSE/BSE Live Price | p1 | 3-4h |
 | t391 | Zerodha Kite Connect | p1 | 3-4d |
 | t431 | Stock Fundamental Data | p1 | 2-3d |
 | t432 | Portfolio P/E vs Market P/E | p2 | 2-3h |
-| t433 | 52-Week High/Low Tracker | p1 | 2-3h |
+| ✅ t433 | 52-Week High/Low Tracker | p1 | 2-3h |
 | t434 | Corporate Actions | p1 | 2-3d |
 | t435 | Watchlist with Price Targets | p2 | 2-3h |
 | t436 | Stock SIP | p2 | 2-3h |
@@ -379,7 +379,7 @@
 | tg001 | Monte Carlo — goal probability | p1 | 3-4h |
 | tg002 | Bucket Strategy | p1 | 2-3h |
 | tg003 | Goal Stacking | p2 | 2-3h |
-| tg004 | Inflation-Adjusted Goals | p1 | 1-2h |
+| ✅ tg004 | Inflation-Adjusted Goals | p1 | 1-2h |
 | tg005 | Goal Achievement Celebration | p3 | 1-2h |
 
 ---
@@ -429,7 +429,7 @@
 | ✅ t54 | User settings — profile, risk, tax | p2 | 2-3h |
 | t307 | Audit Log | p2 | 2-3h |
 | t308 | System Performance Monitor | p2 | 2-3h |
-| ✅ t309 | Cron Job Dashboard | p1 | 2-3h |
+| t309 | Cron Job Dashboard | p1 | 2-3h |
 | t310 | Rate Limiter | p2 | 1-2h |
 | t417 | DB Migration Runner v2 | p1 | 2-3h |
 
@@ -483,9 +483,9 @@
 | t322 | Health Insurance Tracker | p1 | 2-3h |
 | t323 | ULIP Tracker | p2 | 2-3h |
 | t324 | Premium Calendar | p1 | 1-2h |
-| ✅ t325 | EMI Calculator & Amortization | p1 | 2-3h |
-| ✅ t326 | Loan vs Invest Decision Tool | p1 | 1-2h |
-| ✅ t327 | Home Loan Tax Benefit | p1 | 2-3h |
+| t325 | EMI Calculator & Amortization | p1 | 2-3h |
+| t326 | Loan vs Invest Decision Tool | p1 | 1-2h |
+| t327 | Home Loan Tax Benefit | p1 | 2-3h |
 | t394 | RBI Gold Bond API | p1 | 1-2h |
 | t459 | Term Insurance Adequacy | p1 | 2-3h |
 | t460 | Health Insurance Tracker | p1 | 2-3h |
@@ -519,6 +519,6 @@
 
 ## STATS
 - Total tasks: ~352
-- Completed (✅): ~202
-- Pending: ~150
+- Completed (✅): ~194
+- Pending: ~158
 - Last updated: 2026-04-27
