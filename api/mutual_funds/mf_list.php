@@ -69,48 +69,112 @@ case 'mf_list':
     $holdings = $db->prepare("
         SELECT
           mh.id              AS holding_id,
+          mh.id              AS id,
           mh.fund_id,
-          mh.units,
-          mh.avg_nav         AS avg_buy_nav,
-          mh.invested_amount,
-          mh.current_value,
-          mh.gain_loss,
-          mh.xirr,
           mh.folio_number,
           mh.platform,
           mh.first_investment_date,
+          mh.first_investment_date AS first_purchase_date,
           mh.last_transaction_date,
           mh.sip_active,
           mh.swp_active,
-          CASE WHEN mh.invested_amount > 0
-               THEN ROUND((mh.current_value - mh.invested_amount) / mh.invested_amount * 100, 2)
+          mh.ltcg_date,
+          mh.lock_in_date,
+          mh.highest_nav,
+          mh.highest_nav_date,
+          mh.gain_type,
+          mh.cagr,
+          mh.xirr,
+          mh.gain_pct,
+
+          -- Units
+          mh.total_units,
+          mh.total_units     AS units,
+
+          -- Cost NAV
+          mh.avg_cost_nav,
+          mh.avg_cost_nav    AS avg_buy_nav,
+
+          -- Invested
+          mh.total_invested,
+          mh.total_invested  AS invested_amount,
+
+          -- Current Value
+          mh.value_now,
+          mh.value_now       AS current_value,
+
+          -- Gain/Loss
+          mh.gain_loss,
+
+          -- Drawdown (calculated from highest_nav and latest_nav)
+          CASE WHEN mh.highest_nav > 0 AND f.latest_nav IS NOT NULL
+               THEN ROUND((mh.highest_nav - f.latest_nav) / mh.highest_nav * 100, 2)
+               ELSE NULL END AS drawdown_pct,
+
+          -- LTCG / STCG units (may not exist — use 0 as fallback)
+          0 AS ltcg_units,
+          0 AS stcg_units,
+
+          -- Abs return %
+          CASE WHEN mh.total_invested > 0
+               THEN ROUND((mh.value_now - mh.total_invested) / mh.total_invested * 100, 2)
                ELSE 0 END    AS abs_return_pct,
+
+          -- Fund info
           f.scheme_code,
+          f.scheme_name,
           f.scheme_name      AS fund_name,
-          f.scheme_category  AS category,
-          f.scheme_sub_category AS sub_category,
+          f.category,
+          f.category         AS scheme_category,
+          f.sub_category,
+          f.sub_category     AS scheme_sub_category,
+          f.fund_type,
+          f.option_type,
           f.risk_level,
-          f.nav              AS current_nav,
-          f.nav_date,
-          f.return_1y        AS returns_1y,
-          f.return_3y        AS returns_3y,
-          f.return_5y        AS returns_5y,
+          f.fund_manager,
+          f.fund_manager     AS manager_name,
           f.expense_ratio,
-          f.exit_load_pct    AS exit_load_percent,
-          f.aum_cr           AS aum,
-          f.fund_manager     AS manager_name
+          f.exit_load_pct,
+          f.exit_load_days,
+          f.aum_cr,
+          f.min_ltcg_days,
+          f.lock_in_days,
+          f.wd_stars,
+          f.wd_rating,
+          f.style_box,
+
+          -- NAV
+          f.latest_nav,
+          f.latest_nav       AS nav,
+          f.latest_nav       AS current_nav,
+          f.latest_nav_date,
+          f.latest_nav_date  AS nav_date,
+          f.prev_nav,
+
+          -- Returns
+          f.returns_1y,
+          f.returns_1y       AS return_1y,
+          f.returns_3y,
+          f.returns_3y       AS return_3y,
+          f.returns_5y,
+          f.returns_5y       AS return_5y,
+
+          -- Fund house
+          SUBSTRING_INDEX(f.scheme_name, ' ', 3) AS fund_house_short,
+          f.fund_manager     AS fund_house
+
         FROM mf_holdings mh
         JOIN funds f ON f.id = mh.fund_id
         WHERE mh.portfolio_id = ?
-        ORDER BY mh.current_value $sortDir
+        ORDER BY mh.value_now $sortDir
     ");
     $holdings->execute([$portfolioId]);
     $rows = $holdings->fetchAll(PDO::FETCH_ASSOC);
 
     $totals = ['total_invested' => 0, 'total_current' => 0, 'total_gain_loss' => 0];
     foreach ($rows as $r) {
-        $totals['total_invested'] += (float)$r['invested_amount'];
-        $totals['total_current']  += (float)$r['current_value'];
+        $totals['total_invested'] += (float)$r['total_invested'];
+        $totals['total_current']  += (float)$r['value_now'];
         $totals['total_gain_loss']+= (float)$r['gain_loss'];
     }
     $totals['abs_return_pct'] = $totals['total_invested'] > 0
@@ -216,9 +280,9 @@ case 'overlap_check':
                 $overlapPct = array_sum(array_column($commonHoldings, 'overlap_pct'));
                 $overlaps[] = [
                     'fund1_id'   => $f1['fund_id'],
-                    'fund1_name' => $f1['fund_name'],
+                    'fund1_name' => $f1['scheme_name'],
                     'fund2_id'   => $f2['fund_id'],
-                    'fund2_name' => $f2['fund_name'],
+                    'fund2_name' => $f2['scheme_name'],
                     'overlap_pct'=> round($overlapPct, 2),
                     'common_stocks' => count($commonHoldings),
                     'stocks'     => array_slice($commonHoldings, 0, 10),
@@ -228,9 +292,9 @@ case 'overlap_check':
                 $sameCat = $f1['category'] === $f2['category'];
                 $overlaps[] = [
                     'fund1_id'   => $f1['fund_id'],
-                    'fund1_name' => $f1['fund_name'],
+                    'fund1_name' => $f1['scheme_name'],
                     'fund2_id'   => $f2['fund_id'],
-                    'fund2_name' => $f2['fund_name'],
+                    'fund2_name' => $f2['scheme_name'],
                     'overlap_pct'=> $sameCat ? 40.0 : 5.0,
                     'common_stocks' => 0,
                     'stocks'     => [],
@@ -284,13 +348,13 @@ case 'smart_insights':
 
     // Rule 2: Underperforming SIP funds
     $underperformers = array_filter($funds, fn($f) =>
-        $f['has_sip'] > 0 && $f['returns_1y'] !== null && $f['category_avg_1y'] !== null
-        && (float)$f['returns_1y'] < (float)$f['category_avg_1y'] - 3
+        $f['has_sip'] > 0 && $f['return_1y'] !== null && $f['scheme_category_avg_1y'] !== null
+        && (float)$f['return_1y'] < (float)$f['scheme_category_avg_1y'] - 3
     );
     foreach ($underperformers as $f) {
         $insights[] = ['type' => 'warning', 'icon' => '📉', 'priority' => 2,
             'title' => "SIP underperforming: {$f['fund_name']}",
-            'desc'  => "1Y return " . round((float)$f['returns_1y'], 1) . "% vs category avg " . round((float)$f['category_avg_1y'], 1) . "%",
+            'desc'  => "1Y return " . round((float)$f['return_1y'], 1) . "% vs category avg " . round((float)$f['scheme_category_avg_1y'], 1) . "%",
             'action' => "Review SIP or switch to better fund in same category",
             'fund_id' => $f['fund_id']];
     }
@@ -404,8 +468,8 @@ case 'sip_optimize':
 
         if ($s['status'] !== 'active') continue;
 
-        $r1y   = (float)($s['returns_1y'] ?? 0);
-        $cat1y = (float)($s['category_avg_1y'] ?? 10);
+        $r1y   = (float)($s['return_1y'] ?? 0);
+        $cat1y = (float)($s['scheme_category_avg_1y'] ?? 10);
         $sh    = (float)($s['sharpe_ratio'] ?? 0);
         $er    = (float)($s['expense_ratio'] ?? 1);
 
@@ -464,13 +528,6 @@ case 'dividend_history':
 // ══════════════════════════════════════════════════════════════════════════
 case 'portfolio_risk':
     $portfolioId = getOrCreatePortfolio($db, $userId);
-    $stmt = $db->prepare("
-        SELECT mh.current_value, NULL, NULL, f.expense_ratio,
-               NULL, NULL, f.scheme_name, f.scheme_category
-        FROM mh_holdings mh
-        JOIN funds f ON f.id = mh.fund_id
-        WHERE mh.portfolio_id = ? AND 1 = 1
-    ");
     // Use correct table
     $stmt2 = $db->prepare("
         SELECT mh.current_value, NULL, NULL, f.expense_ratio,

@@ -93,11 +93,11 @@ case 'fund_screener':
     }
     // Alpha > 0 filter
     if (isset($_GET['alpha_positive']) && $_GET['alpha_positive'] == '1') {
-        $where[] = "NULL > 0";
+        $where[] = "f.return_1y > 0";
     }
     // Rating filter
     if (!empty($_GET['min_stars']) && is_numeric($_GET['min_stars'])) {
-        $where[] = "NULL >= ?"; $params[] = (int)$_GET['min_stars'];
+        $where[] = "f.wd_rating >= ?"; $params[] = (int)$_GET['min_stars'];
     }
     // Fund age filter
     if (!empty($_GET['min_age_years']) && is_numeric($_GET['min_age_years'])) {
@@ -114,7 +114,7 @@ case 'fund_screener':
     }
     // Text search
     if (!empty($_GET['q'])) {
-        $where[] = "(f.scheme_name LIKE ? OR f.scheme_name LIKE ? OR f.scheme_code LIKE ?)";
+        $where[] = "(f.scheme_name LIKE ? OR f.amc_code LIKE ? OR f.scheme_code LIKE ?)";
         $like = '%' . $_GET['q'] . '%';
         $params = array_merge($params, [$like, $like, $like]);
     }
@@ -228,7 +228,7 @@ case 'fund_compare':
 case 'fund_top_performers':
     $period   = in_array($_GET['period'] ?? '1y', ['1y','3y','5y']) ? $_GET['period'] : '1y';
     $category = $_GET['category'] ?? null;
-    $colMap   = ['1y' => 'returns_1y', '3y' => 'returns_3y', '5y' => 'returns_5y'];
+    $colMap   = ['1y' => 'return_1y', '3y' => 'return_3y', '5y' => 'return_5y'];
     $col      = $colMap[$period];
 
     $where  = ["f.is_active = 1", "f.$col IS NOT NULL"];
@@ -377,11 +377,11 @@ case 'saved_screen_delete':
 // filter_meta — Get unique values for filters
 // ══════════════════════════════════════════════════════════════════════════
 case 'filter_meta':
-    $categories = $db->query("SELECT DISTINCT category FROM funds WHERE category IS NOT NULL ORDER BY category")
+    $categories = $db->query("SELECT DISTINCT scheme_category FROM funds WHERE scheme_category IS NOT NULL ORDER BY scheme_category")
                      ->fetchAll(PDO::FETCH_COLUMN);
-    $subCats    = $db->query("SELECT DISTINCT sub_category FROM funds WHERE sub_category IS NOT NULL ORDER BY sub_category")
+    $subCats    = $db->query("SELECT DISTINCT scheme_sub_category FROM funds WHERE scheme_sub_category IS NOT NULL ORDER BY scheme_sub_category")
                      ->fetchAll(PDO::FETCH_COLUMN);
-    $houses     = $db->query("SELECT DISTINCT fund_house FROM funds WHERE fund_house IS NOT NULL ORDER BY fund_house")
+    $houses     = $db->query("SELECT DISTINCT amc_code FROM funds WHERE amc_code IS NOT NULL ORDER BY amc_code")
                      ->fetchAll(PDO::FETCH_COLUMN);
     $risks      = $db->query("SELECT DISTINCT risk_level FROM funds WHERE risk_level IS NOT NULL ORDER BY risk_level")
                      ->fetchAll(PDO::FETCH_COLUMN);

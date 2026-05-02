@@ -12,7 +12,20 @@ $pageTitle   = 'Mutual Funds';
 $activePage  = 'mf_holdings';
 
 $db = DB::conn();
+
 // ── Resolve portfolio for current user ──────────────────────
+if (!function_exists('get_user_portfolio_id')) {
+    function get_user_portfolio_id(int $userId): int {
+        $db = DB::conn();
+        $stmt = $db->prepare("SELECT id FROM portfolios WHERE user_id = ? AND is_default = 1 LIMIT 1");
+        $stmt->execute([$userId]);
+        $pid = $stmt->fetchColumn();
+        if ($pid) return (int)$pid;
+        $db->prepare("INSERT INTO portfolios (user_id, name, is_default, created_at) VALUES (?, 'My Portfolio', 1, NOW())")
+           ->execute([$userId]);
+        return (int)$db->lastInsertId();
+    }
+}
 $portfolioId = get_user_portfolio_id((int)$currentUser['id']);
 
 $summaryStmt = $db->prepare("
@@ -22,7 +35,7 @@ $summaryStmt = $db->prepare("
            SUM(h.gain_loss) AS gain_loss
     FROM mf_holdings h
     JOIN portfolios p ON p.id = h.portfolio_id
-    WHERE p.user_id = ? AND h.is_active = 1
+    WHERE p.user_id = ?
 ");
 $summaryStmt->execute([$currentUser['id']]);
 $summary = $summaryStmt->fetch();
