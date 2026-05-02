@@ -20,8 +20,6 @@ if (!defined('WEALTHDASH')) {
     error_reporting(0);
     ini_set('display_errors', '0');
 }
-require_once APP_ROOT . '/includes/holding_calculator.php';
-
 // Global error → JSON handler
 set_exception_handler(function(Throwable $e) {
     ob_clean();
@@ -61,6 +59,7 @@ switch ($action) {
 // ══════════════════════════════════════════════════════════════════════════
 // mf_list — Active holdings with full metrics
 // ══════════════════════════════════════════════════════════════════════════
+case 'holdings':  // JS sends view=holdings — alias for mf_list
 case 'mf_list':
     // Uses actual DB schema from 01_schema_complete.sql
     $portfolioId = getOrCreatePortfolio($db, $userId);
@@ -188,6 +187,7 @@ case 'mf_list':
 // portfolio_xirr — t73
 // ══════════════════════════════════════════════════════════════════════════
 case 'portfolio_xirr':
+    require_once APP_ROOT . '/includes/holding_calculator.php';
     $result = HoldingCalculator::portfolioXirr($userId);
     echo json_encode(['success' => true, 'data' => $result]);
     break;
@@ -196,6 +196,7 @@ case 'portfolio_xirr':
 // portfolio_health — tmfi01
 // ══════════════════════════════════════════════════════════════════════════
 case 'portfolio_health':
+    require_once APP_ROOT . '/includes/holding_calculator.php';
     $result = HoldingCalculator::portfolioHealthScore($userId);
     echo json_encode(['success' => true, 'data' => $result]);
     break;

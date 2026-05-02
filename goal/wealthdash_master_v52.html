@@ -4478,11 +4478,11 @@ const MEGA_PHASES = [
 
 ,
 {id:'p_insurance_deep',ico:'🛡️',color:'#7c3aed',title:'Phase 60 — Insurance & Risk Coverage',cat:'general',tasks:[
-  {id:'t321',title:'Term Insurance Tracker — Coverage adequacy check',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+  {id:'t321',done:true,title:'Term Insurance Tracker — Coverage adequacy check',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['templates/pages/insurance.php','api/insurance/insurance_list.php'],
    desc:'Human Life Value (HLV) calculation: income × years × inflation factor = adequate cover. Is user\'s term cover sufficient?',
    sub:['Input: Age, income, dependents, existing term cover, liabilities','HLV formula: (annual_income × years_to_retirement) / discount_factor','Gap: adequate_cover - existing_cover','Alert: "Your term cover of ₹50L is 40% of recommended ₹1.25Cr"','Suggestion: "Consider additional ₹75L term plan at ~₹12K/year premium"'],cat:'general'},
-  {id:'t322',title:'Health Insurance Tracker — Family floater + individual',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
+  {id:'t322',done:true,title:'Health Insurance Tracker — Family floater + individual',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['templates/pages/insurance.php'],
    desc:'Track health insurance policies: coverage amount, premium, renewal date, network hospitals check. Family floater vs individual.',
    sub:['DB: health_insurance — insurer, plan_name, sum_insured, premium, renewal_date, type (floater/individual), members_covered','Coverage adequacy: min ₹10L family floater recommended','Premium reminder: 30 days before renewal','No-claim bonus: track NCB accumulated','Super top-up: check if user has adequate top-up'],cat:'general'},
@@ -4490,7 +4490,7 @@ const MEGA_PHASES = [
    files:['templates/pages/insurance.php'],
    desc:'ULIPs are complex — insurance + investment mixed. Show true cost: mortality charges, fund management fees, admin charges vs returns. IRDA disclosure.',
    sub:['DB: ulip_policies — insurer, plan, premium, policy_term, sum_assured, NAV, units','Calculate: actual fund value vs premium paid','Cost drag: total charges deducted vs nominal return','Comparison: "Same premium in term + MF would give ₹X more"','Exit analysis: surrender value vs continue vs paid-up'],cat:'general'},
-  {id:'t324',title:'Premium Calendar — All insurance renewals in one view',pr:'p1',type:'feat',eff:'1-2 hr',
+  {id:'t324',done:true,title:'Premium Calendar — All insurance renewals in one view',pr:'p1',type:'feat',eff:'1-2 hr',
    files:['templates/pages/insurance.php','templates/pages/dashboard.php'],
    desc:'All insurance policies ke renewal dates calendar pe dikhao. Monthly premium outgo calculation. Annual insurance expense total.',
    sub:['Calendar view: month-wise renewal dates','Total annual premium: ₹X per year','Monthly: premium due this month','Alert: renewal in 30 days → prepare premium'],cat:'general'},
