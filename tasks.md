@@ -479,15 +479,15 @@
 | t122 | Insurance Portfolio | p2 | 2-3d |
 | t123 | Loan Tracker | p2 | 2-3d |
 | t124 | Real Estate Portfolio | p3 | 2-3h |
-| t321 | Term Insurance Tracker | p1 | 2-3h |
-| t322 | Health Insurance Tracker | p1 | 2-3h |
+| ✅ t321 | Term Insurance Tracker | p1 | 2-3h |
+| ✅ t322 | Health Insurance Tracker | p1 | 2-3h |
 | t323 | ULIP Tracker | p2 | 2-3h |
-| t324 | Premium Calendar | p1 | 1-2h |
+| ✅ t324 | Premium Calendar | p1 | 1-2h |
 | t325 | EMI Calculator & Amortization | p1 | 2-3h |
 | t326 | Loan vs Invest Decision Tool | p1 | 1-2h |
 | t327 | Home Loan Tax Benefit | p1 | 2-3h |
 | t394 | RBI Gold Bond API | p1 | 1-2h |
-| t459 | Term Insurance Adequacy | p1 | 2-3h |
+| ✅ t459 | Term Insurance Adequacy | p1 | 2-3h |
 | t460 | Health Insurance Tracker | p1 | 2-3h |
 | t461 | ULIP Tracker full | p2 | 3-4h |
 | t462 | Premium Calendar | p2 | 1-2h |
@@ -519,6 +519,6 @@
 
 ## STATS
 - Total tasks: ~352
-- Completed (✅): ~194
-- Pending: ~158
-- Last updated: 2026-04-27
+- Completed (✅): ~198
+- Pending: ~154
+- Last updated: 2026-05-02
