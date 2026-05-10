@@ -5,6 +5,7 @@
  * t322: Health Insurance Tracker
  * t459: Term Insurance Adequacy
  * t324: Premium Calendar
+ * t460: Health Insurance Tracker (claims, members, waiting periods, NCB, TPA)
  */
 define('WEALTHDASH', true);
 require_once dirname(dirname(__FILE__)) . '/config/config.php';
@@ -157,6 +158,7 @@ ob_start();
   <button class="tab-btn" onclick="Ins.switchTab('ulip', this)">📊 ULIP / Investment</button>
   <button class="tab-btn" onclick="Ins.switchTab('other', this)">📄 Other</button>
   <button class="tab-btn" onclick="Ins.switchTab('calendar', this)">📅 Premium Calendar</button>
+  <button class="tab-btn" onclick="Ins.switchTab('health_tracker', this)">🔬 Health Tracker</button>
 </div>
 
 <!-- Policy Table (All / Term / Health / ULIP / Other) -->
@@ -757,6 +759,843 @@ const Ins = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', Ins.load);
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     t460: HEALTH INSURANCE TRACKER PANEL
+     Shows when tab = 'health_tracker'
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="healthTrackerPanel" style="display:none;">
+
+  <!-- ── Summary Cards ── -->
+  <div id="htSummaryCards" class="stats-grid" style="margin-bottom:20px;">
+    <div class="stat-card"><div class="stat-label">Health Policies</div><div class="stat-value" id="htStatPolicies">—</div></div>
+    <div class="stat-card"><div class="stat-label">Total Cover</div><div class="stat-value text-success" id="htStatCover">—</div></div>
+    <div class="stat-card"><div class="stat-label">Family Members</div><div class="stat-value" id="htStatMembers">—</div></div>
+    <div class="stat-card"><div class="stat-label">Claimed This FY</div><div class="stat-value text-danger" id="htStatClaimed">—</div></div>
+    <div class="stat-card"><div class="stat-label">Settled This FY</div><div class="stat-value" id="htStatSettled">—</div></div>
+  </div>
+
+  <!-- ── Expiring Soon Alert ── -->
+  <div id="htExpiryAlert" style="display:none;margin-bottom:16px;padding:12px 16px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.4);border-radius:8px;font-size:13px;"></div>
+
+  <!-- ── Policy selector + sub-tabs ── -->
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+    <select id="htPolicySelect" class="form-select" style="min-width:240px;" onchange="HT.loadPolicy()">
+      <option value="">— Select Health Policy —</option>
+    </select>
+    <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      <button class="ht-sub-btn active" onclick="HT.subTab('details', this)" style="padding:7px 14px;font-size:12px;font-weight:600;border:none;background:var(--primary);color:#fff;cursor:pointer;">📋 Details</button>
+      <button class="ht-sub-btn" onclick="HT.subTab('members', this)" style="padding:7px 14px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-left:1px solid var(--border);">👨‍👩‍👧 Members</button>
+      <button class="ht-sub-btn" onclick="HT.subTab('claims', this)" style="padding:7px 14px;font-size:12px;font-weight:600;border:none;background:none;cursor:pointer;border-left:1px solid var(--border);">🏥 Claims</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="HT.loadSummary()">↻ Refresh</button>
+  </div>
+
+  <!-- ── DETAILS sub-panel ── -->
+  <div id="htSubDetails">
+    <div id="htDetailCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:16px;">
+      <div class="card" style="padding:32px;text-align:center;color:var(--text-muted);">Select a policy above to see details</div>
+    </div>
+  </div>
+
+  <!-- ── MEMBERS sub-panel ── -->
+  <div id="htSubMembers" style="display:none;">
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3 class="card-title">👨‍👩‍👧 Covered Members</h3>
+        <button class="btn btn-primary btn-sm" onclick="HT.openMemberForm()" id="htBtnAddMember" disabled>+ Add Member</button>
+      </div>
+      <div class="card-body" id="htMemberList"><p class="text-muted">Select a policy first.</p></div>
+    </div>
+  </div>
+
+  <!-- ── CLAIMS sub-panel ── -->
+  <div id="htSubClaims" style="display:none;">
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3 class="card-title">🏥 Claims History</h3>
+        <button class="btn btn-primary btn-sm" onclick="HT.openClaimForm()" id="htBtnAddClaim" disabled>+ Add Claim</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Member</th><th>Hospital</th><th>Diagnosis</th>
+              <th class="text-right">Claimed</th><th class="text-right">Settled</th>
+              <th>Type</th><th>Status</th><th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="htClaimBody"><tr><td colspan="9" class="text-center" style="padding:24px;color:var(--text-muted);">Select a policy to view claims.</td></tr></tbody>
+        </table>
+      </div>
+      <!-- Claims summary -->
+      <div id="htClaimSummaryBar" style="display:none;padding:12px 20px;background:var(--bg-secondary);border-top:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;font-size:13px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── Health Details Edit Modal ─── -->
+<div id="htDetailsModal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:600px;width:95%;">
+    <div class="modal-header">
+      <h3 class="modal-title">✏️ Edit Health Policy Details</h3>
+      <button class="modal-close" onclick="HT.closeModal('htDetailsModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-height:70vh;overflow-y:auto;">
+      <input type="hidden" id="htDmId">
+      <div>
+        <label class="form-label">Health Plan Type</label>
+        <select id="htDmType" class="form-select">
+          <option value="individual">Individual</option>
+          <option value="family_floater">Family Floater</option>
+          <option value="senior_citizen">Senior Citizen</option>
+          <option value="super_topup">Super Top-Up</option>
+          <option value="critical_illness">Critical Illness</option>
+          <option value="personal_accident">Personal Accident</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Room Rent Limit (₹/day)</label>
+        <input type="number" id="htDmRoomRent" class="form-input" placeholder="Leave blank for no limit">
+      </div>
+      <div>
+        <label class="form-label">Copay %</label>
+        <input type="number" id="htDmCopay" class="form-input" placeholder="0" min="0" max="50">
+      </div>
+      <div>
+        <label class="form-label">Deductible (₹)</label>
+        <input type="number" id="htDmDeductible" class="form-input" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Initial Waiting Period (days)</label>
+        <input type="number" id="htDmWpInit" class="form-input" value="30">
+      </div>
+      <div>
+        <label class="form-label">PED Waiting Period (days)</label>
+        <input type="number" id="htDmWpPd" class="form-input" value="1095">
+      </div>
+      <div>
+        <label class="form-label">TPA Name</label>
+        <input type="text" id="htDmTpa" class="form-input" placeholder="e.g. Medi Assist">
+      </div>
+      <div>
+        <label class="form-label">TPA Contact / Helpline</label>
+        <input type="text" id="htDmTpaContact" class="form-input" placeholder="1800-xxx-xxxx">
+      </div>
+      <div>
+        <label class="form-label">No-Claim Bonus (%)</label>
+        <input type="number" id="htDmNcb" class="form-input" placeholder="0" step="5" min="0" max="100">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding-top:4px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="htDmRestore"> Restoration Benefit
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="htDmDaycare" checked> Day-care Covered
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="htDmMaternity"> Maternity Benefit
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="htDmPortability"> Ported from another insurer
+        </label>
+      </div>
+      <div>
+        <label class="form-label">Ported from (Insurer name)</label>
+        <input type="text" id="htDmPortFrom" class="form-input" placeholder="Previous insurer">
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Network Hospitals (key ones)</label>
+        <textarea id="htDmNetwork" class="form-input" rows="3" placeholder="Apollo, Fortis, Max Healthcare..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="HT.closeModal('htDetailsModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="HT.saveDetails()">Save Details</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Member Form Modal ─── -->
+<div id="htMemberModal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:480px;width:95%;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="htMemberModalTitle">Add Member</h3>
+      <button class="modal-close" onclick="HT.closeModal('htMemberModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <input type="hidden" id="htMmId">
+      <div style="grid-column:span 2;">
+        <label class="form-label">Member Name *</label>
+        <input type="text" id="htMmName" class="form-input" placeholder="Full name">
+      </div>
+      <div>
+        <label class="form-label">Relation *</label>
+        <select id="htMmRelation" class="form-select">
+          <option value="self">Self</option>
+          <option value="spouse">Spouse</option>
+          <option value="son">Son</option>
+          <option value="daughter">Daughter</option>
+          <option value="father">Father</option>
+          <option value="mother">Mother</option>
+          <option value="father_in_law">Father-in-law</option>
+          <option value="mother_in_law">Mother-in-law</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Gender</label>
+        <select id="htMmGender" class="form-select">
+          <option value="">—</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Date of Birth</label>
+        <input type="date" id="htMmDob" class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Individual SI (₹) if not floater</label>
+        <input type="number" id="htMmSI" class="form-input" placeholder="—">
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Pre-existing Conditions</label>
+        <input type="text" id="htMmPreExist" class="form-input" placeholder="Diabetes, Hypertension...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="HT.closeModal('htMemberModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="HT.saveMember()">Save Member</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Claim Form Modal ─── -->
+<div id="htClaimModal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:560px;width:95%;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="htClaimModalTitle">Add Claim</h3>
+      <button class="modal-close" onclick="HT.closeModal('htClaimModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-height:70vh;overflow-y:auto;">
+      <input type="hidden" id="htCmId">
+      <div>
+        <label class="form-label">Claim Date *</label>
+        <input type="date" id="htCmDate" class="form-input" value="<?= date('Y-m-d') ?>">
+      </div>
+      <div>
+        <label class="form-label">Claim Number</label>
+        <input type="text" id="htCmNumber" class="form-input" placeholder="CL-2025-XXXX">
+      </div>
+      <div>
+        <label class="form-label">Claim Type</label>
+        <select id="htCmType" class="form-select">
+          <option value="cashless">Cashless</option>
+          <option value="reimbursement">Reimbursement</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Member</label>
+        <select id="htCmMember" class="form-select"><option value="">— Select —</option></select>
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Hospital Name</label>
+        <input type="text" id="htCmHospital" class="form-input" placeholder="Apollo Hospital, Delhi">
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Diagnosis / Reason</label>
+        <input type="text" id="htCmDiagnosis" class="form-input" placeholder="Appendectomy, Dengue...">
+      </div>
+      <div>
+        <label class="form-label">Admission Date</label>
+        <input type="date" id="htCmAdmission" class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Discharge Date</label>
+        <input type="date" id="htCmDischarge" class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Claimed Amount (₹) *</label>
+        <input type="number" id="htCmClaimed" class="form-input" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Approved Amount (₹)</label>
+        <input type="number" id="htCmApproved" class="form-input" placeholder="—">
+      </div>
+      <div>
+        <label class="form-label">Settled Amount (₹)</label>
+        <input type="number" id="htCmSettled" class="form-input" placeholder="—">
+      </div>
+      <div>
+        <label class="form-label">Deducted (Copay+Ded) (₹)</label>
+        <input type="number" id="htCmDeducted" class="form-input" placeholder="0">
+      </div>
+      <div>
+        <label class="form-label">Settlement Date</label>
+        <input type="date" id="htCmSettleDate" class="form-input">
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <select id="htCmStatus" class="form-select">
+          <option value="submitted">Submitted</option>
+          <option value="under_review">Under Review</option>
+          <option value="approved">Approved</option>
+          <option value="partially_approved">Partially Approved</option>
+          <option value="settled">Settled ✅</option>
+          <option value="rejected">Rejected ❌</option>
+          <option value="withdrawn">Withdrawn</option>
+        </select>
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Rejection Reason (if rejected)</label>
+        <input type="text" id="htCmRejectRsn" class="form-input" placeholder="—">
+      </div>
+      <div style="grid-column:span 2;">
+        <label class="form-label">Notes</label>
+        <textarea id="htCmNotes" class="form-input" rows="2" placeholder="Additional info..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="HT.closeModal('htClaimModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="HT.saveClaim()">Save Claim</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   t460: Health Insurance Tracker — HT namespace
+══════════════════════════════════════════════════════════════════════════ */
+const HT = (() => {
+  'use strict';
+
+  let _summary   = null;  // full summary response
+  let _policyId  = null;  // currently selected policy id
+  let _members   = [];    // members of current policy
+  let _claims    = [];    // claims of current policy
+  let _subTab    = 'details';
+
+  const $ = id => document.getElementById(id);
+  const fmtI = v => {
+    const n = parseFloat(v) || 0;
+    if (Math.abs(n) >= 1e7) return '₹' + (n/1e7).toFixed(2) + 'Cr';
+    if (Math.abs(n) >= 1e5) return '₹' + (n/1e5).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN');
+  };
+  const fmtD = d => d ? new Date(d).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '—';
+  const claimStatusClass = s => ({
+    submitted:'color:#6366f1', under_review:'color:#f59e0b', approved:'color:#10b981',
+    partially_approved:'color:#f59e0b', settled:'color:#16a34a',
+    rejected:'color:#ef4444', withdrawn:'color:var(--text-muted)'
+  }[s] || '');
+  const claimStatusLabel = s => ({
+    submitted:'Submitted', under_review:'Under Review', approved:'Approved',
+    partially_approved:'Partial', settled:'Settled ✅', rejected:'Rejected ❌', withdrawn:'Withdrawn'
+  }[s] || s);
+
+  // ── Load global summary ──────────────────────────────────────────────────
+  async function loadSummary() {
+    try {
+      const res = await fetch(`${APP_URL}/api/router.php?action=health_summary`);
+      const d   = await res.json();
+      if (!d.success) return;
+      _summary = d.data;
+
+      // Update stat cards
+      $('htStatPolicies').textContent = d.data.policy_count;
+      $('htStatCover').textContent    = fmtI(d.data.total_cover);
+      $('htStatMembers').textContent  = d.data.total_members;
+      $('htStatClaimed').textContent  = fmtI(d.data.claimed_fy);
+      $('htStatSettled').textContent  = fmtI(d.data.settled_fy);
+
+      // Expiry alert
+      const ea = $('htExpiryAlert');
+      if (d.data.expiring_soon && d.data.expiring_soon.length > 0) {
+        ea.style.display = '';
+        ea.innerHTML = `⚠️ <strong>${d.data.expiring_soon.length} health polic${d.data.expiring_soon.length>1?'ies':'y'} expiring soon:</strong> ` +
+          d.data.expiring_soon.map(p => `<strong>${p.insurer_name}</strong> (${p.days_to_expiry} days)`).join(', ');
+      } else {
+        ea.style.display = 'none';
+      }
+
+      // Populate policy selector
+      const sel = $('htPolicySelect');
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">— Select Health Policy —</option>';
+      (d.data.policies || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.insurer_name}${p.policy_number ? ' ('+p.policy_number+')' : ''} — ${fmtI(p.effective_cover)} cover`;
+        sel.appendChild(opt);
+      });
+      if (prev) sel.value = prev;
+      if (sel.value) loadPolicy();
+    } catch(e) { console.error('HT.loadSummary:', e); }
+  }
+
+  // ── Load per-policy data ─────────────────────────────────────────────────
+  async function loadPolicy() {
+    _policyId = parseInt($('htPolicySelect').value) || null;
+    $('htBtnAddMember').disabled = !_policyId;
+    $('htBtnAddClaim').disabled  = !_policyId;
+    if (!_policyId) return;
+
+    const pol = (_summary?.policies || []).find(p => p.id == _policyId);
+    renderDetailCards(pol);
+
+    // Load members + claims in parallel
+    const [mRes, cRes] = await Promise.all([
+      fetch(`${APP_URL}/api/router.php?action=health_members_list&policy_id=${_policyId}`).then(r=>r.json()),
+      fetch(`${APP_URL}/api/router.php?action=health_claims_list&policy_id=${_policyId}`).then(r=>r.json()),
+    ]);
+
+    _members = mRes.success ? mRes.data : [];
+    _claims  = cRes.success ? cRes.data : [];
+
+    renderMembers();
+    renderClaims();
+  }
+
+  // ── Render detail cards ──────────────────────────────────────────────────
+  function renderDetailCards(pol) {
+    if (!pol) { $('htDetailCards').innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--text-muted);">Select a policy above.</div>'; return; }
+
+    const wpInitDays = parseInt(pol.waiting_period_initial) || 30;
+    const wpPdDays   = parseInt(pol.waiting_period_pd) || 1095;
+    const startDate  = new Date(pol.start_date);
+    const todayDate  = new Date();
+    const daysActive = Math.floor((todayDate - startDate) / 86400000);
+    const wpInitDone = daysActive >= wpInitDays;
+    const wpPdDone   = daysActive >= wpPdDays;
+
+    $('htDetailCards').innerHTML = `
+      <!-- Policy Overview -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h4 class="card-title" style="margin:0;">📋 Policy Details</h4>
+          <button class="btn btn-ghost btn-sm" onclick="HT.openDetailsModal(${pol.id})">✎ Edit</button>
+        </div>
+        <div class="card-body" style="font-size:13px;line-height:2.1;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+            <div style="color:var(--text-muted);">Insurer</div><div><strong>${pol.insurer_name}</strong></div>
+            <div style="color:var(--text-muted);">Policy No.</div><div>${pol.policy_number || '—'}</div>
+            <div style="color:var(--text-muted);">Plan Type</div><div>${pol.health_type ? pol.health_type.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : '—'}</div>
+            <div style="color:var(--text-muted);">Sum Insured</div><div><strong>${fmtI(pol.sum_assured)}</strong></div>
+            <div style="color:var(--text-muted);">Effective Cover (NCB)</div><div><strong style="color:var(--success,#16a34a);">${fmtI(pol.effective_cover)}</strong></div>
+            <div style="color:var(--text-muted);">No-Claim Bonus</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <strong>${parseFloat(pol.no_claim_bonus)||0}%</strong>
+              <button onclick="HT.openNcb(${pol.id}, ${parseFloat(pol.no_claim_bonus)||0})" class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:11px;">Update</button>
+            </div>
+            <div style="color:var(--text-muted);">Copay</div><div>${parseFloat(pol.copay_pct)||0}%</div>
+            <div style="color:var(--text-muted);">Deductible</div><div>${pol.deductible ? fmtI(pol.deductible) : 'None'}</div>
+            <div style="color:var(--text-muted);">Room Rent Limit</div><div>${pol.room_rent_limit ? fmtI(pol.room_rent_limit)+'/day' : 'No Limit'}</div>
+            <div style="color:var(--text-muted);">Start / End</div><div>${fmtD(pol.start_date)} → ${fmtD(pol.end_date)}</div>
+            <div style="color:var(--text-muted);">Next Premium</div><div>${fmtD(pol.next_premium_date)}</div>
+            <div style="color:var(--text-muted);">TPA</div><div>${pol.tpa_name || '—'}${pol.tpa_contact ? ' · '+pol.tpa_contact : ''}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            ${pol.restore_benefit   == 1 ? '<span style="font-size:11px;padding:2px 8px;background:rgba(99,102,241,.12);color:#6366f1;border-radius:12px;">✅ Restoration</span>' : ''}
+            ${pol.daycare_covered   == 1 ? '<span style="font-size:11px;padding:2px 8px;background:rgba(16,185,129,.12);color:#059669;border-radius:12px;">✅ Day-care</span>' : ''}
+            ${pol.maternity_covered == 1 ? '<span style="font-size:11px;padding:2px 8px;background:rgba(236,72,153,.12);color:#db2777;border-radius:12px;">✅ Maternity</span>' : ''}
+            ${pol.portability_done  == 1 ? '<span style="font-size:11px;padding:2px 8px;background:rgba(245,158,11,.12);color:#d97706;border-radius:12px;">🔄 Ported</span>' : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Waiting Periods -->
+      <div class="card">
+        <div class="card-header"><h4 class="card-title" style="margin:0;">⏳ Waiting Periods</h4></div>
+        <div class="card-body" style="font-size:13px;">
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>Initial Waiting (${wpInitDays} days)</span>
+              <strong style="color:${wpInitDone?'#16a34a':'#f59e0b'};">${wpInitDone ? '✅ Done ('+daysActive+' days)' : '⏳ '+(wpInitDays - daysActive)+' days left'}</strong>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${Math.min(100, daysActive/wpInitDays*100).toFixed(1)}%;background:${wpInitDone?'#16a34a':'#f59e0b'};border-radius:4px;transition:width .4s;"></div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>Pre-existing Disease (${Math.round(wpPdDays/365*10)/10} yrs)</span>
+              <strong style="color:${wpPdDone?'#16a34a':'#ef4444'};">${wpPdDone ? '✅ Done' : '❌ '+(wpPdDays - daysActive)+' days left'}</strong>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${Math.min(100, daysActive/wpPdDays*100).toFixed(1)}%;background:${wpPdDone?'#16a34a':'#ef4444'};border-radius:4px;transition:width .4s;"></div>
+            </div>
+          </div>
+          ${pol.maternity_covered == 1 ? `
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>Maternity (${pol.maternity_waiting||730} days)</span>
+              <strong style="color:${daysActive>=(pol.maternity_waiting||730)?'#16a34a':'#db2777'};">${daysActive>=(pol.maternity_waiting||730) ? '✅ Done' : '⏳ '+((pol.maternity_waiting||730) - daysActive)+' days left'}</strong>
+            </div>
+            <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${Math.min(100, daysActive/(pol.maternity_waiting||730)*100).toFixed(1)}%;background:#db2777;border-radius:4px;"></div>
+            </div>
+          </div>` : ''}
+          <div style="margin-top:16px;padding:10px;background:var(--bg-secondary);border-radius:8px;font-size:12px;color:var(--text-muted);">
+            Policy active for <strong style="color:var(--text);">${daysActive} days</strong> (since ${fmtD(pol.start_date)})
+          </div>
+        </div>
+      </div>
+
+      <!-- Network Hospitals -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h4 class="card-title" style="margin:0;">🏥 Network Hospitals</h4>
+          <button class="btn btn-ghost btn-sm" onclick="HT.openDetailsModal(${pol.id})">✎</button>
+        </div>
+        <div class="card-body">
+          ${pol.network_hospitals
+            ? `<div style="font-size:13px;line-height:1.8;white-space:pre-wrap;">${pol.network_hospitals}</div>`
+            : `<p style="color:var(--text-muted);font-size:13px;">No network hospitals added. <a href="#" onclick="HT.openDetailsModal(${pol.id});return false;">Add now →</a></p>`
+          }
+        </div>
+      </div>
+
+      <!-- FY Utilization -->
+      <div class="card">
+        <div class="card-header"><h4 class="card-title" style="margin:0;">📊 FY Utilization</h4></div>
+        <div class="card-body" style="font-size:13px;">
+          ${(() => {
+            const claimed = parseFloat(pol.claimed_fy) || 0;
+            const cover   = parseFloat(pol.effective_cover) || parseFloat(pol.sum_assured) || 1;
+            const utilPct = Math.min(100, claimed/cover*100).toFixed(1);
+            return `
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>Claimed (${pol.fy_label || 'This FY'})</span>
+              <strong style="color:${claimed>0?'#ef4444':'var(--text-muted);'};">${fmtI(claimed)}</strong>
+            </div>
+            <div style="height:10px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:12px;">
+              <div style="height:100%;width:${utilPct}%;background:#ef4444;border-radius:4px;"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
+              <div style="background:var(--bg-secondary);padding:10px;border-radius:8px;">
+                <div style="color:var(--text-muted);font-size:11px;">Remaining Cover</div>
+                <div style="font-weight:700;color:#16a34a;">${fmtI(Math.max(0,cover-claimed))}</div>
+              </div>
+              <div style="background:var(--bg-secondary);padding:10px;border-radius:8px;">
+                <div style="color:var(--text-muted);font-size:11px;">Claims This FY</div>
+                <div style="font-weight:700;">${pol.claims_fy || 0}</div>
+              </div>
+            </div>
+            ${claimed === 0 ? '<div style="margin-top:12px;padding:8px;background:rgba(16,185,129,.08);border-radius:6px;font-size:12px;text-align:center;color:#059669;">🎉 No claims this FY — NCB may increase!</div>' : ''}
+            `;
+          })()}
+        </div>
+      </div>
+    `;
+  }
+
+  // ── Render members list ──────────────────────────────────────────────────
+  function renderMembers() {
+    const el = $('htMemberList');
+    if (!_members.length) {
+      el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:12px 0;">No members added yet. Add family members to track individual coverage.</p>';
+      return;
+    }
+    const relIcon = { self:'👤', spouse:'💑', son:'👦', daughter:'👧', father:'👨', mother:'👩', father_in_law:'👴', mother_in_law:'👵', other:'🧑' };
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:4px 0;">
+        ${_members.map(m => `
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;position:relative;">
+            <div style="font-size:24px;margin-bottom:8px;">${relIcon[m.relation]||'🧑'}</div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px;">${m.member_name}</div>
+            <div style="font-size:12px;color:var(--text-muted);text-transform:capitalize;">${m.relation.replace(/_/g,' ')}</div>
+            ${m.dob ? `<div style="font-size:12px;color:var(--text-muted);">Age: ${m.computed_age || '—'} yrs</div>` : ''}
+            ${m.pre_existing ? `<div style="font-size:11px;margin-top:6px;padding:4px 8px;background:rgba(239,68,68,.08);border-radius:4px;color:#ef4444;">${m.pre_existing}</div>` : ''}
+            ${m.sum_insured ? `<div style="font-size:12px;margin-top:4px;">SI: ${fmtI(m.sum_insured)}</div>` : ''}
+            <div style="position:absolute;top:10px;right:10px;display:flex;gap:4px;">
+              <button class="btn btn-xs btn-ghost" onclick="HT.openMemberForm(${JSON.stringify(m).replace(/"/g,'&quot;')})">✎</button>
+              <button class="btn btn-xs btn-ghost" style="color:var(--danger,#ef4444);" onclick="HT.delMember(${m.id})">✕</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+
+  // ── Render claims table ──────────────────────────────────────────────────
+  function renderClaims() {
+    const tbody = $('htClaimBody');
+    if (!_claims.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:32px;text-align:center;color:var(--text-muted);">No claims recorded yet.</td></tr>';
+      $('htClaimSummaryBar').style.display = 'none';
+      return;
+    }
+    tbody.innerHTML = _claims.map(c => `
+      <tr>
+        <td style="white-space:nowrap;">${fmtD(c.claim_date)}</td>
+        <td>${c.member_name || '—'}</td>
+        <td style="font-size:12px;">${c.hospital_name || '—'}</td>
+        <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.diagnosis||''}">${c.diagnosis || '—'}</td>
+        <td class="text-right">${fmtI(c.claimed_amount)}</td>
+        <td class="text-right">${c.settled_amount ? fmtI(c.settled_amount) : '—'}</td>
+        <td><span style="font-size:11px;padding:2px 6px;background:var(--bg-secondary);border-radius:4px;">${c.claim_type==='cashless'?'💳 Cashless':'💰 Reimb.'}</span></td>
+        <td><span style="font-size:12px;font-weight:600;${claimStatusClass(c.status)}">${claimStatusLabel(c.status)}</span></td>
+        <td class="text-center" style="white-space:nowrap;">
+          <button class="btn btn-xs btn-ghost" onclick="HT.openClaimForm(${JSON.stringify(c).replace(/"/g,'&quot;')})">✎</button>
+          <button class="btn btn-xs btn-ghost" style="color:var(--danger,#ef4444);" onclick="HT.delClaim(${c.id})">✕</button>
+        </td>
+      </tr>`).join('');
+
+    const totClaimed  = _claims.reduce((s,c) => s + parseFloat(c.claimed_amount||0), 0);
+    const totSettled  = _claims.reduce((s,c) => s + parseFloat(c.settled_amount||0), 0);
+    const pending     = _claims.filter(c => ['submitted','under_review','approved'].includes(c.status));
+    const bar = $('htClaimSummaryBar');
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+      <span>Total Claims: <strong>${_claims.length}</strong></span>
+      <span>Total Claimed: <strong style="color:#ef4444;">${fmtI(totClaimed)}</strong></span>
+      <span>Total Settled: <strong style="color:#16a34a;">${fmtI(totSettled)}</strong></span>
+      ${pending.length ? `<span style="color:#f59e0b;">Pending: <strong>${pending.length}</strong></span>` : ''}
+    `;
+  }
+
+  // ── Sub-tab switcher ─────────────────────────────────────────────────────
+  function subTab(tab, btn) {
+    _subTab = tab;
+    $('htSubDetails').style.display  = tab === 'details'  ? '' : 'none';
+    $('htSubMembers').style.display  = tab === 'members'  ? '' : 'none';
+    $('htSubClaims').style.display   = tab === 'claims'   ? '' : 'none';
+    document.querySelectorAll('.ht-sub-btn').forEach(b => {
+      b.style.background = 'none';
+      b.style.color = '';
+    });
+    if (btn) { btn.style.background = 'var(--primary)'; btn.style.color = '#fff'; }
+  }
+
+  // ── Modals ───────────────────────────────────────────────────────────────
+  function openDetailsModal(id) {
+    if (!_summary) return;
+    const pol = (_summary.policies || []).find(p => p.id == id);
+    if (!pol) return;
+    $('htDmId').value         = pol.id;
+    $('htDmType').value       = pol.health_type || 'individual';
+    $('htDmRoomRent').value   = pol.room_rent_limit || '';
+    $('htDmCopay').value      = pol.copay_pct || 0;
+    $('htDmDeductible').value = pol.deductible || 0;
+    $('htDmWpInit').value     = pol.waiting_period_initial || 30;
+    $('htDmWpPd').value       = pol.waiting_period_pd || 1095;
+    $('htDmTpa').value        = pol.tpa_name || '';
+    $('htDmTpaContact').value = pol.tpa_contact || '';
+    $('htDmNcb').value        = pol.no_claim_bonus || 0;
+    $('htDmRestore').checked  = pol.restore_benefit == 1;
+    $('htDmDaycare').checked  = pol.daycare_covered != 0;
+    $('htDmMaternity').checked= pol.maternity_covered == 1;
+    $('htDmPortability').checked = pol.portability_done == 1;
+    $('htDmPortFrom').value   = pol.portability_from || '';
+    $('htDmNetwork').value    = pol.network_hospitals || '';
+    $('htDetailsModal').style.display = 'flex';
+  }
+
+  async function saveDetails() {
+    const id = $('htDmId').value;
+    const payload = {
+      action: 'health_update_details', id,
+      health_type: $('htDmType').value,
+      room_rent_limit: $('htDmRoomRent').value || '',
+      copay_pct: $('htDmCopay').value,
+      deductible: $('htDmDeductible').value,
+      waiting_period_initial: $('htDmWpInit').value,
+      waiting_period_pd: $('htDmWpPd').value,
+      tpa_name: $('htDmTpa').value,
+      tpa_contact: $('htDmTpaContact').value,
+      no_claim_bonus: $('htDmNcb').value,
+      restore_benefit: $('htDmRestore').checked ? '1' : '0',
+      daycare_covered: $('htDmDaycare').checked ? '1' : '0',
+      maternity_covered: $('htDmMaternity').checked ? '1' : '0',
+      maternity_waiting: '730',
+      portability_done: $('htDmPortability').checked ? '1' : '0',
+      portability_from: $('htDmPortFrom').value,
+      network_hospitals: $('htDmNetwork').value,
+    };
+    const res = await apiPost(payload);
+    if (res.success) {
+      closeModal('htDetailsModal');
+      await loadSummary();
+      loadPolicy();
+    } else { alert(res.message || 'Error saving.'); }
+  }
+
+  function openNcb(id, current) {
+    const ncb = prompt(`Current NCB: ${current}%\nEnter new No-Claim Bonus %:`, current);
+    if (ncb === null) return;
+    apiPost({ action: 'health_ncb_update', id, ncb }).then(r => {
+      if (r.success) { loadSummary().then(() => loadPolicy()); }
+    });
+  }
+
+  function openMemberForm(m) {
+    $('htMemberModalTitle').textContent = m?.id ? 'Edit Member' : 'Add Member';
+    $('htMmId').value         = m?.id || '';
+    $('htMmName').value       = m?.member_name || '';
+    $('htMmRelation').value   = m?.relation || 'self';
+    $('htMmGender').value     = m?.gender || '';
+    $('htMmDob').value        = m?.dob ? m.dob.split(' ')[0] : '';
+    $('htMmSI').value         = m?.sum_insured || '';
+    $('htMmPreExist').value   = m?.pre_existing || '';
+    $('htMemberModal').style.display = 'flex';
+  }
+
+  async function saveMember() {
+    const id = $('htMmId').value;
+    const payload = {
+      action: id ? 'health_member_edit' : 'health_member_add',
+      id, policy_id: _policyId,
+      member_name: $('htMmName').value.trim(),
+      relation: $('htMmRelation').value,
+      gender: $('htMmGender').value,
+      dob: $('htMmDob').value,
+      sum_insured: $('htMmSI').value,
+      pre_existing: $('htMmPreExist').value,
+    };
+    if (!payload.member_name) { alert('Member name required.'); return; }
+    const res = await apiPost(payload);
+    if (res.success) {
+      closeModal('htMemberModal');
+      const mRes = await fetch(`${APP_URL}/api/router.php?action=health_members_list&policy_id=${_policyId}`).then(r=>r.json());
+      _members = mRes.success ? mRes.data : [];
+      renderMembers();
+      // Refresh claim member dropdown
+      refreshMemberSelect();
+    } else { alert(res.message || 'Error.'); }
+  }
+
+  async function delMember(id) {
+    if (!confirm('Remove this member?')) return;
+    const res = await apiPost({ action: 'health_member_delete', id });
+    if (res.success) {
+      _members = _members.filter(m => m.id !== id);
+      renderMembers();
+    }
+  }
+
+  function openClaimForm(c) {
+    $('htClaimModalTitle').textContent = c?.id ? 'Edit Claim' : 'Add Claim';
+    $('htCmId').value         = c?.id || '';
+    $('htCmDate').value       = c?.claim_date ? c.claim_date.split(' ')[0] : new Date().toISOString().split('T')[0];
+    $('htCmNumber').value     = c?.claim_number || '';
+    $('htCmType').value       = c?.claim_type || 'reimbursement';
+    $('htCmHospital').value   = c?.hospital_name || '';
+    $('htCmDiagnosis').value  = c?.diagnosis || '';
+    $('htCmAdmission').value  = c?.admission_date ? c.admission_date.split(' ')[0] : '';
+    $('htCmDischarge').value  = c?.discharge_date ? c.discharge_date.split(' ')[0] : '';
+    $('htCmClaimed').value    = c?.claimed_amount || '';
+    $('htCmApproved').value   = c?.approved_amount || '';
+    $('htCmSettled').value    = c?.settled_amount || '';
+    $('htCmDeducted').value   = c?.deducted_amount || '';
+    $('htCmSettleDate').value = c?.settlement_date ? c.settlement_date.split(' ')[0] : '';
+    $('htCmStatus').value     = c?.status || 'submitted';
+    $('htCmRejectRsn').value  = c?.rejection_reason || '';
+    $('htCmNotes').value      = c?.notes || '';
+    refreshMemberSelect(c?.member_id);
+    $('htClaimModal').style.display = 'flex';
+  }
+
+  function refreshMemberSelect(selectedId) {
+    const sel = $('htCmMember');
+    sel.innerHTML = '<option value="">— Select member —</option>';
+    _members.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.member_name} (${m.relation.replace(/_/g,' ')})`;
+      if (m.id == selectedId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function saveClaim() {
+    const id = $('htCmId').value;
+    const claimed = parseFloat($('htCmClaimed').value);
+    if (!claimed || claimed <= 0) { alert('Claimed amount is required.'); return; }
+    const payload = {
+      action: id ? 'health_claim_edit' : 'health_claim_add',
+      id, policy_id: _policyId,
+      member_id: $('htCmMember').value,
+      claim_number: $('htCmNumber').value,
+      claim_type: $('htCmType').value,
+      claim_date: $('htCmDate').value,
+      hospital_name: $('htCmHospital').value,
+      diagnosis: $('htCmDiagnosis').value,
+      admission_date: $('htCmAdmission').value,
+      discharge_date: $('htCmDischarge').value,
+      claimed_amount: claimed,
+      approved_amount: $('htCmApproved').value,
+      settled_amount: $('htCmSettled').value,
+      deducted_amount: $('htCmDeducted').value,
+      settlement_date: $('htCmSettleDate').value,
+      status: $('htCmStatus').value,
+      rejection_reason: $('htCmRejectRsn').value,
+      notes: $('htCmNotes').value,
+    };
+    const res = await apiPost(payload);
+    if (res.success) {
+      closeModal('htClaimModal');
+      const cRes = await fetch(`${APP_URL}/api/router.php?action=health_claims_list&policy_id=${_policyId}`).then(r=>r.json());
+      _claims = cRes.success ? cRes.data : [];
+      renderClaims();
+      loadSummary(); // refresh claimed_fy
+    } else { alert(res.message || 'Error.'); }
+  }
+
+  async function delClaim(id) {
+    if (!confirm('Delete this claim record?')) return;
+    const res = await apiPost({ action: 'health_claim_delete', id });
+    if (res.success) {
+      _claims = _claims.filter(c => c.id !== id);
+      renderClaims();
+      loadSummary();
+    }
+  }
+
+  function closeModal(id) {
+    $(id).style.display = 'none';
+  }
+
+  // ── Hook into Ins.switchTab ──────────────────────────────────────────────
+  // Called when 'health_tracker' tab is selected
+  function activate() {
+    $('healthTrackerPanel').style.display = '';
+    if (!_summary) loadSummary();
+  }
+
+  function deactivate() {
+    $('healthTrackerPanel').style.display = 'none';
+  }
+
+  return {
+    loadSummary, loadPolicy, subTab,
+    openDetailsModal, saveDetails, openNcb,
+    openMemberForm, saveMember, delMember,
+    openClaimForm, saveClaim, delClaim,
+    closeModal, activate, deactivate,
+  };
+})();
+
+// ── Patch Ins.switchTab to handle health_tracker tab ──────────────────────
+(function() {
+  const _orig = Ins.switchTab;
+  Ins.switchTab = function(tab, btn) {
+    const htPanel = document.getElementById('healthTrackerPanel');
+    const mainPanels = ['insTablePanel', 'insCalendarPanel'];
+
+    if (tab === 'health_tracker') {
+      // Hide main panels
+      mainPanels.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      document.querySelectorAll('.tab-btn').forEach(b => { b.style.borderBottom = '2px solid transparent'; b.style.color = 'var(--text-muted)'; });
+      if (btn) { btn.style.borderBottom = '2px solid var(--primary)'; btn.style.color = 'var(--primary)'; }
+      HT.activate();
+    } else {
+      HT.deactivate();
+      _orig.call(Ins, tab, btn);
+    }
+  };
+})();
 </script>
 <?php
 $pageContent = ob_get_clean();

@@ -14,6 +14,7 @@ if (!$isAdmin && (int)$fd['user_id'] !== $userId)  json_response(false, 'Access 
 
 DB::query("DELETE FROM fd_accounts WHERE id=?", [$id]);
 audit_log('fd_delete', 'fd_accounts', $id);
+DB::invalidateCache("user:{$userId}");  // tp001
 
 json_response(true, 'FD deleted.');
 

@@ -1582,6 +1582,383 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════
+     t292 — GOAL-BASED ASSET ALLOCATION
+     Shows which MF / FD / Stock holdings are mapped to each
+     goal, their current value contribution, and lets the user
+     link / unlink assets directly from this section.
+═══════════════════════════════════════════════════════════════ -->
+<div class="card mt-4" id="goalAssetAllocCard">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;">
+    <div>
+      <h3 class="card-title" style="margin:0;">🗂 Goal-Based Asset Allocation</h3>
+      <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0;">
+        See which holdings are mapped to each goal — link or unlink assets to keep your portfolio goal-aligned.
+      </p>
+    </div>
+    <button onclick="gaaLoad()" class="btn btn-ghost btn-sm" style="font-size:12px;">🔄 Refresh</button>
+  </div>
+
+  <!-- Summary Strip -->
+  <div id="gaaSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;"></div>
+
+  <!-- Goal Allocation Cards -->
+  <div id="gaaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;"></div>
+
+  <!-- Unlinked Assets Panel -->
+  <div id="gaaUnlinkedWrap" style="margin-top:20px;display:none;">
+    <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">
+      ⚠️ Unlinked Assets <span id="gaaUnlinkedCount" style="font-size:11px;font-weight:500;color:var(--text-muted);"></span>
+    </div>
+    <div id="gaaUnlinkedGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;"></div>
+  </div>
+</div>
+
+<!-- Link-Asset Modal -->
+<div class="modal-overlay" id="gaaLinkModal" style="display:none;">
+  <div class="modal" style="max-width:480px;width:100%;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="gaaLinkTitle">Link Asset to Goal</h3>
+      <button class="modal-close" onclick="gaaCloseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px;" id="gaaLinkDesc"></p>
+      <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px;">Select Goal</div>
+      <div id="gaaGoalPickList" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.gaa-goal-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  transition: box-shadow .15s;
+}
+.gaa-goal-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.gaa-goal-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.gaa-goal-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+.gaa-goal-name  { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.gaa-goal-meta  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.gaa-progress-bar-wrap {
+  height: 6px; background: var(--border); border-radius: 99px;
+  overflow: hidden; margin-bottom: 10px;
+}
+.gaa-progress-bar { height: 100%; border-radius: 99px; transition: width .4s; }
+.gaa-asset-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.gaa-asset-row:last-child { border-bottom: none; }
+.gaa-asset-name { font-weight: 600; color: var(--text-primary); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gaa-asset-cat  { font-size: 10px; color: var(--text-muted); }
+.gaa-asset-val  { color: var(--text-secondary); font-size: 12px; text-align: right; }
+.gaa-unlink-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 14px; padding: 0 4px;
+  transition: color .1s;
+}
+.gaa-unlink-btn:hover { color: #ef4444; }
+.gaa-add-asset-btn {
+  margin-top: 10px; width: 100%; padding: 7px;
+  border: 1.5px dashed var(--border); border-radius: 8px;
+  background: none; cursor: pointer; font-size: 12px;
+  color: var(--text-muted); transition: border-color .15s, color .15s;
+}
+.gaa-add-asset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.gaa-unlinked-chip {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.gaa-link-goal-btn {
+  padding: 9px 12px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--bg-secondary);
+  cursor: pointer; font-size: 12px; text-align: left;
+  display: flex; align-items: center; gap: 8px; transition: border-color .15s;
+}
+.gaa-link-goal-btn:hover { border-color: var(--accent); background: var(--bg-hover); }
+.gaa-sum-chip {
+  flex: 1; min-width: 110px; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; text-align: center;
+}
+.gaa-sum-num   { display: block; font-size: 18px; font-weight: 800; color: var(--text-primary); }
+.gaa-sum-label { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+</style>
+
+<script>
+/* ── t292: Goal-Based Asset Allocation ──────────────────────── */
+let _gaaData      = null;   // { goals, unlinked, total_linked }
+let _gaaPending   = false;
+let _gaaLinkAsset = null;   // { type, id, name, current_value }
+
+async function gaaLoad() {
+  const grid = document.getElementById('gaaGrid');
+  const sum  = document.getElementById('gaaSummary');
+  grid.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">⏳ Loading allocation data…</div>';
+  sum.innerHTML  = '';
+
+  try {
+    const portfolioId = window.PORTFOLIO_ID || 0;
+    const d = await API.post('/api/router.php', {
+      action: 'goal_asset_allocation',
+      portfolio_id: portfolioId
+    });
+    if (!d?.success) throw new Error(d?.message || 'Failed to load');
+    _gaaData = d.data;
+    gaaRender();
+  } catch (e) {
+    grid.innerHTML = `<div style="padding:16px;color:#dc2626;font-size:13px;">⚠️ ${e.message}</div>`;
+  }
+}
+
+function gaaRender() {
+  const { goals, unlinked, total_linked } = _gaaData;
+  const sum  = document.getElementById('gaaSummary');
+  const grid = document.getElementById('gaaGrid');
+  const uwrap = document.getElementById('gaaUnlinkedWrap');
+  const ugrid = document.getElementById('gaaUnlinkedGrid');
+
+  // ── Summary strip ──
+  const linkedGoals  = goals.filter(g => g.asset_count > 0).length;
+  const totalTargets = goals.reduce((a, g) => a + g.target_amount, 0);
+  sum.innerHTML = `
+    <div class="gaa-sum-chip">
+      <span class="gaa-sum-num">${goals.length}</span>
+      <span class="gaa-sum-label">Goals</span>
+    </div>
+    <div class="gaa-sum-chip">
+      <span class="gaa-sum-num">${linkedGoals}</span>
+      <span class="gaa-sum-label">Goals with Assets</span>
+    </div>
+    <div class="gaa-sum-chip">
+      <span class="gaa-sum-num">${fmtINR(total_linked)}</span>
+      <span class="gaa-sum-label">Total Linked Value</span>
+    </div>
+    <div class="gaa-sum-chip">
+      <span class="gaa-sum-num">${fmtINR(totalTargets)}</span>
+      <span class="gaa-sum-label">Total Target</span>
+    </div>
+    <div class="gaa-sum-chip">
+      <span class="gaa-sum-num" style="color:${unlinked.length > 0 ? '#f59e0b' : '#22c55e'}">${unlinked.length}</span>
+      <span class="gaa-sum-label">Unlinked Assets</span>
+    </div>`;
+
+  // ── Goal cards ──
+  if (!goals.length) {
+    grid.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No goals found. Create a goal above to get started.</div>';
+  } else {
+    grid.innerHTML = goals.map(g => gaaGoalCardHtml(g)).join('');
+  }
+
+  // ── Unlinked assets ──
+  if (unlinked.length) {
+    uwrap.style.display = 'block';
+    document.getElementById('gaaUnlinkedCount').textContent = `(${unlinked.length} asset${unlinked.length > 1 ? 's' : ''} not mapped to any goal)`;
+    ugrid.innerHTML = unlinked.map(a => `
+      <div class="gaa-unlinked-chip">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-primary);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.name)}</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${esc(a.category)} · ${fmtINR(a.current_value)}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 10px;"
+          onclick="gaaOpenLinkModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">
+          + Link
+        </button>
+      </div>`).join('');
+    uwrap.style.display = 'block';
+  } else {
+    uwrap.style.display = 'none';
+  }
+}
+
+function gaaGoalCardHtml(g) {
+  const col   = g.color || '#6366f1';
+  const pct   = g.progress_pct;
+  const pctCol = pct >= 80 ? '#22c55e' : pct >= 50 ? '#3b82f6' : '#f59e0b';
+
+  const assetRows = g.assets.length
+    ? g.assets.map(a => `
+      <div class="gaa-asset-row">
+        <div>
+          <div class="gaa-asset-name" title="${esc(a.name)}">${esc(a.name)}</div>
+          <div class="gaa-asset-cat">${esc(a.category)} · ${assetTypeLabel(a.type)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="gaa-asset-val">${fmtINR(a.current_value)}</div>
+          <button class="gaa-unlink-btn" title="Unlink from goal"
+            onclick="gaaUnlinkAsset(${g.id},'${a.type}',${a.id},this)">✕</button>
+        </div>
+      </div>`).join('')
+    : '<div style="font-size:12px;color:var(--text-muted);padding:8px 0;">No assets linked yet.</div>';
+
+  return `
+  <div class="gaa-goal-card" id="gaaCard_${g.id}">
+    <div class="gaa-goal-head">
+      <div class="gaa-goal-icon" style="background:${col}22;color:${col};">${g.icon || '🎯'}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="gaa-goal-name">${esc(g.name)}${g.is_achieved ? ' ✅' : ''}</div>
+        <div class="gaa-goal-meta">
+          Target: ${fmtINR(g.target_amount)}
+          · Linked: ${fmtINR(g.current_value)}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <span style="font-size:16px;font-weight:800;color:${pctCol};">${pct}%</span>
+        <div style="font-size:10px;color:var(--text-muted);">covered</div>
+      </div>
+    </div>
+    <div class="gaa-progress-bar-wrap">
+      <div class="gaa-progress-bar" style="width:${pct}%;background:${pctCol};"></div>
+    </div>
+    <div id="gaaAssets_${g.id}">${assetRows}</div>
+    <button class="gaa-add-asset-btn" onclick="gaaOpenAddToGoal(${g.id}, '${esc(g.name)}')">
+      + Link Asset to this Goal
+    </button>
+  </div>`;
+}
+
+function assetTypeLabel(type) {
+  return { mf: 'Mutual Fund', fd: 'Fixed Deposit', stock: 'Stock' }[type] || type;
+}
+
+function fmtINR(v) {
+  v = Math.abs(Number(v) || 0);
+  if (v >= 1e7) return '₹' + (v / 1e7).toFixed(2) + ' Cr';
+  if (v >= 1e5) return '₹' + (v / 1e5).toFixed(2) + ' L';
+  return '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+
+// ── Unlink an asset from a goal ──────────────────────────────
+async function gaaUnlinkAsset(goalId, assetType, assetId, btn) {
+  btn.disabled = true;
+  try {
+    const d = await API.post('/api/router.php', {
+      action: 'goal_unlink_asset',
+      goal_id: goalId,
+      asset_type: assetType,
+      asset_id: assetId,
+      csrf_token: window.CSRF_TOKEN
+    });
+    if (!d?.success) throw new Error(d?.message || 'Failed');
+    showToast('✅ Asset unlinked from goal', 'success');
+    await gaaLoad();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+// ── Open modal to link an unlinked asset to a goal ───────────
+function gaaOpenLinkModal(asset) {
+  _gaaLinkAsset = asset;
+  document.getElementById('gaaLinkTitle').textContent = 'Link to Goal';
+  document.getElementById('gaaLinkDesc').textContent  =
+    `Linking: ${asset.name} (${fmtINR(asset.current_value)})`;
+
+  const list = document.getElementById('gaaGoalPickList');
+  if (!_gaaData?.goals?.length) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">No goals available.</div>';
+  } else {
+    list.innerHTML = _gaaData.goals.map(g => `
+      <button class="gaa-link-goal-btn" onclick="gaaDoLink(${g.id})">
+        <span style="font-size:16px;">${g.icon || '🎯'}</span>
+        <div>
+          <div style="font-weight:700;font-size:13px;">${esc(g.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">
+            ${g.progress_pct}% covered · Target ${fmtINR(g.target_amount)}
+          </div>
+        </div>
+      </button>`).join('');
+  }
+  document.getElementById('gaaLinkModal').style.display = 'flex';
+}
+
+// ── Open modal to add an asset to a specific goal ────────────
+function gaaOpenAddToGoal(goalId, goalName) {
+  if (!_gaaData) return;
+  const all = [
+    ..._gaaData.unlinked,
+    // also allow re-linking assets already on other goals? No, just unlinked.
+  ];
+  if (!all.length) {
+    showToast('No unlinked assets available to add.', 'info');
+    return;
+  }
+  // Reuse modal but pre-filter to show assets and pick into goalId
+  document.getElementById('gaaLinkTitle').textContent = `Add Asset to: ${goalName}`;
+  document.getElementById('gaaLinkDesc').textContent  = 'Select an unlinked asset to link to this goal:';
+
+  const list = document.getElementById('gaaGoalPickList');
+  list.innerHTML = all.map(a => `
+    <button class="gaa-link-goal-btn" onclick="gaaDoLinkAssetToGoal(${goalId},'${a.type}',${a.id})">
+      <span style="font-size:16px;">${a.type === 'mf' ? '📊' : a.type === 'fd' ? '🏦' : '📈'}</span>
+      <div>
+        <div style="font-weight:700;font-size:13px;">${esc(a.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);">
+          ${esc(a.category)} · ${fmtINR(a.current_value)}
+        </div>
+      </div>
+    </button>`).join('');
+
+  document.getElementById('gaaLinkModal').style.display = 'flex';
+}
+
+async function gaaDoLink(goalId) {
+  if (!_gaaLinkAsset) return;
+  await gaaDoLinkAssetToGoal(goalId, _gaaLinkAsset.type, _gaaLinkAsset.id);
+}
+
+async function gaaDoLinkAssetToGoal(goalId, assetType, assetId) {
+  gaaCloseModal();
+  try {
+    const d = await API.post('/api/router.php', {
+      action: 'goal_link_asset',
+      goal_id: goalId,
+      asset_type: assetType,
+      asset_id: assetId,
+      csrf_token: window.CSRF_TOKEN
+    });
+    if (!d?.success) throw new Error(d?.message || 'Failed');
+    showToast('✅ Asset linked to goal!', 'success');
+    await gaaLoad();
+  } catch (e) {
+    showToast('❌ ' + e.message, 'error');
+  }
+}
+
+function gaaCloseModal() {
+  document.getElementById('gaaLinkModal').style.display = 'none';
+  _gaaLinkAsset = null;
+}
+
+// Auto-load when section is visible (after page load)
+document.addEventListener('DOMContentLoaded', () => {
+  // Lazy-load: use IntersectionObserver so it doesn't fire on initial paint
+  const card = document.getElementById('goalAssetAllocCard');
+  if (card && 'IntersectionObserver' in window) {
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        gaaLoad();
+        obs.disconnect();
+      }
+    }, { threshold: 0.1 });
+    obs.observe(card);
+  } else if (card) {
+    gaaLoad();
+  }
+});
+</script>
+
 <?php
 $pageContent = ob_get_clean();
 require_once APP_ROOT . '/templates/layout.php';

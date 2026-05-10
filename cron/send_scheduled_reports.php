@@ -12,6 +12,10 @@
 declare(strict_types=1);
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/includes/cron_logger.php';
+$_cronLog = new CronLogger('send_scheduled_reports');
+$_cronLog->start();
+
 
 if (php_sapi_name() !== 'cli' && !defined('WD_CRON_FORCE')) {
     die('CLI only');
@@ -110,6 +114,8 @@ foreach ($due as $schedule) {
 }
 
 echo "[" . date('Y-m-d H:i:s') . "] Done. Sent: {$sent}, Failed: {$failed}\n";
+\$_cronLog->finish(\$failed > 0 ? 'warning' : 'success', "Sent: \$sent, Failed: \$failed", \$sent);
+
 
 /* ═══════════════════════════════════════════════════════════════════════
    helpers

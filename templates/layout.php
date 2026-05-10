@@ -24,7 +24,16 @@ $flashMsgs     = flash_get();
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="<?= APP_URL ?>/public/css/app.css?v=<?= filemtime(APP_ROOT.'/public/css/app.css') ?>">
+  <?php
+  // tp005: serve .min.css when available
+  $appCssMin = APP_ROOT . '/public/css/app.min.css';
+  $appCssSrc = APP_ROOT . '/public/css/app.css';
+  if (file_exists($appCssMin)) {
+    echo '<link rel="stylesheet" href="' . APP_URL . '/public/css/app.min.css?v=' . filemtime($appCssMin) . '">';
+  } else {
+    echo '<link rel="stylesheet" href="' . APP_URL . '/public/css/app.css?v=' . filemtime($appCssSrc) . '">';
+  }
+  ?>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <link rel="icon" type="image/svg+xml" href="<?= APP_URL ?>/public/img/logo.svg">
 </head>
@@ -217,11 +226,25 @@ $flashMsgs     = flash_get();
     });
   }
 </script>
+<?php
+// tp005: Auto-serve .min.js when available (built by build.php)
+function wd_js_url(string $file): string {
+    $minFile = preg_replace('/\.js$/', '.min.js', $file);
+    $minPath = APP_ROOT . '/public/js/' . basename($minFile);
+    $srcPath = APP_ROOT . '/public/js/' . basename($file);
+    if (file_exists($minPath)) {
+        return APP_URL . '/public/js/' . basename($minFile) . '?v=' . filemtime($minPath);
+    }
+    return APP_URL . '/public/js/' . basename($file) . '?v=' . (file_exists($srcPath) ? filemtime($srcPath) : time());
+}
+?>
 <!-- SheetJS — XLSX export with formulas (t375) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="<?= APP_URL ?>/public/js/app.js?v=<?= filemtime(APP_ROOT.'/public/js/app.js') ?>"></script>
+<script src="<?= wd_js_url('app.js') ?>"></script>
+<script src="<?= wd_js_url('skeletons.js') ?>"></script>
+<script src="<?= wd_js_url('empty-states.js') ?>"></script>
 <?php if (!empty($pageScript)): ?>
-  <script src="<?= APP_URL ?>/public/js/<?= e($pageScript) ?>"></script>
+  <script src="<?= wd_js_url($pageScript) ?>"></script>
 <?php endif; ?>
 
 <!-- Extra page scripts (e.g. mf.js, stocks.js) -->

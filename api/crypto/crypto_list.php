@@ -291,6 +291,7 @@ switch ($action) {
         );
 
         audit_log('crypto_add', 'crypto_holdings', (int)$holdingId);
+        DB::invalidateCache("user:{$userId}");  // tp001
         json_response(true, "{$name} added successfully.", ['id' => $holdingId]);
         break;
     }
@@ -310,6 +311,7 @@ switch ($action) {
 
         DB::execute("DELETE FROM crypto_holdings WHERE id=?", [$id]);
         audit_log('crypto_delete', 'crypto_holdings', $id);
+        DB::invalidateCache("user:{$userId}");  // tp001
         json_response(true, $row['coin_name'] . ' holding deleted.');
         break;
     }

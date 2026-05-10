@@ -6,6 +6,10 @@
  */
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/includes/cron_logger.php';
+$_cronLog = new CronLogger('update_stocks_daily');
+$_cronLog->start();
+
 
 $startTime = microtime(true);
 echo "[" . date('Y-m-d H:i:s') . "] Starting stock price update...\n";
@@ -60,4 +64,6 @@ foreach ($stocks as $stock) {
 
 $elapsed = round(microtime(true) - $startTime, 2);
 echo "\n[" . date('Y-m-d H:i:s') . "] Done. Updated: {$updated}, Failed: {$failed}. Time: {$elapsed}s\n";
+\$_cronLog->finish(\$failed > 0 ? 'warning' : 'success', "Updated: \$updated, Failed: \$failed", \$updated);
+
 

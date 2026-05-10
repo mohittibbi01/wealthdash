@@ -251,3 +251,63 @@ if ($action === 'admin_db_backup_delete') {
 
     json_response(true, 'Backup deleted.');
 }
+
+// ─── tp001: CACHE STATS ────────────────────────────────────────
+if ($action === 'admin_cache_stats') {
+    json_response(true, '', WdCache::stats());
+}
+
+// ─── tp001: CACHE FLUSH ───────────────────────────────────────
+if ($action === 'admin_cache_flush') {
+    WdCache::flush();
+    json_response(true, 'Cache flushed successfully.');
+}
+
+// ─── tp001: CACHE INVALIDATE TAG ──────────────────────────────
+if ($action === 'admin_cache_invalidate') {
+    $tag = clean($_POST['tag'] ?? $_GET['tag'] ?? '');
+    if (!$tag) json_response(false, 'Tag required.');
+    WdCache::invalidate($tag);
+    json_response(true, "Cache tag '{$tag}' invalidated.");
+}
+
+// ─── tp004: OPCACHE STATUS ─────────────────────────────────
+if ($action === 'admin_opcache_status') {
+    if (!function_exists('opcache_get_status')) {
+        json_response(true, '', [
+            'enabled'   => false,
+            'message'   => 'OPcache extension not loaded. See config/opcache.ini for setup instructions.',
+            'config_file' => APP_ROOT . '/config/opcache.ini',
+        ]);
+    }
+    $status = opcache_get_status(false) ?: [];
+    $config = opcache_get_configuration()['directives'] ?? [];
+    json_response(true, '', [
+        'enabled'          => $status['opcache_enabled'] ?? false,
+        'cache_full'       => $status['cache_full']     ?? false,
+        'hit_rate_pct'     => isset($status['opcache_statistics'])
+            ? round($status['opcache_statistics']['opcache_hit_rate'] ?? 0, 1) : 0,
+        'cached_scripts'   => $status['opcache_statistics']['num_cached_scripts']   ?? 0,
+        'cached_keys'      => $status['opcache_statistics']['num_cached_keys']       ?? 0,
+        'hits'             => $status['opcache_statistics']['hits']                  ?? 0,
+        'misses'           => $status['opcache_statistics']['misses']                ?? 0,
+        'memory_used_mb'   => isset($status['memory_usage'])
+            ? round(($status['memory_usage']['used_memory'] ?? 0) / 1048576, 1) : 0,
+        'memory_free_mb'   => isset($status['memory_usage'])
+            ? round(($status['memory_usage']['free_memory'] ?? 0) / 1048576, 1) : 0,
+        'jit_enabled'      => ($status['jit']['enabled'] ?? false),
+        'jit_buffer_free'  => isset($status['jit'])
+            ? round(($status['jit']['buffer_free'] ?? 0) / 1048576, 1) : 0,
+        'revalidate_freq'  => $config['opcache.revalidate_freq'] ?? 'unknown',
+        'config_hint'      => 'See config/opcache.ini for recommended settings.',
+    ]);
+}
+
+// ─── tp004: OPCACHE RESET ──────────────────────────────────
+if ($action === 'admin_opcache_reset') {
+    if (!function_exists('opcache_reset')) {
+        json_response(false, 'OPcache not available.');
+    }
+    $ok = opcache_reset();
+    json_response($ok, $ok ? 'OPcache cleared.' : 'OPcache reset failed.');
+}

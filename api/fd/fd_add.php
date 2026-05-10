@@ -44,6 +44,7 @@ $id = DB::insert(
 );
 
 audit_log('fd_add', 'fd_accounts', (int)$id);
+DB::invalidateCache("user:{$userId}");  // tp001 — clear dashboard cache
 
 json_response(true, 'FD added successfully.', [
     'id'              => $id,

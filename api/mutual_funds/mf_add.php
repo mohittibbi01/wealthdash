@@ -101,6 +101,7 @@ case 'mf_add':
         $txIns->execute([$holdingId, $userId, $txType, $units, $navAtBuy, $amount, $txDate]);
 
         $db->commit();
+        DB::invalidateCache("user:{$userId}", "mf_holdings");  // tp001
         echo json_encode(['success' => true, 'holding_id' => $holdingId, 'tx_id' => $db->lastInsertId()]);
     } catch (Exception $e) {
         $db->rollBack();

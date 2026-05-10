@@ -85,6 +85,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once APP_ROOT . '/config/constants.php';
 require_once APP_ROOT . '/config/database.php';
+require_once APP_ROOT . '/includes/cache.php';
 require_once APP_ROOT . '/includes/helpers.php';
 
 $composerAutoload = APP_ROOT . '/vendor/autoload.php';

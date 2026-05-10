@@ -89,6 +89,7 @@ if ($fundIdsRaw !== null) {
         }
 
         $db->commit();
+        DB::invalidateCache("user:{$currentUser['id']}", "mf_holdings");  // tp001
         echo json_encode([
             'success' => true,
             'message' => count($toDelete) . ' fund(s) deleted successfully.',
@@ -206,7 +207,7 @@ try {
     recalculate_mf_holdings($db, $txn['portfolio_id'], $txn['fund_id'], $txn['folio_number']);
 
     $db->commit();
-
+    DB::invalidateCache("user:{$currentUser['id']}", "mf_holdings");  // tp001
     echo json_encode(['success' => true, 'message' => 'Transaction deleted successfully']);
 
 } catch (PDOException $e) {

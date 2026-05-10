@@ -81,6 +81,36 @@ $totalGainPct = $totalInvested > 0 ? round($totalGain / $totalInvested * 100, 2)
 // ---- NAV last updated ----
 $navLastUpdated = DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key = 'nav_last_updated'");
 
+// ---- t142: Financial Health Score — server-side inputs ----
+$fhsData = [];
+if ($portfolioId) {
+    $fhsData['efMonths']       = isset($efMonths) ? round((float)$efMonths, 1) : 0;
+    $insRows = DB::fetchAll(
+        "SELECT DISTINCT policy_type FROM insurance_policies WHERE portfolio_id=? AND status='active'",
+        [$portfolioId]
+    );
+    $insTypes = array_column($insRows, 'policy_type');
+    $fhsData['hasTerm']        = (int) in_array('term',   $insTypes);
+    $fhsData['hasHealth']      = (int) in_array('health', $insTypes);
+    $fhsData['assetClasses']   = array_filter(['MF'=>$mfTotal,'Stocks'=>$stTotal,'FD'=>$fdTotal,'NPS'=>$npsTotal,'Savings'=>$savTotal]);
+    $fhsData['assetClassCount']= count($fhsData['assetClasses']);
+    $fhsData['mfCatCount']     = (int) DB::fetchVal(
+        "SELECT COUNT(DISTINCT f.category) FROM mf_holdings h
+         JOIN funds f ON f.id=h.fund_id
+         WHERE h.portfolio_id=? AND h.is_active=1", [$portfolioId]
+    );
+    $fhsData['elssAmt']        = (float) DB::fetchVal(
+        "SELECT COALESCE(SUM(h.total_invested),0) FROM mf_holdings h
+         JOIN funds f ON f.id=h.fund_id
+         WHERE h.portfolio_id=? AND h.is_active=1 AND f.category LIKE '%ELSS%'", [$portfolioId]
+    );
+    $fhsData['npsAmt']         = $npsTotal;
+    $fhsData['activeSips']     = (int) DB::fetchVal(
+        "SELECT COUNT(*) FROM sip_tracker WHERE portfolio_id=? AND status='active'", [$portfolioId]
+    );
+    $fhsData['netWorth']       = $netWorth;
+}
+
 ob_start();
 ?>
 
@@ -1002,7 +1032,258 @@ function calcNscInterest() {
 })();
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════
+     t142 — FINANCIAL HEALTH SCORE
+     CIBIL-style 300–900 score. Auto-computed from real portfolio
+     data, with manual overrides for insurance & SIP consistency.
+═══════════════════════════════════════════════════════════════ -->
+<div class="card" style="margin-bottom:16px;" id="fhsCard">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <span style="font-weight:700;font-size:15px;">🏅 Financial Health Score</span>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Updated from your portfolio</span>
+    </div>
+    <button onclick="fhsOpenEdit()" class="btn btn-ghost btn-sm" style="font-size:12px;">✏️ Update Inputs</button>
+  </div>
+  <div class="card-body" style="padding:16px;">
+    <div id="fhsWidget"></div>
+  </div>
+</div>
+
+<!-- FHS Edit Modal -->
+<div class="modal-overlay" id="fhsModal" style="display:none;">
+  <div class="modal" style="max-width:460px;width:100%;">
+    <div class="modal-header">
+      <h3 class="modal-title">Update Financial Health Inputs</h3>
+      <button class="modal-close" onclick="fhsCloseEdit()">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="form-group">
+        <label class="form-label">SIP Consistency — last 12 months (% of months paid on time)</label>
+        <input type="number" id="fhsSipPct" class="form-input" min="0" max="100" placeholder="e.g. 90" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Monthly EMI / Loan repayment (% of monthly income)</label>
+        <input type="number" id="fhsEmiPct" class="form-input" min="0" max="100" placeholder="e.g. 25" />
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="fhsTermCheck" style="width:16px;height:16px;accent-color:var(--accent);">
+          Term Life Insurance
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="fhsHealthCheck" style="width:16px;height:16px;accent-color:var(--accent);">
+          Health Insurance
+        </label>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin:0;">
+        Emergency fund, diversification, and tax-savings are auto-fetched from your portfolio.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fhsCloseEdit()">Cancel</button>
+      <button class="btn btn-primary" onclick="fhsSaveEdit()">Save &amp; Recalculate</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.fhs-gauge-track {
+  height: 12px;
+  background: linear-gradient(90deg,#dc2626 0%,#f59e0b 35%,#3b82f6 65%,#16a34a 100%);
+  border-radius: 99px; position: relative; margin: 8px 0 16px;
+}
+.fhs-gauge-thumb {
+  position: absolute; top: 50%; transform: translate(-50%,-50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  transition: left .5s cubic-bezier(.34,1.56,.64,1);
+}
+.fhs-pillar-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.fhs-pillar-row:last-child { border-bottom: none; }
+.fhs-pillar-bar-wrap {
+  flex: 1; height: 6px; background: var(--border); border-radius: 99px; overflow: hidden;
+}
+.fhs-pillar-bar { height: 100%; border-radius: 99px; transition: width .4s; }
+.fhs-tip-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border);
+}
+.fhs-tip-row:last-child { border-bottom: none; }
+.fhs-pts-badge {
+  background: rgba(99,102,241,.12); color: #6366f1;
+  padding: 2px 7px; border-radius: 4px; font-weight: 800; white-space: nowrap; font-size: 11px;
+}
+</style>
+
+<script>
+/* ── t142: Financial Health Score ───────────────────────────── */
+const _FHS_KEY = 'wd_fhs_manual_v2';
+
+// Server-supplied base data (PHP → JS)
+const _fhsBase = <?= json_encode($fhsData ?: (object)[]) ?>;
+
+function fhsGetInputs() {
+  let manual = {};
+  try { manual = JSON.parse(localStorage.getItem(_FHS_KEY) || '{}'); } catch(e) {}
+  return {
+    sipConsistencyPct:  manual.sipPct    ?? (_fhsBase.activeSips > 0 ? 85 : 40),
+    debtEmiPct:         manual.emiPct    ?? 0,
+    hasTermInsurance:   manual.hasTerm   ?? (_fhsBase.hasTerm   === 1),
+    hasHealthInsurance: manual.hasHealth ?? (_fhsBase.hasHealth === 1),
+    // Auto from portfolio:
+    emergencyMonths:    _fhsBase.efMonths    ?? 0,
+    categories:         _fhsBase.assetClassCount ?? 1,
+    mfCatCount:         _fhsBase.mfCatCount  ?? 0,
+    elssAmt:            _fhsBase.elssAmt     ?? 0,
+    npsAmt:             _fhsBase.npsAmt      ?? 0,
+  };
+}
+
+function fhsCalcScore(inp) {
+  let score = 300;
+  // 1. SIP consistency (max 135 pts)
+  score += (Math.min(100, inp.sipConsistencyPct) / 100) * 135;
+  // 2. Diversification across asset classes + MF categories (max 108 pts)
+  const divRaw = Math.min(1, ((inp.categories || 1) + Math.min(inp.mfCatCount, 3)) / 7);
+  score += divRaw * 108;
+  // 3. Emergency fund (max 81 pts)
+  score += Math.min(1, (inp.emergencyMonths || 0) / 6) * 81;
+  // 4. Insurance (max 81 pts)
+  score += ((inp.hasTermInsurance ? 0.6 : 0) + (inp.hasHealthInsurance ? 0.4 : 0)) * 81;
+  // 5. Low debt burden (max 54 pts)
+  const emi = inp.debtEmiPct || 0;
+  score += (emi <= 30 ? 1 : emi <= 50 ? 0.5 : 0) * 54;
+  // 6. Tax efficiency via ELSS/PPF/NPS (max 81 pts)
+  const taxAmt = (inp.elssAmt || 0) + (inp.npsAmt || 0);
+  score += Math.min(1, taxAmt / 150000) * 81;
+  return Math.round(Math.min(900, score));
+}
+
+function fhsLabel(s) {
+  if (s >= 800) return { label: 'Excellent', color: '#15803d', emoji: '🏆', grade: 'A' };
+  if (s >= 700) return { label: 'Good',      color: '#16a34a', emoji: '✅', grade: 'B' };
+  if (s >= 600) return { label: 'Average',   color: '#3b82f6', emoji: '📈', grade: 'C' };
+  if (s >= 500) return { label: 'Fair',      color: '#f59e0b', emoji: '⚠️', grade: 'D' };
+  return              { label: 'Needs Work', color: '#dc2626', emoji: '🔴', grade: 'F' };
+}
+
+function fhsRender() {
+  const el = document.getElementById('fhsWidget');
+  if (!el) return;
+
+  const inp   = fhsGetInputs();
+  const score = fhsCalcScore(inp);
+  const { label, color, emoji, grade } = fhsLabel(score);
+  const pct   = ((score - 300) / 600 * 100).toFixed(1);
+
+  // Pillar breakdown
+  const pillars = [
+    { name: 'SIP Consistency',     val: Math.round((Math.min(100,inp.sipConsistencyPct)/100)*135), max: 135, icon: '🔄' },
+    { name: 'Diversification',     val: Math.round(Math.min(1,((inp.categories||1)+Math.min(inp.mfCatCount,3))/7)*108), max: 108, icon: '📊' },
+    { name: 'Emergency Fund',      val: Math.round(Math.min(1,(inp.emergencyMonths||0)/6)*81),     max: 81,  icon: '🛡️' },
+    { name: 'Insurance Coverage',  val: Math.round(((inp.hasTermInsurance?.6:0)+(inp.hasHealthInsurance?.4:0))*81), max: 81, icon: '🏥' },
+    { name: 'Low Debt Burden',     val: Math.round(((inp.debtEmiPct||0)<=30?1:(inp.debtEmiPct||0)<=50?.5:0)*54), max: 54, icon: '💳' },
+    { name: 'Tax Efficiency',      val: Math.round(Math.min(1,((inp.elssAmt||0)+(inp.npsAmt||0))/150000)*81), max: 81, icon: '🧾' },
+  ];
+
+  // Improvement tips
+  const tips = [];
+  if (inp.sipConsistencyPct < 80)     tips.push({ pts: 27, tip: 'Maintain SIP payments every month (target 100%)' });
+  if ((inp.emergencyMonths||0) < 6)   tips.push({ pts: 25, tip: `Build 6-month emergency fund — ${inp.emergencyMonths.toFixed(1)} months currently` });
+  if (!inp.hasTermInsurance)          tips.push({ pts: 49, tip: 'Get term life insurance (10× annual income recommended)' });
+  if (!inp.hasHealthInsurance)        tips.push({ pts: 32, tip: 'Get family health insurance floater (₹5L+ cover)' });
+  if ((inp.elssAmt||0)+(inp.npsAmt||0) < 100000) tips.push({ pts: 20, tip: 'Invest ₹1.5L/yr in ELSS/PPF/NPS to save tax & boost score' });
+  if ((inp.categories||1) < 4)        tips.push({ pts: 18, tip: 'Add more asset classes — FDs, NPS, or Stocks for diversification' });
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;">
+      <!-- Score circle -->
+      <div style="text-align:center;min-width:100px;">
+        <div style="font-size:52px;font-weight:900;color:${color};line-height:1;">${score}</div>
+        <div style="font-size:13px;font-weight:700;color:${color};margin-top:2px;">${emoji} ${label}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">out of 900 · Grade ${grade}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">
+          <span style="background:var(--bg-secondary);padding:2px 8px;border-radius:4px;">300 – 900 scale</span>
+        </div>
+      </div>
+      <!-- Gauge + pillars -->
+      <div>
+        <div class="fhs-gauge-track">
+          <div class="fhs-gauge-thumb" style="left:${pct}%;background:${color};"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-top:-10px;margin-bottom:14px;">
+          <span>300 Poor</span><span>600 Avg</span><span>900 Excellent</span>
+        </div>
+        ${pillars.map(p => {
+          const pilPct = Math.round(p.val/p.max*100);
+          const pCol = pilPct>=75?'#16a34a':pilPct>=50?'#3b82f6':'#f59e0b';
+          return `<div class="fhs-pillar-row">
+            <span style="font-size:14px;width:20px;text-align:center;">${p.icon}</span>
+            <span style="min-width:130px;color:var(--text-secondary);">${p.name}</span>
+            <div class="fhs-pillar-bar-wrap">
+              <div class="fhs-pillar-bar" style="width:${pilPct}%;background:${pCol};"></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${pCol};min-width:36px;text-align:right;">${p.val}/${p.max}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    ${tips.length ? `
+    <div style="margin-top:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:10px;">
+        💡 How to improve your score
+      </div>
+      ${tips.slice(0,4).map(t => `
+        <div class="fhs-tip-row">
+          <span class="fhs-pts-badge">+${t.pts}</span>
+          <span style="color:var(--text-secondary);">${t.tip}</span>
+        </div>`).join('')}
+    </div>` : `
+    <div style="margin-top:14px;text-align:center;padding:12px;background:rgba(21,128,61,.06);border-radius:10px;border:1px solid #86efac;color:#15803d;font-size:13px;font-weight:600;">
+      🎉 Outstanding financial discipline! Keep it up.
+    </div>`}
+    <div style="font-size:10px;color:var(--text-muted);margin-top:10px;text-align:right;">
+      Emergency fund, diversification &amp; tax data auto-fetched from your portfolio.
+      <a href="javascript:void(0)" onclick="fhsOpenEdit()" style="color:var(--accent);text-decoration:none;margin-left:4px;">Edit manual inputs →</a>
+    </div>`;
+}
+
+function fhsOpenEdit() {
+  const inp = fhsGetInputs();
+  document.getElementById('fhsSipPct').value     = inp.sipConsistencyPct;
+  document.getElementById('fhsEmiPct').value     = inp.debtEmiPct;
+  document.getElementById('fhsTermCheck').checked   = inp.hasTermInsurance;
+  document.getElementById('fhsHealthCheck').checked = inp.hasHealthInsurance;
+  document.getElementById('fhsModal').style.display = 'flex';
+}
+
+function fhsCloseEdit() {
+  document.getElementById('fhsModal').style.display = 'none';
+}
+
+function fhsSaveEdit() {
+  const manual = {
+    sipPct:    parseFloat(document.getElementById('fhsSipPct').value)  || 0,
+    emiPct:    parseFloat(document.getElementById('fhsEmiPct').value)  || 0,
+    hasTerm:   document.getElementById('fhsTermCheck').checked   ? 1 : 0,
+    hasHealth: document.getElementById('fhsHealthCheck').checked ? 1 : 0,
+    savedAt:   new Date().toISOString(),
+  };
+  try { localStorage.setItem(_FHS_KEY, JSON.stringify(manual)); } catch(e) {}
+  fhsCloseEdit();
+  fhsRender();
+  if (typeof showToast === 'function') showToast('✅ Financial Health Score updated!', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', fhsRender);
+</script>
+
 <?php
 $pageContent = ob_get_clean();
 include APP_ROOT . '/templates/layout.php';
+
 

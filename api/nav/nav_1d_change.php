@@ -1,13 +1,6 @@
 <?php
 /**
- * WealthDash — NAV 1-Day Change API
- * Returns today's vs yesterday's NAV change for all holdings in a portfolio.
- * Called by load1DayChange() in mf.js
- *
- * GET /api/nav/nav_1d_change.php?portfolio_id=X
- *
- * Response:
- * { "success": true, "data": { "fund_id": { "day_change_amt": X, "day_change_pct": X, ... } } }
+ * WealthDash — NAV 1-Day Change API (Fixed)
  */
 
 define('WEALTHDASH', true);
@@ -34,7 +27,6 @@ try {
     $db          = DB::conn();
     $portfolioId = (int)($_GET['portfolio_id'] ?? 0);
 
-    // If no portfolio_id, get default portfolio
     if (!$portfolioId) {
         $stmt = $db->prepare("SELECT id FROM portfolios WHERE user_id = ? AND is_default = 1 LIMIT 1");
         $stmt->execute([$userId]);
@@ -47,7 +39,6 @@ try {
         exit;
     }
 
-    // Verify portfolio belongs to user
     $chk = $db->prepare("SELECT id FROM portfolios WHERE id = ? AND user_id = ?");
     $chk->execute([$portfolioId, $userId]);
     if (!$chk->fetchColumn()) {
@@ -57,7 +48,6 @@ try {
         exit;
     }
 
-    // Get active holdings
     $holdingsStmt = $db->prepare("
         SELECT mh.fund_id, mh.units
         FROM mf_holdings mh
@@ -72,22 +62,29 @@ try {
         exit;
     }
 
-    $fundIds = array_unique(array_column($holdings, 'fund_id'));
-    $in      = implode(',', array_fill(0, count($fundIds), '?'));
+    $fundIds = array_values(array_unique(array_column($holdings, 'fund_id')));
 
-    // Build units map
     $unitsMap = [];
     foreach ($holdings as $h) {
         $fid = $h['fund_id'];
         $unitsMap[$fid] = ($unitsMap[$fid] ?? 0) + (float)$h['units'];
     }
 
-    // Latest NAV per fund
+    // FIX: Use separate $in placeholders for each query
+    $in1 = implode(',', array_fill(0, count($fundIds), '?'));
+    $in2 = implode(',', array_fill(0, count($fundIds), '?'));
+    $in3 = implode(',', array_fill(0, count($fundIds), '?'));
+
+    // Latest NAV per fund — uses $in1
     $latestStmt = $db->prepare("
         SELECT n1.fund_id, n1.nav AS nav_today, n1.nav_date AS date_today
         FROM nav_history n1
-        WHERE n1.fund_id IN ($in)
-          AND n1.nav_date = (SELECT MAX(n2.nav_date) FROM nav_history n2 WHERE n2.fund_id = n1.fund_id)
+        INNER JOIN (
+            SELECT fund_id, MAX(nav_date) AS max_date
+            FROM nav_history
+            WHERE fund_id IN ($in1)
+            GROUP BY fund_id
+        ) latest ON n1.fund_id = latest.fund_id AND n1.nav_date = latest.max_date
     ");
     $latestStmt->execute($fundIds);
     $latestNavs = [];
@@ -95,24 +92,36 @@ try {
         $latestNavs[$row['fund_id']] = $row;
     }
 
-    // Previous NAV per fund
+    // Previous NAV per fund — uses $in2 and $in3
+    // Get the 2nd most recent nav_date per fund
     $prevStmt = $db->prepare("
         SELECT n1.fund_id, n1.nav AS nav_prev, n1.nav_date AS date_prev
         FROM nav_history n1
-        WHERE n1.fund_id IN ($in)
-          AND n1.nav_date = (
-              SELECT MAX(n2.nav_date) FROM nav_history n2
-              WHERE n2.fund_id = n1.fund_id
-                AND n2.nav_date < (SELECT MAX(n3.nav_date) FROM nav_history n3 WHERE n3.fund_id = n1.fund_id)
-          )
+        INNER JOIN (
+            SELECT fund_id, MAX(nav_date) AS max_date
+            FROM nav_history
+            WHERE fund_id IN ($in2)
+            GROUP BY fund_id
+        ) latest ON n1.fund_id = latest.fund_id
+        INNER JOIN (
+            SELECT n2.fund_id, MAX(n2.nav_date) AS prev_date
+            FROM nav_history n2
+            INNER JOIN (
+                SELECT fund_id, MAX(nav_date) AS max_date
+                FROM nav_history
+                WHERE fund_id IN ($in3)
+                GROUP BY fund_id
+            ) lmax ON n2.fund_id = lmax.fund_id AND n2.nav_date < lmax.max_date
+            GROUP BY n2.fund_id
+        ) prev ON n1.fund_id = prev.fund_id AND n1.nav_date = prev.prev_date
     ");
-    $prevStmt->execute($fundIds);
+    // Pass fundIds THREE times (for $in2 and $in3 outer + inner)
+    $prevStmt->execute(array_merge($fundIds, $fundIds, $fundIds));
     $prevNavs = [];
     foreach ($prevStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $prevNavs[$row['fund_id']] = $row;
     }
 
-    // Build result
     $result = [];
     foreach ($fundIds as $fundId) {
         $latest = $latestNavs[$fundId] ?? null;

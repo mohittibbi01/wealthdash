@@ -91,7 +91,8 @@ const STOCKS = {
   /* ── HOLDINGS ── */
   async loadHoldings() {
     const body = document.getElementById('stocksBody');
-    body.innerHTML = '<tr><td colspan="11" class="text-center" style="padding:40px"><span class="spinner"></span></td></tr>';
+    if (typeof WdSkel !== 'undefined') WdSkel.table('stocksBody', 7, 7);
+    else body.innerHTML = '<tr><td colspan="11" class="text-center" style="padding:40px"><span class="spinner"></span></td></tr>';
 
     const params = new URLSearchParams({ action: 'stocks_list', type: 'holdings' });
     if (STOCKS.portfolioFilter) params.set('portfolio_id', STOCKS.portfolioFilter);
@@ -125,7 +126,9 @@ const STOCKS = {
         sectors.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=s; secSel.appendChild(o); });
       }
       if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="11" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">📈</div><p>No stock holdings yet.<br>Add your first BUY transaction.</p></td></tr>';
+        body.innerHTML = typeof WdEmpty !== 'undefined'
+          ? `<tr><td colspan="11" style="padding:0;border:none;">${WdEmpty.html('stocks')}</td></tr>`
+          : '<tr><td colspan="11" class="text-center empty-state" style="padding:60px"><div style="font-size:40px">📈</div><p>No stock holdings yet.<br>Add your first BUY transaction.</p></td></tr>';
         return;
       }
       body.innerHTML = paged.map(h => {

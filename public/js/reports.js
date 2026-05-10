@@ -864,6 +864,8 @@ if (document.getElementById('totalNetWorth')) {
             renderAssetCards(d.by_asset);
             renderNwCharts(d);
             renderNwDetails(d.by_asset);
+            // t466/t465: fire event for liabilities tab
+            window.dispatchEvent(new CustomEvent('nwDataLoaded', { detail: { liabilities: d.liabilities } }));
         } catch (e) {
             console.error(e);
             window.showToast('Failed to load Net Worth', 'error');
@@ -879,6 +881,16 @@ if (document.getElementById('totalNetWorth')) {
         const pctEl = document.getElementById('totalGainPct');
         pctEl.textContent = pctFmt(s.total_gain_pct);
         pctEl.className = s.total_gain_loss >= 0 ? 'badge badge-success' : 'badge badge-danger';
+        // Show liabilities note if any
+        if (s.total_liabilities > 0) {
+            const sub = document.querySelector('#nwHeroCard .hero-sub');
+            if (sub) {
+                const liabNote = sub.querySelector('.nw-liab-note') || document.createElement('span');
+                liabNote.className = 'nw-liab-note';
+                liabNote.innerHTML = '&nbsp;&nbsp;<span style="opacity:.8">Gross Assets: </span><strong>' + inrFmt(s.total_gross_assets) + '</strong>&nbsp;&nbsp;<span style="opacity:.8;color:#dc2626">Liabilities: </span><strong style="color:#dc2626">-' + inrFmt(s.total_liabilities) + '</strong>';
+                if (!sub.querySelector('.nw-liab-note')) sub.appendChild(liabNote);
+            }
+        }
     }
 
     function renderAssetCards(by) {
@@ -889,6 +901,8 @@ if (document.getElementById('totalNetWorth')) {
             { label: 'NPS',          data: by.nps,          icon: '🏛️',  color: '#7C3AED' },
             { label: 'Fixed Deposits', data: { invested: by.fd.invested, current_value: by.fd.current_value, gain_loss: by.fd.accrued_interest, gain_pct: by.fd.invested > 0 ? (by.fd.accrued_interest/by.fd.invested*100).toFixed(2) : 0 }, icon: '🏦', color: '#D97706' },
             { label: 'Savings',      data: { invested: by.savings.current_value, current_value: by.savings.current_value, gain_loss: 0, gain_pct: 0 }, icon: '💰', color: '#0891B2' },
+            ...(by.real_estate?.current_value > 0 ? [{ label: 'Real Estate', data: by.real_estate, icon: '🏠', color: '#DC2626' }] : []),
+            ...(by.physical_gold?.current_value > 0 ? [{ label: 'Physical Gold', data: by.physical_gold, icon: '🪙', color: '#F59E0B' }] : []),
         ];
 
         el.innerHTML = assets.map(a => {
@@ -1014,6 +1028,49 @@ if (document.getElementById('totalNetWorth')) {
             <td class="text-right">${inrFmt(b.balance)}</td>
             <td class="text-right">${numFmt(b.avg_rate, 2)}%</td></tr>`).join('') :
             `<tr><td colspan="4" class="text-center text-secondary">No savings accounts</td></tr>`;
+        }
+
+        // t466: Real Estate summary strip
+        const reStrip = document.getElementById('reNwSummaryStrip');
+        if (reStrip && by.real_estate) {
+            const re = by.real_estate;
+            reStrip.innerHTML = [
+                { label: 'Properties', val: re.property_count, isNum: true },
+                { label: 'Market Value', val: inrFmt(re.current_value) },
+                { label: 'Net Equity', val: inrFmt(re.net_equity), highlight: true },
+                { label: 'Loan Outstanding', val: inrFmt(re.outstanding_loan), danger: re.outstanding_loan > 0 },
+                { label: 'Annual Rental', val: inrFmt(re.annual_rental_income) },
+                { label: 'Gain/Loss', val: inrFmt(re.gain_loss), gainLoss: re.gain_loss },
+            ].map(s => `<div style="background:var(--bg-secondary);border-radius:10px;padding:10px 14px;text-align:center;min-width:100px">
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px">${s.label}</div>
+                <div style="font-size:15px;font-weight:800;color:${s.danger?'#dc2626':s.gainLoss!==undefined?(s.gainLoss>=0?'#16a34a':'#dc2626'):'var(--text-primary)'}">${s.isNum?s.val:s.val}</div>
+            </div>`).join('');
+        }
+        const reBody = document.getElementById('reNwBody');
+        if (reBody) {
+            NWRealEstate._lastData = by.real_estate?.properties || [];
+            NWRealEstate.renderTable(NWRealEstate._lastData);
+        }
+
+        // t465: Physical Gold summary strip
+        const goldStrip = document.getElementById('goldNwSummaryStrip');
+        if (goldStrip && by.physical_gold) {
+            const g = by.physical_gold;
+            goldStrip.innerHTML = [
+                { label: 'Holdings', val: g.count, isNum: true },
+                { label: 'Total Weight', val: g.total_weight_grams + 'g' },
+                { label: 'Current Value', val: inrFmt(g.current_value), highlight: true },
+                { label: 'Cost Basis', val: inrFmt(g.invested) },
+                { label: 'Gain/Loss', val: inrFmt(g.gain_loss), gainLoss: g.gain_loss },
+            ].map(s => `<div style="background:var(--bg-secondary);border-radius:10px;padding:10px 14px;text-align:center;min-width:100px">
+                <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px">${s.label}</div>
+                <div style="font-size:15px;font-weight:800;color:${s.gainLoss!==undefined?(s.gainLoss>=0?'#16a34a':'#dc2626'):'var(--text-primary)'}">${s.isNum?s.val:s.val}</div>
+            </div>`).join('');
+        }
+        const goldBody = document.getElementById('goldNwBody');
+        if (goldBody) {
+            NWGold._lastData = by.physical_gold?.holdings || [];
+            NWGold.renderTable(NWGold._lastData);
         }
     }
 

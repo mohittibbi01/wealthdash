@@ -86,18 +86,21 @@ ob_start();
 <div class="card mb-4">
     <div class="card-header">
         <h3 class="card-title">Asset Breakdown</h3>
-        <div class="tab-bar">
+        <div class="tab-bar" style="flex-wrap:wrap">
             <button class="tab-btn active" onclick="switchTab(this,'mfNwTab')">Mutual Funds</button>
             <button class="tab-btn" onclick="switchTab(this,'stockNwTab')">Stocks</button>
             <button class="tab-btn" onclick="switchTab(this,'npsNwTab')">NPS</button>
             <button class="tab-btn" onclick="switchTab(this,'fdNwTab')">FD</button>
             <button class="tab-btn" onclick="switchTab(this,'savNwTab')">Savings</button>
+            <button class="tab-btn" onclick="switchTab(this,'reNwTab')">&#127968; Real Estate</button>
+            <button class="tab-btn" onclick="switchTab(this,'goldNwTab')">&#129777; Gold</button>
+            <button class="tab-btn" onclick="switchTab(this,'liabNwTab')" style="color:var(--danger,#dc2626)">&#9888;&#65039; Liabilities</button>
         </div>
     </div>
     <div id="mfNwTab" class="tab-panel active">
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Category</th><th>Sub-Category</th><th class="text-right">Invested (₹)</th><th class="text-right">Current Value (₹)</th><th class="text-right">Holdings</th></tr></thead>
+                <thead><tr><th>Category</th><th>Sub-Category</th><th class="text-right">Invested (&#8377;)</th><th class="text-right">Current Value (&#8377;)</th><th class="text-right">Holdings</th></tr></thead>
                 <tbody id="mfNwBody"><tr><td colspan="5" class="text-center text-secondary">Loading...</td></tr></tbody>
             </table>
         </div>
@@ -105,7 +108,7 @@ ob_start();
     <div id="stockNwTab" class="tab-panel" style="display:none">
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Sector</th><th class="text-right">Invested (₹)</th><th class="text-right">Current Value (₹)</th><th class="text-right">Stocks</th></tr></thead>
+                <thead><tr><th>Sector</th><th class="text-right">Invested (&#8377;)</th><th class="text-right">Current Value (&#8377;)</th><th class="text-right">Stocks</th></tr></thead>
                 <tbody id="stockNwBody"><tr><td colspan="4" class="text-center text-secondary">Loading...</td></tr></tbody>
             </table>
         </div>
@@ -113,7 +116,7 @@ ob_start();
     <div id="npsNwTab" class="tab-panel" style="display:none">
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Tier</th><th class="text-right">Invested (₹)</th><th class="text-right">Current Value (₹)</th><th class="text-right">Gain/Loss (₹)</th></tr></thead>
+                <thead><tr><th>Tier</th><th class="text-right">Invested (&#8377;)</th><th class="text-right">Current Value (&#8377;)</th><th class="text-right">Gain/Loss (&#8377;)</th></tr></thead>
                 <tbody id="npsNwBody"><tr><td colspan="4" class="text-center text-secondary">Loading...</td></tr></tbody>
             </table>
         </div>
@@ -121,21 +124,190 @@ ob_start();
     <div id="fdNwTab" class="tab-panel" style="display:none">
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Bank</th><th class="text-right">FDs</th><th class="text-right">Principal (₹)</th><th class="text-right">Accrued Interest (₹)</th></tr></thead>
+                <thead><tr><th>Bank</th><th class="text-right">FDs</th><th class="text-right">Principal (&#8377;)</th><th class="text-right">Accrued Interest (&#8377;)</th></tr></thead>
                 <tbody id="fdNwBody"><tr><td colspan="4" class="text-center text-secondary">Loading...</td></tr></tbody>
             </table>
         </div>
         <div id="fdMaturingAlert" class="p-3" style="display:none">
-            <strong class="text-warning">⚠️ FDs maturing in next 90 days:</strong>
+            <strong class="text-warning">&#9888;&#65039; FDs maturing in next 90 days:</strong>
             <div id="fdMaturingList" class="mt-2"></div>
         </div>
     </div>
     <div id="savNwTab" class="tab-panel" style="display:none">
         <div class="table-wrap">
             <table class="data-table">
-                <thead><tr><th>Bank</th><th>Account Type</th><th class="text-right">Balance (₹)</th><th class="text-right">Avg Rate %</th></tr></thead>
+                <thead><tr><th>Bank</th><th>Account Type</th><th class="text-right">Balance (&#8377;)</th><th class="text-right">Avg Rate %</th></tr></thead>
                 <tbody id="savNwBody"><tr><td colspan="4" class="text-center text-secondary">Loading...</td></tr></tbody>
             </table>
+        </div>
+    </div>
+    <!-- t466: Real Estate Tab -->
+    <div id="reNwTab" class="tab-panel" style="display:none">
+        <div class="p-3" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px" id="reNwSummaryStrip"></div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Property</th><th>Type</th><th>City</th><th class="text-right">Purchase (&#8377;)</th><th class="text-right">Current Value (&#8377;)</th><th class="text-right">Loan Outstanding (&#8377;)</th><th class="text-right">Net Equity (&#8377;)</th><th class="text-right">Gain %</th><th></th></tr></thead>
+                <tbody id="reNwBody"><tr><td colspan="9" class="text-center text-secondary">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="p-3">
+            <button class="btn btn-sm btn-primary" onclick="NWRealEstate.openAddModal()">+ Add Property</button>
+        </div>
+        <!-- Add/Edit Property Modal -->
+        <div id="reModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+            <div style="background:var(--bg-primary);border-radius:16px;padding:28px;max-width:560px;width:95%;max-height:90vh;overflow-y:auto;">
+                <h3 style="margin:0 0 18px" id="reModalTitle">Add Property</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Property Name *</label>
+                        <input class="form-control" id="reFieldName" placeholder="e.g. 2BHK Malviya Nagar">
+                    </div>
+                    <div>
+                        <label class="form-label">Type</label>
+                        <select class="form-control" id="reFieldType">
+                            <option value="residential">Residential</option>
+                            <option value="commercial">Commercial</option>
+                            <option value="plot">Plot / Land</option>
+                            <option value="agricultural">Agricultural</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">City</label>
+                        <input class="form-control" id="reFieldCity" placeholder="Jaipur">
+                    </div>
+                    <div>
+                        <label class="form-label">State</label>
+                        <input class="form-control" id="reFieldState" placeholder="Rajasthan">
+                    </div>
+                    <div>
+                        <label class="form-label">Purchase Date *</label>
+                        <input class="form-control" type="date" id="reFieldPurchaseDate">
+                    </div>
+                    <div>
+                        <label class="form-label">Purchase Price (&#8377;) *</label>
+                        <input class="form-control" type="number" id="reFieldPurchasePrice" placeholder="5000000">
+                    </div>
+                    <div>
+                        <label class="form-label">Current Value (&#8377;) *</label>
+                        <input class="form-control" type="number" id="reFieldCurrentValue" placeholder="7500000">
+                    </div>
+                    <div>
+                        <label class="form-label">Your Ownership %</label>
+                        <input class="form-control" type="number" id="reFieldOwnership" value="100" min="1" max="100">
+                    </div>
+                    <div>
+                        <label class="form-label">Outstanding Loan (&#8377;)</label>
+                        <input class="form-control" type="number" id="reFieldLoan" placeholder="0">
+                    </div>
+                    <div>
+                        <label class="form-label">Monthly Rental (&#8377;)</label>
+                        <input class="form-control" type="number" id="reFieldRental" placeholder="Leave blank if self-occupied">
+                    </div>
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="reFieldNotes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+                    <button class="btn btn-outline" onclick="NWRealEstate.closeModal()">Cancel</button>
+                    <button class="btn btn-primary" id="reModalSaveBtn" onclick="NWRealEstate.save()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- t465: Physical Gold Tab -->
+    <div id="goldNwTab" class="tab-panel" style="display:none">
+        <div class="p-3" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px" id="goldNwSummaryStrip"></div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Description</th><th>Type</th><th class="text-right">Weight (g)</th><th class="text-right">Purity</th><th class="text-right">Cost (&#8377;)</th><th class="text-right">Current Value (&#8377;)</th><th class="text-right">Gain/Loss (&#8377;)</th><th>Storage</th><th></th></tr></thead>
+                <tbody id="goldNwBody"><tr><td colspan="9" class="text-center text-secondary">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="p-3" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-sm btn-primary" onclick="NWGold.openAddModal()">+ Add Gold Holding</button>
+            <div style="display:flex;gap:6px;align-items:center">
+                <input class="form-control" type="number" id="goldRateInput" placeholder="24K rate/gram (e.g. 6800)" style="width:220px">
+                <button class="btn btn-sm btn-outline" onclick="NWGold.updateRate()">&#128200; Update All Rates</button>
+            </div>
+        </div>
+        <!-- Add Gold Modal -->
+        <div id="goldModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+            <div style="background:var(--bg-primary);border-radius:16px;padding:28px;max-width:500px;width:95%;max-height:90vh;overflow-y:auto">
+                <h3 style="margin:0 0 18px" id="goldModalTitle">Add Gold Holding</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Description *</label>
+                        <input class="form-control" id="goldFieldDesc" placeholder="e.g. 22K Gold Necklace">
+                    </div>
+                    <div>
+                        <label class="form-label">Type</label>
+                        <select class="form-control" id="goldFieldType">
+                            <option value="jewellery">Jewellery</option>
+                            <option value="coin">Coin</option>
+                            <option value="bar">Bar</option>
+                            <option value="biscuit">Biscuit</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Purity (Karat)</label>
+                        <select class="form-control" id="goldFieldPurity">
+                            <option value="24">24K (99.9%)</option>
+                            <option value="22" selected>22K (91.6%)</option>
+                            <option value="18">18K (75%)</option>
+                            <option value="14">14K (58.3%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Weight (grams) *</label>
+                        <input class="form-control" type="number" id="goldFieldWeight" step="0.001" placeholder="10.5">
+                    </div>
+                    <div>
+                        <label class="form-label">Purchase Date</label>
+                        <input class="form-control" type="date" id="goldFieldDate">
+                    </div>
+                    <div>
+                        <label class="form-label">Purchase Price (&#8377;)</label>
+                        <input class="form-control" type="number" id="goldFieldCost" placeholder="Total cost paid">
+                    </div>
+                    <div>
+                        <label class="form-label">Current Rate/gram (24K, &#8377;)</label>
+                        <input class="form-control" type="number" id="goldFieldRate" placeholder="6800">
+                    </div>
+                    <div>
+                        <label class="form-label">Storage</label>
+                        <select class="form-control" id="goldFieldStorage">
+                            <option value="home">Home</option>
+                            <option value="locker">Bank Locker</option>
+                            <option value="bank">Bank</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div style="grid-column:1/-1">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="goldFieldNotes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+                    <button class="btn btn-outline" onclick="NWGold.closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="NWGold.save()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Liabilities Tab -->
+    <div id="liabNwTab" class="tab-panel" style="display:none">
+        <div class="p-3" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px" id="liabNwSummaryStrip"></div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Lender</th><th>Loan Type</th><th class="text-right">Outstanding (&#8377;)</th><th class="text-right">Rate %</th><th class="text-right">EMI (&#8377;)</th><th>End Date</th></tr></thead>
+                <tbody id="liabNwBody"><tr><td colspan="6" class="text-center text-secondary">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="p-3">
+            <small class="text-secondary">Manage loans from the <a href="?page=loans">Loans section</a>. Liabilities are subtracted from gross assets to compute your true net worth.</small>
         </div>
     </div>
 </div>
@@ -907,6 +1079,323 @@ const NWS = (() => {
 
   return { load, print };
 })();
+</script>
+
+
+<!-- t466/t465: Real Estate & Gold CRUD modules -->
+<script>
+/* ── NWRealEstate ─────────────────────────────────────────────────────────── */
+const NWRealEstate = (() => {
+    let _editId = null;
+    let _lastData = [];
+
+    function fmt(v) { return v != null ? Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—'; }
+    function pct(a, b) { return b > 0 ? ((a-b)/b*100).toFixed(1) + '%' : '—'; }
+
+    function renderTable(rows) {
+        const tbody = document.getElementById('reNwBody');
+        if (!tbody) return;
+        if (!rows || !rows.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary">No properties added yet. Click &ldquo;+ Add Property&rdquo; to start.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => {
+            const netEq = (parseFloat(r.current_value) * parseFloat(r.ownership_pct||100)/100) - parseFloat(r.outstanding_loan||0);
+            const gainPct = parseFloat(r.purchase_price) > 0 ? ((parseFloat(r.current_value) - parseFloat(r.purchase_price)) / parseFloat(r.purchase_price) * 100).toFixed(1) : 0;
+            const gainCl = parseFloat(r.current_value) >= parseFloat(r.purchase_price) ? 'text-success' : 'text-danger';
+            return `<tr>
+                <td><strong>${r.property_name}</strong>${r.is_self_occupied==1?' <span class="badge" style="font-size:9px;background:#dbeafe;color:#1d4ed8">Self-Occ</span>':''}</td>
+                <td style="text-transform:capitalize">${r.property_type}</td>
+                <td>${r.city||'—'}</td>
+                <td class="text-right">&#8377;${fmt(r.purchase_price)}</td>
+                <td class="text-right">&#8377;${fmt(r.current_value)}</td>
+                <td class="text-right">${r.outstanding_loan > 0 ? '<span style="color:#dc2626">&#8377;' + fmt(r.outstanding_loan) + '</span>' : '—'}</td>
+                <td class="text-right">&#8377;${fmt(netEq)}</td>
+                <td class="text-right ${gainCl}">${gainPct}%</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-xs btn-outline" onclick="NWRealEstate.openEditModal(${r.id})">Edit</button>
+                    <button class="btn btn-xs" style="color:#dc2626;border-color:#dc2626;background:transparent" onclick="NWRealEstate.remove(${r.id})">Del</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function openAddModal() {
+        _editId = null;
+        document.getElementById('reModalTitle').textContent = 'Add Property';
+        ['reFieldName','reFieldCity','reFieldState','reFieldPurchaseDate','reFieldPurchasePrice',
+         'reFieldCurrentValue','reFieldLoan','reFieldRental','reFieldNotes'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('reFieldType').value = 'residential';
+        document.getElementById('reFieldOwnership').value = '100';
+        showModal();
+    }
+
+    function openEditModal(id) {
+        const row = _lastData.find(r => r.id == id);
+        if (!row) return;
+        _editId = id;
+        document.getElementById('reModalTitle').textContent = 'Edit Property';
+        document.getElementById('reFieldName').value = row.property_name || '';
+        document.getElementById('reFieldType').value = row.property_type || 'residential';
+        document.getElementById('reFieldCity').value = row.city || '';
+        document.getElementById('reFieldState').value = row.state || '';
+        document.getElementById('reFieldPurchaseDate').value = row.purchase_date || '';
+        document.getElementById('reFieldPurchasePrice').value = row.purchase_price || '';
+        document.getElementById('reFieldCurrentValue').value = row.current_value || '';
+        document.getElementById('reFieldOwnership').value = row.ownership_pct || 100;
+        document.getElementById('reFieldLoan').value = row.outstanding_loan || '';
+        document.getElementById('reFieldRental').value = row.monthly_rental || '';
+        document.getElementById('reFieldNotes').value = row.notes || '';
+        showModal();
+    }
+
+    function showModal() {
+        const m = document.getElementById('reModal');
+        m.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('reModal').style.display = 'none';
+        _editId = null;
+    }
+
+    async function save() {
+        const name = document.getElementById('reFieldName').value.trim();
+        const purchaseDate = document.getElementById('reFieldPurchaseDate').value;
+        const purchasePrice = document.getElementById('reFieldPurchasePrice').value;
+        const currentValue = document.getElementById('reFieldCurrentValue').value;
+        if (!name || !purchaseDate || !purchasePrice || !currentValue) {
+            window.showToast('Fill required fields: Name, Purchase Date, Purchase Price, Current Value', 'error');
+            return;
+        }
+        const body = {
+            action: _editId ? 'realestate_update' : 'realestate_add',
+            module: 'realestate',
+            sub: _editId ? 'update' : 'add',
+            property_name: name,
+            property_type: document.getElementById('reFieldType').value,
+            city: document.getElementById('reFieldCity').value,
+            state: document.getElementById('reFieldState').value,
+            purchase_date: purchaseDate,
+            purchase_price: purchasePrice,
+            current_value: currentValue,
+            ownership_pct: document.getElementById('reFieldOwnership').value || 100,
+            outstanding_loan: document.getElementById('reFieldLoan').value,
+            monthly_rental: document.getElementById('reFieldRental').value,
+            notes: document.getElementById('reFieldNotes').value,
+        };
+        if (_editId) body.id = _editId;
+        try {
+            const res = await window.apiPost(body);
+            if (res.success) {
+                window.showToast(_editId ? 'Property updated' : 'Property added', 'success');
+                closeModal();
+                // Reload full NW data
+                if (typeof loadNetWorth === 'function') loadNetWorth();
+            } else {
+                window.showToast(res.message || 'Save failed', 'error');
+            }
+        } catch(e) {
+            window.showToast('Error saving property', 'error');
+        }
+    }
+
+    async function remove(id) {
+        if (!confirm('Remove this property?')) return;
+        try {
+            const res = await window.apiPost({ action: 'realestate_delete', module: 'realestate', sub: 'delete', id });
+            if (res.success) {
+                window.showToast('Property removed', 'success');
+                if (typeof loadNetWorth === 'function') loadNetWorth();
+            } else {
+                window.showToast(res.message || 'Delete failed', 'error');
+            }
+        } catch(e) { window.showToast('Error', 'error'); }
+    }
+
+    return { renderTable, openAddModal, openEditModal, closeModal, save, remove, _lastData };
+})();
+
+/* ── NWGold ───────────────────────────────────────────────────────────────── */
+const NWGold = (() => {
+    let _editId = null;
+    let _lastData = [];
+
+    function fmt(v) { return v != null ? Number(v).toLocaleString('en-IN', {maximumFractionDigits:0}) : '—'; }
+
+    function renderTable(rows) {
+        const tbody = document.getElementById('goldNwBody');
+        if (!tbody) return;
+        if (!rows || !rows.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-secondary">No gold holdings yet. Click &ldquo;+ Add Gold Holding&rdquo; to start.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => {
+            const gainCl = parseFloat(r.gain_loss||0) >= 0 ? 'text-success' : 'text-danger';
+            return `<tr>
+                <td><strong>${r.description}</strong></td>
+                <td style="text-transform:capitalize">${r.gold_type}</td>
+                <td class="text-right">${r.weight_grams}g</td>
+                <td class="text-right">${r.purity_karat}K</td>
+                <td class="text-right">${r.purchase_price ? '&#8377;' + fmt(r.purchase_price) : '—'}</td>
+                <td class="text-right">${r.current_value ? '&#8377;' + fmt(r.current_value) : '—'}</td>
+                <td class="text-right ${gainCl}">${r.gain_loss ? '&#8377;' + fmt(r.gain_loss) : '—'}</td>
+                <td style="text-transform:capitalize">${r.storage}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-xs btn-outline" onclick="NWGold.openEditModal(${r.id})">Edit</button>
+                    <button class="btn btn-xs" style="color:#dc2626;border-color:#dc2626;background:transparent" onclick="NWGold.remove(${r.id})">Del</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function openAddModal() {
+        _editId = null;
+        document.getElementById('goldModalTitle').textContent = 'Add Gold Holding';
+        ['goldFieldDesc','goldFieldDate','goldFieldCost','goldFieldRate','goldFieldNotes'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        document.getElementById('goldFieldWeight').value = '';
+        document.getElementById('goldFieldPurity').value = '22';
+        document.getElementById('goldFieldType').value = 'jewellery';
+        document.getElementById('goldFieldStorage').value = 'home';
+        showModal();
+    }
+
+    function openEditModal(id) {
+        const row = _lastData.find(r => r.id == id);
+        if (!row) return;
+        _editId = id;
+        document.getElementById('goldModalTitle').textContent = 'Edit Gold Holding';
+        document.getElementById('goldFieldDesc').value = row.description || '';
+        document.getElementById('goldFieldType').value = row.gold_type || 'jewellery';
+        document.getElementById('goldFieldPurity').value = row.purity_karat || 22;
+        document.getElementById('goldFieldWeight').value = row.weight_grams || '';
+        document.getElementById('goldFieldDate').value = row.purchase_date || '';
+        document.getElementById('goldFieldCost').value = row.purchase_price || '';
+        document.getElementById('goldFieldRate').value = row.current_rate || '';
+        document.getElementById('goldFieldStorage').value = row.storage || 'home';
+        document.getElementById('goldFieldNotes').value = row.notes || '';
+        showModal();
+    }
+
+    function showModal() {
+        document.getElementById('goldModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('goldModal').style.display = 'none';
+        _editId = null;
+    }
+
+    async function save() {
+        const desc = document.getElementById('goldFieldDesc').value.trim();
+        const weight = document.getElementById('goldFieldWeight').value;
+        if (!desc || !weight) {
+            window.showToast('Description and weight are required', 'error');
+            return;
+        }
+        const body = {
+            action: _editId ? 'gold_update' : 'gold_add',
+            module: 'gold',
+            sub: _editId ? 'update' : 'add',
+            description: desc,
+            gold_type: document.getElementById('goldFieldType').value,
+            purity_karat: document.getElementById('goldFieldPurity').value,
+            weight_grams: weight,
+            purchase_date: document.getElementById('goldFieldDate').value,
+            purchase_price: document.getElementById('goldFieldCost').value,
+            current_rate: document.getElementById('goldFieldRate').value,
+            storage: document.getElementById('goldFieldStorage').value,
+            notes: document.getElementById('goldFieldNotes').value,
+        };
+        if (_editId) body.id = _editId;
+        try {
+            const res = await window.apiPost(body);
+            if (res.success) {
+                window.showToast(_editId ? 'Gold holding updated' : 'Gold holding added', 'success');
+                closeModal();
+                if (typeof loadNetWorth === 'function') loadNetWorth();
+            } else {
+                window.showToast(res.message || 'Save failed', 'error');
+            }
+        } catch(e) { window.showToast('Error saving gold holding', 'error'); }
+    }
+
+    async function updateRate() {
+        const rate = parseFloat(document.getElementById('goldRateInput')?.value || 0);
+        if (!rate || rate <= 0) { window.showToast('Enter a valid 24K gold rate per gram', 'error'); return; }
+        try {
+            const res = await window.apiPost({ action: 'gold_update_rate', module: 'gold', sub: 'update_rate', rate_24k: rate });
+            if (res.success) {
+                window.showToast(`Updated ${res.data?.updated} holdings at ₹${rate}/g`, 'success');
+                if (typeof loadNetWorth === 'function') loadNetWorth();
+            } else {
+                window.showToast(res.message || 'Rate update failed', 'error');
+            }
+        } catch(e) { window.showToast('Error updating rate', 'error'); }
+    }
+
+    async function remove(id) {
+        if (!confirm('Remove this gold holding?')) return;
+        try {
+            const res = await window.apiPost({ action: 'gold_delete', module: 'gold', sub: 'delete', id });
+            if (res.success) {
+                window.showToast('Gold holding removed', 'success');
+                if (typeof loadNetWorth === 'function') loadNetWorth();
+            } else {
+                window.showToast(res.message || 'Delete failed', 'error');
+            }
+        } catch(e) { window.showToast('Error', 'error'); }
+    }
+
+    return { renderTable, openAddModal, openEditModal, closeModal, save, updateRate, remove, _lastData };
+})();
+
+// Render liabilities tab
+function renderLiabilitiesTab(liab) {
+    const strip = document.getElementById('liabNwSummaryStrip');
+    if (strip && liab) {
+        const items = [
+            { label: 'Total Outstanding', val: liab.total_outstanding, danger: true },
+            { label: 'Home Loan', val: liab.home_loan },
+            { label: 'Personal Loan', val: liab.personal_loan },
+            { label: 'Vehicle Loan', val: liab.vehicle_loan },
+            { label: 'Education Loan', val: liab.education_loan },
+        ].filter(i => i.val > 0);
+        strip.innerHTML = items.map(s => `<div style="background:var(--bg-secondary);border-radius:10px;padding:10px 14px;text-align:center;min-width:100px">
+            <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:3px">${s.label}</div>
+            <div style="font-size:15px;font-weight:800;color:${s.danger?'#dc2626':'var(--text-primary)'}">&#8377;${Number(s.val).toLocaleString('en-IN',{maximumFractionDigits:0})}</div>
+        </div>`).join('');
+    }
+    const tbody = document.getElementById('liabNwBody');
+    if (tbody && liab) {
+        const loans = liab.by_loan || [];
+        tbody.innerHTML = loans.length ? loans.map(l => `<tr>
+            <td>${l.lender_name}</td>
+            <td style="text-transform:capitalize">${l.loan_type} loan</td>
+            <td class="text-right" style="color:#dc2626">&#8377;${Number(l.outstanding_balance).toLocaleString('en-IN',{maximumFractionDigits:0})}</td>
+            <td class="text-right">${l.interest_rate}%</td>
+            <td class="text-right">${l.emi_amount ? '&#8377;' + Number(l.emi_amount).toLocaleString('en-IN',{maximumFractionDigits:0}) : '—'}</td>
+            <td>${l.end_date || '—'}</td>
+        </tr>`).join('') : '<tr><td colspan="6" class="text-center text-secondary">No active loans</td></tr>';
+    }
+}
+
+// Hook liabilities render into main NW load
+document.addEventListener('DOMContentLoaded', () => {
+    const origLoadNW = window._origLoadNW;
+    // Patch: listen for NW data and render liabilities tab
+    const _patchObserver = new MutationObserver(() => {});
+    // We'll use a custom event instead
+    window.addEventListener('nwDataLoaded', e => {
+        if (e.detail?.liabilities) renderLiabilitiesTab(e.detail.liabilities);
+    });
+});
 </script>
 
 <script src="<?= APP_URL ?>/public/js/reports.js?v=3"></script>

@@ -8,6 +8,10 @@
 
 define('WEALTHDASH', true);
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/cron_logger.php';
+$_cronLog = new CronLogger('calculate_returns');
+$_cronLog->start();
+
 require_once __DIR__ . '/../includes/holding_calculator.php';
 
 $fundFilter = null;
@@ -232,3 +236,5 @@ foreach ($allFunds as $f) {
 }
 $log("Fund ratings computed.");
 $log("All done. Total: done=$done skip=$skip fail=$fail");
+$_cronLog->finish($fail > 0 ? 'warning' : 'success', "Updated $done funds, skipped $skip, failed $fail", $done);
+

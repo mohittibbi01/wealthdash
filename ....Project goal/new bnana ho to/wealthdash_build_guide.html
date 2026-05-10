@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthDash — Next.js Build Guide</title>
+<style>
+  :root {
+    --bg: #f8f9fb;
+    --surface: #ffffff;
+    --surface2: #f4f5f8;
+    --border: #e4e7ef;
+    --border2: #d0d5e8;
+    --text: #111827;
+    --muted: #6b7280;
+    --muted2: #9ca3af;
+    --accent: #2563eb;
+    --accent-bg: #eff6ff;
+    --accent-border: #bfdbfe;
+    --green: #059669;
+    --green-bg: #ecfdf5;
+    --green-border: #a7f3d0;
+    --amber: #d97706;
+    --amber-bg: #fffbeb;
+    --amber-border: #fcd34d;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-border: #fca5a5;
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+    --purple-border: #c4b5fd;
+    --teal: #0d9488;
+    --teal-bg: #f0fdfa;
+    --teal-border: #99f6e4;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --radius-lg: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  /* ── TOPBAR ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 54px;
+    box-shadow: var(--shadow);
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+  .logo-sub { font-size: 11px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); padding: 1px 8px; border-radius: 20px; }
+  .topbar-nav { display: flex; gap: 4px; }
+  .nav-btn {
+    padding: 5px 12px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border: 1px solid transparent;
+    background: transparent; color: var(--muted);
+    transition: all .15s;
+  }
+  .nav-btn:hover, .nav-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+  /* ── LAYOUT ── */
+  .layout { display: flex; min-height: calc(100vh - 54px); }
+  .sidebar {
+    width: 240px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    position: sticky; top: 54px; height: calc(100vh - 54px);
+    overflow-y: auto;
+  }
+  .sidebar-section { padding: 0 12px 8px; }
+  .sidebar-label { font-size: 10px; font-weight: 600; color: var(--muted2); letter-spacing: .08em; text-transform: uppercase; padding: 8px 8px 4px; }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 8px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; color: var(--muted);
+    cursor: pointer; transition: all .12s; text-decoration: none;
+  }
+  .sidebar-item:hover { background: var(--surface2); color: var(--text); }
+  .sidebar-item.active { background: var(--accent-bg); color: var(--accent); }
+  .sidebar-item .badge {
+    margin-left: auto; font-size: 10px; font-weight: 600;
+    background: var(--surface2); color: var(--muted);
+    padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border);
+  }
+  .sidebar-item.active .badge { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* ── MAIN ── */
+  .main { flex: 1; padding: 28px 32px; max-width: 900px; }
+  /* ── SECTION HEADERS ── */
+  .page-section { display: none; }
+  .page-section.active { display: block; }
+  .section-hero {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 24px 28px; margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .section-hero h1 { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .section-hero p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px 24px;
+    margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .card-subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  /* ── BADGES ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; padding: 3px 8px;
+    border-radius: 20px; white-space: nowrap;
+  }
+  .b-blue { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+  .b-green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .b-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .b-red { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .b-purple { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+  .b-teal { background: var(--teal-bg); color: var(--teal); border: 1px solid var(--teal-border); }
+  .b-gray { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  /* ── STEP CARDS ── */
+  .step-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); margin-bottom: 16px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .step-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 20px; cursor: pointer;
+    transition: background .12s;
+  }
+  .step-header:hover { background: var(--surface2); }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent-bg); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; border: 1px solid var(--accent-border);
+  }
+  .step-num.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+  .step-num.current { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .step-meta { flex: 1; }
+  .step-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .step-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .step-expand { font-size: 18px; color: var(--muted2); transition: transform .2s; }
+  .step-body { border-top: 1px solid var(--border); padding: 20px; display: none; }
+  .step-body.open { display: block; }
+  /* ── PROMPT BOX ── */
+  .prompt-box {
+    background: #f8faff; border: 1px solid var(--accent-border);
+    border-radius: var(--radius); padding: 16px;
+    margin: 12px 0;
+    position: relative;
+  }
+  .prompt-label {
+    font-size: 10px; font-weight: 700; color: var(--accent);
+    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .prompt-text {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px; color: var(--text); line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 10px;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    cursor: pointer; transition: all .15s;
+  }
+  .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .copy-btn.copied { background: var(--green); color: #fff; border-color: var(--green); }
+  /* ── CHECKLIST ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist input[type=checkbox] { width: 16px; height: 16px; margin-top: 1px; flex-shrink: 0; accent-color: var(--accent); }
+  .checklist .check-label { color: var(--text); }
+  .checklist .check-label.done { text-decoration: line-through; color: var(--muted2); }
+  /* ── FILE TREE ── */
+  .file-tree {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+    font-family: 'Consolas', monospace; font-size: 12.5px;
+    line-height: 1.9; white-space: pre;
+  }
+  .ft-dir { color: var(--accent); font-weight: 600; }
+  .ft-file { color: var(--text); }
+  .ft-comment { color: var(--muted); font-style: italic; }
+  /* ── SQL BLOCK ── */
+  .sql-block {
+    background: #1e293b; border-radius: var(--radius);
+    padding: 16px; overflow-x: auto; position: relative;
+    margin: 12px 0;
+  }
+  .sql-block pre { color: #e2e8f0; font-family: 'Consolas', monospace; font-size: 12px; line-height: 1.7; white-space: pre; }
+  .sql-kw { color: #93c5fd; }
+  .sql-str { color: #86efac; }
+  .sql-cmt { color: #64748b; }
+  .sql-type { color: #fcd34d; }
+  /* ── PHASE TABLE ── */
+  .phase-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .phase-table th {
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 8px 12px; text-align: left; font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+  }
+  .phase-table td { border: 1px solid var(--border); padding: 9px 12px; vertical-align: top; }
+  .phase-table tr:nth-child(even) td { background: var(--surface2); }
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  /* ── STAT CARDS ── */
+  .stat-card {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 14px 16px; text-align: center;
+  }
+  .stat-num { font-size: 24px; font-weight: 700; color: var(--text); }
+  .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  /* ── TASK ROW ── */
+  .task-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 12px; border-radius: var(--radius-sm);
+    transition: background .1s;
+  }
+  .task-row:hover { background: var(--surface2); }
+  .task-id { font-size: 11px; font-weight: 700; color: var(--accent); min-width: 60px; font-family: monospace; }
+  .task-title { font-size: 13px; color: var(--text); flex: 1; }
+  /* ── MISC ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .alert {
+    padding: 12px 16px; border-radius: var(--radius-sm);
+    font-size: 13px; line-height: 1.6; margin: 12px 0;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .alert-blue { background: var(--accent-bg); color: #1e40af; border-left: 3px solid var(--accent); }
+  .alert-amber { background: var(--amber-bg); color: #92400e; border-left: 3px solid var(--amber); }
+  .alert-green { background: var(--green-bg); color: #065f46; border-left: 3px solid var(--green); }
+  .progress-bar { background: var(--border); border-radius: 20px; height: 6px; overflow: hidden; margin: 6px 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); border-radius: 20px; transition: width .3s; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">💎</div>
+    <span class="logo-text">WealthDash</span>
+    <span class="logo-sub">Next.js Build Guide</span>
+  </div>
+  <div class="topbar-nav">
+    <button class="nav-btn active" onclick="showSection('overview')">📊 Overview</button>
+    <button class="nav-btn" onclick="showSection('structure')">🗂️ Structure</button>
+    <button class="nav-btn" onclick="showSection('database')">🗄️ Database</button>
+    <button class="nav-btn" onclick="showSection('steps')">🪜 Steps</button>
+    <button class="nav-btn" onclick="showSection('prompts')">🤖 Prompts</button>
+    <button class="nav-btn" onclick="showSection('checklist')">✅ Checklist</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-label">Quick Jump</div>
+
+    <a class="sidebar-item" onclick="showSection('overview')">📊 Overview</a>
+    <a class="sidebar-item" onclick="showSection('structure')">🗂️ File Structure</a>
+    <a class="sidebar-item" onclick="showSection('database')">🗄️ DB Schema</a>
+
+    <div class="sidebar-label">Build Phases</div>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase1')">Phase 1 — Setup</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase2')">Phase 2 — Auth</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase3')">Phase 3 — Dashboard</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase4')">Phase 4 — MF Core</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase5')">Phase 5 — Stocks</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase6')">Phase 6 — FD/Savings</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase7')">Phase 7 — Tax</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase8')">Phase 8 — Goals</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase9')">Phase 9 — Crypto</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase10')">Phase 10 — Insurance</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase11')">Phase 11 — AI</a>
+    <a class="sidebar-item" onclick="showSection('steps');scrollToStep('phase12')">Phase 12 — Reports</a>
+
+    <div class="sidebar-label">Resources</div>
+    <a class="sidebar-item" onclick="showSection('prompts')">🤖 All Prompts <span class="badge">36</span></a>
+    <a class="sidebar-item" onclick="showSection('checklist')">✅ Checklist <span class="badge" id="checkCount">0/80</span></a>
+  </div>
+
+  <div class="main">
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- OVERVIEW -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section active" id="sec-overview">
+      <div class="section-hero">
+        <h1>WealthDash — Next.js Migration Plan</h1>
+        <p>PHP/MySQL se Next.js + Supabase mein migrate karne ka complete step-by-step guide. 369 pending tasks ko 12 phases mein organize kiya gaya hai. Har phase ke liye ready-made Claude prompt diya gaya hai.</p>
+      </div>
+
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-num" style="color:var(--amber)">369</div><div class="stat-lbl">Pending Tasks</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--green)">170</div><div class="stat-lbl">Already Done</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--accent)">12</div><div class="stat-lbl">Build Phases</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--purple)">36</div><div class="stat-lbl">Ready Prompts</div></div>
+        <div class="stat-card"><div class="stat-num" style="color:var(--teal)">3</div><div class="stat-lbl">Months Est.</div></div>
+        <div class="stat-card"><div class="stat-num">4</div><div class="stat-lbl">Tech Stack</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">New Tech Stack</div>
+            <div class="card-subtitle">Yeh 4 technologies milkar poora WealthDash banayengi</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-weight:600;margin-bottom:4px">⚡ Next.js 14 (Frontend)</div>
+            <div style="font-size:12px;color:var(--muted)">React framework. Har page ek .tsx file. Claude isse bahut achha likhta hai. Vercel pe free hosting.</div>
+          </div>
+          <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-weight:600;margin-bottom:4px">🗄️ Supabase (Database + Auth)</div>
+            <div style="font-size:12px;color:var(--muted)">PostgreSQL database + login system. Free tier mein 500MB. Security automatic. Koi server manage nahi.</div>
+          </div>
+          <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-weight:600;margin-bottom:4px">📊 Recharts (Charts)</div>
+            <div style="font-size:12px;color:var(--muted)">React ke saath seedha kaam karta hai. MF, Stocks, Goals ke charts. Claude isse instantly generate karta hai.</div>
+          </div>
+          <div style="padding:12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-weight:600;margin-bottom:4px">🎨 Tailwind CSS (Styling)</div>
+            <div style="font-size:12px;color:var(--muted)">White theme ke liye perfect. Claude isse seedha likhta hai bina CSS file banaye. Mobile responsive automatic.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📅 12-Phase Build Plan (Priority Order)</div>
+        <table class="phase-table">
+          <thead>
+            <tr><th>Phase</th><th>Module</th><th>Tasks</th><th>Time Est.</th><th>Priority</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>1</strong></td><td>Project Setup + Auth</td><td>~8</td><td>2-3 days</td><td><span class="badge b-red">Critical</span></td></tr>
+            <tr><td><strong>2</strong></td><td>Dashboard + Net Worth</td><td>~12</td><td>3-4 days</td><td><span class="badge b-red">Critical</span></td></tr>
+            <tr><td><strong>3</strong></td><td>Mutual Funds Core</td><td>~18</td><td>4-5 days</td><td><span class="badge b-red">Critical</span></td></tr>
+            <tr><td><strong>4</strong></td><td>Stocks + ETF</td><td>~14</td><td>3-4 days</td><td><span class="badge b-amber">High</span></td></tr>
+            <tr><td><strong>5</strong></td><td>FD + Savings + RD</td><td>~10</td><td>2-3 days</td><td><span class="badge b-amber">High</span></td></tr>
+            <tr><td><strong>6</strong></td><td>Tax Module</td><td>~16</td><td>4-5 days</td><td><span class="badge b-amber">High</span></td></tr>
+            <tr><td><strong>7</strong></td><td>Goals Engine</td><td>~10</td><td>3-4 days</td><td><span class="badge b-amber">High</span></td></tr>
+            <tr><td><strong>8</strong></td><td>Crypto Module</td><td>~8</td><td>2-3 days</td><td><span class="badge b-blue">Medium</span></td></tr>
+            <tr><td><strong>9</strong></td><td>NPS + Post Office</td><td>~10</td><td>2-3 days</td><td><span class="badge b-blue">Medium</span></td></tr>
+            <tr><td><strong>10</strong></td><td>Insurance + Loans</td><td>~10</td><td>2-3 days</td><td><span class="badge b-blue">Medium</span></td></tr>
+            <tr><td><strong>11</strong></td><td>AI Features (Claude API)</td><td>~8</td><td>3-4 days</td><td><span class="badge b-purple">AI</span></td></tr>
+            <tr><td><strong>12</strong></td><td>Reports + Export + PWA</td><td>~12</td><td>3-4 days</td><td><span class="badge b-gray">Later</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="alert alert-blue">
+        💡 <div><strong>Kaise use karein yeh guide:</strong> Pehle "Structure" tab mein folder structure dekho → "Database" tab mein DB schema copy karo Supabase mein → "Steps" tab mein phase by phase chalo → "Prompts" tab se ready-made prompts Claude ko do → "Checklist" mein progress track karo.</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- FILE STRUCTURE -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section" id="sec-structure">
+      <div class="section-hero">
+        <h1>🗂️ Next.js File Structure</h1>
+        <p>Poora project ka folder structure. Pehle Claude ko yeh structure banane ko bolo — ek baar mein sab folders create ho jaayenge.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Project Root Structure</div>
+          <button class="copy-btn" onclick="copyCode('fs-root')">Copy</button>
+        </div>
+        <div class="file-tree" id="fs-root"><span class="ft-dir">wealthdash/</span>
+├── <span class="ft-dir">app/</span>                        <span class="ft-comment"># Next.js 14 App Router</span>
+│   ├── <span class="ft-dir">(auth)/</span>                  <span class="ft-comment"># Auth pages (no sidebar)</span>
+│   │   ├── <span class="ft-dir">login/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">register/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   └── <span class="ft-file">layout.tsx</span>
+│   ├── <span class="ft-dir">(dashboard)/</span>             <span class="ft-comment"># Main app (with sidebar)</span>
+│   │   ├── <span class="ft-dir">dashboard/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">mutual-funds/</span>
+│   │   │   ├── <span class="ft-file">page.tsx</span>           <span class="ft-comment"># Holdings</span>
+│   │   │   ├── <span class="ft-dir">screener/</span>
+│   │   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   │   ├── <span class="ft-dir">transactions/</span>
+│   │   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   │   └── <span class="ft-dir">sip/</span>
+│   │   │       └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">stocks/</span>
+│   │   │   ├── <span class="ft-file">page.tsx</span>
+│   │   │   └── <span class="ft-dir">screener/</span>
+│   │   │       └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">fd/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">crypto/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">nps/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">post-office/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">goals/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">insurance/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">loans/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">real-estate/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">gold/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">epf/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">tax/</span>
+│   │   │   ├── <span class="ft-file">page.tsx</span>           <span class="ft-comment"># Tax dashboard</span>
+│   │   │   ├── <span class="ft-dir">capital-gains/</span>
+│   │   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   │   └── <span class="ft-dir">planning/</span>
+│   │   │       └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">reports/</span>
+│   │   │   ├── <span class="ft-file">page.tsx</span>
+│   │   │   ├── <span class="ft-dir">net-worth/</span>
+│   │   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   │   └── <span class="ft-dir">sip/</span>
+│   │   │       └── <span class="ft-file">page.tsx</span>
+│   │   ├── <span class="ft-dir">settings/</span>
+│   │   │   └── <span class="ft-file">page.tsx</span>
+│   │   └── <span class="ft-file">layout.tsx</span>           <span class="ft-comment"># Sidebar + topbar</span>
+│   ├── <span class="ft-dir">api/</span>                     <span class="ft-comment"># Next.js API routes</span>
+│   │   ├── <span class="ft-dir">mf/</span>
+│   │   │   ├── <span class="ft-file">nav/route.ts</span>       <span class="ft-comment"># AMFI NAV fetch</span>
+│   │   │   └── <span class="ft-file">history/route.ts</span>
+│   │   ├── <span class="ft-dir">stocks/</span>
+│   │   │   └── <span class="ft-file">price/route.ts</span>     <span class="ft-comment"># NSE price</span>
+│   │   ├── <span class="ft-dir">crypto/</span>
+│   │   │   └── <span class="ft-file">price/route.ts</span>     <span class="ft-comment"># CoinGecko</span>
+│   │   ├── <span class="ft-dir">gold/</span>
+│   │   │   └── <span class="ft-file">price/route.ts</span>
+│   │   └── <span class="ft-dir">ai/</span>
+│   │       ├── <span class="ft-file">chat/route.ts</span>
+│   │       ├── <span class="ft-file">portfolio-review/route.ts</span>
+│   │       └── <span class="ft-file">tax-optimizer/route.ts</span>
+│   ├── <span class="ft-file">layout.tsx</span>               <span class="ft-comment"># Root layout</span>
+│   ├── <span class="ft-file">globals.css</span>
+│   └── <span class="ft-file">page.tsx</span>                 <span class="ft-comment"># Redirect to /dashboard</span>
+├── <span class="ft-dir">components/</span>                  <span class="ft-comment"># Reusable UI components</span>
+│   ├── <span class="ft-dir">layout/</span>
+│   │   ├── <span class="ft-file">Sidebar.tsx</span>
+│   │   ├── <span class="ft-file">Topbar.tsx</span>
+│   │   └── <span class="ft-file">MobileNav.tsx</span>
+│   ├── <span class="ft-dir">ui/</span>                      <span class="ft-comment"># shadcn/ui components</span>
+│   │   ├── <span class="ft-file">button.tsx</span>
+│   │   ├── <span class="ft-file">card.tsx</span>
+│   │   ├── <span class="ft-file">badge.tsx</span>
+│   │   ├── <span class="ft-file">modal.tsx</span>
+│   │   └── <span class="ft-file">toast.tsx</span>
+│   ├── <span class="ft-dir">charts/</span>
+│   │   ├── <span class="ft-file">PortfolioChart.tsx</span>
+│   │   ├── <span class="ft-file">NavHistoryChart.tsx</span>
+│   │   ├── <span class="ft-file">AllocationPie.tsx</span>
+│   │   └── <span class="ft-file">GoalProgress.tsx</span>
+│   ├── <span class="ft-dir">mf/</span>
+│   │   ├── <span class="ft-file">HoldingsTable.tsx</span>
+│   │   ├── <span class="ft-file">SipCard.tsx</span>
+│   │   ├── <span class="ft-file">FundCard.tsx</span>
+│   │   └── <span class="ft-file">AddFundModal.tsx</span>
+│   ├── <span class="ft-dir">dashboard/</span>
+│   │   ├── <span class="ft-file">NetWorthCard.tsx</span>
+│   │   ├── <span class="ft-file">AssetAllocation.tsx</span>
+│   │   └── <span class="ft-file">MarketPulse.tsx</span>
+│   └── <span class="ft-dir">tax/</span>
+│       ├── <span class="ft-file">RegimeComparison.tsx</span>
+│       └── <span class="ft-file">CapitalGainsTable.tsx</span>
+├── <span class="ft-dir">lib/</span>                         <span class="ft-comment"># Business logic (PHP se copy)</span>
+│   ├── <span class="ft-file">supabase.ts</span>              <span class="ft-comment"># DB client</span>
+│   ├── <span class="ft-file">supabase-server.ts</span>       <span class="ft-comment"># Server-side client</span>
+│   ├── <span class="ft-dir">calculations/</span>
+│   │   ├── <span class="ft-file">xirr.ts</span>             <span class="ft-comment"># XIRR formula (PHP se port)</span>
+│   │   ├── <span class="ft-file">tax.ts</span>              <span class="ft-comment"># LTCG/STCG/VDA calculations</span>
+│   │   ├── <span class="ft-file">goals.ts</span>            <span class="ft-comment"># Goal projection, SIP calc</span>
+│   │   ├── <span class="ft-file">returns.ts</span>          <span class="ft-comment"># Absolute, CAGR returns</span>
+│   │   └── <span class="ft-file">net-worth.ts</span>        <span class="ft-comment"># Net worth aggregation</span>
+│   ├── <span class="ft-dir">api/</span>
+│   │   ├── <span class="ft-file">amfi.ts</span>             <span class="ft-comment"># MF NAV from AMFI</span>
+│   │   ├── <span class="ft-file">nse.ts</span>              <span class="ft-comment"># NSE stock prices</span>
+│   │   ├── <span class="ft-file">coingecko.ts</span>        <span class="ft-comment"># Crypto prices</span>
+│   │   └── <span class="ft-file">gold.ts</span>             <span class="ft-comment"># Gold prices</span>
+│   └── <span class="ft-file">utils.ts</span>                 <span class="ft-comment"># Indian number format, dates</span>
+├── <span class="ft-dir">hooks/</span>                       <span class="ft-comment"># React custom hooks</span>
+│   ├── <span class="ft-file">usePortfolio.ts</span>
+│   ├── <span class="ft-file">useNavData.ts</span>
+│   └── <span class="ft-file">useGoals.ts</span>
+├── <span class="ft-dir">types/</span>                       <span class="ft-comment"># TypeScript types</span>
+│   ├── <span class="ft-file">mf.ts</span>
+│   ├── <span class="ft-file">stocks.ts</span>
+│   └── <span class="ft-file">portfolio.ts</span>
+├── <span class="ft-dir">supabase/</span>                    <span class="ft-comment"># DB migrations</span>
+│   └── <span class="ft-dir">migrations/</span>
+│       ├── <span class="ft-file">001_init.sql</span>
+│       ├── <span class="ft-file">002_mf.sql</span>
+│       └── <span class="ft-file">003_goals.sql</span>
+├── <span class="ft-file">middleware.ts</span>                <span class="ft-comment"># Auth middleware</span>
+├── <span class="ft-file">next.config.js</span>
+├── <span class="ft-file">tailwind.config.js</span>
+├── <span class="ft-file">.env.local</span>                  <span class="ft-comment"># Supabase keys (secret!)</span>
+└── <span class="ft-file">package.json</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">.env.local — Required Variables</div>
+        <div class="prompt-box">
+          <div class="prompt-label">📄 .env.local</div>
+          <div class="prompt-text"># Supabase (https://supabase.com se milega)
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxxxx
+
+# Anthropic AI (https://console.anthropic.com se milega)
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+
+# App
+NEXT_PUBLIC_APP_NAME=WealthDash
+NEXT_PUBLIC_APP_URL=http://localhost:3000</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DATABASE -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section" id="sec-database">
+      <div class="section-hero">
+        <h1>🗄️ Supabase Database Schema</h1>
+        <p>Supabase Dashboard mein jaao → SQL Editor → yeh SQL paste karke run karo. Ek baar mein sab tables ban jaayengi.</p>
+      </div>
+
+      <div class="alert alert-amber">⚠️ <div>Supabase pe account banao (supabase.com), new project create karo, phir SQL Editor mein neeche diya hua SQL run karo.</div></div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">001 — Users & Core Tables</div><button class="copy-btn" onclick="copyCode('sql1')">Copy SQL</button></div>
+        <div class="sql-block" id="sql1"><pre><span class="sql-cmt">-- Users table (Supabase auth ke saath link)</span>
+<span class="sql-kw">CREATE TABLE</span> profiles (
+  id          <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> auth.users <span class="sql-kw">ON DELETE CASCADE PRIMARY KEY</span>,
+  full_name   <span class="sql-type">TEXT</span>,
+  phone       <span class="sql-type">TEXT</span>,
+  pan_masked  <span class="sql-type">TEXT</span>,              <span class="sql-cmt">-- Last 4 chars only</span>
+  tax_slab    <span class="sql-type">NUMERIC</span>(5,2) <span class="sql-kw">DEFAULT</span> 30,  <span class="sql-cmt">-- 5/10/15/20/25/30</span>
+  tax_regime  <span class="sql-type">TEXT</span> <span class="sql-kw">DEFAULT</span> <span class="sql-str">'new'</span>,   <span class="sql-cmt">-- old/new</span>
+  risk_profile <span class="sql-type">TEXT</span> <span class="sql-kw">DEFAULT</span> <span class="sql-str">'moderate'</span>,
+  monthly_expense <span class="sql-type">NUMERIC</span>(12,2),
+  created_at  <span class="sql-type">TIMESTAMPTZ</span> <span class="sql-kw">DEFAULT NOW</span>()
+);
+
+<span class="sql-cmt">-- App settings (key-value store per user)</span>
+<span class="sql-kw">CREATE TABLE</span> app_settings (
+  id          <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id     <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  key         <span class="sql-type">TEXT NOT NULL</span>,
+  value       <span class="sql-type">TEXT</span>,
+  <span class="sql-kw">UNIQUE</span>(user_id, key)
+);</pre></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">002 — Mutual Funds Tables</div><button class="copy-btn" onclick="copyCode('sql2')">Copy SQL</button></div>
+        <div class="sql-block" id="sql2"><pre><span class="sql-cmt">-- MF Master (fund info)</span>
+<span class="sql-kw">CREATE TABLE</span> mf_master (
+  scheme_code  <span class="sql-type">INTEGER PRIMARY KEY</span>,   <span class="sql-cmt">-- AMFI scheme code</span>
+  scheme_name  <span class="sql-type">TEXT NOT NULL</span>,
+  fund_house   <span class="sql-type">TEXT</span>,
+  category     <span class="sql-type">TEXT</span>,               <span class="sql-cmt">-- Equity/Debt/Hybrid</span>
+  sub_category <span class="sql-type">TEXT</span>,
+  nav_latest   <span class="sql-type">NUMERIC</span>(10,4),
+  nav_date     <span class="sql-type">DATE</span>,
+  expense_ratio <span class="sql-type">NUMERIC</span>(5,4),
+  updated_at   <span class="sql-type">TIMESTAMPTZ</span> <span class="sql-kw">DEFAULT NOW</span>()
+);
+
+<span class="sql-cmt">-- User MF Transactions</span>
+<span class="sql-kw">CREATE TABLE</span> mf_transactions (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  scheme_code  <span class="sql-type">INTEGER REFERENCES</span> mf_master(scheme_code),
+  txn_type     <span class="sql-type">TEXT NOT NULL</span>,         <span class="sql-cmt">-- BUY/SELL/SIP/SWP/SWITCH_IN/SWITCH_OUT/DIV</span>
+  txn_date     <span class="sql-type">DATE NOT NULL</span>,
+  nav          <span class="sql-type">NUMERIC</span>(10,4) <span class="sql-kw">NOT NULL</span>,
+  units        <span class="sql-type">NUMERIC</span>(12,4) <span class="sql-kw">NOT NULL</span>,
+  amount       <span class="sql-type">NUMERIC</span>(15,2) <span class="sql-kw">NOT NULL</span>,
+  folio_number <span class="sql-type">TEXT</span>,
+  notes        <span class="sql-type">TEXT</span>,
+  created_at   <span class="sql-type">TIMESTAMPTZ</span> <span class="sql-kw">DEFAULT NOW</span>()
+);
+
+<span class="sql-cmt">-- SIP Rules</span>
+<span class="sql-kw">CREATE TABLE</span> sip_rules (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  scheme_code  <span class="sql-type">INTEGER REFERENCES</span> mf_master(scheme_code),
+  amount       <span class="sql-type">NUMERIC</span>(12,2),
+  frequency    <span class="sql-type">TEXT DEFAULT</span> <span class="sql-str">'monthly'</span>,
+  sip_date     <span class="sql-type">INTEGER</span>,               <span class="sql-cmt">-- Day of month: 1-28</span>
+  start_date   <span class="sql-type">DATE</span>,
+  end_date     <span class="sql-type">DATE</span>,
+  is_active    <span class="sql-type">BOOLEAN DEFAULT TRUE</span>,
+  goal_id      <span class="sql-type">BIGINT</span>               <span class="sql-cmt">-- Link to goals table</span>
+);
+
+<span class="sql-cmt">-- MF NAV History (for charts)</span>
+<span class="sql-kw">CREATE TABLE</span> nav_history (
+  scheme_code  <span class="sql-type">INTEGER</span>,
+  nav_date     <span class="sql-type">DATE</span>,
+  nav          <span class="sql-type">NUMERIC</span>(10,4),
+  <span class="sql-kw">PRIMARY KEY</span>(scheme_code, nav_date)
+);
+
+<span class="sql-cmt">-- Indexes for speed</span>
+<span class="sql-kw">CREATE INDEX</span> idx_mf_txn_user ON mf_transactions(user_id);
+<span class="sql-kw">CREATE INDEX</span> idx_mf_txn_scheme ON mf_transactions(scheme_code);
+<span class="sql-kw">CREATE INDEX</span> idx_nav_history ON nav_history(scheme_code, nav_date DESC);</pre></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">003 — Stocks, FD, Crypto Tables</div><button class="copy-btn" onclick="copyCode('sql3')">Copy SQL</button></div>
+        <div class="sql-block" id="sql3"><pre><span class="sql-cmt">-- Stocks</span>
+<span class="sql-kw">CREATE TABLE</span> stocks_transactions (
+  id          <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id     <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  symbol      <span class="sql-type">TEXT NOT NULL</span>,          <span class="sql-cmt">-- RELIANCE, TCS, etc.</span>
+  exchange    <span class="sql-type">TEXT DEFAULT</span> <span class="sql-str">'NSE'</span>,
+  txn_type    <span class="sql-type">TEXT NOT NULL</span>,          <span class="sql-cmt">-- BUY/SELL/DIV/BONUS/SPLIT</span>
+  txn_date    <span class="sql-type">DATE NOT NULL</span>,
+  quantity    <span class="sql-type">NUMERIC</span>(12,4),
+  price       <span class="sql-type">NUMERIC</span>(12,4),
+  amount      <span class="sql-type">NUMERIC</span>(15,2),
+  broker      <span class="sql-type">TEXT</span>,
+  notes       <span class="sql-type">TEXT</span>
+);
+
+<span class="sql-cmt">-- Fixed Deposits</span>
+<span class="sql-kw">CREATE TABLE</span> fd_accounts (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  bank_name    <span class="sql-type">TEXT NOT NULL</span>,
+  fd_number    <span class="sql-type">TEXT</span>,
+  principal    <span class="sql-type">NUMERIC</span>(15,2) <span class="sql-kw">NOT NULL</span>,
+  rate         <span class="sql-type">NUMERIC</span>(5,4) <span class="sql-kw">NOT NULL</span>,    <span class="sql-cmt">-- Annual rate e.g. 7.50</span>
+  start_date   <span class="sql-type">DATE NOT NULL</span>,
+  maturity_date <span class="sql-type">DATE NOT NULL</span>,
+  interest_type <span class="sql-type">TEXT DEFAULT</span> <span class="sql-str">'cumulative'</span>, <span class="sql-cmt">-- cumulative/monthly/quarterly</span>
+  is_active    <span class="sql-type">BOOLEAN DEFAULT TRUE</span>,
+  notes        <span class="sql-type">TEXT</span>
+);
+
+<span class="sql-cmt">-- Crypto Holdings</span>
+<span class="sql-kw">CREATE TABLE</span> crypto_transactions (
+  id          <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id     <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  coin_id     <span class="sql-type">TEXT NOT NULL</span>,           <span class="sql-cmt">-- bitcoin, ethereum (CoinGecko ID)</span>
+  symbol      <span class="sql-type">TEXT NOT NULL</span>,           <span class="sql-cmt">-- BTC, ETH</span>
+  txn_type    <span class="sql-type">TEXT NOT NULL</span>,           <span class="sql-cmt">-- BUY/SELL/TRANSFER</span>
+  txn_date    <span class="sql-type">DATE NOT NULL</span>,
+  quantity    <span class="sql-type">NUMERIC</span>(18,8),
+  price_inr   <span class="sql-type">NUMERIC</span>(15,2),
+  amount_inr  <span class="sql-type">NUMERIC</span>(15,2),
+  exchange    <span class="sql-type">TEXT</span>                      <span class="sql-cmt">-- WazirX, Binance, etc.</span>
+);</pre></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">004 — Goals, NPS, Insurance, Loans</div><button class="copy-btn" onclick="copyCode('sql4')">Copy SQL</button></div>
+        <div class="sql-block" id="sql4"><pre><span class="sql-cmt">-- Goals</span>
+<span class="sql-kw">CREATE TABLE</span> goals (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  goal_name    <span class="sql-type">TEXT NOT NULL</span>,          <span class="sql-cmt">-- Retirement, Child Education, etc.</span>
+  target_amount <span class="sql-type">NUMERIC</span>(15,2),
+  target_date  <span class="sql-type">DATE</span>,
+  current_value <span class="sql-type">NUMERIC</span>(15,2) <span class="sql-kw">DEFAULT</span> 0,
+  category     <span class="sql-type">TEXT</span>,                   <span class="sql-cmt">-- retirement/education/house/emergency/other</span>
+  icon         <span class="sql-type">TEXT</span>,
+  is_active    <span class="sql-type">BOOLEAN DEFAULT TRUE</span>
+);
+
+<span class="sql-cmt">-- NPS Accounts</span>
+<span class="sql-kw">CREATE TABLE</span> nps_accounts (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  pran         <span class="sql-type">TEXT</span>,
+  pfm_name     <span class="sql-type">TEXT</span>,                   <span class="sql-cmt">-- SBI, HDFC, Kotak, etc.</span>
+  tier         <span class="sql-type">TEXT DEFAULT</span> <span class="sql-str">'tier1'</span>,
+  equity_pct   <span class="sql-type">NUMERIC</span>(5,2),
+  corporate_pct <span class="sql-type">NUMERIC</span>(5,2),
+  govt_pct     <span class="sql-type">NUMERIC</span>(5,2),
+  current_value <span class="sql-type">NUMERIC</span>(15,2)
+);
+
+<span class="sql-cmt">-- Insurance Policies</span>
+<span class="sql-kw">CREATE TABLE</span> insurance_policies (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  policy_type  <span class="sql-type">TEXT NOT NULL</span>,          <span class="sql-cmt">-- term/health/ulip/vehicle/other</span>
+  insurer      <span class="sql-type">TEXT</span>,
+  policy_number <span class="sql-type">TEXT</span>,
+  sum_assured  <span class="sql-type">NUMERIC</span>(15,2),
+  premium      <span class="sql-type">NUMERIC</span>(12,2),
+  premium_freq <span class="sql-type">TEXT</span>,                  <span class="sql-cmt">-- annual/monthly/quarterly</span>
+  start_date   <span class="sql-type">DATE</span>,
+  renewal_date <span class="sql-type">DATE</span>,
+  is_active    <span class="sql-type">BOOLEAN DEFAULT TRUE</span>
+);
+
+<span class="sql-cmt">-- Loans</span>
+<span class="sql-kw">CREATE TABLE</span> loans (
+  id           <span class="sql-type">BIGSERIAL PRIMARY KEY</span>,
+  user_id      <span class="sql-type">UUID</span> <span class="sql-kw">REFERENCES</span> profiles(id) <span class="sql-kw">ON DELETE CASCADE</span>,
+  loan_type    <span class="sql-type">TEXT NOT NULL</span>,          <span class="sql-cmt">-- home/personal/education/vehicle/other</span>
+  lender       <span class="sql-type">TEXT</span>,
+  principal    <span class="sql-type">NUMERIC</span>(15,2),
+  outstanding  <span class="sql-type">NUMERIC</span>(15,2),
+  interest_rate <span class="sql-type">NUMERIC</span>(5,4),
+  emi          <span class="sql-type">NUMERIC</span>(12,2),
+  start_date   <span class="sql-type">DATE</span>,
+  end_date     <span class="sql-type">DATE</span>,
+  is_active    <span class="sql-type">BOOLEAN DEFAULT TRUE</span>
+);
+
+<span class="sql-cmt">-- Row Level Security (RLS) — IMPORTANT: Har user sirf apna data dekhe</span>
+<span class="sql-kw">ALTER TABLE</span> profiles <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> mf_transactions <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> stocks_transactions <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> fd_accounts <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> crypto_transactions <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> goals <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> insurance_policies <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="sql-kw">ALTER TABLE</span> loans <span class="sql-kw">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="sql-cmt">-- RLS Policies (users apna hi data dekh/edit kar sakte hain)</span>
+<span class="sql-kw">CREATE POLICY</span> <span class="sql-str">"users_own_data"</span> <span class="sql-kw">ON</span> mf_transactions
+  <span class="sql-kw">FOR ALL USING</span> (auth.uid() = user_id);
+<span class="sql-cmt">-- (Same policy sab tables ke liye — Claude generate karega)</span></pre></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- STEPS -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section" id="sec-steps">
+      <div class="section-hero">
+        <h1>🪜 Step-by-Step Build Guide</h1>
+        <p>Har step ko sequence mein karo. Ek step complete hone ke baad hi agla karo. Har step ke saath ready prompt hai jo Claude ko do.</p>
+      </div>
+
+      <!-- PHASE 1 -->
+      <div id="phase1" style="margin:20px 0 8px"><span class="badge b-red" style="font-size:13px;padding:5px 14px">Phase 1 — Project Setup</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num current">1</div>
+          <div class="step-meta">
+            <div class="step-title">Next.js project create karo</div>
+            <div class="step-desc">Local computer pe project setup · 20 min</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-gray">Manual</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="alert alert-blue">💡 Yeh step aap khud terminal mein karoge. Claude ki zarurat nahi.</div>
+          <div class="prompt-box">
+            <div class="prompt-label">💻 Terminal Commands</div>
+            <div class="prompt-text">npx create-next-app@latest wealthdash
+# Options:
+# TypeScript? YES
+# ESLint? YES
+# Tailwind CSS? YES
+# src/ directory? NO
+# App Router? YES
+# Import alias? NO
+
+cd wealthdash
+
+# Supabase install karo
+npm install @supabase/supabase-js @supabase/ssr
+
+# Extra packages
+npm install recharts lucide-react date-fns
+
+# .env.local file banao aur Supabase keys daalo</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">2</div>
+          <div class="step-meta">
+            <div class="step-title">Supabase setup + DB tables banao</div>
+            <div class="step-desc">Database structure, RLS policies, auth config · 30 min</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-gray">Manual + SQL</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <ol style="padding-left:20px;font-size:13px;color:var(--muted);line-height:2">
+            <li>supabase.com pe jaao → New Project banao</li>
+            <li>Project milne ke baad Settings → API → keys copy karo</li>
+            <li>.env.local mein URL aur ANON_KEY daalo</li>
+            <li>SQL Editor mein Database tab se ऊपर wale saare SQL run karo (001 se 004 tak)</li>
+            <li>Authentication → Providers mein Email enable karo</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">3</div>
+          <div class="step-meta">
+            <div class="step-title">Supabase client + middleware setup</div>
+            <div class="step-desc">lib/supabase.ts, middleware.ts · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do yeh prompt</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">I am building WealthDash — an India-focused personal wealth management app. Tech stack: Next.js 14 (App Router), TypeScript, Tailwind CSS, Supabase (PostgreSQL + Auth).
+
+Please create these files:
+
+1. lib/supabase.ts — Client-side Supabase client
+2. lib/supabase-server.ts — Server-side Supabase client (for Server Components)
+3. middleware.ts — Auth middleware (redirect unauthenticated users to /login, skip /login and /register pages)
+
+Use @supabase/ssr package. My env vars are:
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+Also create app/layout.tsx (root layout with Tailwind, white background, Plus Jakarta Sans font from Google Fonts).</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 2 -->
+      <div id="phase2" style="margin:24px 0 8px"><span class="badge b-red" style="font-size:13px;padding:5px 14px">Phase 2 — Auth + Layout</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">4</div>
+          <div class="step-meta">
+            <div class="step-title">Login + Register pages</div>
+            <div class="step-desc">Email auth, Google OAuth (optional) · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Next.js 14, Supabase Auth, Tailwind CSS.
+
+Create auth pages with WHITE theme (no dark background):
+
+1. app/(auth)/login/page.tsx
+   - Clean centered card with logo "💎 WealthDash"
+   - Email + Password fields
+   - Login button → Supabase signInWithPassword
+   - "New user? Register" link
+   - Error messages in red
+   - On success: redirect to /dashboard
+
+2. app/(auth)/register/page.tsx
+   - Full Name, Email, Password, Confirm Password
+   - Supabase signUp
+   - Also insert row in profiles table with full_name
+   - On success: redirect to /dashboard
+
+3. app/(auth)/layout.tsx
+   - Simple centered layout, white background
+   - No sidebar
+
+Use Tailwind only. White card on light gray background. No dark mode needed.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">5</div>
+          <div class="step-meta">
+            <div class="step-title">Main layout — Sidebar + Topbar</div>
+            <div class="step-desc">Navigation, sidebar with all modules · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/layout.tsx with:
+
+TOPBAR (sticky, white, shadow):
+- Left: 💎 WealthDash logo + "v1.0" badge
+- Right: User name, notification bell, logout button
+
+SIDEBAR (240px, white, left fixed):
+Navigation sections:
+- Overview: Dashboard, Net Worth
+- Investments: Mutual Funds, Stocks, FD & RD, Crypto, Gold, NPS, Post Office
+- Planning: Goals, Tax, Reports
+- Other: Insurance, Loans, Real Estate, Settings
+
+Each item: icon + label, highlight on active route.
+
+MOBILE: Sidebar hidden by default, hamburger menu.
+
+WHITE theme throughout. Use Tailwind + lucide-react icons.
+Current path highlight using usePathname().
+
+Also create components/layout/Sidebar.tsx and components/layout/Topbar.tsx as separate components.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 3 -->
+      <div id="phase3" style="margin:24px 0 8px"><span class="badge b-amber" style="font-size:13px;padding:5px 14px">Phase 3 — Dashboard</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">6</div>
+          <div class="step-meta">
+            <div class="step-title">Dashboard page — Net Worth + Asset Overview</div>
+            <div class="step-desc">Tasks: t442, t295, t396, t298 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash Dashboard page — Next.js 14, Tailwind, Supabase, Recharts.
+
+Create app/(dashboard)/dashboard/page.tsx:
+
+TOP ROW — 4 stat cards:
+- Total Net Worth (all assets sum)
+- Total Invested
+- Total Gains (₹ + %)
+- XIRR %
+
+SECTION 2 — Asset Allocation:
+- Pie chart (Recharts PieChart) showing: MF, Stocks, FD, Crypto, Gold, NPS, Cash %
+- Right side: table with each asset class, amount, % allocation
+
+SECTION 3 — Market Pulse (t298):
+- Live indices: Nifty 50, Sensex, Bank Nifty, Midcap 150
+- Fetch from: /api/indexes (create this API route using NSE free data)
+- Gold price, USD/INR
+
+SECTION 4 — Net Worth Trend (t295):
+- Line chart (Recharts) - last 12 months net worth
+- Data from Supabase: calculate from all transactions
+
+SECTION 5 — Recent Activity:
+- Last 5 transactions across all asset classes
+
+Data: All fetched from Supabase using server components.
+Indian number format: ₹1,23,456 (use Intl.NumberFormat with 'en-IN').
+WHITE theme. Clean cards with subtle borders.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 4 -->
+      <div id="phase4" style="margin:24px 0 8px"><span class="badge b-amber" style="font-size:13px;padding:5px 14px">Phase 4 — Mutual Funds</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">7</div>
+          <div class="step-meta">
+            <div class="step-title">MF Holdings page + Add Transaction</div>
+            <div class="step-desc">Core MF module with XIRR, SIP tracking · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — MF Holdings page. Next.js 14, Tailwind, Supabase, Recharts.
+
+Create app/(dashboard)/mutual-funds/page.tsx:
+
+TOP SUMMARY (4 cards):
+- Total MF Value, Total Invested, Total Gain ₹, XIRR %
+
+HOLDINGS TABLE:
+Columns: Fund Name | Category | Units | Avg NAV | Current NAV | Invested | Current Value | Gain ₹ | Gain % | XIRR | 1D Change
+- Sort by any column
+- Filter by category (All/Equity/Debt/Hybrid/ELSS)
+- Search by fund name
+- Each row: click to expand → NAV history chart (last 1 year)
+
+ADD TRANSACTION BUTTON:
+Modal with: Fund search (AMFI API), Date, Type (BUY/SELL/SIP), Amount, Units (auto-calculate from NAV), NAV
+
+XIRR CALCULATION:
+Use Newton-Raphson method. Here is the JavaScript port of our existing PHP XIRR:
+function xirr(cashflows, dates) {
+  // cashflows: negative for invest, positive for current value
+  // Newton-Raphson iteration
+  let rate = 0.1;
+  for (let i = 0; i < 100; i++) {
+    let f = 0, df = 0;
+    for (let j = 0; j < cashflows.length; j++) {
+      const t = (dates[j] - dates[0]) / 365;
+      f += cashflows[j] / Math.pow(1 + rate, t);
+      df -= t * cashflows[j] / Math.pow(1 + rate, t + 1);
+    }
+    const newRate = rate - f / df;
+    if (Math.abs(newRate - rate) < 1e-6) return newRate;
+    rate = newRate;
+  }
+  return rate;
+}
+
+Save this in lib/calculations/xirr.ts.
+
+API ROUTES needed:
+- app/api/mf/nav/route.ts → fetch latest NAV from AMFI: https://www.amfiindia.com/spages/NAVAll.txt
+- app/api/mf/search/route.ts → search funds from mf_master table
+
+Data from Supabase tables: mf_transactions, mf_master.
+Indian number format everywhere. WHITE theme.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 5 -->
+      <div id="phase5" style="margin:24px 0 8px"><span class="badge b-amber" style="font-size:13px;padding:5px 14px">Phase 5 — Stocks</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">8</div>
+          <div class="step-meta">
+            <div class="step-title">Stocks Holdings + Live Prices</div>
+            <div class="step-desc">Tasks: t36, t281, t282, t433, t434 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Stocks page. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/stocks/page.tsx:
+
+HOLDINGS TABLE:
+Columns: Stock | Sector | Qty | Avg Price | CMP | Invested | Current Value | P&L ₹ | P&L % | CAGR | 52W High/Low
+- Real-time price from NSE: https://www.nseindia.com/api/quote-equity?symbol=RELIANCE
+- Note: NSE needs proper headers, use this fetch:
+  fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*', 'Referer': 'https://www.nseindia.com' }})
+
+ADD STOCK TRANSACTION:
+Modal: Symbol search, Date, Type (BUY/SELL/DIV/BONUS/SPLIT), Qty, Price
+
+SECTOR ALLOCATION:
+Bar chart (Recharts) — Sector wise current value
+
+52-WEEK HIGH/LOW TRACKER (t433):
+Cards showing stocks near 52W high (within 5%) or 52W low (within 10%)
+
+CORPORATE ACTIONS (t434):
+Table: Bonus, Split, Dividend history from stock_dividends
+
+API route: app/api/stocks/price/route.ts — fetch from NSE
+Supabase table: stocks_transactions
+WHITE theme, Indian number format.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 6 -->
+      <div id="phase6" style="margin:24px 0 8px"><span class="badge b-amber" style="font-size:13px;padding:5px 14px">Phase 6 — FD & Savings</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">9</div>
+          <div class="step-meta">
+            <div class="step-title">FD Tracker + Maturity Alerts</div>
+            <div class="step-desc">Tasks: t80, t421, t424, t199, t200 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — FD & Savings page. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/fd/page.tsx:
+
+TOP SUMMARY: Total FD Value, Total Interest Earned, Maturing This Month, Avg Rate
+
+FD TABLE:
+Bank | FD Number | Principal | Rate | Start | Maturity | Days Left | Maturity Amount | Interest | Status
+- Color coding: Green (>180 days), Amber (30-180 days), Red (<30 days)
+- Status badge: Active / Maturing Soon / Matured
+
+MATURITY ALERT BANNER (t80):
+Show alert card if any FD matures in next 30 days
+
+FD LADDERING CHART (t200):
+Gantt-style bar chart using Recharts — each FD as horizontal bar from start to maturity date
+
+INTEREST PAYOUT CALENDAR (t199):
+Monthly view of expected interest payouts for non-cumulative FDs
+
+ADD FD BUTTON → Modal:
+Bank name, FD number (optional), Principal, Interest Rate %, Start Date, Maturity Date, Interest Type (Cumulative/Monthly/Quarterly)
+
+Calculation: Maturity amount = Principal × (1 + rate/compounding_freq)^(years × compounding_freq)
+
+Data from Supabase: fd_accounts table
+WHITE theme, Indian number format.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 7 -->
+      <div id="phase7" style="margin:24px 0 8px"><span class="badge b-amber" style="font-size:13px;padding:5px 14px">Phase 7 — Tax Module</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">10</div>
+          <div class="step-meta">
+            <div class="step-title">Tax — Old vs New Regime + Capital Gains</div>
+            <div class="step-desc">Tasks: tv001, tv002, tv003, t286, t437 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Tax Module. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/tax/page.tsx with 3 tabs:
+
+TAB 1 — Tax Regime Comparison (tv001):
+Old vs New regime side-by-side calculator
+Inputs: Gross Salary, HRA, Rent Paid, 80C, 80D, 80CCD(1B), Home Loan Interest
+Show: Tax in each regime, savings, recommendation
+FY 2024-25 slabs:
+- Old: 0→₹2.5L=0%, ₹2.5-5L=5%, ₹5-10L=20%, >10L=30%
+- New: 0→₹3L=0%, ₹3-7L=5%, ₹7-10L=10%, ₹10-12L=15%, ₹12-15L=20%, >15L=30%
+87A rebate: ₹25,000 rebate if total income ≤ ₹7L (new regime)
+
+TAB 2 — Advance Tax Planner (tv002):
+Inputs: Expected Total Income, Expected LTCG, Expected STCG, Already Paid
+Calculate: Total tax liability, 4 quarterly installments
+Jun 15 = 15%, Sep 15 = 30%, Dec 15 = 30%, Mar 15 = 25%
+
+TAB 3 — Capital Gains (t286):
+Auto-calculate from mf_transactions + stocks_transactions in Supabase
+STCG (< 1 year equity): 20% (Budget 2024)
+LTCG (> 1 year equity): 12.5% above ₹1.25L
+STCG (debt): Slab rate
+LTCG (debt, post Apr 2023): Slab rate (indexation removed)
+Show: Schedule 112A format (for ITR filing)
+
+Save tax calculations in lib/calculations/tax.ts
+WHITE theme. Complex calculations mein show working.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 8 -->
+      <div id="phase8" style="margin:24px 0 8px"><span class="badge b-blue" style="font-size:13px;padding:5px 14px">Phase 8 — Goals Engine</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">11</div>
+          <div class="step-meta">
+            <div class="step-title">Goals — SIP Linking + Progress Tracking</div>
+            <div class="step-desc">Tasks: t139, tg001-tg005, t291, t292, t293 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Goals Module. Next.js 14, Tailwind, Supabase, Recharts.
+
+Create app/(dashboard)/goals/page.tsx:
+
+GOAL CARDS GRID (t291):
+Each goal as a card showing:
+- Goal name, icon, target amount, target date
+- Circular progress ring (SVG or Recharts RadialBar) showing % complete
+- Current value, invested, remaining
+- Linked SIPs (badges)
+- Status: On Track / At Risk / Behind (based on required vs actual SIP)
+
+ADD GOAL MODAL:
+Name, Category (dropdown), Target ₹, Target Date, Monthly SIP needed (auto-calculate)
+Link existing SIPs from sip_rules table to this goal
+
+GOAL CALCULATIONS (save in lib/calculations/goals.ts):
+- Required monthly SIP = PMT formula: PMT(r/12, n, 0, -FV)
+  where r = expected return (default 12%), n = months to target, FV = target amount - current value
+- Goal progress % = current_value / target_amount * 100
+- Projected value at maturity = current_value × (1 + r)^years + monthly_sip × ((1+r/12)^months - 1) / (r/12)
+
+FIRE CALCULATOR (t293) — separate tab:
+"Financial Independence" number = Annual expenses × 25 (4% withdrawal rule)
+Progress: current net worth vs FIRE number
+
+RETIREMENT PLANNER (tg004):
+Current age, retirement age, monthly expense, inflation rate, expected returns
+Calculate: corpus needed, monthly SIP needed
+
+WHITE theme. Recharts for charts. Data from Supabase goals + sip_rules tables.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 9 -->
+      <div id="phase9" style="margin:24px 0 8px"><span class="badge b-blue" style="font-size:13px;padding:5px 14px">Phase 9 — Crypto</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">12</div>
+          <div class="step-meta">
+            <div class="step-title">Crypto Holdings + VDA Tax</div>
+            <div class="step-desc">Tasks: tc001, tc002, t315, t316, t317 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Crypto Module. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/crypto/page.tsx:
+
+SUMMARY: Total Crypto Value (INR), Total Invested, P&L, 1% TDS Paid This FY
+
+HOLDINGS TABLE:
+Coin | Symbol | Quantity | Avg Cost | Current Price | Current Value | P&L ₹ | P&L %
+- Live price from CoinGecko API (free, no key needed):
+  https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=inr
+
+VDA TAX CALCULATOR (tc002 — Section 115BBH):
+- Tax rate: Flat 30% on gains (no deduction allowed)
+- TDS: 1% deducted at source on sell amount
+- Show: Gains this FY, Tax @ 30%, TDS already deducted, Balance tax due
+- IMPORTANT: Losses CANNOT be set off against any other income (Indian law)
+
+PORTFOLIO CHART:
+Pie chart showing allocation between different coins
+
+ADD TRANSACTION MODAL:
+Search coin (CoinGecko list), Date, Type (BUY/SELL), Quantity, Price (INR), Exchange
+
+API route: app/api/crypto/price/route.ts → CoinGecko wrapper
+
+Data from: crypto_transactions table
+WHITE theme, Indian number format.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 10 -->
+      <div id="phase10" style="margin:24px 0 8px"><span class="badge b-blue" style="font-size:13px;padding:5px 14px">Phase 10 — Insurance + Loans</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">13</div>
+          <div class="step-meta">
+            <div class="step-title">Insurance Tracker + Loan Amortization</div>
+            <div class="step-desc">Tasks: t459, t460, t461, t462, t464, t325, t327 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Insurance + Loans. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/insurance/page.tsx:
+
+INSURANCE ADEQUACY CHECK (t459, t460):
+- Term Insurance: Is cover >= 20x annual income? Show gap.
+- Health Insurance: Family floater sufficient? Recommend based on family size.
+
+POLICIES TABLE:
+Type | Insurer | Policy No | Sum Assured | Premium | Renewal Date | Status
+- Color alert for policies renewing in 30 days
+
+PREMIUM CALENDAR (t462):
+Month-wise view of all premium due dates
+
+---
+
+Create app/(dashboard)/loans/page.tsx:
+
+LOAN SUMMARY: Total EMI/month, Total Outstanding, Debt-to-Income Ratio
+
+LOAN TABLE:
+Type | Lender | Outstanding | Rate | EMI | End Date | % Paid
+
+EMI CALCULATOR + AMORTIZATION (t325):
+- Input: Loan amount, Rate, Tenure
+- Full amortization table: Month, EMI, Principal, Interest, Balance
+- Pre-payment impact calculator
+- Chart: Principal vs Interest paid over time (Recharts AreaChart)
+
+HOME LOAN TAX BENEFIT (t327):
+Section 24(b): ₹2L interest deduction
+Section 80C: ₹1.5L principal repayment
+Show annual benefit
+
+Data from: insurance_policies, loans tables. WHITE theme.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 11 -->
+      <div id="phase11" style="margin:24px 0 8px"><span class="badge b-purple" style="font-size:13px;padding:5px 14px">Phase 11 — AI Features</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">14</div>
+          <div class="step-meta">
+            <div class="step-title">AI Chat + Portfolio Review (Claude API)</div>
+            <div class="step-desc">Tasks: t380, t381, t383, t384, t385 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-purple">AI + Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — AI Features. Next.js 14, Tailwind, Anthropic SDK.
+
+Install: npm install @anthropic-ai/sdk
+
+Create these AI API routes (use claude-sonnet-4-20250514):
+
+1. app/api/ai/chat/route.ts (t381 — AI Chat):
+POST body: { message, portfolioContext }
+System prompt: "You are WealthDash AI, an expert Indian financial advisor. User portfolio context: {portfolioContext}. Give specific, actionable advice. Always mention Indian tax laws, SEBI rules. Reply in the same language as the user (Hindi or English). Keep responses concise."
+Return: { reply }
+
+2. app/api/ai/portfolio-review/route.ts (t380):
+POST body: { portfolio } — full portfolio data
+Analyze: XIRR vs benchmark, over-diversification, sector concentration, missing asset classes
+Return structured JSON: { score, grade, insights[], recommendations[] }
+
+3. app/api/ai/tax-optimizer/route.ts (t383):
+POST body: { gains, losses, regime }
+Suggest: Tax loss harvesting opportunities, optimal redemption sequence, advance tax timing
+Return: { actions[], potential_saving }
+
+Create components/ai/ChatWidget.tsx:
+- Floating chat button (bottom right)
+- Slide-up panel with chat interface
+- Message history, typing indicator
+- Portfolio context auto-attached to every message
+
+WHITE theme. Streaming responses for chat (use ReadableStream).</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHASE 12 -->
+      <div id="phase12" style="margin:24px 0 8px"><span class="badge b-gray" style="font-size:13px;padding:5px 14px">Phase 12 — Reports + Export</span></div>
+
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(this)">
+          <div class="step-num">15</div>
+          <div class="step-meta">
+            <div class="step-title">Reports — Net Worth, SIP, Tax + Excel Export</div>
+            <div class="step-desc">Tasks: t311, t374, t375, t377, t252 · Claude prompt</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge b-blue">Claude Prompt</span>
+            <div class="step-expand">▾</div>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box">
+            <div class="prompt-label">🤖 Claude ko do</div>
+            <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+            <div class="prompt-text">WealthDash — Reports Module. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/reports/page.tsx with 4 tabs:
+
+TAB 1 — Net Worth Report:
+- Month-by-month net worth table for current FY
+- Line chart showing growth
+- Asset class breakdown per month
+
+TAB 2 — SIP Performance Report:
+- All SIPs: started, amount, XIRR, total invested, current value
+- Compare: SIP XIRR vs Nifty 50 CAGR (same period)
+- Top 3 and Bottom 3 performing SIPs
+
+TAB 3 — FY P&L Summary:
+- Realized gains/losses this FY (all asset classes)
+- Unrealized gains
+- Total income for tax purposes
+
+TAB 4 — Tax Report (t377 — CA ready):
+- Section 80C summary (ELSS + PPF + NPS + Insurance)
+- Capital gains (LTCG/STCG) by asset class
+- Total tax liability
+- Download as PDF button
+
+EXCEL EXPORT (t252):
+Install: npm install xlsx
+Export button on each page → Downloads Excel with all holdings data
+Use sheet-per-asset-class format
+
+PDF REPORT (t374):
+Install: npm install jspdf html2canvas
+"Generate PDF Report" button → Beautiful formatted PDF with logo, charts, tables
+
+WHITE theme. Recharts for all charts.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end sec-steps -->
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ALL PROMPTS -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section" id="sec-prompts">
+      <div class="section-hero">
+        <h1>🤖 All Claude Prompts</h1>
+        <p>Yeh prompts ready-to-use hain. Har prompt mein WealthDash ka context diya hua hai. Copy karo, Claude ko do, code milega.</p>
+      </div>
+
+      <div class="alert alert-green">✅ <div><strong>Pro tip:</strong> Har prompt ke saath apna existing code bhi attach karo (agar related file already bani hai). Isse Claude consistent code likhega.</div></div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">Global Context Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">Yeh pehle har Claude conversation ki shuruat mein do (ek baar)</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">I am building WealthDash — a personal wealth management web app for Indian investors.
+
+Tech Stack:
+- Next.js 14 (App Router, TypeScript)
+- Tailwind CSS (WHITE theme, no dark mode)
+- Supabase (PostgreSQL + Auth + RLS)
+- Recharts (for all charts)
+- lucide-react (icons)
+
+Key Rules:
+- Indian number format everywhere: ₹1,23,456 using Intl.NumberFormat('en-IN')
+- Currency: INR only (unless international stocks)
+- Tax laws: Indian (LTCG 12.5%, STCG 20%, VDA 30%, etc.)
+- API sources: AMFI for MF NAV, NSE for stocks, CoinGecko for crypto
+- WHITE theme: white cards, light gray background (#f8f9fb), subtle borders
+- No dark mode required
+
+Database: Supabase with these main tables:
+- profiles (users), mf_transactions, mf_master, sip_rules, stocks_transactions
+- fd_accounts, crypto_transactions, goals, nps_accounts
+- insurance_policies, loans, nav_history, app_settings
+
+When I give you a feature to build, create the complete page/component with:
+1. Full TypeScript types
+2. Supabase data fetching (server components preferred)
+3. Error handling
+4. Loading states
+5. Mobile responsive layout</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">NPS Module Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">Phase 9 — NPS page banane ke liye</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">WealthDash — NPS Module. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/nps/page.tsx with 3 tabs:
+
+TAB 1 — My NPS Account:
+- PRAN, PFM, Tier 1/2, current value
+- Asset allocation: Equity (E), Corporate (C), Govt (G) %
+- Contribution history chart
+
+TAB 2 — NPS Pension Estimator (t427):
+Inputs: Current age, retirement age, current corpus, monthly contribution, expected return
+Calculate: 
+- Corpus at 60 = FV formula
+- Annuity corpus (40% mandatory) = corpus × 0.40
+- Lump sum (60%) = corpus × 0.60
+- Monthly pension = annuity corpus × annuity_rate / 12 (assume 6% annuity)
+Show: Month-wise projection chart
+
+TAB 3 — NPS vs EPF vs PPF Comparison (t428, t470):
+Side-by-side table comparing:
+- Tax benefit: NPS (80C + 80CCD1B ₹50K extra), EPF (80C), PPF (80C)
+- Returns: NPS (market-linked), EPF (8.25%), PPF (7.1%)
+- Withdrawal: rules for each
+- Risk: Low/Medium/High
+
+Data from: nps_accounts table
+WHITE theme.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">EPF Module Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">EPF tracker banane ke liye</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">WealthDash — EPF Module. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/epf/page.tsx:
+
+EPF BALANCE TRACKER (t467):
+- UAN number, employer name, current balance
+- Monthly contribution log (Employee + Employer share)
+- EPF Interest: 8.25% for FY 2024-25
+- EPS pension portion: 8.33% of Basic (max ₹15,000 basic)
+
+EPS PENSION CALCULATOR (t468):
+Formula: Monthly Pension = (Pensionable Salary × Pensionable Service) / 70
+- Pensionable salary = average salary last 5 years (max ₹15,000)
+- Pensionable service = years of service
+Show: Estimated monthly pension at age 58
+
+EPF INTEREST CALCULATOR (t339):
+Monthly running balance with interest (compounded monthly, credited annually)
+Show: Month-wise projected balance for next 10 years
+
+TAX ALERT (t469):
+If employee contribution > ₹2.5L in a year → interest on excess is taxable
+Show warning if approaching limit
+
+DB Table: Create epf_accounts and epf_contributions tables (provide SQL)
+WHITE theme.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">Post Office Schemes Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">SSY, PPF, NSC, KVP, SCSS, MIS banane ke liye</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">WealthDash — Post Office Schemes. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/post-office/page.tsx with tabs per scheme:
+
+SSY (Sukanya Samriddhi Yojana) (t318):
+- Girl child DOB, account opening date, annual deposit
+- 8.2% interest, matures at age 21, partial withdrawal at 18
+- Year-wise balance projection table + chart
+
+PPF (Public Provident Fund):
+- 15-year lock-in, 7.1% interest
+- Annual deposit tracker with FY progress bar (max ₹1.5L)
+- Loan eligibility (3rd-7th year), partial withdrawal (7th year onwards)
+- Maturity projection
+
+SCSS (Senior Citizens Savings Scheme):
+- 8.2% quarterly payout, 5-year tenure
+- Maximum deposit: ₹30L
+- Quarterly income tracker
+
+MIS (Monthly Income Scheme) (t206):
+- 7.4% monthly payout
+- ₹9L max single, ₹15L joint account
+- Monthly income calendar
+
+NSC / KVP:
+- NSC: 7.7% compounded, 5 years, 80C deductible
+- KVP: 7.5%, doubles in ~115 months
+- Deemed reinvestment for 80C (years 2-5)
+
+Current rates (Q1 FY2024-25) built into calculations.
+WHITE theme. DB: po_schemes table (provide SQL to create it).</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">Gold + SGB Tracker Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">Tasks: t113, t114, t465</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">WealthDash — Gold & SGB. Next.js 14, Tailwind, Supabase.
+
+Create app/(dashboard)/gold/page.tsx with 3 tabs:
+
+TAB 1 — Sovereign Gold Bonds (t113):
+- SGB series tracker: Issue date, maturity (8 years), units, issue price
+- Current price: issue price + 2.5% annual interest
+- Redemption rules: Premature exit allowed after 5 years on interest payment dates
+- Capital gains: Tax-free if held to maturity (8 years)
+- API: Fetch latest SGB prices from RBI or use manual input
+
+TAB 2 — Physical Gold + Jewelry (t465):
+- Purity (22K/24K), weight in grams, purchase price, purchase date
+- Live gold price from: https://www.mcxindia.com (or manual update)
+- Current value = weight × purity% × current price per gram
+- Hallmarking details (optional)
+
+TAB 3 — Gold ETF / Gold MF:
+- These are already in MF holdings (category = Gold)
+- Show consolidated view: Physical + SGB + ETF total
+
+UNIFIED GOLD SUMMARY:
+Total gold value across all types, % of portfolio, vs recommended 10-15% allocation
+
+API: app/api/gold/price/route.ts
+DB: sgb_holdings, physical_gold tables (provide SQL)
+WHITE theme.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:4px">Deployment Prompt</div>
+        <div class="card-subtitle" style="margin-bottom:12px">Final step — Vercel pe deploy karne ke liye</div>
+        <div class="prompt-box">
+          <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+          <div class="prompt-text">WealthDash is ready to deploy. Help me deploy to Vercel (free hosting).
+
+Steps I need:
+1. next.config.js — production settings (image optimization, headers, etc.)
+2. .gitignore — proper file with .env.local excluded
+3. middleware.ts — verify it handles auth correctly in production
+4. Vercel environment variables I need to set (list all)
+5. Any API routes that need edge runtime for speed
+
+Also:
+- Enable PWA support (t229): next-pwa package setup, manifest.json, service worker
+- Mobile bottom navigation (t370): bottom nav bar for mobile screens showing Dashboard, MF, Stocks, FD, Goals
+
+My Vercel project: wealthdash.vercel.app (or custom domain)
+Supabase is already on cloud (no changes needed there)</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- CHECKLIST -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="page-section" id="sec-checklist">
+      <div class="section-hero">
+        <h1>✅ Master Checklist</h1>
+        <p>Har step complete karne ke baad tick karo. Progress automatically save hoti hai browser mein.</p>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:20px;align-items:center">
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Overall Progress — <span id="progressText">0/80</span></div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        </div>
+        <button onclick="resetChecklist()" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--muted);cursor:pointer">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🏗️ Phase 1 — Project Setup</div>
+        <ul class="checklist" id="checklist-phase1">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Node.js installed (v18+)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Next.js project created: npx create-next-app@latest wealthdash</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Supabase account banaya, new project create kiya</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">.env.local mein Supabase URL + ANON_KEY daala</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Database SQL (001-004) Supabase SQL Editor mein run kiya</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">lib/supabase.ts + middleware.ts Claude se banaya</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">npm run dev se project locally chal raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🔐 Phase 2 — Auth + Layout</div>
+        <ul class="checklist" id="checklist-phase2">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Login page kaam kar rahi hai (email + password)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Register page se user banta hai, profiles table mein row aata hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Logout kaam karta hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Sidebar sab pages ke liye dikha rahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Mobile pe hamburger menu kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Unauthenticated user /login redirect ho raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📊 Phase 3 — Dashboard</div>
+        <ul class="checklist" id="checklist-phase3">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Net Worth card dikh raha hai (sab assets ka sum)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Asset allocation pie chart kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Market indices live dikh rahe hain (Nifty, Sensex)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Net worth trend chart 12 months dikhata hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Recent transactions list dikh rahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Indian number format (₹1,23,456) sab jagah hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📈 Phase 4 — Mutual Funds</div>
+        <ul class="checklist" id="checklist-phase4">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Holdings table dikh rahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">XIRR calculate ho raha hai correctly</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Fund add karna kaam kar raha hai (AMFI search)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">BUY/SELL/SIP transactions save ho rahe hain</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">AMFI se live NAV aa raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Category filter kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">NAV history chart row click se dikh raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📉 Phase 5 — Stocks</div>
+        <ul class="checklist" id="checklist-phase5">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Stocks holdings table dikh rahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Live price NSE se aa raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Sector allocation chart dikh raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">CAGR aur gain% calculated hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">52-Week high/low tracker kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Stock add/sell transaction kaam kar raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">💰 Phase 6 — FD & Savings</div>
+        <ul class="checklist" id="checklist-phase6">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">FD list dikh rahi hai sab details ke saath</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Maturity amount correctly calculated hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Maturity alert (30 days) dikh raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">FD Laddering Gantt chart dikh raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">FD add karna kaam kar raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🧾 Phase 7 — Tax</div>
+        <ul class="checklist" id="checklist-phase7">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Old vs New regime comparison kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">87A rebate correctly apply ho raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Advance tax 4 installments calculate ho rahe hain</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Capital gains auto-calculate ho rahe hain transactions se</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">LTCG/STCG sahi rate pe hai (Budget 2024)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Schedule 112A format dikh raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🎯 Phase 8 — Goals</div>
+        <ul class="checklist" id="checklist-phase8">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Goal cards dikh rahe hain progress ring ke saath</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Required SIP auto-calculate ho raha hai (PMT formula)</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">SIP ko goal se link karna kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">FIRE calculator kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Retirement corpus planner kaam kar raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">₿ Phase 9 — Crypto</div>
+        <ul class="checklist" id="checklist-phase9">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Crypto holdings dikh rahe hain</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">CoinGecko se live prices aa rahe hain</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">VDA tax (30% flat) correctly calculate ho raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">TDS tracker kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Crypto add/sell transaction kaam kar raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🛡️ Phase 10 — Insurance + Loans</div>
+        <ul class="checklist" id="checklist-phase10">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Insurance policies list dikh rahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Term insurance adequacy check kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Renewal alert 30 days pehle dikh raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Loan EMI amortization table sahi hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Home loan tax benefit (24b + 80C) calculate ho raha hai</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🤖 Phase 11 — AI Features</div>
+        <ul class="checklist" id="checklist-phase11">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">ANTHROPIC_API_KEY .env.local mein hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">AI chat widget kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Portfolio review API response aa raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Tax optimizer suggestions aa rahe hain</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Chat mein Hindi aur English dono kaam kar rahe hain</span></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">📤 Phase 12 — Reports + Deploy</div>
+        <ul class="checklist" id="checklist-phase12">
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Net Worth report dikh raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Excel export kaam kar raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">PDF report generate ho raha hai</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">GitHub repository create kiya</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Vercel pe deploy ho gaya</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Supabase env vars Vercel mein set kiye</span></li>
+          <li><input type="checkbox" onchange="saveChecks()"><span class="check-label">Production URL pe sab pages kaam kar rahe hain</span></li>
+        </ul>
+      </div>
+
+    </div><!-- end checklist -->
+
+  </div><!-- end main -->
+</div><!-- end layout -->
+
+<script>
+// ── Navigation ──
+function showSection(id) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  window.scrollTo(0, 0);
+}
+function scrollToStep(id) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+// ── Step Expand/Collapse ──
+function toggleStep(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.step-expand');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+// ── Copy Buttons ──
+function copyCode(id) {
+  const el = document.getElementById(id);
+  const text = el.innerText || el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.previousElementSibling?.querySelector('.copy-btn') || event.target;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+function copyPrompt(btn) {
+  const box = btn.closest('.prompt-box');
+  const text = box.querySelector('.prompt-text').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Checklist with localStorage ──
+function saveChecks() {
+  const checks = {};
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach((cb, i) => {
+    checks[i] = cb.checked;
+    cb.nextElementSibling.classList.toggle('done', cb.checked);
+  });
+  localStorage.setItem('wd_checklist', JSON.stringify(checks));
+  updateProgress();
+}
+function loadChecks() {
+  const saved = JSON.parse(localStorage.getItem('wd_checklist') || '{}');
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach((cb, i) => {
+    if (saved[i]) {
+      cb.checked = true;
+      cb.nextElementSibling.classList.add('done');
+    }
+  });
+  updateProgress();
+}
+function updateProgress() {
+  const all = document.querySelectorAll('.checklist input[type=checkbox]');
+  const done = document.querySelectorAll('.checklist input[type=checkbox]:checked');
+  const pct = Math.round(done.length / all.length * 100);
+  document.getElementById('progressText').textContent = done.length + '/' + all.length;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('checkCount').textContent = done.length + '/' + all.length;
+}
+function resetChecklist() {
+  if (!confirm('Checklist reset karein? Sab unchecked ho jayenge.')) return;
+  localStorage.removeItem('wd_checklist');
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(cb => {
+    cb.checked = false;
+    cb.nextElementSibling.classList.remove('done');
+  });
+  updateProgress();
+}
+
+// Load on startup
+window.addEventListener('load', loadChecks);
+</script>
+</body>
+</html>

@@ -17,6 +17,10 @@
 declare(strict_types=1);
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/includes/cron_logger.php';
+$_cronLog = new CronLogger('fetch_fund_holdings');
+$_cronLog->start();
+
 
 $mode   = $argv[1] ?? 'current';
 $months = (int)($argv[2] ?? 1);
@@ -70,6 +74,8 @@ log_h("\n── Recomputing overlap cache ──");
 recompute_overlap_cache();
 
 log_h("=== Complete | Total inserted: {$totalInserted} | Failed: {$totalFailed} ===");
+\$_cronLog->finish(\$totalFailed > 0 ? 'warning' : 'success', "Inserted: \$totalInserted, Failed: \$totalFailed", \$totalInserted);
+
 
 
 // ════════════════════════════════════════════════════════════════════════════

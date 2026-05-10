@@ -55,23 +55,37 @@ $csrfExempt = [
     'admin_stats', 'admin_users',
     'admin_cron_status', 'admin_cron_history',
     'admin_settings_get', 'admin_audit_log', 'admin_db_list', 'admin_db_status',
+    'admin_migrations_list',
+    // t310: Rate Limiter admin (read-only)
+    'admin_rl_stats',
+    // tg001: Monte Carlo Simulator (read-only actions)
+    'monte_carlo_presets', 'monte_carlo_history',
+    // tg002: Bucket Strategy (read-only)
+    'bucket_strategy_summary', 'bucket_strategy_goals', 'bucket_strategy_health', 'bucket_strategy_load',
+    // t312: Rebalancing Report (read-only)
+    'report_rebalancing', 'rebalancing_load_targets',
     'admin_fund_rules_search', 'admin_fund_rules_get', 'admin_fund_rules_categories',
     'admin_import_ter',
     'admin_import_exit_load',
     'get_portfolio_summary', 'get_dashboard_data', 'global_search', 'wealth_statement',
+    'unified_summary', 'unified_activity', 'unified_alerts',  // t442
     'scheduled_reports_list',
-    'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity',
+    'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity', 'fd_ladder',
     'stocks_list', 'stocks_get',
     'nps_list', 'nps_nav_history',
     'savings_list',
     'po_list', 'po_meta',
-    'goal_list', 'goal_projection',
+    'goal_list', 'goal_projection', 'goal_asset_allocation', 'goal_link_asset', 'goal_unlink_asset',
     'sip_list', 'sip_analysis', 'sip_upcoming', 'sip_monthly_chart',
     'sip_xirr', 'sip_nav_status', 'sip_nav_token', 'sip_sync_txns',
     'indexes_fetch',
     'report_fy_gains',
     'annual_report_data',   // t376
     'nps_statement',
+    'insurance_list', 'insurance_premium_calendar',  // t321/t322/t324
+    'health_summary', 'health_members_list', 'health_claims_list',  // t460
+    'loans_list',  // t123
+    'hl_detail', 'hl_rate_history', 'hl_prepayments', 'hl_tax_claims', 'hl_emi_calendar',  // t464
     'admin_nps_nav_trigger',
     'fund_notes_get',
     'data_quality_report',   // tv13
@@ -139,6 +153,14 @@ $csrfExempt = [
     'nw_projection',
     // t197: NPS Contribution SIP Tracker (read-only)
     'nps_sip_tracker',
+    // t424: FD Interest Tracker (read-only)
+    'fd_interest_tracker',
+    // t466: Real Estate (read-only list)
+    'realestate_list', 'realestate_summary',
+    // t465: Physical Gold (read-only list)
+    'gold_list', 'gold_summary',
+    // t394: SGB — Sovereign Gold Bonds (read-only + live price)
+    'sgb_list', 'sgb_summary', 'sgb_live_price', 'sgb_series_list', 'sgb_interest_list',
     // t320: PO Rate Change Alert (read-only)
     'po_rate_alert',
     // t46 + t339: EPF Tracker + Interest Calculator
@@ -469,6 +491,8 @@ try {
         case 'po_rate_alert':      // t320: PO Rate Change Alert
             require APP_ROOT . '/api/post_office/po_rate_alert.php'; exit;
         case 'report_rebalancing':
+        case 'rebalancing_save_targets':
+        case 'rebalancing_load_targets':
             require APP_ROOT . '/api/reports/rebalancing.php'; exit;
         case 'export_csv':
         case 'export_holdings_csv':
@@ -584,7 +608,26 @@ try {
         case 'goal_mark_achieved':
         case 'goal_contribute':
         case 'goal_projection':
+        case 'goal_asset_allocation':  // t292
+        case 'goal_link_asset':        // t292
+        case 'goal_unlink_asset':      // t292
             require APP_ROOT . '/api/reports/goal_planning.php'; exit;
+
+        // ── tg001: Monte Carlo Goal Probability Simulator ─────
+        case 'monte_carlo_run':
+        case 'monte_carlo_save':
+        case 'monte_carlo_history':
+        case 'monte_carlo_delete':
+        case 'monte_carlo_presets':
+            require APP_ROOT . '/api/goals/monte_carlo.php'; exit;
+
+        // ── tg002: Bucket Strategy ────────────────────────────
+        case 'bucket_strategy_summary':
+        case 'bucket_strategy_goals':
+        case 'bucket_strategy_health':
+        case 'bucket_strategy_save':
+        case 'bucket_strategy_load':
+            require APP_ROOT . '/api/goals/bucket_strategy.php'; exit;
 
         // ── Notifications Center ─────────────────────────────
         case 'notif_list':           // t57/t81 — Notifications Center
@@ -642,6 +685,13 @@ try {
             if (!$isAdmin) json_response(false, 'Admin only', [], 403);
             require APP_ROOT . '/api/admin/db_setup_download.php'; exit;
 
+        // ── t417: Admin — DB Migrations ──────────────────────
+        case 'admin_migrations_list':
+        case 'admin_migrations_run':
+        case 'admin_migrations_rollback':
+            if (!$isAdmin) json_response(false, 'Admin only', [], 403);
+            require APP_ROOT . '/api/admin/db_migrations.php'; exit;
+
         // ── Phase 5: Admin — Users ───────────────────────────
         case 'admin_users':
         case 'admin_add_user':
@@ -664,6 +714,12 @@ try {
         case 'admin_cron_trigger':
         case 'admin_cron_clear':
             require APP_ROOT . '/api/admin/cron_dashboard.php'; exit;
+
+        // ── t310: Admin — Rate Limiter ────────────────────────
+        case 'admin_rl_stats':
+        case 'admin_rl_flush':
+        case 'admin_rl_reset_bucket':
+            require APP_ROOT . '/api/admin/rate_limit_admin.php'; exit;
 
         // ── tv13: Admin — Data Quality ───────────────────────
         case 'data_quality_report':
@@ -738,6 +794,10 @@ try {
         case 'crypto_txn_add':
             require APP_ROOT . '/api/crypto/crypto_list.php'; exit;
 
+        // ── tc001 — Live Crypto Price Stream (SSE) ───────────────
+        case 'crypto_price_stream':
+            require APP_ROOT . '/api/crypto/crypto_price_stream.php'; exit;
+
         // ── t42 — VDA Tax Calculator ─────────────────────────────
         case 'crypto_vda_tax':
             require APP_ROOT . '/api/crypto/vda_tax.php'; exit;
@@ -745,6 +805,14 @@ try {
         // ── t62 — AI Tax Optimization ────────────────────────────
         case 'ai_tax_optimize':
             require APP_ROOT . '/api/reports/tax_planning.php'; exit;
+
+        // ── t383 — AI Tax Optimizer (full engine) ────────────────
+        case 'ai_tax_get_suggestions':
+        case 'ai_tax_full_analysis':
+        case 'ai_tax_income_update':
+        case 'ai_tax_checklist':
+        case 'ai_tax_deadline_alerts':
+            require APP_ROOT . '/api/ai_advisor/tax.php'; exit;
 
         // ── t386: 2FA — TOTP Setup / Verify / Disable  [BUG-03 FIX] ──
         case '2fa_status':
@@ -813,6 +881,20 @@ try {
         // ── t298: Market Pulse Widget ────────────────────────────────
         case 'market_pulse':
             require APP_ROOT . '/api/dashboard/market_pulse.php'; exit;
+
+        // ── t442: Unified Dashboard — All Assets ─────────────────────
+        case 'unified_summary':
+        case 'unified_activity':
+        case 'unified_alerts':
+            require APP_ROOT . '/api/dashboard/unified.php'; exit;
+
+        // ── t443: Morning Briefing — 9AM digest ──────────────────────
+        case 'morning_briefing':
+            require APP_ROOT . '/api/dashboard/morning_briefing.php'; exit;
+
+        // ── t300: Portfolio Heatmap ───────────────────────────────────
+        case 'portfolio_heatmap':
+            require APP_ROOT . '/api/dashboard/portfolio_heatmap.php'; exit;
 
         // ── t254/t291/t295/t400: Dashboard Widgets ───────────────────
         case 'fy_summary_card':
@@ -892,6 +974,88 @@ try {
         case 'bonds54ec_edit':
         case 'bonds54ec_delete':
             require APP_ROOT . '/api/bonds/bonds_54ec.php'; exit;
+
+        // ── t424: FD Interest Payout Tracker ────────────────
+        case 'fd_interest_tracker':
+            require APP_ROOT . '/api/fd/fd_interest_tracker.php'; exit;
+
+        // ── t44: FD Laddering Visualization ─────────────────
+        case 'fd_ladder':
+            require APP_ROOT . '/api/fd/fd_ladder.php'; exit;
+
+        // ── t466: Real Estate (t124 stub → full impl) ────────
+        case 'realestate_list':
+        case 'realestate_add':
+        case 'realestate_update':
+        case 'realestate_delete':
+        case 'realestate_summary':
+            require APP_ROOT . '/api/realestate/realestate.php'; exit;
+
+        // ── t465: Physical Gold ───────────────────────────────
+        case 'gold_list':
+        case 'gold_add':
+        case 'gold_update':
+        case 'gold_delete':
+        case 'gold_summary':
+        case 'gold_update_rate':
+            require APP_ROOT . '/api/gold/gold.php'; exit;
+
+        // ── t394: SGB — Sovereign Gold Bonds ──────────────────────────────
+        case 'sgb_list':
+        case 'sgb_add':
+        case 'sgb_update':
+        case 'sgb_delete':
+        case 'sgb_summary':
+        case 'sgb_live_price':
+        case 'sgb_refresh_nav':
+        case 'sgb_interest_add':
+        case 'sgb_interest_list':
+        case 'sgb_series_list':
+            require APP_ROOT . '/api/sgb/sgb.php'; exit;
+
+        // ── t321/t322/t324/t459: Insurance Portfolio ──────────────────────
+        case 'insurance_list':
+        case 'insurance_add':
+        case 'insurance_edit':
+        case 'insurance_delete':
+        case 'insurance_premium_calendar':
+        case 'insurance_adequacy':
+            require APP_ROOT . '/api/insurance/insurance_list.php'; exit;
+
+        // ── t460: Health Insurance Tracker ───────────────────────────────
+        case 'health_summary':
+        case 'health_members_list':
+        case 'health_member_add':
+        case 'health_member_edit':
+        case 'health_member_delete':
+        case 'health_claims_list':
+        case 'health_claim_add':
+        case 'health_claim_edit':
+        case 'health_claim_delete':
+        case 'health_update_details':
+        case 'health_ncb_update':
+            require APP_ROOT . '/api/insurance/health_tracker.php'; exit;
+
+        // ── t123: Loan Tracker ────────────────────────────────────────────
+        case 'loans_list':
+        case 'loans_add':
+        case 'loans_delete':
+        case 'loans_update_outstanding':
+            require APP_ROOT . '/api/loan/loans_list.php'; exit;
+
+        // ── t464: Home Loan EMI Tracker ───────────────────────────────────
+        case 'hl_detail':
+        case 'hl_update_details':
+        case 'hl_rate_history':
+        case 'hl_rate_add':
+        case 'hl_rate_delete':
+        case 'hl_prepayments':
+        case 'hl_prepayment_add':
+        case 'hl_prepayment_delete':
+        case 'hl_tax_claims':
+        case 'hl_tax_claim_save':
+        case 'hl_emi_calendar':
+            require APP_ROOT . '/api/loan/home_loan_tracker.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

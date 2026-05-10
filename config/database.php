@@ -92,5 +92,40 @@ class DB {
             self::conn()->rollBack();
         }
     }
+
+    // ── Cache helpers (tp001) ─────────────────────────────────────────────────
+
+    /**
+     * Cached SELECT — runs query only on cache miss.
+     *
+     * Example:
+     *   $rows = DB::cached("mf_holdings:{$userId}", fn() =>
+     *       DB::fetchAll("SELECT …", [$userId]), ttl: 120, tags: ["user:{$userId}"]);
+     *
+     * @param int      $ttl   Seconds (default 5 min)
+     * @param string[] $tags  Tag names for invalidation
+     */
+    public static function cached(
+        string   $key,
+        callable $query,
+        int      $ttl  = 300,
+        array    $tags = []
+    ): mixed {
+        return WdCache::remember($key, $query, $ttl, $tags);
+    }
+
+    /**
+     * Invalidate cache by tag — call after INSERT / UPDATE / DELETE.
+     * Pass one or more tag names.
+     *
+     * Example:
+     *   DB::invalidateCache("user:{$userId}", "mf");
+     */
+    public static function invalidateCache(string ...$tags): void
+    {
+        foreach ($tags as $tag) {
+            WdCache::invalidate($tag);
+        }
+    }
 }
 

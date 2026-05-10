@@ -72,6 +72,7 @@ $id = DB::insert(
 
 HoldingCalculator::recalculate_stock_holding($portfolioId, $stockId);
 audit_log('stock_' . strtolower($txnType), 'stock_transactions', (int)$id);
+DB::invalidateCache("user:{$userId}");  // tp001
 
 json_response(true, 'Stock transaction saved.', ['id' => $id]);
 

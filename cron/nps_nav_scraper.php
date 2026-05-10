@@ -17,6 +17,10 @@
 declare(strict_types=1);
 define('WEALTHDASH', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/includes/cron_logger.php';
+$_cronLog = new CronLogger('nps_nav_scraper');
+$_cronLog->start();
+
 
 $mode  = $argv[1] ?? 'daily';
 $years = (int)(DB::fetchVal("SELECT setting_val FROM app_settings WHERE setting_key='nps_historical_years'") ?: 5);
@@ -97,6 +101,8 @@ try {
         default                  => 'failed',
     };
     log_nps("Done. Updated={$updated} Failed={$failed}");
+\$_cronLog->finish(\$failed > 0 ? 'warning' : 'success', "Updated=\$updated Failed=\$failed", \$updated);
+
     update_nps_status($status, "Updated:{$updated} Failed:{$failed}");
 
 } catch (Throwable $e) {

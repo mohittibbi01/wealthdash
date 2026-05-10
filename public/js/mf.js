@@ -135,7 +135,12 @@ function initHoldingsPage() {
 
 async function loadHoldings() {
   const body = document.getElementById('holdingsBody');
-  body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  // t449: skeleton rows instead of bare spinner
+  if (typeof WdSkel !== 'undefined') {
+    WdSkel.table('holdingsBody', 8, 7);
+  } else {
+    body.innerHTML = `<tr><td colspan="11" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  }
 
   const params = new URLSearchParams({ view: MF.view, portfolio_id: window.WD?.selectedPortfolio || 0 });
 
@@ -153,11 +158,114 @@ async function loadHoldings() {
     applyHoldingsFilter();
     load1DayChange(); // fetch 1D NAV change after holdings render
 
-    // t71 + t73: Render analytics after data is loaded
-    renderMfAnalytics();
+    // tp002: Split analytics into immediate (above-fold) + lazy (below-fold)
+    renderMfAnalyticsImmediate();
+    registerMfAnalyticsLazy();
   } catch (err) {
     body.innerHTML = `<tr><td colspan="11" class="text-center text-danger" style="padding:32px;">${err.message}</td></tr>`;
   }
+}
+
+/* ── tp002: IMMEDIATE analytics (above the fold, runs right after data loads) ─
+   Only: alloc chart + portfolio returns + folio/rebalancing alerts.
+   Everything expensive is deferred to WdLazy below.                          */
+function renderMfAnalyticsImmediate() {
+  const section = document.getElementById('mfAnalyticsSection');
+  if (!section) return;
+  const holdings = MF.data || [];
+  if (!holdings.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  // These are fast and above-fold — run immediately
+  if (typeof renderAllocChart      === 'function') renderAllocChart(_allocMode ?? 'value');
+  if (typeof renderPortfolioReturns=== 'function') renderPortfolioReturns();
+  if (typeof renderFolioAlert      === 'function') renderFolioAlert(holdings);
+  if (typeof renderRebalancingAlert=== 'function') renderRebalancingAlert(holdings);
+  if (typeof checkAllAlerts        === 'function') checkAllAlerts(holdings);
+  if (typeof injectNotifBell       === 'function') injectNotifBell();
+  if (typeof renderDirectVsRegular === 'function') renderDirectVsRegular();
+  if (typeof renderSipStreak       === 'function') renderSipStreak();
+  if (typeof renderEmergencyFundWidget === 'function') renderEmergencyFundWidget();
+}
+
+/* ── tp002: DEFERRED analytics — each section lazy-loaded via IntersectionObserver ─ */
+function registerMfAnalyticsLazy() {
+  if (typeof WdLazy === 'undefined') {
+    // Fallback: no lazy loader — run everything immediately with delay
+    setTimeout(() => {
+      if (typeof renderMfAnalytics === 'function') renderMfAnalytics();
+    }, 800);
+    return;
+  }
+
+  // Reset all lazy registrations so they re-fire after a data refresh
+  WdLazy.resetAll();
+
+  const h = MF.data || [];
+  if (!h.length) return;
+
+  // — TWRR card (medium cost, just calculations) ————————————————
+  WdLazy.observe('twrrValue', () => {
+    if (typeof renderTWRR === 'function') renderTWRR();
+  }, { rootMargin: '150px' });
+
+  // — Stress test (cheap, just maths) ——————————————————————————
+  WdLazy.observe('stressResult', () => {
+    if (typeof runStressTest === 'function') runStressTest('2008', null);
+  }, { rootMargin: '100px' });
+
+  // — Report Card (API call) ————————————————————————————————————
+  WdLazy.observe('reportCardWrap', () => {
+    if (typeof renderPortfolioReportCard === 'function') renderPortfolioReportCard();
+  }, { rootMargin: '100px' });
+
+  // — Factor Exposure (API call) ————————————————————————————————
+  WdLazy.observe('factorExposureWrap', () => {
+    if (typeof renderFactorExposure === 'function') renderFactorExposure();
+  }, { rootMargin: '100px' });
+
+  // — Nominee Tracker ———————————————————————————————————————————
+  WdLazy.observe('nomineeTrackerBody', () => {
+    if (typeof renderNomineeTracker === 'function') renderNomineeTracker();
+  }, { rootMargin: '100px' });
+
+  // — Cash Drag ————————————————————————————————————————————————
+  WdLazy.observe('cashDragWrap', () => {
+    if (typeof renderCashDrag === 'function') renderCashDrag();
+  }, { rootMargin: '100px' });
+
+  // — Correlation Matrix (expensive: O(n²) DOM) ————————————————
+  WdLazy.observe('correlationMatrixWrap', () => {
+    if (typeof renderCorrelationMatrix === 'function') renderCorrelationMatrix();
+  }, { rootMargin: '50px' });
+
+  // — MFI Intelligence cards (grouped: health + insights + recs + risk) ———
+  WdLazy.observeGroup('mfi_block', ['mfiInsightCards', 'mfiHealthGauge'], () => {
+    if (typeof renderMfiHealthScore      === 'function') renderMfiHealthScore(h);
+    if (typeof renderMfiInsightCards     === 'function') renderMfiInsightCards(h);
+    if (typeof renderMfiRecommendations  === 'function') renderMfiRecommendations(h);
+    if (typeof renderMfiRiskAnalysis     === 'function') renderMfiRiskAnalysis(h);
+  }, { rootMargin: '150px' });
+
+  // — MFI Action cards (tax harvest, what-if, cleanup, SIP optimise) ———————
+  WdLazy.observeGroup('mfi_actions', ['mfiTaxHarvest', 'mfiWhatIf'], () => {
+    if (typeof renderMfiTaxHarvest       === 'function') renderMfiTaxHarvest(h);
+    if (typeof renderMfiWhatIf           === 'function') renderMfiWhatIf(h);
+    if (typeof renderMfiCleanup          === 'function') renderMfiCleanup(h);
+    if (typeof renderMfiSipOptimization  === 'function') renderMfiSipOptimization(h);
+  }, { rootMargin: '100px' });
+
+  // — Alpha/Beta + Rolling Returns (most expensive: chart renders) ——————————
+  WdLazy.observe('alphaBetaWrap', () => {
+    if (typeof renderAlphaBetaRolling === 'function') renderAlphaBetaRolling();
+  }, { rootMargin: '50px' });
+
+  // — Sector Allocation + Overlap (API calls) ———————————————————
+  WdLazy.observeGroup('sector_overlap', ['sectorAllocCard', 'overlapCard'], () => {
+    if (typeof renderSectorAllocation === 'function') renderSectorAllocation(h, 'sectorAllocCard');
+    if (typeof renderPortfolioOverlap  === 'function') renderPortfolioOverlap(h, 'overlapCard');
+    if (typeof renderPortfolioSectors  === 'function') renderPortfolioSectors();
+  }, { rootMargin: '100px' });
 }
 
 // t481: Refresh NAV for a single fund (stale NAV badge click)
@@ -249,7 +357,9 @@ function renderHoldings() {
   });
 
   if (!MF.filtered.length) {
-    body.innerHTML = `<tr><td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
+    body.innerHTML = typeof WdEmpty !== 'undefined'
+      ? `<tr><td colspan="12" style="padding:0;border:none;">${WdEmpty.html('mf')}</td></tr>`
+      : `<tr><td colspan="12" class="text-center" style="padding:40px;color:var(--text-muted);">No holdings found</td></tr>`;
     if (countEl) countEl.textContent = '0 funds';
     clearFundSelection();
     return;
@@ -2484,6 +2594,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const rptTab = document.getElementById('tabReport');
       if (rptTab) rptTab.style.display = which === 'report' ? '' : 'none';
       if (which === 'report' && !MF.portfolioReport._loaded) MF.portfolioReport.load();
+
+      // tp002: Trigger any lazy-registered observers for newly visible tab content
+      if (typeof WdLazy !== 'undefined') {
+        // Small delay so the tab panel is actually visible before observer fires
+        setTimeout(() => WdLazy.triggerAll(), 50);
+      }
     });
   });
 

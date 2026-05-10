@@ -1816,11 +1816,49 @@ html, body { overflow-x: hidden; }
   flex-shrink: 0;
 }
 /* Sort menu — no slide animation, instant open */
+/* t02 — Sort menu: positioned by JS next to trigger button */
 #sortMenuDropdown {
+  position: fixed;   /* JS sets top/left; fixed escapes overflow containers */
+  z-index: 9999;
+  min-width: 180px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  padding: 6px 0;
   transform-origin: top left;
   animation: none !important;
   transition: none !important;
 }
+
+#sortMenuDropdown .sort-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text, #111827);
+  cursor: pointer;
+  white-space: nowrap;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+
+#sortMenuDropdown .sort-option:hover,
+#sortMenuDropdown .sort-option.active {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--accent, #6366f1);
+}
+
+[data-theme="dark"] #sortMenuDropdown {
+  background: var(--bg, #1f2937);
+  border-color: var(--border, #374151);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+/* ── end t02 ── */
 
 /* ============================================================
    t87 — MOBILE RESPONSIVE: Holdings table
@@ -2137,3 +2175,152 @@ html, body { overflow-x: hidden; }
   color: #b45309;
 }
 [data-theme="dark"] .milestone-badge { color: #fcd34d; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   t449 — LOADING SKELETONS
+   Shimmer animation system for data-loading states.
+   Usage: <div class="skel skel-text"></div>
+          <div class="skel skel-card"></div>
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Base shimmer keyframe */
+@keyframes wd-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+.skel {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-secondary) 25%,
+    var(--border-color) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 800px 100%;
+  animation: wd-shimmer 1.4s ease-in-out infinite;
+  display: block;
+}
+
+/* Text line */
+.skel-text  { height: 14px; width: 100%; margin-bottom: 8px; border-radius: 4px; }
+.skel-text-sm { height: 11px; width: 70%; margin-bottom: 6px; border-radius: 3px; }
+.skel-text-lg { height: 20px; width: 80%; margin-bottom: 10px; border-radius: 5px; }
+
+/* Number / stat value */
+.skel-value { height: 36px; width: 140px; border-radius: 8px; }
+.skel-value-sm { height: 22px; width: 90px; border-radius: 5px; }
+
+/* Card block */
+.skel-card {
+  height: 110px;
+  width: 100%;
+  border-radius: var(--radius, 12px);
+  margin-bottom: 16px;
+}
+
+/* Table row */
+.skel-row {
+  height: 44px;
+  width: 100%;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.skel-row-sm { height: 32px; width: 100%; border-radius: 4px; margin-bottom: 6px; }
+
+/* Circle / avatar */
+.skel-circle { border-radius: 50%; }
+.skel-circle-sm  { width: 28px; height: 28px; }
+.skel-circle-md  { width: 44px; height: 44px; }
+.skel-circle-lg  { width: 80px; height: 80px; }
+
+/* Chart placeholder */
+.skel-chart     { height: 180px; width: 100%; border-radius: 10px; }
+.skel-chart-sm  { height: 120px; width: 100%; border-radius: 8px; }
+.skel-donut     { width: 160px; height: 160px; border-radius: 50%; }
+
+/* Inline in flex rows */
+.skel-inline { display: inline-block; vertical-align: middle; }
+
+/* Grid of skeleton cards */
+.skel-grid {
+  display: grid;
+  gap: 16px;
+}
+.skel-grid-2 { grid-template-columns: 1fr 1fr; }
+.skel-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.skel-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+/* Fade-out when content arrives */
+.skel-fade-out {
+  animation: wd-skel-fadeout 0.25s ease forwards;
+}
+@keyframes wd-skel-fadeout {
+  to { opacity: 0; height: 0; overflow: hidden; margin: 0; padding: 0; }
+}
+
+/* Stagger delays for multiple skeletons in a list */
+.skel:nth-child(1) { animation-delay: 0.00s; }
+.skel:nth-child(2) { animation-delay: 0.07s; }
+.skel:nth-child(3) { animation-delay: 0.14s; }
+.skel:nth-child(4) { animation-delay: 0.21s; }
+.skel:nth-child(5) { animation-delay: 0.28s; }
+.skel:nth-child(6) { animation-delay: 0.35s; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   t452 — EMPTY STATES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.wd-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+  animation: wd-empty-in 0.3s ease;
+}
+@keyframes wd-empty-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.wd-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  line-height: 1;
+  filter: grayscale(0.2);
+}
+.wd-empty-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.wd-empty-msg {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 360px;
+  line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   t444 — COMMAND PALETTE v2
+   ══════════════════════════════════════════════════════════════════════════ */
+@keyframes wdCpIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+#wdCpBox {
+  animation: wdCpBoxIn .18s cubic-bezier(.22,1,.36,1);
+}
+@keyframes wdCpBoxIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(.97); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1); }
+}
+.wd-cp-item:hover,
+.wd-cp-item[data-active] {
+  background: var(--hover-bg, rgba(99,102,241,.1)) !important;
+}
+#wdCpList::-webkit-scrollbar { width: 4px; }
+#wdCpList::-webkit-scrollbar-track { background: transparent; }
+#wdCpList::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }

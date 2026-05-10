@@ -66,16 +66,101 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Close sort menu when page is scrolled — menu uses fixed positioning
-// so it would float away from the button on scroll
+// ============================================================
+// t02 — Sort Menu: position next to button, close on scroll
+// ============================================================
+/**
+ * _positionSortMenu(btn)
+ * Positions #sortMenuDropdown directly below (or above if no room) the
+ * trigger button. Uses fixed positioning so it escapes overflow:hidden
+ * containers. Call with the button element that was clicked.
+ */
+function _positionSortMenu(btn) {
+  const menu = document.getElementById('sortMenuDropdown');
+  if (!menu) return;
+
+  // If called from resize handler btn may be undefined — re-use stored ref
+  if (btn) menu._triggerBtn = btn;
+  const trigger = menu._triggerBtn;
+  if (!trigger) return;
+
+  const rect   = trigger.getBoundingClientRect();
+  const menuH  = menu.offsetHeight || 240; // estimated height before first paint
+  const menuW  = menu.offsetWidth  || 200;
+  const vpW    = window.innerWidth;
+  const vpH    = window.innerHeight;
+  const gap    = 6; // px between button and menu
+
+  // Prefer below; flip above if not enough room
+  let top;
+  if (rect.bottom + menuH + gap <= vpH) {
+    top = rect.bottom + gap;
+  } else {
+    top = Math.max(8, rect.top - menuH - gap);
+  }
+
+  // Align left edge with button; clamp to viewport
+  let left = rect.left;
+  if (left + menuW > vpW - 8) left = Math.max(8, vpW - menuW - 8);
+
+  menu.style.position = 'fixed';
+  menu.style.top      = top  + 'px';
+  menu.style.left     = left + 'px';
+  menu.style.zIndex   = '9999';
+}
+
+/**
+ * openSortMenu(btn)
+ * Public helper — call from inline onclick="openSortMenu(this)" on the
+ * sort trigger button. Toggles the dropdown and positions it correctly.
+ */
+function openSortMenu(btn) {
+  const menu = document.getElementById('sortMenuDropdown');
+  if (!menu) return;
+
+  const isOpen = menu.style.display === 'block';
+  // Close any other open dropdowns first
+  document.querySelectorAll('.wd-dropdown-menu[data-open="1"]').forEach(m => {
+    m.style.display = 'none';
+    m.removeAttribute('data-open');
+  });
+
+  if (isOpen) {
+    menu.style.display = 'none';
+    menu.removeAttribute('data-open');
+    return;
+  }
+
+  menu.style.display = 'block';
+  menu.setAttribute('data-open', '1');
+  _positionSortMenu(btn);
+}
+
+// Close sort menu on scroll (any scrollable ancestor)
 window.addEventListener('scroll', () => {
   const menu = document.getElementById('sortMenuDropdown');
-  if (menu && menu.style.display === 'block') menu.style.display = 'none';
+  if (menu && menu.style.display === 'block') {
+    menu.style.display = 'none';
+    menu.removeAttribute('data-open');
+  }
 }, { passive: true, capture: true });
 
+// Reposition on resize
 window.addEventListener('resize', () => {
-  if (typeof _positionSortMenu === 'function') _positionSortMenu();
+  const menu = document.getElementById('sortMenuDropdown');
+  if (menu && menu.style.display === 'block') _positionSortMenu();
 }, { passive: true });
+
+// Close when clicking outside sort menu
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('sortMenuDropdown');
+  if (!menu || menu.style.display !== 'block') return;
+  if (!menu.contains(e.target) && (!menu._triggerBtn || !menu._triggerBtn.contains(e.target))) {
+    menu.style.display = 'none';
+    menu.removeAttribute('data-open');
+  }
+});
+// ── end t02 ──────────────────────────────────────────────
 
 // ============================================================
 // MODAL HELPERS
@@ -226,11 +311,8 @@ function toggleNumFormat() {
   window.WD_NUM_SHORT = !window.WD_NUM_SHORT;
   localStorage.setItem('wd_num_format', window.WD_NUM_SHORT ? 'short' : 'full');
   _updateNumFormatBtn();
-  // Re-render without API reload
-  if (typeof renderHoldings === 'function') renderHoldings();
-  if (typeof renderTxnTable     === 'function' && window._lastTxns) renderTxnTable(window._lastTxns);
-  if (typeof renderRealized     === 'function') renderRealized();
-  if (typeof renderDividends    === 'function') renderDividends();
+  // t04: Short/Long only affects tiles (summary cards), NOT table rows.
+  // Table rows always use fmtTable() / fmtINRFull() — no re-render needed.
   if (typeof updateSummaryCards === 'function' && window._lastSummary) updateSummaryCards(window._lastSummary);
 }
 
@@ -252,26 +334,56 @@ function indianComma(n) {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-// ── Core formatter used everywhere ──────────────────────────
-function fmtINR(n) {
+// ── Full formatter — always Indian comma, never compact ──────
+// t04: Use fmtTable() in table rows; never compress to L/Cr/K
+function fmtINRFull(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  n = Number(n);
+  const abs  = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  const dec  = (abs % 1).toFixed(2).slice(2);
+  return sign + '₹' + indianComma(abs) + '.' + dec;
+}
+
+// ── Short formatter — compact L/Cr/K notation ────────────────
+function fmtINRShort(n) {
   if (n === null || n === undefined || isNaN(n)) return '—';
   n = Number(n);
   const abs  = Math.abs(n);
   const sign = n < 0 ? '-' : '';
   const dec  = (abs % 1).toFixed(2).slice(2);
   let s;
-  const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
-  if (short) {
-    if (abs >= 1e7)       s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
-    else if (abs >= 1e5)  s = '₹' + (abs / 1e5).toFixed(2) + ' L';
-    else if (abs >= 1000) s = '₹' + (abs / 1000).toFixed(1) + ' K';
-    else                  s = '₹' + indianComma(abs) + '.' + dec;
-  } else {
-    s = '₹' + indianComma(abs) + '.' + dec;
-  }
+  if (abs >= 1e7)       s = '₹' + (abs / 1e7).toFixed(2) + ' Cr';
+  else if (abs >= 1e5)  s = '₹' + (abs / 1e5).toFixed(2) + ' L';
+  else if (abs >= 1000) s = '₹' + (abs / 1000).toFixed(1) + ' K';
+  else                  s = '₹' + indianComma(abs) + '.' + dec;
   return sign + s;
 }
-window.fmtINR    = fmtINR;
+
+// ── fmtTile — summary cards/tiles: honours WD_NUM_SHORT ──────
+// t04: Always use fmtTile() for dashboard stat tiles/cards
+function fmtTile(n) {
+  const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
+  return short ? fmtINRShort(n) : fmtINRFull(n);
+}
+
+// ── fmtTable — table rows: always full, never compact ─────────
+// t04: Always use fmtTable() for data-table cells; ignores WD_NUM_SHORT
+function fmtTable(n) {
+  return fmtINRFull(n);
+}
+
+// ── fmtINR — backward-compat (honours WD_NUM_SHORT) ──────────
+function fmtINR(n) {
+  const short = (typeof window.WD_NUM_SHORT !== 'undefined') ? window.WD_NUM_SHORT : true;
+  return short ? fmtINRShort(n) : fmtINRFull(n);
+}
+
+window.fmtINR      = fmtINR;
+window.fmtTile     = fmtTile;
+window.fmtTable    = fmtTable;
+window.fmtINRFull  = fmtINRFull;
+window.fmtINRShort = fmtINRShort;
 window.indianComma = indianComma;
 
 function formatINR(amount, decimals = 2) {
@@ -568,130 +680,353 @@ document.addEventListener('click', (e) => {
   if (modal && e.target === modal) closeConfirmModal();
 });
 /* ═══════════════════════════════════════════════════════════════════════════
-   t88 — CTRL+K GLOBAL SEARCH
+   t444 — COMMAND PALETTE v2
+   Ctrl+K → fuzzy search across pages, actions, funds, stocks.
+   Features: fuzzy match, action commands, recent items, live API search,
+             category grouping, keyboard navigation.
 ═══════════════════════════════════════════════════════════════════════════ */
-(function initGlobalSearch() {
-  // Inject search modal HTML once
-  function injectSearchModal() {
-    if (document.getElementById('globalSearchModal')) return;
-    const div = document.createElement('div');
-    div.innerHTML = `
-      <div id="globalSearchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:flex-start;justify-content:center;padding-top:80px;">
-        <div style="background:var(--bg-surface);border-radius:14px;width:560px;max-width:95vw;box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;">
-          <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;opacity:.5;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="gsInput" type="search" placeholder="Search funds, FDs, stocks, pages…" autocomplete="off"
-              style="flex:1;border:none;outline:none;font-size:15px;background:transparent;color:var(--text-primary);">
-            <kbd style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-surface-2);color:var(--text-muted);border:1px solid var(--border);">ESC</kbd>
-          </div>
-          <div id="gsResults" style="max-height:380px;overflow-y:auto;padding:6px 0;"></div>
-          <div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
-            <span>↑↓ Navigate</span><span>↵ Open</span><span>ESC Close</span>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(div.firstElementChild);
+(function initCommandPalette() {
 
-    // Wire input
-    document.getElementById('gsInput').addEventListener('input', function() {
-      gsSearch(this.value.trim());
-    });
-    document.getElementById('globalSearchModal').addEventListener('click', function(e) {
-      if (e.target === this) closeGlobalSearch();
-    });
-    document.addEventListener('keydown', function(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openGlobalSearch(); }
-      if (e.key === 'Escape') closeGlobalSearch();
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') gsNavigate(e.key === 'ArrowDown' ? 1 : -1);
-      if (e.key === 'Enter') gsActivate();
-    });
-  }
+  /* ── Static command registry ──────────────────────────────────────────── */
+  const BASE = window.APP_URL || window.WD?.appUrl || '';
 
-  let _gsIndex = -1;
-  let _gsItems = [];
-
-  const GS_PAGES = [
-    { label:'MF Holdings', url:'/templates/pages/mf_holdings.php', icon:'💼', cat:'Pages' },
-    { label:'MF Screener', url:'/templates/pages/mf_screener.php', icon:'🔍', cat:'Pages' },
-    { label:'SIP / SWP',   url:'/templates/pages/report_sip.php',  icon:'🔄', cat:'Pages' },
-    { label:'FD & Deposits',url:'/templates/pages/fd.php',          icon:'🏦', cat:'Pages' },
-    { label:'Post Office',  url:'/templates/pages/post_office.php', icon:'📮', cat:'Pages' },
-    { label:'Stocks',       url:'/templates/pages/stocks.php',      icon:'📈', cat:'Pages' },
-    { label:'NPS',          url:'/templates/pages/nps.php',         icon:'🏛️', cat:'Pages' },
-    { label:'Market Indexes',url:'/templates/pages/market_indexes.php',icon:'📊',cat:'Pages'},
-    { label:'FY Gains Report',url:'/templates/pages/report_fy.php', icon:'🧾', cat:'Reports' },
-    { label:'Tax Planning', url:'/templates/pages/report_tax.php',  icon:'💰', cat:'Reports' },
-    { label:'Net Worth',    url:'/templates/pages/report_networth.php',icon:'💎',cat:'Reports'},
-    { label:'Dashboard',    url:'/templates/pages/dashboard.php',   icon:'🏠', cat:'Pages' },
+  const COMMANDS = [
+    // Pages
+    { id:'p-dash',    label:'Dashboard',           icon:'🏠', cat:'Pages',   url:'?page=unified_dashboard' },
+    { id:'p-mf',      label:'MF Holdings',          icon:'💼', cat:'Pages',   url:'?page=mf_holdings' },
+    { id:'p-screen',  label:'MF Screener',          icon:'🔍', cat:'Pages',   url:'?page=mf_screener' },
+    { id:'p-sip',     label:'SIP / SWP Report',     icon:'🔄', cat:'Pages',   url:'?page=report_sip' },
+    { id:'p-fd',      label:'Fixed Deposits',        icon:'🏛️', cat:'Pages',   url:'?page=fd' },
+    { id:'p-stocks',  label:'Stocks',               icon:'📈', cat:'Pages',   url:'?page=stocks' },
+    { id:'p-crypto',  label:'Crypto',               icon:'₿',  cat:'Pages',   url:'?page=crypto' },
+    { id:'p-nps',     label:'NPS',                  icon:'🏛️', cat:'Pages',   url:'?page=nps' },
+    { id:'p-sgb',     label:'Sovereign Gold Bonds', icon:'🪙', cat:'Pages',   url:'?page=sgb' },
+    { id:'p-reits',   label:'REITs / InvITs',       icon:'🏢', cat:'Pages',   url:'?page=reits' },
+    { id:'p-realty',  label:'Real Estate',          icon:'🏠', cat:'Pages',   url:'?page=realestate' },
+    { id:'p-gold',    label:'Gold',                 icon:'🟡', cat:'Pages',   url:'?page=gold' },
+    { id:'p-goals',   label:'Goals',                icon:'🎯', cat:'Pages',   url:'?page=goals' },
+    { id:'p-po',      label:'Post Office Schemes',  icon:'📮', cat:'Pages',   url:'?page=post_office' },
+    { id:'p-idx',     label:'Market Indexes',        icon:'📊', cat:'Pages',   url:'?page=market_indexes' },
+    { id:'p-fire',    label:'FIRE Calculator',      icon:'🔥', cat:'Pages',   url:'?page=fire_calculator' },
+    { id:'p-wstmt',   label:'Wealth Statement',     icon:'💎', cat:'Pages',   url:'?page=wealth_statement' },
+    { id:'p-cashflow',label:'Cash Flow',            icon:'💸', cat:'Pages',   url:'?page=cashflow' },
+    // Reports
+    { id:'r-fy',      label:'FY Gains Report',      icon:'🧾', cat:'Reports', url:'?page=report_fy' },
+    { id:'r-tax',     label:'Tax Planning',         icon:'💰', cat:'Reports', url:'?page=report_tax' },
+    { id:'r-nw',      label:'Net Worth Report',     icon:'📉', cat:'Reports', url:'?page=report_networth' },
+    { id:'r-heatmap', label:'Portfolio Heatmap',     icon:'🌡️', cat:'Reports', url:'?page=portfolio_heatmap' },
+    { id:'r-ltcg',    label:'LTCG Harvesting',      icon:'🌾', cat:'Reports', url:'?page=ltcg_harvesting' },
+    { id:'r-cg',      label:'Capital Gains Summary',icon:'📋', cat:'Reports', url:'?page=capital_gains_summary' },
+    { id:'r-rebal',   label:'Rebalancing Report',   icon:'⚖️', cat:'Reports', url:'?page=report_rebalancing' },
+    { id:'r-mfreport',label:'MF Report',            icon:'📑', cat:'Reports', url:'?page=mf_report' },
+    // Actions
+    { id:'a-addmf',   label:'Add Mutual Fund',      icon:'➕', cat:'Actions', action: () => window.openAddModal?.() },
+    { id:'a-addstock',label:'Add Stock Trade',      icon:'➕', cat:'Actions', action: () => window.STOCKS?.openAddModal?.() },
+    { id:'a-addfd',   label:'Add Fixed Deposit',    icon:'➕', cat:'Actions', action: () => window.openAddFDModal?.() },
+    { id:'a-addgoal', label:'Add Goal',             icon:'➕', cat:'Actions', action: () => window.openGoalModal?.() },
+    { id:'a-theme',   label:'Toggle Dark Mode',     icon:'🌙', cat:'Actions', action: () => document.querySelector('.theme-toggle')?.click() },
+    { id:'a-refresh', label:'Refresh Dashboard',    icon:'🔄', cat:'Actions', action: () => window.udRefresh?.() ?? location.reload() },
+    { id:'a-export',  label:'Export Portfolio CSV', icon:'📤', cat:'Actions', action: () => window.exportHoldingsCsv?.() },
+    { id:'a-print',   label:'Print / PDF Holdings', icon:'🖨️', cat:'Actions', action: () => window.printHoldings?.() },
+    // Settings
+    { id:'s-settings',label:'Settings',            icon:'⚙️', cat:'Settings', url:'?page=settings' },
+    { id:'s-admin',   label:'Admin Panel',          icon:'🛡️', cat:'Settings', url:'?page=admin' },
   ];
 
-  function gsSearch(q) {
-    const res    = document.getElementById('gsResults');
-    _gsIndex = -1;
-    if (!q) { res.innerHTML = gsQuickLinks(); return; }
-    const ql = q.toLowerCase();
-    const matched = GS_PAGES.filter(p => p.label.toLowerCase().includes(ql) || p.cat.toLowerCase().includes(ql));
-    if (!matched.length) {
-      res.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">No results for "${q}"</div>`;
+  // Searchable text index
+  COMMANDS.forEach(c => c._search = (c.label + ' ' + c.cat).toLowerCase());
+
+  /* ── Recent items (sessionStorage, safe — no sensitive data) ──────────── */
+  const RECENT_KEY = 'wd_cp_recent_v2';
+  function getRecent() {
+    try { return JSON.parse(sessionStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+  }
+  function addRecent(id) {
+    try {
+      let r = getRecent().filter(x => x !== id);
+      r.unshift(id);
+      sessionStorage.setItem(RECENT_KEY, JSON.stringify(r.slice(0, 8)));
+    } catch {}
+  }
+
+  /* ── Fuzzy match ──────────────────────────────────────────────────────── */
+  function fuzzy(hay, needle) {
+    if (!needle) return true;
+    let hi = 0;
+    needle = needle.toLowerCase();
+    hay    = hay.toLowerCase();
+    for (let i = 0; i < hay.length && hi < needle.length; i++) {
+      if (hay[i] === needle[hi]) hi++;
+    }
+    return hi === needle.length;
+  }
+  function fuzzyScore(hay, needle) {
+    // Higher score = better match (consecutive chars bonus)
+    if (!needle) return 0;
+    const nl = needle.toLowerCase(), hl = hay.toLowerCase();
+    if (hl.startsWith(nl)) return 100;
+    if (hl.includes(nl))   return 80;
+    return fuzzy(hl, nl) ? 50 : -1;
+  }
+
+  /* ── Modal HTML ───────────────────────────────────────────────────────── */
+  function injectModal() {
+    if (document.getElementById('wdCmdPalette')) return;
+    const el = document.createElement('div');
+    el.id = 'wdCmdPalette';
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Command Palette');
+    el.innerHTML = `
+<div id="wdCpBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;backdrop-filter:blur(2px);animation:wdCpIn .15s ease;">
+  <div id="wdCpBox" role="combobox" aria-expanded="true"
+    style="position:absolute;top:72px;left:50%;transform:translateX(-50%);width:620px;max-width:96vw;
+           background:var(--bg-surface);border-radius:16px;box-shadow:0 32px 80px rgba(0,0,0,.4);
+           overflow:hidden;border:1px solid var(--border-color);">
+
+    <!-- Search Bar -->
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border-color);">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"
+           viewBox="0 0 24 24" style="flex-shrink:0;color:var(--text-muted);">
+        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input id="wdCpInput" type="text" placeholder="Search pages, actions, funds…" autocomplete="off"
+             aria-autocomplete="list" aria-controls="wdCpList"
+             style="flex:1;border:none;outline:none;font-size:15px;font-weight:500;
+                    background:transparent;color:var(--text-primary);">
+      <kbd style="font-size:10px;padding:2px 7px;border-radius:5px;background:var(--bg-secondary);
+                  color:var(--text-muted);border:1px solid var(--border-color);font-family:inherit;">ESC</kbd>
+    </div>
+
+    <!-- Results -->
+    <div id="wdCpList" role="listbox" style="max-height:420px;overflow-y:auto;padding:4px 0;"></div>
+
+    <!-- Footer -->
+    <div style="display:flex;gap:20px;padding:8px 18px;border-top:1px solid var(--border-color);
+                font-size:11px;color:var(--text-muted);">
+      <span>↑↓ Navigate</span><span>↵ Open</span>
+      <span>ESC Close</span><span style="margin-left:auto;" id="wdCpMode">Pages &amp; Actions</span>
+    </div>
+  </div>
+</div>`;
+    document.body.appendChild(el);
+
+    // Wire events
+    document.getElementById('wdCpInput').addEventListener('input', function () {
+      _cpSearch(this.value);
+    });
+    document.getElementById('wdCpBackdrop').addEventListener('click', function (e) {
+      if (e.target === this) cpClose();
+    });
+  }
+
+  /* ── Render helpers ───────────────────────────────────────────────────── */
+  let _cpIdx = -1;
+  let _cpItems = [];
+  let _apiTimer = null;
+
+  function _item(cmd, idx, isRecent = false) {
+    const recentBadge = isRecent
+      ? `<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:var(--bg-secondary);color:var(--text-muted);margin-left:6px;">recent</span>`
+      : '';
+    return `
+<div class="wd-cp-item" role="option" data-idx="${idx}" tabindex="-1"
+  style="display:flex;align-items:center;gap:12px;padding:9px 18px;cursor:pointer;
+         color:var(--text-primary);transition:background .1s;"
+  onmouseenter="window._cpHover(${idx})" onclick="window._cpActivate(${idx})">
+  <span style="font-size:20px;flex-shrink:0;width:28px;text-align:center;">${cmd.icon}</span>
+  <div style="flex:1;min-width:0;">
+    <div style="font-size:13px;font-weight:600;">${cmd.label}${recentBadge}</div>
+    <div style="font-size:11px;color:var(--text-muted);">${cmd.cat}</div>
+  </div>
+  ${cmd.url ? `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="opacity:.3;flex-shrink:0;"><path d="M9 18l6-6-6-6"/></svg>` : ''}
+</div>`;
+  }
+
+  function _group(label, items, firstIdx, recentIds = new Set()) {
+    if (!items.length) return '';
+    let html = `<div style="padding:5px 18px 3px;font-size:10px;font-weight:700;
+                             color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">
+                  ${label}</div>`;
+    items.forEach((cmd, i) => {
+      _cpItems.push(cmd);
+      html += _item(cmd, firstIdx + i, recentIds.has(cmd.id));
+    });
+    return html;
+  }
+
+  function _cpRender(groups) {
+    _cpIdx = -1;
+    _cpItems = [];
+    const list = document.getElementById('wdCpList');
+    if (!list) return;
+    let html = '';
+    let idx = 0;
+    for (const [label, items, recentIds] of groups) {
+      const start = idx;
+      // Temporarily push items for index tracking
+      const before = _cpItems.length;
+      html += _group(label, items, idx, recentIds);
+      idx += (_cpItems.length - before);
+    }
+    list.innerHTML = html || `<div style="padding:28px;text-align:center;font-size:13px;color:var(--text-muted);">No results found</div>`;
+  }
+
+  /* ── Search logic ─────────────────────────────────────────────────────── */
+  function _cpSearch(q) {
+    clearTimeout(_apiTimer);
+    const trimmed = q.trim();
+
+    if (!trimmed) {
+      _cpShowHome();
       return;
     }
-    _gsItems = matched;
-    res.innerHTML = `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Results</div>` +
-      matched.map((p,i) => `
-        <a href="${(window.APP_URL||'')}${p.url}" class="gs-item" data-idx="${i}"
-          style="display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;text-decoration:none;color:var(--text-primary);transition:background .1s;"
-          onmouseover="this.style.background='var(--hover-bg)'" onmouseout="this.style.background=''">
-          <span style="font-size:18px;flex-shrink:0;">${p.icon}</span>
-          <div><div style="font-size:13px;font-weight:600;">${p.label}</div><div style="font-size:11px;color:var(--text-muted);">${p.cat}</div></div>
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-left:auto;opacity:.3;"><path d="M9 18l6-6-6-6"/></svg>
-        </a>`).join('');
+
+    // Score and sort commands
+    const scored = COMMANDS
+      .map(c => ({ ...c, score: fuzzyScore(c._search, trimmed) }))
+      .filter(c => c.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    // Group by category
+    const bycat = {};
+    scored.forEach(c => { (bycat[c.cat] = bycat[c.cat] || []).push(c); });
+
+    _cpRender(Object.entries(bycat).map(([cat, items]) => [cat, items, new Set()]));
+
+    // Live API search after 300ms debounce (if q >= 2 chars)
+    if (trimmed.length >= 2) {
+      _apiTimer = setTimeout(() => _cpApiSearch(trimmed), 300);
+    }
   }
 
-  function gsQuickLinks() {
-    _gsItems = GS_PAGES.slice(0,6);
-    return `<div style="padding:4px 12px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Quick Links</div>` +
-      GS_PAGES.slice(0,6).map((p,i) => `
-        <a href="${(window.APP_URL||'')}${p.url}" class="gs-item" data-idx="${i}"
-          style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;text-decoration:none;color:var(--text-primary);"
-          onmouseover="this.style.background='var(--hover-bg)'" onmouseout="this.style.background=''">
-          <span style="font-size:16px;">${p.icon}</span>
-          <span style="font-size:13px;font-weight:600;">${p.label}</span>
-        </a>`).join('');
+  function _cpShowHome() {
+    const recent = getRecent();
+    const recentCmds = recent.map(id => COMMANDS.find(c => c.id === id)).filter(Boolean);
+    const recentIds  = new Set(recent);
+
+    const topActions = COMMANDS.filter(c => c.cat === 'Actions').slice(0, 4);
+    const topPages   = COMMANDS.filter(c => c.cat === 'Pages').slice(0, 6);
+
+    _cpRender([
+      ...(recentCmds.length ? [['Recent', recentCmds, recentIds]] : []),
+      ['Actions', topActions, new Set()],
+      ['Pages', topPages, new Set()],
+    ]);
+    document.getElementById('wdCpMode').textContent = 'Pages & Actions';
   }
 
-  function gsNavigate(dir) {
-    const items = document.querySelectorAll('.gs-item');
+  async function _cpApiSearch(q) {
+    // Search MF funds from AMFI list
+    try {
+      const base  = window.APP_URL || '';
+      const url   = `${base}/api/mutual_funds/fund_screener.php?action=search&q=${encodeURIComponent(q)}&limit=5`;
+      const res   = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const data  = await res.json();
+      if (!data.success || !data.data?.length) return;
+
+      const live = data.data.map(f => ({
+        id: 'live-mf-' + f.scheme_code,
+        label: f.scheme_name,
+        icon: '💼',
+        cat: 'Funds',
+        _search: f.scheme_name.toLowerCase(),
+        url: `?page=mf_holdings&highlight=${f.scheme_code}`,
+      }));
+
+      // Rebuild results with live funds appended
+      const q2 = document.getElementById('wdCpInput')?.value.trim();
+      if (q2 !== q) return; // stale
+
+      const scored = COMMANDS
+        .map(c => ({ ...c, score: fuzzyScore(c._search, q) }))
+        .filter(c => c.score > 0)
+        .sort((a, b) => b.score - a.score);
+      const bycat = {};
+      scored.forEach(c => { (bycat[c.cat] = bycat[c.cat] || []).push(c); });
+
+      _cpRender([
+        ...Object.entries(bycat).map(([cat, items]) => [cat, items, new Set()]),
+        ['Funds', live, new Set()],
+      ]);
+      document.getElementById('wdCpMode').textContent = 'Live results';
+    } catch {}
+  }
+
+  /* ── Keyboard navigation ──────────────────────────────────────────────── */
+  function _cpNavigate(dir) {
+    const items = document.querySelectorAll('.wd-cp-item');
     if (!items.length) return;
-    _gsIndex = Math.max(0, Math.min(items.length-1, _gsIndex + dir));
-    items.forEach((el,i) => { el.style.background = i===_gsIndex ? 'var(--hover-bg)' : ''; });
-    items[_gsIndex]?.scrollIntoView({block:'nearest'});
+    _cpIdx = Math.max(0, Math.min(items.length - 1, _cpIdx + dir));
+    items.forEach((el, i) => {
+      el.style.background = i === _cpIdx ? 'var(--hover-bg, rgba(99,102,241,.12))' : '';
+    });
+    items[_cpIdx]?.scrollIntoView({ block: 'nearest' });
   }
 
-  function gsActivate() {
-    const items = document.querySelectorAll('.gs-item');
-    if (_gsIndex >= 0 && items[_gsIndex]) { items[_gsIndex].click(); closeGlobalSearch(); }
-  }
+  window._cpHover = function (idx) {
+    _cpIdx = idx;
+    document.querySelectorAll('.wd-cp-item').forEach((el, i) => {
+      el.style.background = i === idx ? 'var(--hover-bg, rgba(99,102,241,.12))' : '';
+    });
+  };
 
-  window.openGlobalSearch = function() {
-    injectSearchModal();
-    const modal = document.getElementById('globalSearchModal');
-    modal.style.display = 'flex';
-    const inp = document.getElementById('gsInput');
+  window._cpActivate = function (idx) {
+    const cmd = _cpItems[idx];
+    if (!cmd) return;
+    addRecent(cmd.id);
+    cpClose();
+    if (cmd.action) {
+      setTimeout(() => cmd.action(), 80);
+    } else if (cmd.url) {
+      window.location.href = BASE + '/' + cmd.url.replace(/^\?/, '?');
+    }
+  };
+
+  /* ── Open / Close ─────────────────────────────────────────────────────── */
+  function cpOpen() {
+    injectModal();
+    const backdrop = document.getElementById('wdCpBackdrop');
+    backdrop.style.display = 'flex';
+    const inp = document.getElementById('wdCpInput');
     inp.value = '';
-    document.getElementById('gsResults').innerHTML = gsQuickLinks();
-    setTimeout(() => inp.focus(), 50);
-  };
+    _cpShowHome();
+    setTimeout(() => inp.focus(), 30);
+  }
 
-  window.closeGlobalSearch = function() {
-    const modal = document.getElementById('globalSearchModal');
-    if (modal) modal.style.display = 'none';
-  };
+  function cpClose() {
+    const backdrop = document.getElementById('wdCpBackdrop');
+    if (backdrop) backdrop.style.display = 'none';
+  }
 
-  // Inject Ctrl+K listener on DOM ready
+  window.openGlobalSearch = cpOpen;
+  window.closeGlobalSearch = cpClose;
+
+  /* ── Global keyboard listener ─────────────────────────────────────────── */
+  document.addEventListener('keydown', function (e) {
+    // Ctrl+K or Cmd+K
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      const backdrop = document.getElementById('wdCpBackdrop');
+      if (backdrop && backdrop.style.display !== 'none') { cpClose(); } else { cpOpen(); }
+      return;
+    }
+    // Only handle nav keys when palette is open
+    const backdrop = document.getElementById('wdCpBackdrop');
+    if (!backdrop || backdrop.style.display === 'none') return;
+
+    if (e.key === 'Escape')    { cpClose(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); _cpNavigate(1); return; }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); _cpNavigate(-1); return; }
+    if (e.key === 'Enter')     { e.preventDefault(); window._cpActivate(_cpIdx); return; }
+  });
+
+  // Inject modal on load (non-blocking)
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectSearchModal);
+    document.addEventListener('DOMContentLoaded', injectModal);
   } else {
-    injectSearchModal();
+    injectModal();
   }
 })();
 

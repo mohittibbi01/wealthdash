@@ -65,6 +65,14 @@ case 'mf_list':
     $portfolioId = getOrCreatePortfolio($db, $userId);
     $sortDir = strtoupper($_GET['dir'] ?? 'DESC') === 'ASC' ? 'ASC' : 'DESC';
 
+    // ── Cache (tp001) — 90s TTL; invalidated on any MF write ────────────────
+    $mfListCacheKey = "mf_list:{$userId}:{$portfolioId}:{$sortDir}";
+    $mfListCached   = WdCache::get($mfListCacheKey);
+    if ($mfListCached !== null) {
+        echo json_encode(['success' => true] + $mfListCached + ['_cached' => true]);
+        break;
+    }
+
     $holdings = $db->prepare("
         SELECT
           mh.id              AS holding_id,
@@ -180,6 +188,10 @@ case 'mf_list':
         ? round(($totals['total_gain_loss'] / $totals['total_invested']) * 100, 2) : 0;
     $totals['fund_count'] = count($rows);
 
+    // Store in cache (tp001)
+    WdCache::set($mfListCacheKey, ['data' => $rows, 'totals' => $totals],
+        ttl: 90, tags: ["user:{$userId}", "mf_holdings"]);
+
     echo json_encode(['success' => true, 'data' => $rows, 'totals' => $totals]);
     break;
 
@@ -197,7 +209,8 @@ case 'portfolio_xirr':
 // ══════════════════════════════════════════════════════════════════════════
 case 'portfolio_health':
     require_once APP_ROOT . '/includes/holding_calculator.php';
-    $result = HoldingCalculator::portfolioHealthScore($userId);
+    $result = DB::cached("portfolio_health:{$userId}", fn() =>
+        HoldingCalculator::portfolioHealthScore($userId), ttl: 300, tags: ["user:{$userId}", "mf_holdings"]);
     echo json_encode(['success' => true, 'data' => $result]);
     break;
 

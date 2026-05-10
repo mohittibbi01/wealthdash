@@ -1,0 +1,46 @@
+Admin--> NAV & Data
+
+Mutual Fund
+	Import Full Fund List
+	Update Today's NAV
+	Expense Ratio (TER) Import
+	Exit Load Seeder
+	Download Past NAV
+	Peak NAV — All-Time High
+	Holdings Recalculation
+
+
+NPS
+	Import Full Fund List
+	Update Today's NAV
+	Expense Ratio (TER) Import
+	Exit Load Seeder
+	Download Past NAV
+	Peak NAV — All-Time High
+	Holdings Recalculation
+
+
+
+
+Stock & ETF
+	Refresh Stock Prices
+
+
+System / Cron Reference
+	Cron Schedule
+
+
+
+
+
+
+================================
+Nav history download krne ke liye 2 page bne hue hai
+inko shi kro
+
+http://localhost/wealthdash/nav_history_downloader/status.php
+http://localhost/wealthdash/nav_download/status.php
+
+
+
+

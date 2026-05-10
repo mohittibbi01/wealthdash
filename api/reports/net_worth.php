@@ -122,33 +122,106 @@ $savingsByBank = DB::fetchAll(
     [$portfolioId]
 );
 
-/* ─── 6. Totals ───────────────────────────────────────────────────────────── */
+/* ─── 6. Real Estate (t466) ───────────────────────────────────────────────── */
+$reRow = DB::fetchRow(
+    "SELECT COUNT(*) AS property_count,
+            COALESCE(SUM(purchase_price), 0) AS invested,
+            COALESCE(SUM(current_value * ownership_pct / 100), 0) AS current_value,
+            COALESCE(SUM(CASE WHEN outstanding_loan IS NOT NULL THEN outstanding_loan ELSE 0 END), 0) AS outstanding_loan,
+            COALESCE(SUM(CASE WHEN monthly_rental IS NOT NULL THEN monthly_rental * 12 ELSE 0 END), 0) AS annual_rental,
+            COALESCE(SUM(CASE WHEN is_self_occupied = 1 THEN current_value * ownership_pct / 100 ELSE 0 END), 0) AS self_occupied_value,
+            COALESCE(SUM(CASE WHEN is_self_occupied = 0 THEN current_value * ownership_pct / 100 ELSE 0 END), 0) AS investment_property_value
+     FROM real_estate WHERE portfolio_id = ? AND is_active = 1",
+    [$portfolioId]
+);
+$reByType = DB::fetchAll(
+    "SELECT property_type,
+            COUNT(*) AS count,
+            COALESCE(SUM(current_value * ownership_pct / 100), 0) AS current_value
+     FROM real_estate WHERE portfolio_id = ? AND is_active = 1
+     GROUP BY property_type ORDER BY current_value DESC",
+    [$portfolioId]
+);
+$reCurrentValue = (float)($reRow['current_value'] ?? 0);
+$reInvested     = (float)($reRow['invested'] ?? 0);
+
+/* ─── 7. Physical Gold (t465) ─────────────────────────────────────────────── */
+$goldRow = DB::fetchRow(
+    "SELECT COUNT(*) AS count,
+            COALESCE(SUM(weight_grams), 0) AS total_weight_grams,
+            COALESCE(SUM(purchase_price), 0) AS invested,
+            COALESCE(SUM(current_value), 0) AS current_value
+     FROM physical_gold WHERE portfolio_id = ? AND is_active = 1",
+    [$portfolioId]
+);
+$goldByType = DB::fetchAll(
+    "SELECT gold_type,
+            COUNT(*) AS count,
+            COALESCE(SUM(weight_grams), 0) AS weight_grams,
+            COALESCE(SUM(current_value), 0) AS current_value
+     FROM physical_gold WHERE portfolio_id = ? AND is_active = 1
+     GROUP BY gold_type ORDER BY current_value DESC",
+    [$portfolioId]
+);
+$goldCurrentValue = (float)($goldRow['current_value'] ?? 0);
+$goldInvested     = (float)($goldRow['invested'] ?? 0);
+
+/* ─── 8. Loans / Liabilities ──────────────────────────────────────────────── */
+$loanRow = DB::fetchRow(
+    "SELECT COUNT(*) AS count,
+            COALESCE(SUM(principal_amount), 0) AS total_principal,
+            COALESCE(SUM(outstanding_balance), 0) AS total_outstanding,
+            COALESCE(SUM(CASE WHEN loan_type = 'home'     THEN outstanding_balance ELSE 0 END), 0) AS home_loan,
+            COALESCE(SUM(CASE WHEN loan_type = 'personal' THEN outstanding_balance ELSE 0 END), 0) AS personal_loan,
+            COALESCE(SUM(CASE WHEN loan_type = 'vehicle'  THEN outstanding_balance ELSE 0 END), 0) AS vehicle_loan,
+            COALESCE(SUM(CASE WHEN loan_type = 'education'THEN outstanding_balance ELSE 0 END), 0) AS education_loan
+     FROM loan_accounts WHERE portfolio_id = ? AND status = 'active'",
+    [$portfolioId]
+);
+$loanByType = DB::fetchAll(
+    "SELECT loan_type, lender_name,
+            outstanding_balance, interest_rate, emi_amount, end_date
+     FROM loan_accounts WHERE portfolio_id = ? AND status = 'active'
+     ORDER BY outstanding_balance DESC",
+    [$portfolioId]
+);
+$totalLiabilities = (float)($loanRow['total_outstanding'] ?? 0);
+
+/* ─── 9. Totals (including real estate, gold; net of liabilities) ─────────── */
 $totalInvested = (float)$mfRow['invested']
                + (float)$npsRow['invested']
                + (float)$stockRow['invested']
                + (float)$fdRow['invested']
-               + (float)$savingsRow['invested'];
+               + (float)$savingsRow['invested']
+               + $reInvested
+               + $goldInvested;
 
-$totalCurrentValue = (float)$mfRow['current_value']
-                   + (float)$npsRow['current_value']
-                   + (float)$stockRow['current_value']
-                   + $fdCurrentValue
-                   + (float)$savingsRow['current_value'];
+$totalGrossAssets = (float)$mfRow['current_value']
+                  + (float)$npsRow['current_value']
+                  + (float)$stockRow['current_value']
+                  + $fdCurrentValue
+                  + (float)$savingsRow['current_value']
+                  + $reCurrentValue
+                  + $goldCurrentValue;
+
+$totalCurrentValue = $totalGrossAssets - $totalLiabilities; // Net Worth = Assets - Liabilities
 
 $totalGainLoss = $totalCurrentValue - $totalInvested;
 $totalGainPct  = $totalInvested > 0 ? round(($totalGainLoss / $totalInvested) * 100, 2) : 0;
 
-/* ─── 7. Asset allocation percentages ────────────────────────────────────── */
+/* ─── 10. Asset allocation percentages ───────────────────────────────────── */
 function alloc(float $val, float $total): float {
     return $total > 0 ? round(($val / $total) * 100, 2) : 0.0;
 }
 
 $allocation = [
-    ['label' => 'Mutual Funds', 'value' => round((float)$mfRow['current_value'],2),    'color' => '#2563EB', 'pct' => alloc((float)$mfRow['current_value'], $totalCurrentValue)],
-    ['label' => 'Stocks',       'value' => round((float)$stockRow['current_value'],2),  'color' => '#059669', 'pct' => alloc((float)$stockRow['current_value'], $totalCurrentValue)],
-    ['label' => 'NPS',          'value' => round((float)$npsRow['current_value'],2),    'color' => '#7C3AED', 'pct' => alloc((float)$npsRow['current_value'], $totalCurrentValue)],
-    ['label' => 'Fixed Deposits','value' => round($fdCurrentValue,2),                   'color' => '#D97706', 'pct' => alloc($fdCurrentValue, $totalCurrentValue)],
-    ['label' => 'Savings',      'value' => round((float)$savingsRow['current_value'],2),'color' => '#0891B2', 'pct' => alloc((float)$savingsRow['current_value'], $totalCurrentValue)],
+    ['label' => 'Mutual Funds',  'value' => round((float)$mfRow['current_value'],2),    'color' => '#2563EB', 'pct' => alloc((float)$mfRow['current_value'], $totalGrossAssets)],
+    ['label' => 'Stocks',        'value' => round((float)$stockRow['current_value'],2),  'color' => '#059669', 'pct' => alloc((float)$stockRow['current_value'], $totalGrossAssets)],
+    ['label' => 'NPS',           'value' => round((float)$npsRow['current_value'],2),    'color' => '#7C3AED', 'pct' => alloc((float)$npsRow['current_value'], $totalGrossAssets)],
+    ['label' => 'Fixed Deposits','value' => round($fdCurrentValue,2),                    'color' => '#D97706', 'pct' => alloc($fdCurrentValue, $totalGrossAssets)],
+    ['label' => 'Savings',       'value' => round((float)$savingsRow['current_value'],2),'color' => '#0891B2', 'pct' => alloc((float)$savingsRow['current_value'], $totalGrossAssets)],
+    ['label' => 'Real Estate',   'value' => round($reCurrentValue, 2),                   'color' => '#DC2626', 'pct' => alloc($reCurrentValue, $totalGrossAssets)],
+    ['label' => 'Physical Gold', 'value' => round($goldCurrentValue, 2),                 'color' => '#F59E0B', 'pct' => alloc($goldCurrentValue, $totalGrossAssets)],
 ];
 
 /* ─── 8. MF category breakdown for pie ────────────────────────────────────── */
@@ -183,9 +256,11 @@ $debtTotal   = $debtMf + $fdCurrentValue + (float)$savingsRow['current_value'];
 $hybridOther = (float)$npsRow['current_value'];
 
 $equityDebtSplit = [
-    ['label' => 'Equity (MF+Stocks)',      'value' => round($equityTotal, 2), 'color' => '#2563EB', 'pct' => alloc($equityTotal, $totalCurrentValue)],
-    ['label' => 'Debt (MF+FD+Savings)',    'value' => round($debtTotal, 2),   'color' => '#D97706', 'pct' => alloc($debtTotal, $totalCurrentValue)],
-    ['label' => 'NPS (Hybrid)',             'value' => round($hybridOther, 2), 'color' => '#7C3AED', 'pct' => alloc($hybridOther, $totalCurrentValue)],
+    ['label' => 'Equity (MF+Stocks)',      'value' => round($equityTotal, 2),      'color' => '#2563EB', 'pct' => alloc($equityTotal, $totalGrossAssets)],
+    ['label' => 'Debt (MF+FD+Savings)',    'value' => round($debtTotal, 2),        'color' => '#D97706', 'pct' => alloc($debtTotal, $totalGrossAssets)],
+    ['label' => 'NPS (Hybrid)',             'value' => round($hybridOther, 2),      'color' => '#7C3AED', 'pct' => alloc($hybridOther, $totalGrossAssets)],
+    ['label' => 'Real Estate',             'value' => round($reCurrentValue, 2),   'color' => '#DC2626', 'pct' => alloc($reCurrentValue, $totalGrossAssets)],
+    ['label' => 'Physical Gold',           'value' => round($goldCurrentValue, 2), 'color' => '#F59E0B', 'pct' => alloc($goldCurrentValue, $totalGrossAssets)],
 ];
 
 /* ─── 10. FD maturing in next 90 days ────────────────────────────────────── */
@@ -202,10 +277,13 @@ $fdMaturingSoon = DB::fetchAll(
 json_response(true, 'Net worth report loaded.', [
     'summary' => [
         'total_invested'     => round($totalInvested, 2),
-        'total_current_value'=> round($totalCurrentValue, 2),
-        'total_gain_loss'    => round($totalGainLoss, 2),
-        'total_gain_pct'     => $totalGainPct,
-        'as_of_date'         => format_date($today),
+        'total_invested'      => round($totalInvested, 2),
+        'total_gross_assets'  => round($totalGrossAssets, 2),
+        'total_liabilities'   => round($totalLiabilities, 2),
+        'total_current_value' => round($totalCurrentValue, 2),
+        'total_gain_loss'     => round($totalGainLoss, 2),
+        'total_gain_pct'      => $totalGainPct,
+        'as_of_date'          => format_date($today),
     ],
     'by_asset' => [
         'mutual_funds' => [
@@ -244,6 +322,37 @@ json_response(true, 'Net worth report loaded.', [
             'account_count' => (int)$savingsRow['count'],
             'by_bank'       => $savingsByBank,
         ],
+        'real_estate' => [
+            'invested'              => round($reInvested, 2),
+            'current_value'         => round($reCurrentValue, 2),
+            'gain_loss'             => round($reCurrentValue - $reInvested, 2),
+            'gain_pct'              => $reInvested > 0 ? round(($reCurrentValue - $reInvested) / $reInvested * 100, 2) : 0,
+            'property_count'        => (int)($reRow['property_count'] ?? 0),
+            'outstanding_loan'      => round((float)($reRow['outstanding_loan'] ?? 0), 2),
+            'net_equity'            => round($reCurrentValue - (float)($reRow['outstanding_loan'] ?? 0), 2),
+            'annual_rental_income'  => round((float)($reRow['annual_rental'] ?? 0), 2),
+            'self_occupied_value'   => round((float)($reRow['self_occupied_value'] ?? 0), 2),
+            'investment_value'      => round((float)($reRow['investment_property_value'] ?? 0), 2),
+            'by_type'               => $reByType,
+        ],
+        'physical_gold' => [
+            'invested'            => round($goldInvested, 2),
+            'current_value'       => round($goldCurrentValue, 2),
+            'gain_loss'           => round($goldCurrentValue - $goldInvested, 2),
+            'gain_pct'            => $goldInvested > 0 ? round(($goldCurrentValue - $goldInvested) / $goldInvested * 100, 2) : 0,
+            'count'               => (int)($goldRow['count'] ?? 0),
+            'total_weight_grams'  => round((float)($goldRow['total_weight_grams'] ?? 0), 3),
+            'by_type'             => $goldByType,
+        ],
+    ],
+    'liabilities' => [
+        'total_outstanding'  => round($totalLiabilities, 2),
+        'loan_count'         => (int)($loanRow['count'] ?? 0),
+        'home_loan'          => round((float)($loanRow['home_loan'] ?? 0), 2),
+        'personal_loan'      => round((float)($loanRow['personal_loan'] ?? 0), 2),
+        'vehicle_loan'       => round((float)($loanRow['vehicle_loan'] ?? 0), 2),
+        'education_loan'     => round((float)($loanRow['education_loan'] ?? 0), 2),
+        'by_loan'            => $loanByType,
     ],
     'allocation'       => $allocation,
     'equity_debt_split'=> $equityDebtSplit,

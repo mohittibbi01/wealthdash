@@ -220,6 +220,222 @@ switch ($action) {
 
         json_response(true, 'Contribution recorded.', ['total_saved' => round($totalSaved, 2)]);
 
+    // ── t292: Goal-Based Asset Allocation ────────────────────
+    case 'goal_asset_allocation':
+        // Returns every goal with its linked assets (MF + FD + Stocks) and current values
+        $goals = DB::fetchAll(
+            "SELECT id, name, color, icon, target_amount, current_saved, is_achieved,
+                    linked_fund_ids, linked_stock_ids, linked_fd_ids
+             FROM investment_goals
+             WHERE portfolio_id = ?
+             ORDER BY is_achieved ASC, target_amount DESC",
+            [$portfolioId]
+        );
+
+        $result      = [];
+        $totalLinked = 0.0;
+        $unlinked    = [];
+
+        // Fetch all MF holdings for this portfolio
+        $mfHoldings = DB::fetchAll(
+            "SELECT h.id, h.fund_id, h.current_value, h.invested_amount,
+                    f.fund_name, f.category
+             FROM mf_holdings h
+             JOIN funds f ON f.id = h.fund_id
+             WHERE h.portfolio_id = ? AND h.current_value > 0",
+            [$portfolioId]
+        );
+        $mfById = [];
+        foreach ($mfHoldings as $h) $mfById[$h['fund_id']] = $h;
+
+        // Fetch all FD accounts for this portfolio
+        $fdAccounts = DB::fetchAll(
+            "SELECT id, bank_name, principal_amount, maturity_amount,
+                    interest_earned, status, fd_type
+             FROM fd_accounts
+             WHERE portfolio_id = ? AND status = 'active'",
+            [$portfolioId]
+        );
+        $fdById = [];
+        foreach ($fdAccounts as $f) $fdById[$f['id']] = $f;
+
+        // Fetch all stock holdings for this portfolio
+        $stockHoldings = DB::fetchAll(
+            "SELECT h.id, h.stock_id, h.current_value, h.invested_amount,
+                    sm.symbol, sm.company_name
+             FROM stock_holdings h
+             JOIN stock_master sm ON sm.id = h.stock_id
+             WHERE h.portfolio_id = ? AND h.quantity > 0",
+            [$portfolioId]
+        );
+        $stockById = [];
+        foreach ($stockHoldings as $s) $stockById[$s['stock_id']] = $s;
+
+        // Track which asset IDs are linked to any goal
+        $linkedMfIds    = [];
+        $linkedFdIds    = [];
+        $linkedStockIds = [];
+
+        foreach ($goals as $goal) {
+            $mfIds    = json_decode($goal['linked_fund_ids']  ?? '[]', true)  ?: [];
+            $fdIds    = json_decode($goal['linked_fd_ids']    ?? '[]', true)  ?: [];
+            $stIds    = json_decode($goal['linked_stock_ids'] ?? '[]', true)  ?: [];
+
+            $assets       = [];
+            $goalValue    = 0.0;
+            $goalInvested = 0.0;
+
+            foreach ($mfIds as $fid) {
+                $fid = (int)$fid;
+                if (isset($mfById[$fid])) {
+                    $h = $mfById[$fid];
+                    $assets[] = [
+                        'type' => 'mf', 'id' => $fid,
+                        'name' => $h['fund_name'], 'category' => $h['category'],
+                        'current_value' => (float)$h['current_value'],
+                        'invested'      => (float)$h['invested_amount'],
+                    ];
+                    $goalValue    += (float)$h['current_value'];
+                    $goalInvested += (float)$h['invested_amount'];
+                    $linkedMfIds[] = $fid;
+                }
+            }
+            foreach ($fdIds as $fid) {
+                $fid = (int)$fid;
+                if (isset($fdById[$fid])) {
+                    $f   = $fdById[$fid];
+                    $val = (float)($f['principal_amount']) + (float)($f['interest_earned']);
+                    $assets[] = [
+                        'type' => 'fd', 'id' => $fid,
+                        'name' => $f['bank_name'] . ' FD',
+                        'category' => strtoupper($f['fd_type']),
+                        'current_value' => $val,
+                        'invested'      => (float)$f['principal_amount'],
+                    ];
+                    $goalValue    += $val;
+                    $goalInvested += (float)$f['principal_amount'];
+                    $linkedFdIds[] = $fid;
+                }
+            }
+            foreach ($stIds as $sid) {
+                $sid = (int)$sid;
+                if (isset($stockById[$sid])) {
+                    $s = $stockById[$sid];
+                    $assets[] = [
+                        'type' => 'stock', 'id' => $sid,
+                        'name' => $s['company_name'] . ' (' . $s['symbol'] . ')',
+                        'category' => 'Stock',
+                        'current_value' => (float)$s['current_value'],
+                        'invested'      => (float)$s['invested_amount'],
+                    ];
+                    $goalValue    += (float)$s['current_value'];
+                    $goalInvested += (float)$s['invested_amount'];
+                    $linkedStockIds[] = $sid;
+                }
+            }
+
+            $target   = (float)$goal['target_amount'];
+            $progress = $target > 0 ? min(round($goalValue / $target * 100, 1), 100) : 0;
+            $totalLinked += $goalValue;
+
+            $result[] = [
+                'id'           => (int)$goal['id'],
+                'name'         => $goal['name'],
+                'color'        => $goal['color'],
+                'icon'         => $goal['icon'],
+                'target_amount'=> $target,
+                'current_value'=> round($goalValue, 2),
+                'invested'     => round($goalInvested, 2),
+                'progress_pct' => $progress,
+                'is_achieved'  => (bool)$goal['is_achieved'],
+                'assets'       => $assets,
+                'asset_count'  => count($assets),
+            ];
+        }
+
+        // Unlinked MF holdings
+        foreach ($mfHoldings as $h) {
+            if (!in_array((int)$h['fund_id'], $linkedMfIds)) {
+                $unlinked[] = [
+                    'type' => 'mf', 'id' => (int)$h['fund_id'],
+                    'name' => $h['fund_name'], 'category' => $h['category'],
+                    'current_value' => (float)$h['current_value'],
+                ];
+            }
+        }
+        // Unlinked FDs
+        foreach ($fdAccounts as $f) {
+            if (!in_array((int)$f['id'], $linkedFdIds)) {
+                $val = (float)$f['principal_amount'] + (float)$f['interest_earned'];
+                $unlinked[] = [
+                    'type' => 'fd', 'id' => (int)$f['id'],
+                    'name' => $f['bank_name'] . ' FD',
+                    'category' => 'FD',
+                    'current_value' => $val,
+                ];
+            }
+        }
+        // Unlinked Stocks
+        foreach ($stockHoldings as $s) {
+            if (!in_array((int)$s['stock_id'], $linkedStockIds)) {
+                $unlinked[] = [
+                    'type' => 'stock', 'id' => (int)$s['stock_id'],
+                    'name' => $s['company_name'],
+                    'category' => 'Stock',
+                    'current_value' => (float)$s['current_value'],
+                ];
+            }
+        }
+
+        json_response(true, '', [
+            'goals'        => $result,
+            'unlinked'     => $unlinked,
+            'total_linked' => round($totalLinked, 2),
+        ]);
+
+    // ── t292: Link/Unlink asset to goal ──────────────────────
+    case 'goal_link_asset':
+    case 'goal_unlink_asset':
+        if (!can_edit_portfolio($portfolioId, $userId, $isAdmin)) {
+            json_response(false, 'Edit access required.');
+        }
+        csrf_verify();
+
+        $goalId    = (int)($_POST['goal_id'] ?? 0);
+        $assetType = clean($_POST['asset_type'] ?? '');  // mf | fd | stock
+        $assetId   = (int)($_POST['asset_id']  ?? 0);
+
+        if (!$goalId || !$assetId || !in_array($assetType, ['mf','fd','stock'])) {
+            json_response(false, 'goal_id, asset_type, asset_id required.');
+        }
+
+        $goal = DB::fetchOne(
+            'SELECT id, linked_fund_ids, linked_stock_ids, linked_fd_ids
+             FROM investment_goals WHERE id = ? AND portfolio_id = ?',
+            [$goalId, $portfolioId]
+        );
+        if (!$goal) json_response(false, 'Goal not found.');
+
+        $col  = $assetType === 'mf'    ? 'linked_fund_ids'
+              : ($assetType === 'fd'   ? 'linked_fd_ids'
+              :                          'linked_stock_ids');
+        $ids  = json_decode($goal[$col] ?? '[]', true) ?: [];
+        $ids  = array_map('intval', $ids);
+
+        if ($action === 'goal_link_asset') {
+            if (!in_array($assetId, $ids)) $ids[] = $assetId;
+            $msg = 'Asset linked to goal.';
+        } else {
+            $ids = array_values(array_filter($ids, fn($i) => $i !== $assetId));
+            $msg = 'Asset unlinked from goal.';
+        }
+
+        DB::run(
+            "UPDATE investment_goals SET {$col} = ? WHERE id = ?",
+            [json_encode(array_values($ids)), $goalId]
+        );
+        json_response(true, $msg, ['linked_ids' => $ids]);
+
     default:
         json_response(false, 'Unknown goal action.', [], 400);
 }

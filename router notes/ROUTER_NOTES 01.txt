@@ -1,0 +1,58 @@
+================================================================================
+t315 — Router Notes for api/router.php
+================================================================================
+
+File: api/router.php
+Task: t315 — Crypto Holdings Full Portfolio Tracking
+
+STEP 1 — Add new actions to the auth-required whitelist (around line 114):
+-----------------------------------------------------------------------
+Find the array that includes 'crypto_list', 'crypto_prices' etc. and append:
+
+    'crypto_portfolio_stats', 'crypto_edit_holding',
+    'crypto_staking_list', 'crypto_staking_add', 'crypto_staking_delete',
+    'crypto_wl_list', 'crypto_wl_add', 'crypto_wl_delete',
+    'crypto_tax_year_summary',
+
+
+STEP 2 — Add new case block after the existing crypto_txn_add case (~line 795):
+-----------------------------------------------------------------------
+Insert BEFORE the closing of the crypto switch block:
+
+        case 'crypto_portfolio_stats':
+        case 'crypto_edit_holding':
+        case 'crypto_staking_list':
+        case 'crypto_staking_add':
+        case 'crypto_staking_delete':
+        case 'crypto_wl_list':
+        case 'crypto_wl_add':
+        case 'crypto_wl_delete':
+        case 'crypto_tax_year_summary':
+            require APP_ROOT . '/api/crypto/crypto_holdings.php'; exit;
+
+
+================================================================================
+Summary of all crypto routes AFTER this change:
+================================================================================
+
+crypto_list             → api/crypto/crypto_list.php       (t24, existing)
+crypto_prices           → api/crypto/crypto_list.php       (t24, existing)
+crypto_summary          → api/crypto/crypto_list.php       (t24, existing)
+crypto_txns             → api/crypto/crypto_list.php       (t24, existing)
+crypto_add              → api/crypto/crypto_list.php       (t24, existing)
+crypto_delete           → api/crypto/crypto_list.php       (t24, existing)
+crypto_txn_add          → api/crypto/crypto_list.php       (t24, existing)
+crypto_price_stream     → api/crypto/crypto_price_stream.php (tc001, existing)
+crypto_vda_tax          → api/crypto/vda_tax.php           (t42, existing)
+
+[NEW — t315]
+crypto_portfolio_stats  → api/crypto/crypto_holdings.php   ← t315
+crypto_edit_holding     → api/crypto/crypto_holdings.php   ← t315
+crypto_staking_list     → api/crypto/crypto_holdings.php   ← t315
+crypto_staking_add      → api/crypto/crypto_holdings.php   ← t315
+crypto_staking_delete   → api/crypto/crypto_holdings.php   ← t315
+crypto_wl_list          → api/crypto/crypto_holdings.php   ← t315
+crypto_wl_add           → api/crypto/crypto_holdings.php   ← t315
+crypto_wl_delete        → api/crypto/crypto_holdings.php   ← t315
+crypto_tax_year_summary → api/crypto/crypto_holdings.php   ← t315
+================================================================================

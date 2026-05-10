@@ -198,7 +198,7 @@
 | ✅ t377 | Tax Computation Sheet — CA-ready | p1 | 2-3h |
 | ✅ t496 | Tax Calculator 2024-25 | p1 | 2-3h |
 | ✅ t85 | New vs Old Tax Regime Calculator | p2 | 2-3h |
-| t134 | 54EC Bond Tracker | p2 | 1-2h |
+| ✅ t134 | 54EC Bond Tracker | p2 | 1-2h |
 | t136 | AIS / TIS Reconciliation | p2 | 2-3h |
 | t138 | Indexation Benefit | p2 | 2-3h |
 | ✅ t437 | Tax P&L Statement | p1 | 3-4h |
@@ -220,7 +220,7 @@
 | ✅ t80 | FD Maturity Alert | p1 | 1h |
 | ✅ t344 | NSE/BSE Live Price alerts | p1 | 3-4h |
 | ✅ t345 | Price Alerts | p1 | 2-3h |
-| t404 | Smart Alerts v2 | p2 | 2-3h |
+| ✅ t404 | Smart Alerts v2 | p2 | 2-3h |
 
 ---
 
@@ -245,21 +245,21 @@
 | t55 | Dashboard widget customizer | p3 | 3-4h |
 | ✅ t88 | Ctrl+K Global Search | p2 | 2-3h |
 | t89 | Keyboard Shortcuts | p3 | 2-3h |
-| t142 | Financial Health Score | p2 | 2-3h |
+| ✅ t142 | Financial Health Score | p2 | 2-3h |
 | t297 | Customizable Dashboard | p2 | 4-5h |
-| t300 | Portfolio Heatmap | p2 | 3-4h |
+| ✅ t300 | Portfolio Heatmap | p2 | 3-4h |
 | t371 | Biometric Login (WebAuthn) | p2 | 2-3d |
 | t372 | Swipe Gestures | p2 | 2-3h |
 | t373 | Widget Mode | p3 | 2-3h |
 | ✅ t396 | Net Worth Projection 5/10/20yr | p1 | 3-4h |
-| t442 | Unified Dashboard — all assets | p1 | 3-4h |
-| t443 | Morning Briefing — 9AM digest | p2 | 2-3h |
-| t444 | Command Palette v2 | p2 | 2-3h |
+| ✅ t442 | Unified Dashboard — all assets | p1 | 3-4h |
+| ✅ t443 | Morning Briefing — 9AM digest | p2 | 2-3h |
+| ✅ t444 | Command Palette v2 | p2 | 2-3h |
 | t445 | Customizable Overview Cards | p2 | 3-4h |
 | t446 | Portfolio Health Heatmap | p2 | 2-3h |
 | ✅ t448 | Net Worth Statement — CA-ready | p1 | 2-3h |
-| t449 | Loading Skeletons | p2 | 2-3h |
-| t452 | Empty States | p2 | 2-3h |
+| ✅ t449 | Loading Skeletons | p2 | 2-3h |
+| ✅ t452 | Empty States | p2 | 2-3h |
 | t454 | Onboarding Flow | p2 | 3-4h |
 
 ---
@@ -293,7 +293,7 @@
 | t145 | Stock Picker Reality Check vs Nifty | p2 | 2-3h |
 | t301 | Zerodha Kite API sync | p1 | 4-5h |
 | t302 | Groww Portfolio Import | p1 | 3-4h |
-| t343 | Live NAV Widget | p1 | 2-3h |
+| ✅ t343 | Live NAV Widget | p1 | 2-3h |
 | ✅ t344 | NSE/BSE Live Price | p1 | 3-4h |
 | t391 | Zerodha Kite Connect | p1 | 3-4d |
 | t431 | Stock Fundamental Data | p1 | 2-3d |
@@ -316,7 +316,7 @@
 | t41 | Crypto page — live prices + P&L | p2 | 2-3h |
 | t42 | Crypto tax 30% flat | p3 | 2-3h |
 | t317 | Crypto Exchange P&L Import | p1 | 2-3h |
-| tc001 | Live Crypto Prices — WebSocket | p1 | 3-4h |
+| ✅ tc001 | Live Crypto Prices — WebSocket | p1 | 3-4h |
 | tc003 | DeFi & Staking Income | p2 | 2-3h |
 | tc004 | Portfolio Rebalancing crypto | p2 | 2-3h |
 | tc005 | Exchange Sync — Binance/WazirX | p1 | 3-4d |
@@ -331,12 +331,12 @@
 | ✅ t20 | Pagination — FD, Savings, NPS tables | p2 | 1-2h |
 | t33 | FD + Savings — pagination | p3 | 2h |
 | t43 | Bank accounts tracker | p2 | 2-3d |
-| t44 | FD laddering visualization | p3 | 3-4h |
+| ✅ t44 | FD laddering visualization | p3 | 3-4h |
 | t45 | Recurring Deposit (RD) tracker | p3 | 2-3h |
 | ✅ t421 | FD Rate Tracker | p1 | 2-3h |
 | t422 | Auto Sweep FD | p2 | 2-3h |
-| t424 | Interest Payout Tracker | p2 | 2-3h |
-| t425 | FD Renewal Decision Tool | p2 | 2-3h |
+| ✅ t424 | Interest Payout Tracker | p2 | 2-3h |
+| ✅ t425 | FD Renewal Decision Tool | p2 | 2-3h |
 
 ---
 
@@ -371,13 +371,13 @@
 | t139 | Goal-Based Buckets | p1 | 2-3d |
 | t144 | SIP Step-Up Nudge | p2 | 1-2h |
 | t155 | Child Education Planner | p2 | 2-3h |
-| t292 | Goal-Based Asset Allocation | p1 | 3-4h |
+| ✅ t292 | Goal-Based Asset Allocation | p1 | 3-4h |
 | t355 | Goal Buckets | p1 | 2-3d |
 | t358 | Goal Notification Engine | p2 | 1-2h |
 | t360 | Life Events Calendar | p2 | 2-3h |
 | t396 | Net Worth Projection | p1 | 3-4h |
-| tg001 | Monte Carlo — goal probability | p1 | 3-4h |
-| tg002 | Bucket Strategy | p1 | 2-3h |
+| ✅ tg001 | Monte Carlo — goal probability | p1 | 3-4h |
+| ✅ tg002 | Bucket Strategy | p1 | 2-3h |
 | tg003 | Goal Stacking | p2 | 2-3h |
 | ✅ tg004 | Inflation-Adjusted Goals | p1 | 1-2h |
 | tg005 | Goal Achievement Celebration | p3 | 1-2h |
@@ -400,7 +400,7 @@
 | t380 | AI Portfolio Review — monthly | p1 | 3-4d |
 | t381 | AI Chat Assistant | p1 | 3-4d |
 | t382 | AI Fund Research | p2 | 2-3h |
-| t383 | AI Tax Optimizer | p1 | 2-3h |
+| ✅ t383 | AI Tax Optimizer | p1 | 2-3h |
 | t384 | AI Anomaly Detector | p2 | 2-3h |
 | t385 | AI Goal Coach | p2 | 2-3h |
 
@@ -412,9 +412,9 @@
 |----|-------|----|-----|
 | t386 | 2FA — TOTP Google Authenticator | p1 | 2-3d |
 | t387 | Session Security | p2 | 2-3h |
-| t388 | Data Encryption | p1 | 2-3h |
+| ✅ t388 | Data Encryption | p1 | 2-3h |
 | t389 | GDPR-style Data Controls | p2 | 2-3h |
-| t390 | API Rate Limiting | p1 | 2-3h |
+| ✅ t390 | API Rate Limiting | p1 | 2-3h |
 
 ---
 
@@ -429,9 +429,9 @@
 | ✅ t54 | User settings — profile, risk, tax | p2 | 2-3h |
 | t307 | Audit Log | p2 | 2-3h |
 | t308 | System Performance Monitor | p2 | 2-3h |
-| t309 | Cron Job Dashboard | p1 | 2-3h |
-| t310 | Rate Limiter | p2 | 1-2h |
-| t417 | DB Migration Runner v2 | p1 | 2-3h |
+| ✅ t309 | Cron Job Dashboard | p1 | 2-3h |
+| ✅ t310 | Rate Limiter | p2 | 1-2h |
+| ✅ t417 | DB Migration Runner v2 | p1 | 2-3h |
 
 ---
 
@@ -439,10 +439,10 @@
 
 | ID | Title | PR | Eff |
 |----|-------|----|-----|
-| tp001 | Redis/APCu Cache Layer | p1 | 3-4h |
-| tp002 | Lazy Loading | p1 | 2-3h |
-| tp004 | PHP OPcache | p2 | 30m |
-| tp005 | Frontend Bundle — minify | p2 | 2-3h |
+| ✅ tp001 | Redis/APCu Cache Layer | p1 | 3-4h |
+| ✅ tp002 | Lazy Loading | p1 | 2-3h |
+| ✅ tp004 | PHP OPcache | p2 | 30m |
+| ✅ tp005 | Frontend Bundle — minify | p2 | 2-3h |
 
 ---
 
@@ -453,7 +453,7 @@
 | ✅ t374 | Portfolio PDF Report | p1 | 3-4h |
 | ✅ t377 | Tax Computation Sheet | p1 | 2-3h |
 | t311 | Annual Report Generator PDF | p1 | 4-5h |
-| t312 | Rebalancing Report | p1 | 2-3h |
+| ✅ t312 | Rebalancing Report | p1 | 2-3h |
 | ✅ t313 | Wealth Statement | p1 | 3-4h |
 | t314 | Monthly P&L Statement | p2 | 2-3h |
 | t375 | Excel Export XLSX | p2 | 2-3h |
@@ -483,18 +483,18 @@
 | ✅ t322 | Health Insurance Tracker | p1 | 2-3h |
 | t323 | ULIP Tracker | p2 | 2-3h |
 | ✅ t324 | Premium Calendar | p1 | 1-2h |
-| t325 | EMI Calculator & Amortization | p1 | 2-3h |
-| t326 | Loan vs Invest Decision Tool | p1 | 1-2h |
-| t327 | Home Loan Tax Benefit | p1 | 2-3h |
-| t394 | RBI Gold Bond API | p1 | 1-2h |
+| ✅ t325 | EMI Calculator & Amortization | p1 | 2-3h |
+| ✅ t326 | Loan vs Invest Decision Tool | p1 | 1-2h |
+| ✅ t327 | Home Loan Tax Benefit | p1 | 2-3h |
+| ✅ t394 | RBI Gold Bond API | p1 | 1-2h |
 | ✅ t459 | Term Insurance Adequacy | p1 | 2-3h |
-| t460 | Health Insurance Tracker | p1 | 2-3h |
+| ✅ t460 | Health Insurance Tracker | p1 | 2-3h |
 | t461 | ULIP Tracker full | p2 | 3-4h |
 | t462 | Premium Calendar | p2 | 1-2h |
 | t463 | Property Portfolio | p2 | 2-3d |
-| t464 | Home Loan EMI Tracker | p1 | 2-3h |
-| t465 | Physical Gold & Jewelry | p2 | 1-2h |
-| t466 | Net Worth Including Real Estate | p1 | 2-3h |
+| ✅ t464 | Home Loan EMI Tracker | p1 | 2-3h |
+| ✅ t465 | Physical Gold & Jewelry | p2 | 1-2h |
+| ✅ t466 | Net Worth Including Real Estate | p1 | 2-3h |
 
 ---
 
@@ -519,6 +519,6 @@
 
 ## STATS
 - Total tasks: ~352
-- Completed (✅): ~198
-- Pending: ~154
-- Last updated: 2026-05-02
+- Completed (✅): ~212
+- Pending: ~140
+- Last updated: 2026-05-03

@@ -127,8 +127,9 @@ switch ($action) {
         $stmt->execute([$jobName, $limit, $offset]);
         $runs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $total = (int)$db->prepare("SELECT COUNT(*) FROM cron_run_log WHERE job_name = ?")
-            ->execute([$jobName]) ? $db->query("SELECT COUNT(*) FROM cron_run_log WHERE job_name = '$jobName'")->fetchColumn() : 0;
+        $cntStmt = $db->prepare("SELECT COUNT(*) FROM cron_run_log WHERE job_name = ?");
+        $cntStmt->execute([$jobName]);
+        $total = (int) $cntStmt->fetchColumn();
 
         json_response(true, 'ok', [
             'job'   => $KNOWN_JOBS[$jobName],

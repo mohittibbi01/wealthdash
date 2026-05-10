@@ -1,16 +1,20 @@
 /**
- * WealthDash — Crypto Module (t24)
+ * WealthDash — Crypto Module (t24 + tc001)
  * public/js/crypto.js
- * Holdings table + live prices + P&L + VDA Tax tab + Add modal
+ * Holdings table + live prices (SSE) + P&L + VDA Tax tab + Add modal
  */
 const CRYPTO = (() => {
   'use strict';
 
   // ── State ──────────────────────────────────────────────────────────────
-  let _holdings    = [];
-  let _prices      = {};
-  let _tab         = 'holdings';   // holdings | transactions | tax
-  let _refreshTimer = null;
+  let _holdings      = [];
+  let _prices        = {};
+  let _tab           = 'holdings';
+  let _refreshTimer  = null;
+  let _sse           = null;          // tc001: EventSource
+  let _sseCountdown  = 30;            // tc001: seconds until next price update
+  let _sseTickTimer  = null;          // tc001: 1s interval for countdown display
+  let _lastPriceData = {};            // tc001: for flash diff comparison
 
   // Popular coins list for Add modal autocomplete
   const POPULAR_COINS = [
@@ -65,25 +69,179 @@ const CRYPTO = (() => {
   function init() {
     _renderShell();
     _loadHoldings();
-    // Auto-refresh prices every 60s
-    _refreshTimer = setInterval(() => {
-      if (_tab === 'holdings') _loadHoldings(true);
-    }, 60000);
+    // tc001: Start SSE live price stream after holdings load (so we have coin IDs)
+    setTimeout(_sseConnect, 1500);
   }
+
+  // ── tc001: SSE Live Price Stream ────────────────────────────────────────
+  function _sseConnect() {
+    if (_sse) { _sse.close(); _sse = null; }
+    clearInterval(_sseTickTimer);
+
+    const coinIds = [...new Set(_holdings.map(h => h.coin_id).filter(Boolean))];
+    if (!coinIds.length) {
+      // Fallback: polling every 60s if no holdings yet
+      if (!_refreshTimer) {
+        _refreshTimer = setInterval(() => {
+          if (_tab === 'holdings') _loadHoldings(true);
+        }, 60000);
+      }
+      return;
+    }
+
+    const base   = window.WD?.appUrl || window.APP_URL || '';
+    const url    = `${base}/api/router.php?action=crypto_price_stream&coins=${coinIds.join(',')}`;
+    _sse = new EventSource(url);
+
+    _sse.addEventListener('prices', e => {
+      try {
+        const prices = JSON.parse(e.data);
+        _onLivePrices(prices);
+        _sseCountdown = 30;
+      } catch {}
+    });
+
+    _sse.addEventListener('ping', () => {
+      _sseCountdown = 30;
+    });
+
+    _sse.addEventListener('error', () => {
+      // SSE error/reconnect — show warning in ticker
+      _updateTickerStatus('⚠️ Reconnecting…', 'var(--text-muted)');
+    });
+
+    // Countdown ticker — updates every second
+    _sseCountdown = 30;
+    _sseTickTimer = setInterval(() => {
+      _sseCountdown = Math.max(0, _sseCountdown - 1);
+      _updateTickerStatus(
+        `🟢 Live · Next: ${_sseCountdown}s`,
+        _sseCountdown > 5 ? '#22c55e' : '#f59e0b'
+      );
+    }, 1000);
+
+    // Reconnect on page visibility change (tab becomes active)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _sse?.readyState === EventSource.CLOSED) {
+        _sseConnect();
+      }
+    }, { once: false });
+  }
+
+  function _sseDisconnect() {
+    if (_sse) { _sse.close(); _sse = null; }
+    clearInterval(_sseTickTimer);
+    if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+  }
+
+  function _updateTickerStatus(text, color) {
+    const el = document.getElementById('cryptoLiveTicker');
+    if (el) { el.textContent = text; el.style.color = color; }
+  }
+
+  function _onLivePrices(prices) {
+    // Merge new prices into _prices state
+    const prev = { ..._lastPriceData };
+    Object.assign(_prices, prices);
+    _lastPriceData = { ...prices };
+
+    // Update each holding row without full re-render (flash animation)
+    _holdings.forEach((h, idx) => {
+      const cid  = h.coin_id;
+      const p    = prices[cid];
+      if (!p) return;
+
+      const row         = document.querySelector(`[data-crypto-idx="${idx}"]`);
+      const priceEl     = document.getElementById(`cp_price_${idx}`);
+      const valueEl     = document.getElementById(`cp_value_${idx}`);
+      const pnlEl       = document.getElementById(`cp_pnl_${idx}`);
+      const chg24El     = document.getElementById(`cp_chg24_${idx}`);
+      if (!row || !priceEl) return;
+
+      const prevPrice   = prev[cid]?.inr || 0;
+      const newPrice    = p.inr;
+      const units       = (float(h.quantity_net) || 0);
+      const avgCost     = (float(h.avg_buy_price_inr) || 0);
+      const currVal     = newPrice * units;
+      const investedVal = avgCost * units;
+      const pnl         = currVal - investedVal;
+      const pnlPct      = investedVal > 0 ? (pnl / investedVal * 100) : 0;
+
+      // Update DOM
+      priceEl.textContent  = _fmtINR(newPrice);
+      if (valueEl) valueEl.textContent  = _fmtINR(currVal);
+      if (pnlEl)   {
+        pnlEl.textContent  = (pnl >= 0 ? '+' : '') + _fmtINR(pnl);
+        pnlEl.style.color  = pnl >= 0 ? '#22c55e' : '#ef4444';
+      }
+      if (chg24El) {
+        const chg = p.chg24h;
+        chg24El.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+        chg24El.style.color = chg >= 0 ? '#22c55e' : '#ef4444';
+      }
+
+      // Flash animation
+      if (prevPrice && prevPrice !== newPrice) {
+        const flashColor = newPrice > prevPrice ? '#22c55e20' : '#ef444420';
+        row.style.background = flashColor;
+        row.style.transition = 'background 0.8s';
+        setTimeout(() => { row.style.background = ''; }, 900);
+      }
+    });
+
+    // Update summary stats
+    _updateLiveSummary();
+  }
+
+  function _updateLiveSummary() {
+    let totalVal = 0, totalInvest = 0;
+    _holdings.forEach(h => {
+      const p = _prices[h.coin_id];
+      if (!p) return;
+      totalVal     += p.inr * (parseFloat(h.quantity_net) || 0);
+      totalInvest  += (parseFloat(h.avg_buy_price_inr) || 0) * (parseFloat(h.quantity_net) || 0);
+    });
+    const totalPnl    = totalVal - totalInvest;
+    const totalPnlPct = totalInvest > 0 ? (totalPnl / totalInvest * 100) : 0;
+
+    const valEl = document.getElementById('cryptoTotalValue');
+    const pnlEl = document.getElementById('cryptoTotalPnl');
+    if (valEl) valEl.textContent = _fmtINR(totalVal);
+    if (pnlEl) {
+      pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + _fmtINR(totalPnl) + ' (' + (totalPnlPct >= 0 ? '+' : '') + totalPnlPct.toFixed(2) + '%)';
+      pnlEl.style.color = totalPnl >= 0 ? '#22c55e' : '#ef4444';
+    }
+  }
+
+  function float(v) { return parseFloat(v) || 0; }
 
   // ── Shell HTML ─────────────────────────────────────────────────────────
   function _renderShell() {
     const wrap = document.getElementById('cryptoApp');
     if (!wrap) return;
     wrap.innerHTML = `
+<!-- tc001: Live ticker strip -->
+<div style="display:flex;align-items:center;justify-content:space-between;
+            background:var(--bg-secondary);border-radius:8px;padding:6px 12px;
+            margin-bottom:12px;border:1px solid var(--border-color);">
+  <span id="cryptoLiveTicker" style="font-size:11px;font-weight:600;color:#22c55e;">
+    🟡 Connecting to live feed…
+  </span>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-size:11px;color:var(--text-muted);">Powered by CoinGecko</span>
+    <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px;"
+            onclick="CRYPTO.refreshPrices()">↻ Manual</button>
+  </div>
+</div>
+
 <!-- Stat cards -->
 <div id="cryptoStats" class="stats-grid" style="margin-bottom:20px">
   <div class="stat-card"><div class="stat-label">Holdings</div><div class="stat-value" id="cStatCoins">—</div></div>
   <div class="stat-card"><div class="stat-label">Invested</div><div class="stat-value" id="cStatInv">—</div></div>
-  <div class="stat-card"><div class="stat-label">Current Value</div><div class="stat-value" id="cStatCur">—</div></div>
+  <div class="stat-card"><div class="stat-label">Current Value</div><div class="stat-value" id="cryptoTotalValue" id="cStatCur">—</div></div>
   <div class="stat-card">
-    <div class="stat-label">P&amp;L</div>
-    <div class="stat-value" id="cStatGain">—</div>
+    <div class="stat-label">P&amp;L (Unrealised)</div>
+    <div class="stat-value" id="cryptoTotalPnl" id="cStatGain">—</div>
   </div>
 </div>
 
@@ -99,9 +257,6 @@ const CRYPTO = (() => {
   <button class="btn btn-primary btn-sm" onclick="CRYPTO.openAddModal()">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Coin
-  </button>
-  <button class="btn btn-secondary btn-sm" id="btnRefreshPrices" onclick="CRYPTO.refreshPrices()">
-    🔄 Refresh Prices
   </button>
   <span id="cPriceTime" style="font-size:11px;color:var(--text-muted);margin-left:4px"></span>
 </div>
@@ -124,7 +279,10 @@ const CRYPTO = (() => {
   // ── Load Holdings ──────────────────────────────────────────────────────
   async function _loadHoldings(silent = false) {
     const content = document.getElementById('cryptoContent');
-    if (!silent && content) content.innerHTML = '<div class="wd-loader" style="margin:40px auto"></div>';
+    if (!silent && content) {
+      if (typeof WdSkel !== 'undefined') WdSkel.table('cryptoContent', 5, 6);
+      else content.innerHTML = '<div class="wd-loader" style="margin:40px auto"></div>';
+    }
 
     try {
       const data = await API.get('crypto_list');
@@ -133,9 +291,14 @@ const CRYPTO = (() => {
       _updateStats(data);
       renderHoldings(_holdings);
       const pt = document.getElementById('cPriceTime');
-      if (pt) pt.textContent = 'Prices: ' + (data.prices_updated || '');
+      if (pt) pt.textContent = 'Updated: ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+
+      // tc001: (Re)connect SSE with current coin IDs
+      _sseConnect();
     } catch (e) {
-      if (content) content.innerHTML = `<div class="wd-empty">⚠️ ${e.message}</div>`;
+      if (content) content.innerHTML = typeof WdEmpty !== 'undefined'
+        ? WdEmpty.html('crypto')
+        : `<div class="wd-empty">⚠️ ${e.message}</div>`;
     }
   }
 
@@ -167,14 +330,14 @@ const CRYPTO = (() => {
       return;
     }
 
-    const rows = data.map(h => {
+    const rows = data.map((h, idx) => {
       const gainCls = h.gain_inr >= 0 ? 'var(--green)' : 'var(--red)';
       const chg24 = h.change_24h != null
-        ? `<div style="font-size:11px;color:${h.change_24h>=0?'var(--green)':'var(--red)'};margin-top:2px">
+        ? `<div style="font-size:11px;color:${h.change_24h>=0?'var(--green)':'var(--red)'};margin-top:2px" id="cp_chg24_${idx}">
              ${h.change_24h>=0?'▲':'▼'} ${Math.abs(parseFloat(h.change_24h)).toFixed(2)}% (24h)
            </div>`
         : '';
-      return `<tr>
+      return `<tr data-crypto-idx="${idx}" style="transition:background 0.8s;">
         <td>
           <div style="display:flex;align-items:center;gap:10px">
             ${coinIcon(h.coin_symbol)}
@@ -185,12 +348,12 @@ const CRYPTO = (() => {
           </div>
         </td>
         <td style="font-family:monospace">${fmtQty(h.quantity)}</td>
-        <td>${h.price_inr > 0 ? fmtInr(h.price_inr) : '<span style="color:var(--text-muted)">—</span>'}${chg24}</td>
+        <td id="cp_price_${idx}">${h.price_inr > 0 ? fmtInr(h.price_inr) : '<span style="color:var(--text-muted)">—</span>'}${chg24}</td>
         <td>${fmtInr(h.avg_buy_price)}</td>
         <td>${fmtInr(h.total_invested)}</td>
-        <td style="font-weight:600">${h.current_value > 0 ? fmtInr(h.current_value) : '—'}</td>
+        <td style="font-weight:600" id="cp_value_${idx}">${h.current_value > 0 ? fmtInr(h.current_value) : '—'}</td>
         <td>
-          <div style="color:${gainCls};font-weight:600">${fmtInr(h.gain_inr)}</div>
+          <div style="color:${gainCls};font-weight:600" id="cp_pnl_${idx}">${fmtInr(h.gain_inr)}</div>
           <div style="font-size:11px;margin-top:2px">${pctBadge(h.gain_pct)}</div>
         </td>
         <td style="font-size:12px;color:var(--text-muted)">${h.exchange || '—'}</td>
@@ -503,11 +666,22 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     document.head.appendChild(s);
   }
 
+  // ── INR formatter for live price updates ──────────────────────────────
+  function _fmtINR(n) {
+    n = parseFloat(n) || 0;
+    if (Math.abs(n) >= 1e7) return '₹' + (n / 1e7).toFixed(2) + 'Cr';
+    if (Math.abs(n) >= 1e5) return '₹' + (n / 1e5).toFixed(2) + 'L';
+    return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────
   return {
     init, switchTab, refreshPrices, deleteHolding,
     openAddModal, closeModal, renderHoldings,
-    _onCoinSelect, _submitAdd, _updateAmountPreview
+    _onCoinSelect, _submitAdd, _updateAmountPreview,
+    // tc001: SSE controls
+    connectLive:    _sseConnect,
+    disconnectLive: _sseDisconnect,
   };
 })();
 

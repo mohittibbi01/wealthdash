@@ -113,6 +113,38 @@ function wd_save_fundamentals(int $stockId, array $f): void {
     $set[]    = '`fundamentals_updated_at` = NOW()';
     $params[] = $stockId;
     DB::run("UPDATE stock_master SET " . implode(', ', $set) . " WHERE id = ?", $params);
+
+    // — t281: Persist daily snapshot to stock_fundamental_history —
+    $sm = DB::fetchOne("SELECT symbol, latest_price, current_price FROM stock_master WHERE id = ?", [$stockId]);
+    if ($sm) {
+        DB::run(
+            "INSERT INTO stock_fundamental_history
+                (stock_id, symbol, snapshot_date, pe_ratio, pb_ratio, eps,
+                 market_cap, dividend_yield, high_52, low_52, price_on_date, source)
+             VALUES (?,?,CURDATE(),?,?,?,?,?,?,?,?,'yahoo')
+             ON DUPLICATE KEY UPDATE
+                pe_ratio       = VALUES(pe_ratio),
+                pb_ratio       = VALUES(pb_ratio),
+                eps            = VALUES(eps),
+                market_cap     = VALUES(market_cap),
+                dividend_yield = VALUES(dividend_yield),
+                high_52        = VALUES(high_52),
+                low_52         = VALUES(low_52),
+                price_on_date  = VALUES(price_on_date)",
+            [
+                $stockId,
+                $sm['symbol'],
+                $f['pe_ratio']       ?? null,
+                $f['pb_ratio']       ?? null,
+                $f['eps']            ?? null,
+                $f['market_cap']     ?? null,
+                $f['dividend_yield'] ?? null,
+                $f['high_52']        ?? null,
+                $f['low_52']         ?? null,
+                $sm['latest_price'] ?? $sm['current_price'] ?? null,
+            ]
+        );
+    }
 }
 
 /* ────────────────────────── ACTIONS ───────────────────────────────── */
@@ -203,6 +235,44 @@ if ($action === 'holdings_enriched') {
         [$userId]
     );
     json_response(true, '', $holdings);
+}
+
+/* t281: Historical fundamentals for a stock (P/E trend etc.) */
+if ($action === 'fundamentals_history') {
+    $symbol   = strtoupper(clean($_GET['symbol']   ?? $_POST['symbol']   ?? ''));
+    $stockId  = (int)($_GET['stock_id'] ?? $_POST['stock_id'] ?? 0);
+    $months   = min((int)($_GET['months'] ?? 12), 36); // max 36 months
+
+    if (!$symbol && !$stockId) json_response(false, 'symbol or stock_id required');
+
+    if (!$stockId && $symbol) {
+        $sm      = DB::fetchOne("SELECT id FROM stock_master WHERE symbol = ? AND exchange IN ('NSE','BSE') LIMIT 1", [$symbol]);
+        $stockId = (int)($sm['id'] ?? 0);
+    }
+    if (!$stockId) json_response(false, "Stock not found: {$symbol}");
+
+    $history = DB::fetchAll(
+        "SELECT snapshot_date, pe_ratio, pb_ratio, eps, market_cap,
+                dividend_yield, high_52, low_52, price_on_date, source
+         FROM stock_fundamental_history
+         WHERE stock_id = ?
+           AND snapshot_date >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+         ORDER BY snapshot_date ASC",
+        [$stockId, $months]
+    );
+
+    $current = DB::fetchOne(
+        "SELECT symbol, company_name, sector, pe_ratio, pb_ratio, eps,
+                market_cap, dividend_yield, high_52, low_52, latest_price,
+                fundamentals_updated_at
+         FROM stock_master WHERE id = ?",
+        [$stockId]
+    );
+
+    json_response(true, count($history) . ' history records.', [
+        'current' => $current,
+        'history' => $history,
+    ]);
 }
 
 /* 52-week high/low tracker */

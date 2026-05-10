@@ -13,6 +13,10 @@
 define('WEALTHDASH', true);
 define('CRON_RUN', true);
 require_once dirname(__DIR__) . '/config/config.php';
+require_once dirname(__DIR__) . '/includes/cron_logger.php';
+$_cronLog = new CronLogger('fd_rate_updater');
+$_cronLog->start();
+
 require_once APP_ROOT . '/includes/helpers.php';
 
 $start   = microtime(true);
@@ -97,3 +101,5 @@ try {
     clog("ERROR: " . $e->getMessage());
     exit(1);
 }
+
+\$_cronLog->finish('success', 'FD rates updated');

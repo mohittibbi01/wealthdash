@@ -2,6 +2,26 @@
 
 ---
 
+## v53 — May 2, 2026
+
+### ✅ New Features
+- **Net Worth Including Real Estate** (t466) — Full real estate CRUD (Add/Edit/Delete properties). New `real_estate` DB table with property type, city, purchase price, current value, ownership %, outstanding loan, monthly rental. Net Worth API now returns `total_gross_assets`, `total_liabilities`, `total_current_value` (= net). Asset breakdown card on net worth page shows RE + Gold. `api/realestate/realestate.php`, `api/reports/net_worth.php`, `templates/pages/report_networth.php`
+- **Physical Gold & Jewelry** (t465) — Full gold holdings CRUD. New `physical_gold` DB table tracking gold type (jewellery/coin/bar), purity (14/18/22/24K), weight in grams, purchase cost, and current rate. Bulk rate update: enter today's 24K MCX rate and all holdings auto-revalue. `api/gold/gold.php`
+
+### 🗄️ DB Migrations
+- `database/migrations/t466_real_estate_physical_gold.sql` — Creates `real_estate` and `physical_gold` tables with all indexes and FK constraints.
+
+### 🔌 Router
+- New routes in `api/router.php`: `realestate_list/add/update/delete/summary`, `gold_list/add/update/delete/summary/update_rate`
+
+### 📊 Net Worth Page Enhancements
+- Asset breakdown tabs now include 🏠 Real Estate and 🪙 Gold tabs with full CRUD modals inline
+- Liabilities tab shows all active loans grouped by type (home/personal/vehicle/education)
+- Hero section shows Gross Assets and Liabilities breakdown when loans are present
+- Allocation pie and Equity/Debt donut charts updated to include RE + Gold slices
+
+---
+
 ## v36 — April 12, 2026
 
 ### ✅ New Features

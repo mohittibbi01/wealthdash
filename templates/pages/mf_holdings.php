@@ -220,17 +220,47 @@ ob_start();
 
 </div>
 
-<!-- ═══ t343: LIVE NAV WIDGET ═══ -->
+<!-- ═══ t343: LIVE NAV WIDGET (COMPLETE) ═══ -->
 <div id="liveNavWidget" style="display:none;margin-bottom:16px;">
-  <div id="liveNavBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-radius:10px;background:var(--bg-secondary);border:1px solid var(--border-color);">
+  <!-- Top bar -->
+  <div id="liveNavBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-radius:10px 10px 0 0;background:var(--bg-secondary);border:1px solid var(--border-color);cursor:pointer;" onclick="toggleLiveNavTable()">
     <span id="liveNavStatusDot" style="width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span>
     <span id="liveNavLabel" style="font-size:12px;font-weight:600;color:var(--text-muted);">Loading estimated NAV…</span>
     <span id="liveNavPortfolioChange" style="font-size:13px;font-weight:700;display:none;"></span>
+    <span id="liveNavValueDiff" style="font-size:12px;color:var(--text-muted);display:none;"></span>
     <span id="liveNavBenchmark" style="font-size:11px;color:var(--text-muted);display:none;"></span>
     <span style="flex:1"></span>
     <span id="liveNavDisclaimer" style="font-size:10px;color:var(--text-muted);font-style:italic;display:none;">Est. based on index movement</span>
     <span id="liveNavTime" style="font-size:11px;color:var(--text-muted);"></span>
-    <button onclick="loadLiveNav()" style="padding:3px 10px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-surface);font-size:11px;cursor:pointer;color:var(--text-secondary);">↺</button>
+    <button onclick="event.stopPropagation();loadLiveNav()" title="Refresh" style="padding:3px 10px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-surface);font-size:11px;cursor:pointer;color:var(--text-secondary);">↺</button>
+    <span id="liveNavToggleIcon" style="font-size:12px;color:var(--text-muted);">▼</span>
+  </div>
+
+  <!-- Expandable fund-level table -->
+  <div id="liveNavTableWrap" style="display:none;border:1px solid var(--border-color);border-top:none;border-radius:0 0 10px 10px;overflow:hidden;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="background:var(--bg-tertiary,var(--bg-secondary));color:var(--text-muted);text-align:left;">
+          <th style="padding:7px 12px;font-weight:600;">Fund</th>
+          <th style="padding:7px 8px;text-align:right;font-weight:600;">Units</th>
+          <th style="padding:7px 8px;text-align:right;font-weight:600;">Official NAV</th>
+          <th style="padding:7px 8px;text-align:right;font-weight:600;">Est. NAV</th>
+          <th style="padding:7px 8px;text-align:right;font-weight:600;">Change%</th>
+          <th style="padding:7px 12px;text-align:right;font-weight:600;">Est. Value</th>
+          <th style="padding:7px 8px;text-align:center;font-weight:600;">Benchmark</th>
+        </tr>
+      </thead>
+      <tbody id="liveNavTableBody">
+        <tr><td colspan="7" style="padding:16px;text-align:center;color:var(--text-muted);">Loading…</td></tr>
+      </tbody>
+      <tfoot id="liveNavTableFoot" style="display:none;">
+        <tr style="background:var(--bg-secondary);font-weight:700;border-top:2px solid var(--border-color);">
+          <td colspan="5" style="padding:8px 12px;color:var(--text-secondary);">Portfolio Total (Estimated)</td>
+          <td id="liveNavTotalValue" style="padding:8px 8px;text-align:right;"></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
   </div>
 </div>
 
@@ -1796,24 +1826,41 @@ async function loadLiveNav() {
   }
 }
 
+let _liveNavTableOpen = false;
+
+function toggleLiveNavTable() {
+  const wrap = document.getElementById('liveNavTableWrap');
+  const icon = document.getElementById('liveNavToggleIcon');
+  _liveNavTableOpen = !_liveNavTableOpen;
+  wrap.style.display = _liveNavTableOpen ? 'block' : 'none';
+  icon.textContent   = _liveNavTableOpen ? '▲' : '▼';
+  const bar = document.getElementById('liveNavBar');
+  bar.style.borderRadius = _liveNavTableOpen ? '10px 10px 0 0' : '10px';
+}
+
 function applyLiveNavToWidget(d) {
   const dot     = document.getElementById('liveNavStatusDot');
   const label   = document.getElementById('liveNavLabel');
   const chEl    = document.getElementById('liveNavPortfolioChange');
+  const diffEl  = document.getElementById('liveNavValueDiff');
   const bmEl    = document.getElementById('liveNavBenchmark');
   const discEl  = document.getElementById('liveNavDisclaimer');
   const timeEl  = document.getElementById('liveNavTime');
+
+  const fmt = v => '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0});
 
   if (d.nav_updated) {
     dot.style.background = '#22c55e';
     label.textContent    = '✅ Official NAV updated (post 7 PM)';
     chEl.style.display   = 'none';
+    diffEl.style.display = 'none';
     bmEl.style.display   = 'none';
     discEl.style.display = 'none';
   } else if (!d.market_open) {
     dot.style.background = '#9ca3af';
     label.textContent    = '🔔 Market closed — showing official NAV';
     chEl.style.display   = 'none';
+    diffEl.style.display = 'none';
     bmEl.style.display   = 'none';
     discEl.style.display = 'none';
   } else {
@@ -1821,7 +1868,6 @@ function applyLiveNavToWidget(d) {
     dot.style.background = '#f59e0b';
     label.textContent    = '📊 Est. NAV (live index):';
     chEl.style.display   = 'inline';
-    bmEl.style.display   = 'inline';
     discEl.style.display = 'inline';
 
     const pct = d.portfolio_change_pct || 0;
@@ -1829,7 +1875,16 @@ function applyLiveNavToWidget(d) {
     chEl.textContent  = (pos ? '▲ +' : '▼ ') + pct.toFixed(2) + '% est. today';
     chEl.style.color  = pos ? '#22c55e' : '#ef4444';
 
+    // Show absolute ₹ difference
+    const diff = (d.est_portfolio_value || 0) - (d.off_portfolio_value || 0);
+    if (diff !== 0) {
+      diffEl.style.display  = 'inline';
+      diffEl.textContent    = `(${diff >= 0 ? '+' : ''}${fmt(diff)} est.)`;
+      diffEl.style.color    = diff >= 0 ? '#22c55e' : '#ef4444';
+    }
+
     if (d.nifty_change_pct !== null) {
+      bmEl.style.display = 'inline';
       const nPct = d.nifty_change_pct;
       bmEl.textContent = `Nifty 50: ${nPct >= 0 ? '+' : ''}${nPct.toFixed(2)}%`;
       bmEl.style.color = nPct >= 0 ? '#22c55e' : '#ef4444';
@@ -1841,16 +1896,20 @@ function applyLiveNavToWidget(d) {
 
 function applyLiveNavToHoldingsTable(holdings) {
   if (!holdings.length) return;
+
+  const fmt  = v => '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:2});
+  const fmtN = v => '₹' + Number(v).toFixed(3);
+  const fmtU = v => Number(v).toLocaleString('en-IN', {maximumFractionDigits:3});
+
+  // ── 1. Inject est NAV badge into main holdings table rows ──────────────
   const byHolding = {};
   holdings.forEach(h => { byHolding[h.holding_id] = h; });
 
-  // Inject est NAV into holdings table rows (if rendered)
   document.querySelectorAll('[data-holding-id]').forEach(row => {
     const hid  = parseInt(row.dataset.holdingId);
     const h    = byHolding[hid];
     if (!h || !h.is_estimated) return;
 
-    // Try to find current NAV cell and annotate
     const navCell = row.querySelector('.holding-nav, [data-col="nav"], td:nth-child(5)');
     if (navCell && !navCell.querySelector('.est-nav-badge')) {
       const badge = document.createElement('span');
@@ -1858,10 +1917,47 @@ function applyLiveNavToHoldingsTable(holdings) {
       badge.style.cssText = 'display:block;font-size:10px;color:#f59e0b;margin-top:2px;';
       badge.title = 'Estimated based on ' + h.benchmark + ' movement';
       const pct = h.change_pct;
-      badge.textContent = `Est. ₹${h.est_nav.toFixed(3)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
+      badge.textContent = `Est. ${fmtN(h.est_nav)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`;
       navCell.appendChild(badge);
     }
   });
+
+  // ── 2. Populate expandable fund-level table ────────────────────────────
+  const tbody = document.getElementById('liveNavTableBody');
+  const tfoot = document.getElementById('liveNavTableFoot');
+  const totalEl = document.getElementById('liveNavTotalValue');
+  if (!tbody) return;
+
+  let totalEst = 0;
+  tbody.innerHTML = holdings.map(h => {
+    totalEst += h.est_value;
+    const pct = h.change_pct;
+    const pos = pct !== null && pct >= 0;
+    const pctStr = pct !== null
+      ? `<span style="color:${pos ? '#22c55e' : '#ef4444'};font-weight:600;">${pos ? '+' : ''}${pct.toFixed(2)}%</span>`
+      : '<span style="color:var(--text-muted);">—</span>';
+    const estNavStr = h.is_estimated
+      ? `<span style="color:#f59e0b;font-weight:600;">${fmtN(h.est_nav)}</span>`
+      : `<span style="color:var(--text-muted);">${fmtN(h.official_nav)}</span>`;
+    const bmBadge = h.is_debt
+      ? '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-tertiary,#f3f4f6);padding:2px 5px;border-radius:4px;">Debt</span>'
+      : `<span style="font-size:10px;color:var(--accent,#6366f1);background:var(--bg-tertiary,#f3f4f6);padding:2px 5px;border-radius:4px;">${h.benchmark}</span>`;
+    const shortName = h.scheme_name.length > 36 ? h.scheme_name.slice(0, 34) + '…' : h.scheme_name;
+    return `<tr style="border-top:1px solid var(--border-color);transition:background 0.15s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+      <td style="padding:7px 12px;color:var(--text-primary);" title="${h.scheme_name}">${shortName}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--text-secondary);">${fmtU(h.units)}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--text-secondary);">${fmtN(h.official_nav)}</td>
+      <td style="padding:7px 8px;text-align:right;">${estNavStr}</td>
+      <td style="padding:7px 8px;text-align:right;">${pctStr}</td>
+      <td style="padding:7px 12px;text-align:right;font-weight:600;color:var(--text-primary);">${fmt(h.est_value)}</td>
+      <td style="padding:7px 8px;text-align:center;">${bmBadge}</td>
+    </tr>`;
+  }).join('');
+
+  if (tfoot && totalEl) {
+    tfoot.style.display = '';
+    totalEl.textContent = fmt(totalEst);
+  }
 }
 
 // Auto-init: show widget and load if market open
@@ -1874,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php
 $pageContent = ob_get_clean();
 $extraScripts = '<script src="' . APP_URL . '/public/js/charts.js?v=' . filemtime(APP_ROOT.'/public/js/charts.js') . '"></script>'
+             . '<script src="' . APP_URL . '/public/js/lazy.js?v=' . filemtime(APP_ROOT.'/public/js/lazy.js') . '"></script>'
              . '<script src="' . APP_URL . '/public/js/mf.js?v=' . filemtime(APP_ROOT.'/public/js/mf.js') . '"></script>'
              ;
 require_once APP_ROOT . '/templates/layout.php';

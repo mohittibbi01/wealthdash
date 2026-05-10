@@ -311,7 +311,7 @@ const DESIGN_STEPS = [];
     <span class="logo-ver">v51</span>
   </div>
   <div class="topbar-right">
-    <span class="last-saved" id="lastSaved">📅 24 Apr 2026 — MASTER v51</span>
+    <span class="last-saved" id="lastSaved">📅 02 May 2026 — MASTER v52</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">⊟ Collapse</button>
     <button class="tbtn tbtn-gray" onclick="expandAll()">⊞ Expand</button>
     <button class="tbtn tbtn-indigo" onclick="exportStatus()">📤 Export MD</button>
@@ -360,22 +360,25 @@ const DESIGN_STEPS = [];
 
 <!-- ========== TAB: TASKS ========== -->
 <div class="tab-pane" id="tab-tasks">
-  <div class="dashboard-top">
-    <div class="dashboard-left">
-      <div class="stats-row">
+  <div class="dashboard-top" style="flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="stats-row" style="flex:1;min-width:0">
         <div class="stat-card"><div class="stat-num" id="doneC2" style="color:var(--green)">0</div><div class="stat-lbl">✅ Done</div></div>
         <div class="stat-card"><div class="stat-num" id="subC2" style="color:var(--teal)">0</div><div class="stat-lbl">☑ Subtasks</div></div>
         <div class="stat-card"><div class="stat-num" id="todoC2" style="color:var(--red)">0</div><div class="stat-lbl">⏳ Remaining</div></div>
         <div class="stat-card"><div class="stat-num" id="totalC2" style="color:var(--blue)">0</div><div class="stat-lbl">📋 Total</div></div>
         <div class="stat-card"><div class="stat-num" id="phasesC2" style="color:var(--purple)">0</div><div class="stat-lbl">🗂 Phases</div></div>
       </div>
-      <div class="cat-prog-grid" id="catProgGrid2"></div>
+      <!-- Compact inline progress (no duplicate full widget) -->
+      <div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;min-width:200px;flex-shrink:0">
+        <span style="font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap">📊 Progress</span>
+        <div style="flex:1;background:var(--bg);border-radius:3px;height:6px;overflow:hidden;min-width:80px">
+          <div id="masterBar2" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:3px;transition:width .6s ease"></div>
+        </div>
+        <span id="masterPct2" style="font-size:13px;font-weight:800;color:var(--accent);min-width:36px;text-align:right">0%</span>
+      </div>
     </div>
-    <div class="master-prog">
-      <div class="prog-label"><span style="font-weight:800;font-size:12px">📊 Overall Progress</span><span class="pct-text" id="masterPct2">0%</span></div>
-      <div class="bar-wrap"><div class="bar-fill" id="masterBar2" style="width:0%"></div></div>
-      <div class="phase-rows" id="phaseRows2"></div>
-    </div>
+    <div class="cat-prog-grid" id="catProgGrid2"></div>
   </div>
 
   <!-- Tasks Layout: Sidebar + Main -->
@@ -575,7 +578,7 @@ const DESIGN_STEPS = [];
         ✨ <b>MASTER Consolidation (19 Apr 2026):</b> All versioned files (v43/v44/v45/v46 MF + Other) merged into single source of truth. MF_SEQUENCE fully updated with ✅ status. _completedTasks array updated: t168/t172/t174-t178/t186-t187/t190/tmfi01-tmfi08 all marked done. ALL known bugs BUG-01 thru BUG-07 addressed. 500 Error root cause: mod_rewrite/AllowOverride not enabled in XAMPP httpd.conf.
       </div>
       <div style="margin-top:8px;font-size:11px;padding:8px 12px;background:var(--green-bg);border:1px solid var(--green-border);border-radius:8px;color:var(--green)">
-        ✨ <b>v52 Changes (25 Apr 2026):</b> t426 NPS Allocation Optimizer + t427 NPS Pension Estimator + t318 SSY Calculator + t319 NSC/KVP Maturity Chain + t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t426: nps.php Allocation Optimizer (LC-75/50/25 + custom sliders, blended return, PFM rec, CRA steps). t427: nps.php Pension Estimator (step-up SIP, 4 annuity scenarios, sufficiency check, milestone table, bucket strategy). t318: post_office.php SSY Calculator (year-by-year table, 4 rate scenarios, step-up, education corpus planner for 4 goals, 80C tax saving). t319: post_office.php NSC/KVP Maturity Chain (dynamic add rows, reinvestment chain, NSC yearly interest table with 80C deemed reinvestment notes, KVP auto-tenure, grand totals). 4 tasks completed. &#x2014; t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t36: stocks_list.php gain_pct_live column, weighted portfolio CAGR SQL, stocks.js sort fix, CAGR cell with years-held tooltip, 5th summary card. t85: NEW templates/pages/tax_regime.php — full standalone calculator: 10 deduction fields (80C/NPS/HRA/24b/80D/80E/80TTA/80G/Other), Budget 2024 revised new regime slabs (₹75K std ded, 87A rebate ≤₹7L), old regime age-based slabs (general/senior/super-senior), verdict banner, side-by-side regime cards, monthly take-home comparison, visual slab bars, deduction impact table, breakeven finder. Sidebar: Regime Picker added. 2 tasks completed. &#x2014; ✨ <b>v51 Changes (22 Apr 2026):</b> PWA Sprint — t369 PWA fully implemented: sw.js complete (cache-first static, network-first API, offline fallback, push notifications, background sync, message handler, stale cache cleanup), manifest.json updated (4 shortcuts: MF Holdings/Dashboard/Add Txn/Tax, lang=en-IN, categories), offline.html created (last-synced badge, auto-reload on reconnect). t247 showToast() + t251 confirmDelete() confirmed in app.js — both marked done. t220 MFAPI.in already done via nav_proxy.php — title updated. 4 tasks marked complete. &#x2014; ✨ <b>v50 Changes (21 Apr 2026):</b> Deep Features Sprint — t293 FIRE Calculator (FI number, 3 FIRE variants, projection chart, scenarios table, auto-fill from portfolio), t233 Portfolio Overlap Checker (stock-level overlap, fund matrix, severity scoring), t287 Debt Fund Tax (pre/post Apr 2023 cutoff, indexation vs slab rate), t290 LTCG Harvest Scheduler (remaining ₹1.25L exemption, optimal redeem candidates, tax saved estimate), t259 Data Backup (full JSON export, all tables, PII redaction), t282 Concentration Risk (via overlap module). New files: fire_calculator.php, portfolio_overlap.php, tax_intelligence.php, data_backup.php. FIRE Calculator added to sidebar. Overlap+LTCG tabs added to MF Holdings page. 6 tasks completed. &#x2014; ✨ <b>v49 Changes (21 Apr 2026):</b> UX Sprint — t370 Mobile Bottom Nav (5-tab fixed bar, safe-area, active states), t494 Quick Transaction Drawer (slide-up sheet, MF/FD/NPS, swipe-to-close, fund search), t298 Market Pulse Widget (NSE/Yahoo Finance ticker bar, 5-min cache, market-hours auto-refresh), t254 FY Summary Card (invested/LTCG/STCG/tax/SIPs, ₹1.25L exemption meter), t291 Goal Progress Rings (SVG circles, color-coded, all goals dashboard), t295 Net Worth Trend chart (Chart.js area, 6/12/24 months, simulated fallback), t400 Milestone Tracker (₹1L→₹10Cr journey, progress bars), t496 Tax Calculator 2024-25 (old vs new regime, all deductions, slab visual, verdict banner), t413 Data Integrity Checker (8 checks: orphans/negatives/stale-NAV/duplicates/date-errors). New: api/dashboard/market_pulse.php, api/dashboard/widgets.php, api/reports/tax_slab_calc.php, api/mutual_funds/data_integrity.php, templates/pages/tax_calculator.php. 9 tasks completed. &#x2014; ✨ <b>v48 Changes (20 Apr 2026):</b> MF Pending Tasks Sprint — 8 features implemented: t273 NPS Auto-Allocation Analyzer (LC-75/50/25 vs actual), t408 Investment Journal (mood+tags+calendar), t482 Portfolio Audit Log UI (filterable timeline, CSV export), t484 Sunburst Chart (3-level Asset→Category→Fund SVG, no D3 needed), t491 Cross-FY Comparison (all years side-by-side bar chart + table), t499 Behavioral Nudge Engine (7 smart triggers: LTCG/idle cash/SIP miss/FD maturity/80C/concentration/inactive), t503 Credit Card Optimizer (debt avalanche payoff, CIBIL utilization), tj003 Spending Discipline Score (grade A-F, 12-month trend, badges). Router: 12 new action routes. Dashboard: nudge banner + discipline widget. NPS page: allocation analyzer card. 80+ tasks synced to _completedTasks array. &#x2014; <b>v47 Changes (19 Apr 2026):</b> BUG-04 FIXED — .htaccess updated: .bak/.tmp/.orig/.swp/.old files blocked (FilesMatch). BUG-05 FIXED — DirectoryMatch added: database/, debug/, cron/, config/, includes/, nav_download/logs/ all blocked from direct web access. Security headers added: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy. ALL 7 bugs now fully resolved in codebase.
+        ✨ <b>v52 Changes (25 Apr 2026 → 02 May 2026):</b> <b>t292 Goal-Based Asset Allocation (02 May 2026):</b> goals.php new section — per-goal asset allocation cards, progress bar (% covered by linked assets), link/unlink MF/FD/Stocks to goals. API: goal_asset_allocation (returns all goals with linked asset values + unlinked assets), goal_link_asset, goal_unlink_asset (update linked_fund_ids/linked_fd_ids/linked_stock_ids JSON). Router: 3 new actions. DB: migration 46_t292 (ensures JSON columns). Unlinked assets panel with quick-link button. IntersectionObserver lazy-load. 1 task completed. &#x2014;  t426 NPS Allocation Optimizer + t427 NPS Pension Estimator + t318 SSY Calculator + t319 NSC/KVP Maturity Chain + t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t426: nps.php Allocation Optimizer (LC-75/50/25 + custom sliders, blended return, PFM rec, CRA steps). t427: nps.php Pension Estimator (step-up SIP, 4 annuity scenarios, sufficiency check, milestone table, bucket strategy). t318: post_office.php SSY Calculator (year-by-year table, 4 rate scenarios, step-up, education corpus planner for 4 goals, 80C tax saving). t319: post_office.php NSC/KVP Maturity Chain (dynamic add rows, reinvestment chain, NSC yearly interest table with 80C deemed reinvestment notes, KVP auto-tenure, grand totals). 4 tasks completed. &#x2014; t36 Stocks CAGR + Gain% + t85 New vs Old Tax Regime Calculator — t36: stocks_list.php gain_pct_live column, weighted portfolio CAGR SQL, stocks.js sort fix, CAGR cell with years-held tooltip, 5th summary card. t85: NEW templates/pages/tax_regime.php — full standalone calculator: 10 deduction fields (80C/NPS/HRA/24b/80D/80E/80TTA/80G/Other), Budget 2024 revised new regime slabs (₹75K std ded, 87A rebate ≤₹7L), old regime age-based slabs (general/senior/super-senior), verdict banner, side-by-side regime cards, monthly take-home comparison, visual slab bars, deduction impact table, breakeven finder. Sidebar: Regime Picker added. 2 tasks completed. &#x2014; ✨ <b>v51 Changes (22 Apr 2026):</b> PWA Sprint — t369 PWA fully implemented: sw.js complete (cache-first static, network-first API, offline fallback, push notifications, background sync, message handler, stale cache cleanup), manifest.json updated (4 shortcuts: MF Holdings/Dashboard/Add Txn/Tax, lang=en-IN, categories), offline.html created (last-synced badge, auto-reload on reconnect). t247 showToast() + t251 confirmDelete() confirmed in app.js — both marked done. t220 MFAPI.in already done via nav_proxy.php — title updated. 4 tasks marked complete. &#x2014; ✨ <b>v50 Changes (21 Apr 2026):</b> Deep Features Sprint — t293 FIRE Calculator (FI number, 3 FIRE variants, projection chart, scenarios table, auto-fill from portfolio), t233 Portfolio Overlap Checker (stock-level overlap, fund matrix, severity scoring), t287 Debt Fund Tax (pre/post Apr 2023 cutoff, indexation vs slab rate), t290 LTCG Harvest Scheduler (remaining ₹1.25L exemption, optimal redeem candidates, tax saved estimate), t259 Data Backup (full JSON export, all tables, PII redaction), t282 Concentration Risk (via overlap module). New files: fire_calculator.php, portfolio_overlap.php, tax_intelligence.php, data_backup.php. FIRE Calculator added to sidebar. Overlap+LTCG tabs added to MF Holdings page. 6 tasks completed. &#x2014; ✨ <b>v49 Changes (21 Apr 2026):</b> UX Sprint — t370 Mobile Bottom Nav (5-tab fixed bar, safe-area, active states), t494 Quick Transaction Drawer (slide-up sheet, MF/FD/NPS, swipe-to-close, fund search), t298 Market Pulse Widget (NSE/Yahoo Finance ticker bar, 5-min cache, market-hours auto-refresh), t254 FY Summary Card (invested/LTCG/STCG/tax/SIPs, ₹1.25L exemption meter), t291 Goal Progress Rings (SVG circles, color-coded, all goals dashboard), t295 Net Worth Trend chart (Chart.js area, 6/12/24 months, simulated fallback), t400 Milestone Tracker (₹1L→₹10Cr journey, progress bars), t496 Tax Calculator 2024-25 (old vs new regime, all deductions, slab visual, verdict banner), t413 Data Integrity Checker (8 checks: orphans/negatives/stale-NAV/duplicates/date-errors). New: api/dashboard/market_pulse.php, api/dashboard/widgets.php, api/reports/tax_slab_calc.php, api/mutual_funds/data_integrity.php, templates/pages/tax_calculator.php. 9 tasks completed. &#x2014; ✨ <b>v48 Changes (20 Apr 2026):</b> MF Pending Tasks Sprint — 8 features implemented: t273 NPS Auto-Allocation Analyzer (LC-75/50/25 vs actual), t408 Investment Journal (mood+tags+calendar), t482 Portfolio Audit Log UI (filterable timeline, CSV export), t484 Sunburst Chart (3-level Asset→Category→Fund SVG, no D3 needed), t491 Cross-FY Comparison (all years side-by-side bar chart + table), t499 Behavioral Nudge Engine (7 smart triggers: LTCG/idle cash/SIP miss/FD maturity/80C/concentration/inactive), t503 Credit Card Optimizer (debt avalanche payoff, CIBIL utilization), tj003 Spending Discipline Score (grade A-F, 12-month trend, badges). Router: 12 new action routes. Dashboard: nudge banner + discipline widget. NPS page: allocation analyzer card. 80+ tasks synced to _completedTasks array. &#x2014; <b>v47 Changes (19 Apr 2026):</b> BUG-04 FIXED — .htaccess updated: .bak/.tmp/.orig/.swp/.old files blocked (FilesMatch). BUG-05 FIXED — DirectoryMatch added: database/, debug/, cron/, config/, includes/, nav_download/logs/ all blocked from direct web access. Security headers added: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy. ALL 7 bugs now fully resolved in codebase.
       </div>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -681,46 +684,7 @@ async function hcTestBase() {
   }
 }
 
-function hcRenderGrid(filter='all') {
-  const grid = document.getElementById('hcGrid');
-  grid.innerHTML = '';
-  HC_MODULES.forEach(mod => {
-    const items = filter === 'all' ? mod.items : mod.items.filter(i => (hcStatus[i.id]||'pending') === filter);
-    if (filter !== 'all' && items.length === 0) return;
-
-    const passCount = mod.items.filter(i => hcStatus[i.id] === 'pass').length;
-    const failCount = mod.items.filter(i => hcStatus[i.id] === 'fail').length;
-    const warnCount = mod.items.filter(i => hcStatus[i.id] === 'warn').length;
-    const total     = mod.items.length;
-
-    const block = document.createElement('div');
-    block.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)';
-    block.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
-        <span style="font-size:18px">${mod.icon}</span>
-        <span style="font-weight:800;font-size:13px;flex:1">${mod.label}</span>
-        <span style="font-size:11px;color:var(--green);font-weight:700">${passCount > 0 ? '✅ '+passCount : ''}</span>
-        <span style="font-size:11px;color:var(--red);font-weight:700;margin-left:4px">${failCount > 0 ? '❌ '+failCount : ''}</span>
-        <span style="font-size:11px;color:var(--yellow);font-weight:700;margin-left:4px">${warnCount > 0 ? '⚠️ '+warnCount : ''}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:4px">${total} checks</span>
-        <button onclick="hcRunModule('${mod.id}')" style="padding:4px 12px;border-radius:6px;border:1.5px solid;font-size:11px;font-weight:700;cursor:pointer;background:var(--indigo-bg);color:var(--indigo);border-color:var(--indigo-border)">▶ Run</button>
-      </div>
-      ${mod.note ? `<div style="padding:7px 16px;font-size:11px;color:var(--muted);background:var(--yellow-bg);border-bottom:1px solid var(--yellow-border)">ℹ️ ${mod.note}</div>` : ''}
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0">
-        ${items.map(item => `
-          <div id="hci_${item.id}" style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--border);font-size:12px;cursor:${item.url ? 'pointer' : 'default'}"
-            onclick="${item.url ? `hcCheckItem('${item.id}','${item.url}','${item.type}',this)` : ''}">
-            <span id="hcs_${item.id}" style="width:9px;height:9px;border-radius:50%;background:var(--muted2);flex-shrink:0;display:inline-block"></span>
-            <span style="flex:1;color:var(--text)">${item.label}</span>
-            <span id="hcm_${item.id}" style="font-size:10px;color:var(--muted)"></span>
-            ${item.url ? `<span style="font-size:10px;font-family:monospace;padding:1px 5px;background:var(--bg);border-radius:3px;color:var(--muted2);border:1px solid var(--border)">${item.type}</span>` : `<span style="font-size:10px;font-family:monospace;padding:1px 5px;background:var(--purple-bg);border-radius:3px;color:var(--purple);border:1px solid var(--purple-border)">db</span>`}
-          </div>
-        `).join('')}
-      </div>
-    `;
-    grid.appendChild(block);
-  });
-}
+// hcRenderGrid — duplicate removed (Bug #3 fix tfix003, keeping correct version in REDESIGNED JS block below)
 
 async function hcCheckItem(id, url, type, rowEl) {
   const dot = document.getElementById('hcs_'+id);
@@ -1026,9 +990,9 @@ const PHASES=[
    files:['api/banks/ (NEW)','templates/pages/banks.php (NEW)'],
    sub:['bank_accounts: id, user_id, bank_name, acc_type, balance, interest_rate','Monthly balance log karo','Interest earned YTD calculate karo','Dashboard mein savings tile update karo']},
   {id:'t44',title:'FD laddering visualization',done:true,
-   desc:'✅ DONE — api/fd/fd_analytics.php: FD laddering visualization data. Gantt-chart style maturity timeline.',pr:'p3',type:'feat',eff:'3-4 hr',
-   files:['templates/pages/fd.php'],
-   sub:['Timeline chart: har FD ka maturity date','Upcoming maturities next 3/6/12 months highlight','Auto-reinvest option flag']},
+   desc:'✅ DONE — api/fd/fd_ladder.php + templates/pages/fd.php: Full FD Laddering tab. Gantt timeline (% width per tenure), Ladder Score gauge (0-100), gap analysis, year/month charts, reinvestment plan, strategy tips.',pr:'p3',type:'feat',eff:'3-4 hr',
+   files:['api/fd/fd_ladder.php (NEW)','templates/pages/fd.php (UPDATED)','api/router.php (UPDATED)','tasks.md (UPDATED)'],
+   sub:['Gantt-chart style maturity timeline with % positioning','Ladder Score gauge (0-100) with color-coded level','Liquidity gap alerts (>90 day gaps)','Year-wise + monthly maturity bar charts','Reinvestment plan for FDs maturing in 12M','Strategy tips card']},
   {id:'t45',title:'Recurring Deposit (RD) tracker',done:true,
    desc:'✅ DONE — api/fd/fd_analytics.php: rd_list + rd_add actions. Recurring Deposit tracker with maturity calc.',pr:'p3',type:'feat',eff:'2-3 hr',db:true,
    files:['api/banks/ (NEW)'],
@@ -1398,10 +1362,10 @@ const PHASES=[
    files:['api/reports/fy_gains.php','includes/holding_calculator.php'],
    desc:'India mein default FIFO hai. HIFO (Highest cost first) STCG minimize karta hai. Yeh meaningful tax saving hai.',
    sub:['Support: FIFO (default) | LIFO | HIFO | Specific Lot','Settings mein user choose kare','Tax impact comparison: FIFO vs HIFO for current redemption','Specific lot: user manually select kaun si units sell karein','Show tax saved by choosing HIFO over FIFO','Warning: once filed ITR, consistently same method use karo'],cat:'reports'},
-  {id:'t134',title:'54EC Bond Tracker — Property LTCG reinvestment window',pr:'p2',type:'feat',eff:'1-2 hr',db:true,
-   files:['database/migrations/023_54ec.sql'],
+  {id:'t134',title:'✅ 54EC Bond Tracker — Property LTCG reinvestment window',pr:'p2',type:'feat',eff:'1-2 hr',db:true,done:true,
+   files:['database/migrations/t134_54ec_bonds.sql','api/bonds/bonds_54ec.php','templates/pages/bonds_54ec.php','templates/sidebar.php'],
    desc:'Property sell hone ke 6 months mein NHAI/REC bonds mein invest karo to save LTCG tax. Deadline miss = lakhs ka tax.',
-   sub:['DB: ltcg_property_events — property_sale_date, ltcg_amount, bonds_invested, deadline','6-month window countdown alert (180 days)','Alert milestones: 5 months, 2 months, 1 month, 2 weeks, DEADLINE','Bond limit: ₹50L per FY maximum','NHAI/REC bond interest rate dikhao','Eligible LTCG calculate karo (post indexation)','Form details: which ITR section fill karo'],cat:'reports'},
+   sub:['✅ DB: bonds_54ec table — investment_date, maturity_date, face_value, num_bonds, ltcg_exempted','✅ 6-month window countdown + deadline alert','✅ Lock-in progress bar (5 years)','✅ Summary: total invested, maturity value, LTCG saved, interest earned','✅ Bond limit: ₹50L per FY info','✅ Add/Edit/Delete modal with live calculator','✅ Sidebar nav: Alt Investments → 54EC Bonds','✅ Issuer badges: REC/NHAI/PFC/IRFC'],cat:'reports'},
   {id:'t135',title:'✅ Set-off & Carry Forward — Loss tracking (8 years rule)',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['api/reports/fy_gains.php','database/migrations/024_carry_forward.sql'],
    desc:'STCG loss ko STCG/LTCG gain se set-off kar sakte hain. LTCG loss sirf LTCG se. Unset losses 8 saal carry forward hote hain.',
@@ -1431,10 +1395,10 @@ const PHASES=[
   {id:'t141',title:'✅ SIP Streak — Consistency gamification (Duolingo style)',pr:'p1',type:'feat',eff:'2-3 hr',db:true,
    files:['templates/pages/mf_holdings.php','templates/topbar.php','database/migrations/026_streaks.sql'],
    sub:['DB: sip_streaks — user_id, streak_months, longest_streak, last_sip_date','Current streak: "🔥 18 months SIP without skip"','Milestone rewards: 12m/24m/36m/60m/120m badges','If SIP skipped: "Your 18-month streak will break if you pause now"','Streak visible on dashboard prominently','Leaderboard: anonymous "Top 10% consistent investors"','Streak recovery: 1 makeup SIP allowed to keep streak'],cat:'dashboard'},
-  {id:'t142',title:'Financial Health Score — Single behavior-based score',pr:'p2',type:'feat',eff:'2-3 hr',
-   files:['templates/pages/dashboard.php','api/reports/health_score.php (NEW)'],
-   desc:'Like CIBIL but for investment behavior. Not based on returns (market controls that), based on habits.',
-   sub:['Score 300-900 (like CIBIL, familiar concept)','Components: SIP consistency (25%), Diversification (20%), Emergency fund (15%), Insurance coverage (15%), Debt-to-income (10%), Tax efficiency (15%)','Weekly update: score trend chart','Actionable: "Increase score by 50 points: Add term insurance"','Not based on market performance — investor controls this','Share score (optional): show friends you are disciplined'],cat:'dashboard'},
+  {id:'t142',title:'Financial Health Score — CIBIL-style 300-900 score',pr:'p2',type:'feat',eff:'2-3 hr',done:true,
+   files:['templates/pages/dashboard.php','public/js/behavioral_analytics.js'],
+   desc:'CIBIL-style 300-900 score based on SIP consistency, diversification, emergency fund, insurance, debt burden, tax efficiency. Auto-computed from real portfolio data. Manual overrides for insurance & SIP consistency.',
+   sub:['Score formula: 6 pillars — SIP(135pts) + Diversification(108pts) + Emergency(81pts) + Insurance(81pts) + Low Debt(54pts) + Tax(81pts)','PHP fetches: ef months, insurance policies, ELSS amt, NPS amt, active SIPs, asset class count','Manual inputs: SIP consistency %, EMI %, term insurance, health insurance stored in localStorage','Gauge bar + pillar breakdown bars per component','Improvement tips with point values (+27, +49 etc.)','Dashboard card with Edit Inputs button + auto-refresh on page load'],cat:'dashboard'},
   {id:'t143',title:'✅ Zoom Out Toggle — Long term view hide karo daily noise',pr:'p1',type:'feat',eff:'1-2 hr',
    files:['templates/pages/mf_holdings.php','public/js/mf.js'],
    sub:['Toggle: "Daily View ↔ Long Term View"','Long Term View: hide 1D change, show only 3Y/5Y returns','Replace red P&L with "X years invested" counter','Rolling 5Y profit probability badge: "96% chance of profit in 5 years (historical data)"','Holdings page pe prominent toggle button','Remember preference in localStorage'],cat:'dashboard'},
@@ -1537,7 +1501,7 @@ const PHASES=[
 ]},
 
 {id:'p_individual_goals',ico:'🏆',color:'#7c3aed',title:'Phase 78 — Individual Goals Engine',cat:'dashboard',tasks:[
-  {id:'tg001',title:'Smart Goal Templates — Pre-built goal scenarios for individuals',pr:'p1',type:'feat',eff:'2-3 hr',
+  {id:'tg001',done:true,title:'Smart Goal Templates — Pre-built goal scenarios for individuals',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/goals.php','api/goals/goals.php'],
    desc:'Common life goals with pre-filled assumptions. User picks a template and customizes. No need to start from scratch.',
    sub:['Templates: Retirement at 60 | Child Education (15yr horizon) | House Down Payment (5yr) | Emergency Fund | Vacation | Car Purchase','Each template: pre-filled inflation rate, expected return, minimum SIP','Inflation: education 10%, general 6%, medical 8%','One-click: add template → customize amount + timeline','Multiple goals: prioritize, show total SIP needed across all goals'],cat:'dashboard'},
@@ -1560,7 +1524,7 @@ const ROADMAP=[
   {ico:'📈',title:'Mutual Funds',status:'live',features:['Holdings + NAV tracking','SIP/SWP management','XIRR/CAGR calculations','Fund Screener','NAV history charts','CSV Import/Export','Capital Gains Tax Preview ✅','Capital Gains Summary ITR-ready ✅']},
   {ico:'🏛️',title:'NPS',status:'live',features:['Holdings tracking','Tier I / Tier II','NAV auto-update','80CCD tax benefit']},
   {ico:'📮',title:'Post Office Schemes',status:'live',features:['PPF, SSY, MIS, SCSS','TD, RD, NSC, KVP','Maturity calculator','Tax badges (planned)']},
-  {ico:'💰',title:'Fixed Deposits',status:'live',features:['FD tracking','Maturity alerts','Interest calculation','Laddering view (planned)']},
+  {ico:'💰',title:'Fixed Deposits',status:'live',features:['FD tracking','Maturity alerts','Interest calculation','Laddering visualization ✅ (t44)','Rate Tracker','Renewal Decision Tool','Interest Payout Tracker']},
   {ico:'🏦',title:'Savings Accounts',status:'live',features:['Balance tracking','Interest log','Section 80TTA']},
   {ico:'📉',title:'Stocks',status:'live',features:['Holdings tracking','Basic P&L','Daily price update cron','CAGR + Gain% ✅']},
   {ico:'🔄',title:'ETF',status:'planned',features:['Separate from MF','NSE/BSE price feed','Holdings + P&L','Net worth include'],cat:'general'},
@@ -2082,10 +2046,10 @@ const GODMODE_PHASES = [
   {id:'t382',title:'AI Fund Research — Natural language fund search',pr:'p2',type:'ai',eff:'2-3 hr',
    files:['templates/pages/mf_screener.php','api/ai_advisor/'],
    sub:['"Retirement ke liye best fund" → AI suggests with reasoning','"High alpha low cost fund under 1%" → AI filter','Conversational screener: chat mein filter karo','AI explains WHY it recommends a fund','Save AI recommendation with reasoning'],cat:'ai'},
-  {id:'t383',title:'AI Tax Optimizer — March mein specific actions',done:true,
-   desc:'✅ DONE — api/ai/tax_optimizer.php + api/ai_advisor/tax.php: March-specific LTCG/80C actions. Integrated with tax_planning.php.',pr:'p1',type:'ai',eff:'2-3 hr',
-   files:['api/ai_advisor/tax.php (NEW)','templates/pages/report_tax.php'],
-   sub:['Feb-March pe: "Aapke pass ₹X LTCG bandwidth remaining — in funds ko sell karo"','ELSS vs NPS vs PPF: which gives max tax benefit for your slab','HIFO vs FIFO simulation with actual numbers','AI explains complex tax rules in simple language','One-click: AI-suggested tax actions list'],cat:'ai'},
+  {id:'t383',title:'AI Tax Optimizer — Full Engine',done:true,
+   desc:'✅ DONE (2026-05-03) — Full implementation: api/ai_advisor/tax.php (9 suggestion types: 80C, NPS 80CCD1B, LTCG harvest, loss harvest, FD TDS, 24b home loan, 80D, HRA, regime switch). New page: templates/pages/ai_tax_optimizer.php with 4-tab UI.',pr:'p1',type:'ai',eff:'2-3 hr',
+   files:['api/ai_advisor/tax.php (FULL)','templates/pages/ai_tax_optimizer.php (NEW)','api/router.php','templates/sidebar.php'],
+   sub:['9 suggestions: 80C/NPS/LTCG/loss harvest/FD TDS/24b/80D/HRA/regime','Urgency: critical in March, high in Feb','Old vs New regime tax calculator','FY checklist + upcoming deadlines','Income persisted in session'],cat:'ai'},
   {id:'t384',title:'AI Anomaly Detector — Unusual patterns flag karo',pr:'p2',type:'ai',eff:'2-3 hr',
    files:['cron/update_nav_daily.php','includes/ai_engine.php'],
    sub:['Unusual NAV drop (>5% in day) → AI explains: market-wide ya fund specific?','Pattern: user panicking (multiple redemptions in dip)','SIP consistency drop: 3 months missed → proactive outreach','Fund AUM drain: large redemptions in a fund → risk signal','Weekly anomaly digest: "3 things happened this week"'],cat:'ai'},
@@ -2127,7 +2091,7 @@ const GODMODE_PHASES = [
    files:['api/integrations/gmail_parser.php (NEW)'],
    desc:'SBI/HDFC se FD confirmation email → auto-add to WealthDash.',
    sub:['Gmail OAuth: read emails permission','Filter: sender = bank domain, subject = FD/SIP confirmation','Parser: extract amount, date, rate, maturity from email body','Preview: show parsed data before adding','Supported: SBI, HDFC, ICICI, Axis, Kotak FD mails'],cat:'general'},
-  {id:'t394',title:'RBI Gold Bond API — Latest SGB series data',done:true,
+{id:'t394',title:'RBI Gold Bond API — Latest SGB series data',done:true,
    desc:'✅ DONE — api/sgb/sgb.php: RBI SGB series data fetching. Latest series info from RBI notifications.',pr:'p1',type:'feat',eff:'1-2 hr',
    files:['api/sgb/sgb.php','cron/'],
    sub:['RBI website se SGB series data scrape/fetch','Issue price, open/close dates, coupon rate, series name','Auto-populate SGB add form','Gold price daily fetch: MCX/IBJA rate','SGB current value = issue units × gold_price/issue_gold_price'],cat:'general'},
@@ -2258,10 +2222,10 @@ const EXTRA_PHASES = [
   {id:'t423',title:'✅ FD Portfolio Diversification — DICGC limit check, bank concentration chart, recommendations',pr:'p1',done:true,type:'feat',eff:'1-2 hr',
    files:['templates/pages/fd.php'],
    sub:['DICGC limit: ₹5L per bank covered','Alert: single bank exposure > ₹5L','Bank-wise concentration chart','Recommendation: spread across 3+ banks','Credit rating of bank: check RBI grade'],cat:'fd'},
-  {id:'t424',title:'Interest Payout Tracker — Monthly income from FDs',pr:'p2',type:'feat',eff:'2-3 hr',
+  {id:'t424',done:true,title:'Interest Payout Tracker — Monthly income from FDs',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['api/fd/fd_list.php','templates/pages/fd.php'],
    sub:['Monthly income calendar: kab kitna interest aayega','Cumulative interest this FY','80TTA tracker: savings account interest ₹10K limit','TDS deducted vs TDS certificate','Form 15G/H reminder: agar income below exemption'],cat:'fd'},
-  {id:'t425',title:'FD Renewal Decision Tool — Renew ya redeem?',pr:'p2',type:'feat',eff:'2-3 hr',
+  {id:'t425',done:true,title:'FD Renewal Decision Tool — Renew ya redeem?',pr:'p2',type:'feat',eff:'2-3 hr',
    files:['templates/pages/fd.php'],
    sub:['At maturity: 3 options — renew, partial redeem, full redeem','Interest rate scenario: current vs original rate','Liquidity need: check upcoming expenses','Opportunity cost: FD vs liquid fund vs debt fund','Decision matrix: weighted recommendation'],cat:'fd'},
 ]},
@@ -2432,10 +2396,10 @@ const MORE_PHASES = [
    desc:'✅ DONE — templates/loans.php: home loan EMI tracker with amortization schedule. api/loan/loans_list.php.',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/loans.php'],
    sub:['Month-wise: principal + interest split','Total interest paid vs remaining','Prepayment calculator: extra ₹1L → save ₹X total interest','Tax benefit: 80C (principal) + 24(b) (interest)','Home loan vs rent: which is better in your city?','Refinancing alert: when market rate drops 0.5%+ below yours'],cat:'general'},
-  {id:'t465',title:'Physical Gold & Jewelry — Grams + value tracker',pr:'p2',type:'feat',eff:'1-2 hr',db:true,
+  {id:'t465',title:'Physical Gold & Jewelry — Grams + value tracker',done:true,pr:'p2',type:'feat',eff:'1-2 hr',db:true,
    files:['templates/pages/gold.php','api/gold/'],
    sub:['DB: physical_gold — type(jewellery/coin/bar), grams, purchase_price, making_charges','Live value: grams × current MCX gold rate','Making charges: only purchase cost, not current value','Insurance: coverage for jewelry','Safe: which vault? reminder to update nomination'],cat:'general'},
-  {id:'t466',title:'Net Worth Including Real Estate — Complete picture',pr:'p1',type:'feat',eff:'2-3 hr',
+  {id:'t466',title:'Net Worth Including Real Estate — Complete picture',done:true,pr:'p1',type:'feat',eff:'2-3 hr',
    files:['api/reports/net_worth.php','templates/pages/report_networth.php'],
    sub:['Total assets: Financial + Real Estate + Physical Gold + Vehicle','Total liabilities: Home Loan + Personal Loan + Credit Card','Net Worth = Total Assets - Total Liabilities','Asset class allocation: % in each','Over-concentration alert: >50% in real estate'],cat:'general'},
 ]},
@@ -2643,7 +2607,7 @@ const LAST_TASKS = [{id:'p_final_4',ico:'🏁',color:'#22c55e',title:'Phase 66 �
 ]},
 
 {id:'p_indiv_goals_v2',ico:'🎯',color:'#2563eb',title:'Phase 78 — Individual Goals Deep Dive',cat:'dashboard',tasks:[
-  {id:'tg001',title:'Goal Probability — Monte Carlo simulation for each goal',pr:'p2',type:'feat',eff:'3-4 hr',
+  {id:'tg001',done:true,title:'Goal Probability — Monte Carlo simulation for each goal',pr:'p2',type:'feat',eff:'3-4 hr',
    files:['templates/pages/goals.php','api/goals/goal_probability.php (NEW)'],
    desc:'Not just "you will reach ₹50L" — but "you have 73% probability of reaching ₹50L given historical return distribution". Monte Carlo with 10,000 simulations.',
    sub:['Input: current corpus, monthly SIP, target amount, years','Monte Carlo: run 10,000 simulations with random monthly returns from historical distribution','Output: probability of success (%) + P10/P50/P90 corpus range','Risk: "Increasing SIP by ₹2,000 improves probability from 73% to 87%"','Visualization: bell curve with current corpus trajectory'],cat:'dashboard'},
@@ -3120,7 +3084,7 @@ function renderPhaseRows(){
     </div>`;
   }).join('');
   // Update ALL phaseRows elements (Overview tab + Tasks tab both)
-  document.querySelectorAll('#phaseRows,#phaseRows2').forEach(el => el.innerHTML = html);
+  document.querySelectorAll('#phaseRows').forEach(el => el.innerHTML = html);
 }
 
 function filterTasks(type,btn){
@@ -4342,10 +4306,10 @@ const MEGA_PHASES = [
    files:['templates/pages/goals.php','public/js/app.js'],
    desc:'Goals page pe har goal ke liye beautiful circular progress ring. Current corpus / Target amount = % complete. Color changes with progress.',
    sub:['SVG circle with stroke-dashoffset animation','Colors: Red 0-30% | Yellow 30-70% | Green 70-100% | Gold 100%','Center: % complete + amount needed','On hover: timeline remaining + monthly SIP needed'],cat:'dashboard'},
-  {id:'t292',title:'Goal-Based Asset Allocation — Which fund goes to which goal',pr:'p1',type:'feat',eff:'3-4 hr',db:true,
-   files:['templates/pages/goals.php','templates/pages/mf_holdings.php'],
-   desc:'Tag each fund/FD to a specific goal. "This SIP is for child education." See goal progress including all tagged investments.',
-   sub:['DB: goal_investments — goal_id, investment_type (mf/fd/nps), investment_id','Holdings: tag icon → select goal dropdown','Goals page: per-goal corpus = sum of tagged investments current value','Untagged investments: "₹X not assigned to any goal"','Alert: "Education goal is 23% funded — needs ₹X more monthly"'],cat:'dashboard'},
+  {id:'t292',title:'Goal-Based Asset Allocation',pr:'p1',type:'feat',eff:'3-4 hr',db:true,done:true,
+   files:['templates/pages/goals.php','api/reports/goal_planning.php','api/router.php','database/46_t292_goal_asset_allocation.sql'],
+   desc:'Tag each MF/FD/Stock to a specific goal. See goal progress including all tagged investments. Link/unlink assets from goals page.',
+   sub:['Uses investment_goals.linked_fund_ids / linked_fd_ids / linked_stock_ids JSON columns','New API: goal_asset_allocation, goal_link_asset, goal_unlink_asset','Per-goal corpus = sum of tagged investments current value','Unlinked assets panel with quick-link button','Progress bar per goal showing % covered by linked assets','IntersectionObserver lazy-load'],cat:'dashboard'},
   {id:'t293',title:'FIRE Calculator — Financial Independence number',pr:'p1',type:'feat',eff:'3-4 hr',
    files:['templates/pages/goals.php'],
    desc:'FIRE (Financial Independence, Retire Early): 25× annual expenses = FI number. How close are you? What SIP needed to reach by target date?',
@@ -4421,10 +4385,10 @@ const MEGA_PHASES = [
    files:['templates/pages/admin.php'],
    desc:'Admin panel pe: all cron jobs with last run time, status, and next scheduled run. Quick visibility into what\'s running.',
    sub:['DB: cron_log — job_name, last_run, duration_ms, status (success/fail), error_msg','Each cron PHP file: log to cron_log at start and end','Admin panel: cron jobs table with status badges','Alert: cron not run in >2 days → red badge','Manual trigger: "Run Now" button per cron'],cat:'admin'},
-  {id:'t310',title:'Rate Limiter — API abuse prevention',pr:'p2',type:'feat',eff:'1-2 hr',
-   files:['includes/auth_check.php'],
-   desc:'External API calls rate limit. MFAPI.in, NSE, CoinGecko — all have limits. Smart rate limiter to avoid 429 errors.',
-   sub:['DB: api_rate_limits — api_name, calls_today, calls_this_hour, last_reset','Before each API call: check rate limit','If limit reached: queue or skip with log entry','Admin panel: rate limit usage dashboard per API','Auto-retry: failed due to rate limit → retry after X minutes'],cat:'admin'},
+  {id:'t310',title:'Rate Limiter — Admin UI frontend',done:true,pr:'p2',type:'feat',eff:'1-2 hr',
+   files:['templates/pages/admin.php','api/admin/rate_limit_admin.php','api/router.php'],
+   desc:'✅ DONE — Admin tab added: live bucket stats, per-action config table, flush all, per-bucket reset. Backend: admin_rl_stats / admin_rl_flush / admin_rl_reset_bucket.',
+   sub:['Admin tab "Rate Limiter" in admin.php','Live bucket monitor with progress bars','Flush all buckets button','Per-bucket reset button','Config table: all limits with category badges'],cat:'admin'},
 ]},
 
 {id:'p_reports_god',ico:'📊',color:'#0f766e',title:'Phase 57 — Reports God Mode',cat:'reports',tasks:[
@@ -4432,7 +4396,7 @@ const MEGA_PHASES = [
    files:['api/reports/annual_report.php (NEW)'],
    desc:'Like a mutual fund statement but for your entire portfolio. Send it to yourself on April 1. Professional document with charts, tables, and insights.',
    sub:['mPDF or TCPDF for server-side PDF generation','Sections: Net Worth Summary | MF Performance | FD Maturity | Stocks P&L | Tax Summary | Year Highlights','Charts: embedded as base64 PNG','Cover page: WealthDash branding + FY + user name','Auto-email: April 1 cron sends PDF to registered email'],cat:'reports'},
-  {id:'t312',title:'Rebalancing Report — Drift from target allocation',pr:'p1',type:'feat',eff:'2-3 hr',
+  {id:'t312',done:true,',title:'Rebalancing Report — Drift from target allocation',pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/report_rebalancing.php','api/reports/net_worth.php'],
    desc:'Target allocation set karo (e.g. 60% equity, 30% debt, 10% gold). Current allocation dikhao. Rebalance instructions: "Sell X from equity, buy Y in debt."',
    sub:['User sets target allocation percentages (stored in settings)','Current: calculate from all holdings across asset classes','Drift: current% - target% per class','Rebalance: specific amounts to buy/sell to reach target','Trigger: "Rebalance when drift >5%"'],cat:'reports'},
@@ -4780,11 +4744,11 @@ const V20_PHASES = [
 ]},
 
 {id:'p_goals_v2',ico:'🎯',color:'#2563eb',title:'Phase 74 — Advanced Goals Engine',cat:'dashboard',tasks:[
-  {id:'tg001',title:'Monte Carlo Simulation — Goal probability with market uncertainty',pr:'p1',type:'feat',eff:'3-4 hr',
+  {id:'tg001',done:true,title:'Monte Carlo Simulation — Goal probability with market uncertainty',pr:'p1',type:'feat',eff:'3-4 hr',
    files:['api/goals/monte_carlo.php (NEW)','templates/pages/goals.php','public/js/goals.js'],
    desc:'Instead of a fixed return assumption, run 1000 simulations with random returns drawn from historical distribution. "Your retirement goal has 73% probability of success."',
    sub:['Historical returns: use nav_history to get annual return distribution (mean, std dev)','Monte Carlo: 1000 runs × 30 years = 30K data points per simulation','Output: probability distribution of final corpus','Confidence bands: 10th/50th/90th percentile on chart','Recommendation: "Increase SIP by ₹2K to reach 85% probability"','Calculation: server-side PHP, cache 24hr per goal'],cat:'dashboard'},
-  {id:'tg002',title:'Bucket Strategy — Short/Medium/Long term goal buckets',pr:'p1',type:'feat',eff:'2-3 hr',
+  {id:'tg002',title:'Bucket Strategy — Short/Medium/Long term goal buckets',done:true,pr:'p1',type:'feat',eff:'2-3 hr',
    files:['templates/pages/goals.php','public/js/goals.js'],
    desc:'Classic financial planning: separate buckets for different time horizons. Different asset allocation per bucket.',
    sub:['Bucket 1 — Safety (0-2 years): FD, liquid MF, savings','Bucket 2 — Stable (2-5 years): Debt MF, NPS, hybrid funds','Bucket 3 — Growth (5+ years): Equity MF, stocks, NPS equity','Auto-classify: each goal assigned to bucket by timeline','Replenishment: when bucket 1 low, sell bucket 2 assets to refill','Visual: three bucket containers filling up/emptying'],cat:'dashboard'},

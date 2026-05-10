@@ -62,6 +62,10 @@ ob_start();
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
     DB Manager
   </button>
+  <button class="admin-tab" data-tab="migrations" onclick="adminSwitchTab('migrations',this)">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+    Migrations
+  </button>
   <button class="admin-tab" data-tab="setup" onclick="adminSwitchTab('setup',this)">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
     Setup &amp; Backup
@@ -69,6 +73,10 @@ ob_start();
   <button class="admin-tab" data-tab="cron" onclick="adminSwitchTab('cron',this)">
     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
     Cron Jobs
+  </button>
+  <button class="admin-tab" data-tab="ratelimit" onclick="adminSwitchTab('ratelimit',this)">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Rate Limiter
   </button>
 </div>
 
@@ -1300,7 +1308,207 @@ ob_start();
     </div>
   </div>
 </div>
-<div class="modal-overlay" id="addUserModal" style="display:none">
+
+<!-- ═══════ TAB: MIGRATIONS (t417) ═══════ -->
+<div id="tab-migrations" class="admin-tab-content" style="display:none">
+  <div class="card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+      <div>
+        <h3 style="margin:0;font-size:15px;font-weight:700;">DB Migration Runner</h3>
+        <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted);" id="migSummaryText">Loading…</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="loadMigrations()" style="font-size:12px;padding:7px 14px;">↻ Refresh</button>
+        <button id="migRunAllBtn" onclick="migRunAll()"
+          style="background:var(--accent);color:#fff;font-weight:600;padding:8px 16px;border:none;border-radius:7px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;"
+          disabled>
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run Pending
+        </button>
+        <button id="migRollbackBtn" onclick="migRollback()"
+          style="background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);font-weight:600;padding:8px 14px;border-radius:7px;cursor:pointer;font-size:12px;"
+          disabled title="Remove last batch from log (schema is NOT reversed)">
+          ↩ Rollback Batch
+        </button>
+      </div>
+    </div>
+
+    <!-- Status strip -->
+    <div id="migStatusStrip" style="display:none;padding:10px 20px;background:rgba(79,70,229,.06);border-bottom:1px solid var(--border);font-size:12px;display:flex;gap:24px;flex-wrap:wrap;"></div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table class="data-table" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th style="width:28px;">#</th>
+            <th>Migration File</th>
+            <th style="width:85px;">Location</th>
+            <th class="text-center" style="width:65px;">Status</th>
+            <th class="text-center" style="width:55px;">Batch</th>
+            <th class="text-center" style="width:65px;">Time</th>
+            <th style="width:130px;">Executed At</th>
+            <th class="text-center" style="width:75px;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="migTableBody">
+          <tr><td colspan="8" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Result log -->
+  <div id="migLogCard" style="display:none;margin-top:14px;" class="card">
+    <div class="card-header" style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;font-weight:700;">Run Log</span>
+      <button onclick="document.getElementById('migLogCard').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);">×</button>
+    </div>
+    <div id="migLogBody" style="padding:14px 16px;font-family:monospace;font-size:12px;line-height:1.7;max-height:280px;overflow-y:auto;background:var(--bg-surface-2);"></div>
+  </div>
+</div>
+
+<script>
+// ── Migrations Tab (t417) ─────────────────────────────────────────────────
+let _migData = [];
+
+async function loadMigrations() {
+  const body = document.getElementById('migTableBody');
+  const strip = document.getElementById('migStatusStrip');
+  if (!body) return;
+  body.innerHTML = `<tr><td colspan="8" class="text-center" style="padding:40px;"><div class="spinner"></div></td></tr>`;
+  strip.style.display = 'none';
+
+  try {
+    const d = await API.post('/api/router.php', { action: 'admin_migrations_list' });
+    const dat = d.data;
+    _migData   = dat.files || [];
+
+    const totalBytes = _migData.reduce((s, f) => s + (f.size_bytes || 0), 0);
+    const sizeStr    = totalBytes < 1024*1024
+      ? (totalBytes/1024).toFixed(1)+' KB'
+      : (totalBytes/1024/1024).toFixed(2)+' MB';
+
+    document.getElementById('migSummaryText').textContent =
+      `${dat.total} total migrations · ${dat.done} done · ${dat.pending} pending · ${sizeStr} total`;
+
+    // Status strip
+    const runAllBtn  = document.getElementById('migRunAllBtn');
+    const rollbackBtn = document.getElementById('migRollbackBtn');
+    if (runAllBtn)   runAllBtn.disabled   = dat.pending === 0;
+    if (rollbackBtn) rollbackBtn.disabled = dat.max_batch === 0;
+
+    if (dat.pending > 0 || dat.max_batch > 0) {
+      strip.style.display = 'flex';
+      strip.innerHTML = [
+        `<span>📦 <b>${dat.total}</b> files found</span>`,
+        `<span style="color:#16a34a;">✅ <b>${dat.done}</b> done</span>`,
+        dat.pending > 0 ? `<span style="color:#d97706;">⏳ <b>${dat.pending}</b> pending</span>` : '',
+        dat.max_batch > 0 ? `<span style="color:var(--text-muted);">Last batch: <b>#${dat.max_batch}</b></span>` : '',
+      ].filter(Boolean).join('');
+    }
+
+    if (_migData.length === 0) {
+      body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No migration files found in database/ or database/migrations/</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = _migData.map((f, i) => {
+      const isDone    = f.status === 'done';
+      const statusBadge = isDone
+        ? `<span style="background:rgba(22,163,74,.12);color:#16a34a;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">✅ done</span>`
+        : `<span style="background:rgba(245,158,11,.12);color:#d97706;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;">⏳ pending</span>`;
+      const batchCell = isDone ? `<b>#${f.batch}</b>` : `<span style="color:var(--text-muted);">—</span>`;
+      const timeCell  = isDone && f.duration_ms != null ? `${f.duration_ms}ms` : '<span style="color:var(--text-muted);">—</span>';
+      const execCell  = isDone && f.executed_at
+        ? `<span style="font-size:11px;">${f.executed_at}</span>`
+        : '<span style="color:var(--text-muted);">—</span>';
+      const dirBadge  = f.dir === 'migrations'
+        ? `<span style="background:rgba(79,70,229,.1);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:10px;">migrations/</span>`
+        : `<span style="background:rgba(100,116,139,.1);color:var(--text-secondary);padding:1px 6px;border-radius:4px;font-size:10px;">database/</span>`;
+      const actionBtn = isDone
+        ? `<span style="font-size:11px;color:var(--text-muted);">ran</span>`
+        : `<button onclick="migRunOne('${f.name}')" class="db-btn-clear" style="font-size:11px;padding:3px 8px;">▶ Run</button>`;
+
+      return `<tr style="${isDone ? '' : 'background:rgba(245,158,11,.03);'}">
+        <td style="color:var(--text-muted);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="font-family:monospace;font-size:12px;font-weight:600;">${f.name}</td>
+        <td>${dirBadge}</td>
+        <td class="text-center">${statusBadge}</td>
+        <td class="text-center" style="font-size:12px;">${batchCell}</td>
+        <td class="text-center" style="font-size:11px;color:var(--text-muted);">${timeCell}</td>
+        <td>${execCell}</td>
+        <td class="text-center">${actionBtn}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) {
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:30px;color:#dc2626;">Error loading migrations: ${e.message}</td></tr>`;
+  }
+}
+
+async function migRunAll() {
+  if (!confirm('Run all pending migrations? This will execute SQL against your database.')) return;
+  await _migExecRun(null);
+}
+
+async function migRunOne(filename) {
+  if (!confirm(`Run migration: ${filename}?`)) return;
+  await _migExecRun(filename);
+}
+
+async function _migExecRun(filename) {
+  const btn = document.getElementById('migRunAllBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+  const logCard = document.getElementById('migLogCard');
+  const logBody = document.getElementById('migLogBody');
+  logCard.style.display = 'block';
+  logBody.innerHTML = '<span style="color:var(--text-muted);">Running…</span>';
+
+  try {
+    const body = filename ? { action:'admin_migrations_run', filename } : { action:'admin_migrations_run' };
+    const d = await API.post('/api/router.php', body);
+    const dat = d.data;
+    const details = dat.details || [];
+
+    let html = '';
+    if (dat.ran > 0 || dat.failed > 0) {
+      html += `<div style="margin-bottom:8px;color:${dat.failed>0?'#dc2626':'#16a34a'};font-weight:700;">`;
+      html += `${dat.failed>0 ? '❌' : '✅'} ${d.message}</div>`;
+    } else {
+      html += `<div style="color:var(--text-muted);margin-bottom:8px;">${d.message}</div>`;
+    }
+    details.forEach(r => {
+      if (r.ok) {
+        html += `<div style="color:#16a34a;">✅  ${r.file}  <span style="color:var(--text-muted);">(${r.stmts} stmts, ${r.ms}ms)</span></div>`;
+      } else {
+        html += `<div style="color:#dc2626;">❌  ${r.file}<br><span style="margin-left:20px;">${r.error}</span></div>`;
+      }
+    });
+    logBody.innerHTML = html || '<span style="color:var(--text-muted);">No output.</span>';
+    if (dat.ran > 0) {
+      wd_toast(dat.ran + ' migration(s) ran successfully!', 'success');
+    }
+  } catch(e) {
+    logBody.innerHTML = `<span style="color:#dc2626;">Error: ${e.message}</span>`;
+    wd_toast('Migration failed: ' + e.message, 'error');
+  }
+
+  if (btn) { btn.textContent = 'Run Pending'; }
+  await loadMigrations();
+}
+
+async function migRollback() {
+  if (!confirm('Remove the LAST batch from migration log?\n\n⚠️  This does NOT reverse schema changes — it only removes log entries so those files can be re-run.')) return;
+  try {
+    const d = await API.post('/api/router.php', { action:'admin_migrations_rollback' });
+    wd_toast(d.message, d.success ? 'success' : 'error');
+    await loadMigrations();
+  } catch(e) {
+    wd_toast('Rollback failed: ' + e.message, 'error');
+  }
+}
+</script>
   <div class="modal" style="max-width:460px">
     <div class="modal-header">
       <h3 class="modal-title">Add User</h3>
@@ -1616,8 +1824,9 @@ function adminSwitchTab(name, btn) {
   if (name==='users' && allUsers.length===0) loadUsers();
   if (name==='settings') { loadSettings(); }
   if (name==='fundrules') { frLoadCategories(); }
-  if (name==='audit') loadAuditLog();
-  if (name==='dbmgr') loadDbTables();
+  if (name==='audit')      loadAuditLog();
+  if (name==='dbmgr')      loadDbTables();
+  if (name==='migrations') loadMigrations();
   if (name==='setup') { ssRenderAll(); refreshDbStatus(); }
   if (name==='cron')  { cronLoadStatus(); }
 }
@@ -3426,11 +3635,12 @@ async function apiGet(params) {
 ═══════════════════════════════════════════════════════════════ */
 
 let _cronData = [];
+let _cronAutoTimer = null;
 
 async function cronLoadStatus() {
   const grid  = document.getElementById('cronJobGrid');
   const sumEl = document.getElementById('cronSummaryBar');
-  grid.innerHTML  = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">⏳ Loading cron status...</div>';
+  if (!_cronData.length) grid.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">⏳ Loading cron status...</div>';
   sumEl.innerHTML = '';
   try {
     const d = await API.post('/api/router.php', { action: 'admin_cron_status' });
@@ -3448,6 +3658,13 @@ async function cronLoadStatus() {
 
     // Job cards
     grid.innerHTML = _cronData.map(j => cronCardHtml(j)).join('');
+
+    // Auto-refresh every 10s if any job is running
+    clearTimeout(_cronAutoTimer);
+    const hasRunning = _cronData.some(j => j.last_status === 'running');
+    if (hasRunning) {
+      _cronAutoTimer = setTimeout(cronLoadStatus, 10000);
+    }
   } catch(e) {
     grid.innerHTML = `<div style="padding:16px;color:#dc2626;font-size:13px;">⚠️ ${e.message}</div>`;
   }
@@ -3464,12 +3681,13 @@ function cronCardHtml(j) {
   const st  = j.last_status || 'never';
   const col = statusColor[st] || '#9ca3af';
   const ico = statusIcon[st] || '–';
+  const isRunning = st === 'running';
   const lastRun  = j.last_run  ? new Date(j.last_run).toLocaleString('en-IN') : 'Never run';
   const duration = j.last_duration_ms ? (j.last_duration_ms >= 1000 ? Math.round(j.last_duration_ms/1000)+'s' : j.last_duration_ms+'ms') : '';
   const successRate = j.success_rate != null ? `${j.success_rate}%` : '—';
 
   return `
-  <div class="cron-card" id="cronCard_${j.job_name}">
+  <div class="cron-card" id="cronCard_${j.job_name}" style="${isRunning ? 'border-color:#3b82f6;box-shadow:0 0 0 2px #3b82f622;animation:cronPulse 1.5s infinite;' : ''}">
     <div class="cron-card-head">
       <div>
         <div class="cron-card-title">${esc(j.label)}</div>
@@ -3671,6 +3889,283 @@ async function cronClearLogs() {
 .cron-btn-run:hover { opacity:.85; }
 .cron-pg-btn     { padding:4px 10px; border-radius:5px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:12px; cursor:pointer; }
 .cron-pg-btn:disabled { opacity:.4; cursor:default; }
+@keyframes cronPulse {
+  0%,100% { box-shadow:0 0 0 2px #3b82f622; }
+  50%      { box-shadow:0 0 0 5px #3b82f644; }
+}
+@media(max-width:600px) {
+  .cron-job-grid { grid-template-columns:1fr; }
+  .cron-card-meta { grid-template-columns:1fr; }
+}
+</style>
+
+<!-- ═══════ TAB: RATE LIMITER (t310) ═══════ -->
+<div id="tab-ratelimit" class="admin-tab-content" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <h3 style="margin:0;font-size:16px;font-weight:700;">🛡️ Rate Limiter Config</h3>
+      <p style="margin:4px 0 0;font-size:13px;color:var(--text-secondary);">Live request stats + per-action limit configuration</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="admin-btn admin-btn-sm" onclick="rlRefresh()">🔄 Refresh Stats</button>
+      <button class="admin-btn admin-btn-sm admin-btn-danger" onclick="rlFlushAll()">🗑️ Flush All Buckets</button>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px;" id="rlSummaryCards">
+    <div class="admin-card" style="padding:16px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;">Active Buckets</div>
+      <div style="font-size:24px;font-weight:700;margin-top:4px;" id="rlStatBuckets">—</div>
+    </div>
+    <div class="admin-card" style="padding:16px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;">Blocked (1h)</div>
+      <div style="font-size:24px;font-weight:700;color:#dc2626;margin-top:4px;" id="rlStatBlocked">—</div>
+    </div>
+    <div class="admin-card" style="padding:16px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;">Total Requests</div>
+      <div style="font-size:24px;font-weight:700;margin-top:4px;" id="rlStatReqs">—</div>
+    </div>
+    <div class="admin-card" style="padding:16px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;">Top Action</div>
+      <div style="font-size:14px;font-weight:700;margin-top:4px;" id="rlStatTop">—</div>
+    </div>
+  </div>
+
+  <!-- Live Bucket Monitor -->
+  <div class="admin-card" style="margin-bottom:20px;">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;">
+      <strong style="font-size:14px;">Live Request Buckets</strong>
+      <input type="text" id="rlSearch" placeholder="Filter by user/action…" style="padding:5px 10px;border:1px solid var(--border-color);border-radius:6px;font-size:12px;background:var(--bg-secondary);color:var(--text-primary);width:200px;" oninput="rlFilterTable()">
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;" id="rlBucketTable">
+        <thead>
+          <tr style="background:var(--bg-secondary);">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border-color);">Bucket Key</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border-color);">Requests</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border-color);">Usage Bar</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border-color);">Window Resets</th>
+            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border-color);">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rlBucketTbody">
+          <tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-secondary);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Limit Configuration Table -->
+  <div class="admin-card">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border-color);">
+      <strong style="font-size:14px;">Configured Limits</strong>
+      <span style="font-size:12px;color:var(--text-secondary);margin-left:8px;">(edit in api/security/rate_limit.php)</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;" id="rlConfigTable">
+        <thead>
+          <tr style="background:var(--bg-secondary);">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-color);">Action</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-color);">Max Requests</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-color);">Window</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-color);">Category</th>
+            <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;border-bottom:1px solid var(--border-color);">Rate</th>
+          </tr>
+        </thead>
+        <tbody id="rlConfigTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Rate Limiter Admin (t310) ──────────────────────────────────────────────
+(function() {
+  const API = '<?= APP_URL ?>/api/index.php';
+  let rlBuckets = [];
+
+  // Static limits config (mirrors rate_limit.php — read only display)
+  const LIMITS = {
+    'login':               [5,   300,  'Auth'],
+    'register':            [3,   600,  'Auth'],
+    '2fa_verify_login':    [5,   300,  'Auth'],
+    '2fa_setup':           [3,   600,  'Auth'],
+    'send_otp':            [3,   300,  'Auth'],
+    'ai_chat':             [20,  3600, 'AI'],
+    'ai_portfolio_review': [5,   3600, 'AI'],
+    'ai_tax_optimize':     [5,   3600, 'AI'],
+    'ai_anomaly':          [10,  3600, 'AI'],
+    'ai_goal_advice':      [10,  3600, 'AI'],
+    'add_transaction':     [60,  60,   'Writes'],
+    'bulk_import':         [5,   300,  'Writes'],
+    'csv_import':          [5,   300,  'Writes'],
+    'admin_db_truncate':   [3,   600,  'Admin'],
+    'nav_fetch':           [200, 60,   'Reads'],
+    'crypto_prices':       [100, 60,   'Reads'],
+    'stock_price':         [200, 60,   'Reads'],
+    '_default':            [120, 60,   'Default'],
+  };
+
+  // Render config table (static)
+  function renderConfigTable() {
+    const tbody = document.getElementById('rlConfigTbody');
+    const catColors = {
+      'Auth':'#dc2626','AI':'#7c3aed','Writes':'#d97706',
+      'Admin':'#0284c7','Reads':'#16a34a','Default':'#64748b'
+    };
+    tbody.innerHTML = Object.entries(LIMITS).map(([action, [max, win, cat]]) => {
+      const color = catColors[cat] || '#64748b';
+      const rate = (max / (win / 60)).toFixed(1) + '/min';
+      const winFmt = win >= 3600 ? (win/3600) + 'h' : win >= 60 ? (win/60) + 'min' : win + 's';
+      return `<tr style="border-bottom:1px solid var(--border-color);">
+        <td style="padding:10px 14px;font-family:monospace;font-size:12px;">${action}</td>
+        <td style="padding:10px 14px;text-align:right;font-weight:700;">${max}</td>
+        <td style="padding:10px 14px;text-align:right;color:var(--text-secondary);">${winFmt}</td>
+        <td style="padding:10px 14px;"><span style="background:${color}22;color:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${cat}</span></td>
+        <td style="padding:10px 14px;text-align:right;font-size:12px;color:var(--text-secondary);">${rate}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Load live bucket stats
+  async function loadBuckets() {
+    try {
+      const r = await fetch(`${API}?action=admin_rl_stats`);
+      const d = await r.json();
+      if (!d.success) { showError(); return; }
+      rlBuckets = d.buckets || [];
+      updateSummary(d);
+      renderBuckets(rlBuckets);
+    } catch(e) {
+      showError();
+    }
+  }
+
+  function showError() {
+    document.getElementById('rlBucketTbody').innerHTML =
+      '<tr><td colspan="5" style="text-align:center;padding:20px;color:#dc2626;">Failed to load. Make sure admin_rl_stats route is available.</td></tr>';
+  }
+
+  function updateSummary(d) {
+    document.getElementById('rlStatBuckets').textContent = d.total_buckets ?? '—';
+    document.getElementById('rlStatBlocked').textContent = d.blocked_count ?? '0';
+    document.getElementById('rlStatReqs').textContent = (d.total_requests ?? 0).toLocaleString('en-IN');
+    document.getElementById('rlStatTop').textContent = d.top_action ?? '—';
+  }
+
+  function renderBuckets(buckets) {
+    const tbody = document.getElementById('rlBucketTbody');
+    if (!buckets.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-secondary);">No active rate limit buckets.</td></tr>';
+      return;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    tbody.innerHTML = buckets.map(b => {
+      // Parse key: u:123:action or ip:hash:action
+      const parts = b.bucket_key.split(':');
+      const keyType = parts[0];
+      const keyId   = parts[1];
+      const action  = parts.slice(2).join(':') || '_default';
+      const label   = keyType === 'u' ? `👤 User #${keyId}` : `🌐 IP ${keyId.substring(0,8)}…`;
+
+      // Guess limit
+      const limit = LIMITS[action]?.[0] ?? LIMITS['_default'][0];
+      const window = LIMITS[action]?.[1] ?? LIMITS['_default'][1];
+      const pct = Math.min(100, Math.round((b.requests / limit) * 100));
+      const barColor = pct >= 100 ? '#dc2626' : pct >= 75 ? '#f59e0b' : '#16a34a';
+      const resets = Math.max(0, (b.window_start + window) - now);
+      const resetFmt = resets >= 60 ? Math.ceil(resets/60) + 'min' : resets + 's';
+
+      return `<tr style="border-bottom:1px solid var(--border-color);" data-key="${b.bucket_key}">
+        <td style="padding:10px 14px;">
+          <div style="font-weight:600;font-size:12px;">${label}</div>
+          <div style="font-size:11px;color:var(--text-secondary);font-family:monospace;">${action}</div>
+        </td>
+        <td style="padding:10px 14px;text-align:right;font-weight:700;color:${barColor};">${b.requests} / ${limit}</td>
+        <td style="padding:10px 14px;">
+          <div style="background:var(--bg-secondary);border-radius:4px;height:8px;overflow:hidden;min-width:80px;">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;transition:width .3s;"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">${pct}% used</div>
+        </td>
+        <td style="padding:10px 14px;text-align:right;font-size:12px;color:var(--text-secondary);">in ${resetFmt}</td>
+        <td style="padding:10px 14px;text-align:center;">
+          <button onclick="rlResetBucket('${b.bucket_key}')" style="padding:4px 10px;font-size:11px;border-radius:5px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;color:#dc2626;">Reset</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.rlFilterTable = function() {
+    const q = document.getElementById('rlSearch').value.toLowerCase();
+    const filtered = q ? rlBuckets.filter(b => b.bucket_key.toLowerCase().includes(q)) : rlBuckets;
+    renderBuckets(filtered);
+  };
+
+  window.rlRefresh = async function() { await loadBuckets(); };
+
+  window.rlFlushAll = async function() {
+    if (!confirm('All rate limit buckets flush ho jayenge. Continue?')) return;
+    try {
+      const r = await fetch(API, { method:'POST', body: new URLSearchParams({ action:'admin_rl_flush' }) });
+      const d = await r.json();
+      alert(d.success ? '✅ All buckets flushed.' : '❌ ' + d.message);
+      if (d.success) loadBuckets();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.rlResetBucket = async function(key) {
+    try {
+      const r = await fetch(API, { method:'POST', body: new URLSearchParams({ action:'admin_rl_reset_bucket', bucket_key: key }) });
+      const d = await r.json();
+      if (d.success) loadBuckets();
+      else alert('Error: ' + d.message);
+    } catch(e) {}
+  };
+
+  // Init when tab is activated
+  document.querySelector('[data-tab="ratelimit"]')?.addEventListener('click', function() {
+    if (!rlBuckets.length) {
+      renderConfigTable();
+      loadBuckets();
+    }
+  });
+
+  // Also auto-init if tab is active on page load
+  if (document.getElementById('tab-ratelimit')?.style.display !== 'none') {
+    renderConfigTable();
+    loadBuckets();
+  }
+  // Always render static config table when admin page loads
+  setTimeout(renderConfigTable, 100);
+})();
+</script>
+
+<style>
+/* Cron styles (existing) */
+.cron-job-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+.cron-card { background:var(--bg-surface); border:1px solid var(--border-color); border-radius:10px; padding:14px 16px; transition:box-shadow .15s; }
+.cron-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); }
+.cron-card-head  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:8px; }
+.cron-card-title { font-size:14px; font-weight:700; color:var(--text-primary); }
+.cron-card-sub   { font-size:11px; color:var(--text-muted); margin-top:2px; }
+.cron-badge      { font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; border:1px solid; white-space:nowrap; flex-shrink:0; }
+.cron-card-meta  { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; margin-bottom:10px; }
+.cron-meta-key   { font-size:11px; color:var(--text-muted); display:block; }
+.cron-meta-val   { font-size:12px; font-weight:600; color:var(--text-primary); display:block; }
+.cron-msg        { font-size:11px; color:var(--text-muted); background:var(--bg-secondary); border-radius:6px; padding:6px 8px; margin-bottom:10px; word-break:break-word; }
+.cron-card-actions { display:flex; gap:8px; justify-content:flex-end; }
+.cron-btn-hist   { padding:5px 12px; border-radius:6px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-secondary); font-size:12px; cursor:pointer; transition:background .15s; }
+.cron-btn-hist:hover { background:var(--bg-surface-2); }
+.cron-btn-run    { padding:5px 12px; border-radius:6px; border:none; background:var(--accent); color:#fff; font-size:12px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+.cron-btn-run:hover { opacity:.85; }
+.cron-pg-btn     { padding:4px 10px; border-radius:5px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-size:12px; cursor:pointer; }
+.cron-pg-btn:disabled { opacity:.4; cursor:default; }
+@keyframes cronPulse {
+  0%,100% { box-shadow:0 0 0 2px #3b82f622; }
+  50%      { box-shadow:0 0 0 5px #3b82f644; }
+}
 @media(max-width:600px) {
   .cron-job-grid { grid-template-columns:1fr; }
   .cron-card-meta { grid-template-columns:1fr; }
