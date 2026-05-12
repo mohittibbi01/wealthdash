@@ -72,6 +72,10 @@ $csrfExempt = [
     'scheduled_reports_list',
     'fd_list', 'fd_add', 'fd_delete', 'fd_mature', 'fd_maturity', 'fd_ladder',
     'stocks_list', 'stocks_get',
+    // t222 — NSE Free Data (read-only)
+    'nse_quote', 'nse_quote_bulk', 'nse_ohlc', 'nse_indexes', 'nse_index_detail',
+    // t281 — Stock Fundamentals History (read-only)
+    'fundamentals_history',
     'nps_list', 'nps_nav_history',
     'savings_list',
     'po_list', 'po_meta',
@@ -113,6 +117,9 @@ $csrfExempt = [
     // t24 — Crypto
     'crypto_list', 'crypto_prices', 'crypto_summary', 'crypto_txns',
     'crypto_vda_tax',
+    // t315 — Crypto Holdings (read-only actions)
+    'crypto_portfolio_stats', 'crypto_staking_list',
+    'crypto_wl_list', 'crypto_tax_year_summary',
     // t97/t177/t178 — Fund Sectors & Holdings
     'fund_sectors', 'portfolio_sectors', 'sector_allocation',
     'sector_filter_list', 'fetch_sectors_amfi',
@@ -537,7 +544,17 @@ try {
         case 'fundamentals_all':
         case 'holdings_enriched':
         case 'week52_tracker':
+        case 'fundamentals_history':
             require APP_ROOT . '/api/stocks/fundamentals.php'; exit;
+
+        // ── t222 — NSE India Free Data ───────────────────────────
+        case 'nse_quote':
+        case 'nse_quote_bulk':
+        case 'nse_ohlc':
+        case 'nse_price_sync':
+        case 'nse_indexes':
+        case 'nse_index_detail':
+            require APP_ROOT . '/api/stocks/nse_data.php'; exit;
         case 'stocks_alert_list':    // t344/t345
         case 'stocks_alert_save':
         case 'stocks_alert_delete':
@@ -793,6 +810,18 @@ try {
         case 'crypto_delete':
         case 'crypto_txn_add':
             require APP_ROOT . '/api/crypto/crypto_list.php'; exit;
+
+        // ── t315 — Crypto Holdings Full Portfolio Tracking ───────
+        case 'crypto_portfolio_stats':
+        case 'crypto_edit_holding':
+        case 'crypto_staking_list':
+        case 'crypto_staking_add':
+        case 'crypto_staking_delete':
+        case 'crypto_wl_list':
+        case 'crypto_wl_add':
+        case 'crypto_wl_delete':
+        case 'crypto_tax_year_summary':
+            require APP_ROOT . '/api/crypto/crypto_holdings.php'; exit;
 
         // ── tc001 — Live Crypto Price Stream (SSE) ───────────────
         case 'crypto_price_stream':

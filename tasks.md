@@ -287,6 +287,9 @@
 | ID | Title | PR | Eff |
 |----|-------|----|-----|
 | ✅ t36 | Stocks holdings — CAGR + gain% | p1 | 2-3h |
+| ✅ t215 | Stocks — CAGR, Gain%, Cost Basis per stock | p1 | 2-3h |
+| ✅ t222 | NSE India Free Data — Stocks Price + Index Data | p1 | 2-3h |
+| ✅ t281 | Stock Fundamental Data — P/E, P/B, Market Cap | p1 | 3-4h |
 | t37 | ETF — alag module | p2 | 1-2d |
 | t38 | Stocks screener | p3 | 3-4h |
 | t39 | LTCG/STCG stocks report | p2 | 3-4h |
@@ -518,7 +521,7 @@
 ---
 
 ## STATS
-- Total tasks: ~352
-- Completed (✅): ~212
-- Pending: ~140
-- Last updated: 2026-05-03
+- Total tasks: ~355
+- Completed (✅): ~241
+- Pending: ~114
+- Last updated: 2026-05-10

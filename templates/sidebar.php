@@ -96,9 +96,12 @@ $navItems = [
     ],
 
     'goals' => [
-        'label' => 'Goals',
-        'href'  => APP_URL . '/templates/pages/goals.php',
-        'icon'  => _ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
+        'label'    => 'Goals',
+        'icon'     => _ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>'),
+        'children' => [
+            'goals'        => ['label' => 'Goal Planning',  'href' => APP_URL . '/templates/pages/goals.php',        'icon' => _ic('<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/>', 14)],
+            'goal_buckets' => ['label' => 'Goal Buckets',   'href' => APP_URL . '/templates/pages/goal_buckets.php', 'icon' => _ic('<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14l-4-4 1.41-1.41L10 13.17l6.59-6.59L18 8l-8 8z"/>', 14)], // t139
+        ],
     ],
 
     'cashflow' => [

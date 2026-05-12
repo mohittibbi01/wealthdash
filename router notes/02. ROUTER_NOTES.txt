@@ -1,0 +1,81 @@
+============================================================
+ROUTER NOTES — Master merge ke liye (api/router.php)
+============================================================
+
+──────────────────────────────────────────────────────────
+t115 — REITs & InvITs
+Route file: api/reits/reits.php
+──────────────────────────────────────────────────────────
+
+WHITELIST array mein add karo:
+  'reit_list', 'reit_summary', 'reit_add_holding', 'reit_edit_holding',
+  'reit_delete_holding', 'reit_add_txn', 'reit_delete_txn', 'reit_txns',
+  'reit_add_dist', 'reit_distributions', 'reit_master_list', 'reit_update_price',
+
+Switch-case mein add karo (kisi bhi asset section ke baad):
+
+        case 'reit_list':
+        case 'reit_summary':
+        case 'reit_master_list':
+        case 'reit_add_holding':
+        case 'reit_edit_holding':
+        case 'reit_delete_holding':
+        case 'reit_add_txn':
+        case 'reit_delete_txn':
+        case 'reit_txns':
+        case 'reit_add_dist':
+        case 'reit_distributions':
+        case 'reit_update_price':
+            require APP_ROOT . '/api/reits/reits.php'; exit;
+
+──────────────────────────────────────────────────────────
+t120 — Smallcase Portfolio Sync
+Route file: api/smallcase/smallcase.php
+──────────────────────────────────────────────────────────
+
+WHITELIST array mein add karo:
+  'smallcase_list', 'smallcase_summary', 'smallcase_add', 'smallcase_edit',
+  'smallcase_delete', 'smallcase_holdings', 'smallcase_sync',
+  'smallcase_add_txn', 'smallcase_txns', 'smallcase_performance',
+
+Switch-case mein add karo:
+
+        case 'smallcase_list':
+        case 'smallcase_summary':
+        case 'smallcase_add':
+        case 'smallcase_edit':
+        case 'smallcase_delete':
+        case 'smallcase_holdings':
+        case 'smallcase_sync':
+        case 'smallcase_add_txn':
+        case 'smallcase_txns':
+        case 'smallcase_performance':
+            require APP_ROOT . '/api/smallcase/smallcase.php'; exit;
+
+──────────────────────────────────────────────────────────
+t144 — SIP Step-Up Nudge
+Route file: api/mutual_funds/sip_stepup_nudge.php
+──────────────────────────────────────────────────────────
+
+WHITELIST array mein add karo (sip section ke saath):
+  'stepup_dashboard', 'stepup_salary_add', 'stepup_salary_list',
+  'stepup_nudges', 'stepup_respond', 'stepup_calculate',
+  'stepup_projection_save', 'stepup_projection_get',
+  'stepup_apply',
+
+Switch-case mein add karo (sip_pause section ke paas):
+
+        case 'stepup_dashboard':
+        case 'stepup_salary_add':
+        case 'stepup_salary_list':
+        case 'stepup_nudges':
+        case 'stepup_respond':
+        case 'stepup_calculate':
+        case 'stepup_projection_save':
+        case 'stepup_projection_get':
+        case 'stepup_apply':
+            require APP_ROOT . '/api/mutual_funds/sip_stepup_nudge.php'; exit;
+
+============================================================
+END ROUTER NOTES
+============================================================
