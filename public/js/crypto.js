@@ -1,7 +1,8 @@
 /**
- * WealthDash — Crypto Module (t24 + tc001)
+ * WealthDash — Crypto Module (t24 + tc001 + t317 + tc005)
  * public/js/crypto.js
- * Holdings table + live prices (SSE) + P&L + VDA Tax tab + Add modal
+ * Holdings table + live prices (SSE) + P&L + VDA Tax tab +
+ * CSV Import (t317) + Exchange Sync (tc005) + Add modal
  */
 const CRYPTO = (() => {
   'use strict';
@@ -15,6 +16,9 @@ const CRYPTO = (() => {
   let _sseCountdown  = 30;            // tc001: seconds until next price update
   let _sseTickTimer  = null;          // tc001: 1s interval for countdown display
   let _lastPriceData = {};            // tc001: for flash diff comparison
+  let _importPreview = null;          // t317: parsed CSV preview rows
+  let _importExchange= '';            // t317: detected/selected exchange
+  let _portfolioId   = 0;            // shared: selected portfolio
 
   // Popular coins list for Add modal autocomplete
   const POPULAR_COINS = [
@@ -56,7 +60,6 @@ const CRYPTO = (() => {
     return `<span class="gain-badge ${cl}">${sign}${parseFloat(pct).toFixed(2)}%</span>`;
   };
   const coinIcon = sym => {
-    // Simple letter avatar if no image
     const colors = ['#f7931a','#627eea','#26a17b','#f0b90b','#9945ff','#00aae4',
                     '#0033ad','#ba9f33','#e84142','#e6007a','#7b3fe4','#2775ca'];
     const idx = (sym.charCodeAt(0) + (sym.charCodeAt(1)||0)) % colors.length;
@@ -69,7 +72,6 @@ const CRYPTO = (() => {
   function init() {
     _renderShell();
     _loadHoldings();
-    // tc001: Start SSE live price stream after holdings load (so we have coin IDs)
     setTimeout(_sseConnect, 1500);
   }
 
@@ -80,7 +82,6 @@ const CRYPTO = (() => {
 
     const coinIds = [...new Set(_holdings.map(h => h.coin_id).filter(Boolean))];
     if (!coinIds.length) {
-      // Fallback: polling every 60s if no holdings yet
       if (!_refreshTimer) {
         _refreshTimer = setInterval(() => {
           if (_tab === 'holdings') _loadHoldings(true);
@@ -89,8 +90,8 @@ const CRYPTO = (() => {
       return;
     }
 
-    const base   = window.WD?.appUrl || window.APP_URL || '';
-    const url    = `${base}/api/router.php?action=crypto_price_stream&coins=${coinIds.join(',')}`;
+    const base = window.WD?.appUrl || window.APP_URL || '';
+    const url  = `${base}/api/router.php?action=crypto_price_stream&coins=${coinIds.join(',')}`;
     _sse = new EventSource(url);
 
     _sse.addEventListener('prices', e => {
@@ -101,16 +102,12 @@ const CRYPTO = (() => {
       } catch {}
     });
 
-    _sse.addEventListener('ping', () => {
-      _sseCountdown = 30;
-    });
+    _sse.addEventListener('ping', () => { _sseCountdown = 30; });
 
     _sse.addEventListener('error', () => {
-      // SSE error/reconnect — show warning in ticker
       _updateTickerStatus('⚠️ Reconnecting…', 'var(--text-muted)');
     });
 
-    // Countdown ticker — updates every second
     _sseCountdown = 30;
     _sseTickTimer = setInterval(() => {
       _sseCountdown = Math.max(0, _sseCountdown - 1);
@@ -120,11 +117,8 @@ const CRYPTO = (() => {
       );
     }, 1000);
 
-    // Reconnect on page visibility change (tab becomes active)
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && _sse?.readyState === EventSource.CLOSED) {
-        _sseConnect();
-      }
+      if (!document.hidden && _sse?.readyState === EventSource.CLOSED) _sseConnect();
     }, { once: false });
   }
 
@@ -140,39 +134,36 @@ const CRYPTO = (() => {
   }
 
   function _onLivePrices(prices) {
-    // Merge new prices into _prices state
     const prev = { ..._lastPriceData };
     Object.assign(_prices, prices);
     _lastPriceData = { ...prices };
 
-    // Update each holding row without full re-render (flash animation)
     _holdings.forEach((h, idx) => {
-      const cid  = h.coin_id;
-      const p    = prices[cid];
+      const cid = h.coin_id;
+      const p   = prices[cid];
       if (!p) return;
 
-      const row         = document.querySelector(`[data-crypto-idx="${idx}"]`);
-      const priceEl     = document.getElementById(`cp_price_${idx}`);
-      const valueEl     = document.getElementById(`cp_value_${idx}`);
-      const pnlEl       = document.getElementById(`cp_pnl_${idx}`);
-      const chg24El     = document.getElementById(`cp_chg24_${idx}`);
+      const row    = document.querySelector(`[data-crypto-idx="${idx}"]`);
+      const priceEl= document.getElementById(`cp_price_${idx}`);
+      const valueEl= document.getElementById(`cp_value_${idx}`);
+      const pnlEl  = document.getElementById(`cp_pnl_${idx}`);
+      const chg24El= document.getElementById(`cp_chg24_${idx}`);
       if (!row || !priceEl) return;
 
-      const prevPrice   = prev[cid]?.inr || 0;
-      const newPrice    = p.inr;
-      const units       = (float(h.quantity_net) || 0);
-      const avgCost     = (float(h.avg_buy_price_inr) || 0);
-      const currVal     = newPrice * units;
+      const prevPrice = prev[cid]?.inr || 0;
+      const newPrice  = p.inr;
+      const units     = (float(h.quantity_net) || 0);
+      const avgCost   = (float(h.avg_buy_price_inr) || 0);
+      const currVal   = newPrice * units;
       const investedVal = avgCost * units;
-      const pnl         = currVal - investedVal;
-      const pnlPct      = investedVal > 0 ? (pnl / investedVal * 100) : 0;
+      const pnl       = currVal - investedVal;
+      const pnlPct    = investedVal > 0 ? (pnl / investedVal * 100) : 0;
 
-      // Update DOM
-      priceEl.textContent  = _fmtINR(newPrice);
-      if (valueEl) valueEl.textContent  = _fmtINR(currVal);
-      if (pnlEl)   {
-        pnlEl.textContent  = (pnl >= 0 ? '+' : '') + _fmtINR(pnl);
-        pnlEl.style.color  = pnl >= 0 ? '#22c55e' : '#ef4444';
+      priceEl.textContent = _fmtINR(newPrice);
+      if (valueEl) valueEl.textContent = _fmtINR(currVal);
+      if (pnlEl) {
+        pnlEl.textContent = (pnl >= 0 ? '+' : '') + _fmtINR(pnl);
+        pnlEl.style.color = pnl >= 0 ? '#22c55e' : '#ef4444';
       }
       if (chg24El) {
         const chg = p.chg24h;
@@ -180,7 +171,6 @@ const CRYPTO = (() => {
         chg24El.style.color = chg >= 0 ? '#22c55e' : '#ef4444';
       }
 
-      // Flash animation
       if (prevPrice && prevPrice !== newPrice) {
         const flashColor = newPrice > prevPrice ? '#22c55e20' : '#ef444420';
         row.style.background = flashColor;
@@ -188,8 +178,6 @@ const CRYPTO = (() => {
         setTimeout(() => { row.style.background = ''; }, 900);
       }
     });
-
-    // Update summary stats
     _updateLiveSummary();
   }
 
@@ -198,8 +186,8 @@ const CRYPTO = (() => {
     _holdings.forEach(h => {
       const p = _prices[h.coin_id];
       if (!p) return;
-      totalVal     += p.inr * (parseFloat(h.quantity_net) || 0);
-      totalInvest  += (parseFloat(h.avg_buy_price_inr) || 0) * (parseFloat(h.quantity_net) || 0);
+      totalVal    += p.inr * (parseFloat(h.quantity_net) || 0);
+      totalInvest += (parseFloat(h.avg_buy_price_inr) || 0) * (parseFloat(h.quantity_net) || 0);
     });
     const totalPnl    = totalVal - totalInvest;
     const totalPnlPct = totalInvest > 0 ? (totalPnl / totalInvest * 100) : 0;
@@ -208,7 +196,8 @@ const CRYPTO = (() => {
     const pnlEl = document.getElementById('cryptoTotalPnl');
     if (valEl) valEl.textContent = _fmtINR(totalVal);
     if (pnlEl) {
-      pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + _fmtINR(totalPnl) + ' (' + (totalPnlPct >= 0 ? '+' : '') + totalPnlPct.toFixed(2) + '%)';
+      pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + _fmtINR(totalPnl) +
+                          ' (' + (totalPnlPct >= 0 ? '+' : '') + totalPnlPct.toFixed(2) + '%)';
       pnlEl.style.color = totalPnl >= 0 ? '#22c55e' : '#ef4444';
     }
   }
@@ -238,18 +227,20 @@ const CRYPTO = (() => {
 <div id="cryptoStats" class="stats-grid" style="margin-bottom:20px">
   <div class="stat-card"><div class="stat-label">Holdings</div><div class="stat-value" id="cStatCoins">—</div></div>
   <div class="stat-card"><div class="stat-label">Invested</div><div class="stat-value" id="cStatInv">—</div></div>
-  <div class="stat-card"><div class="stat-label">Current Value</div><div class="stat-value" id="cryptoTotalValue" id="cStatCur">—</div></div>
+  <div class="stat-card"><div class="stat-label">Current Value</div><div class="stat-value" id="cryptoTotalValue">—</div></div>
   <div class="stat-card">
     <div class="stat-label">P&amp;L (Unrealised)</div>
-    <div class="stat-value" id="cryptoTotalPnl" id="cStatGain">—</div>
+    <div class="stat-value" id="cryptoTotalPnl">—</div>
   </div>
 </div>
 
 <!-- Tab bar -->
-<div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1.5px solid var(--border);padding-bottom:0">
-  <button class="crypto-tab active" id="ctab_holdings"  onclick="CRYPTO.switchTab('holdings')">💼 Holdings</button>
+<div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1.5px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
+  <button class="crypto-tab active" id="ctab_holdings"     onclick="CRYPTO.switchTab('holdings')">💼 Holdings</button>
   <button class="crypto-tab"        id="ctab_transactions" onclick="CRYPTO.switchTab('transactions')">📋 Transactions</button>
-  <button class="crypto-tab"        id="ctab_tax"       onclick="CRYPTO.switchTab('tax')">🧾 VDA Tax</button>
+  <button class="crypto-tab"        id="ctab_tax"          onclick="CRYPTO.switchTab('tax')">🧾 VDA Tax</button>
+  <button class="crypto-tab"        id="ctab_import"       onclick="CRYPTO.switchTab('import')">📥 Import CSV</button>
+  <button class="crypto-tab"        id="ctab_exchange"     onclick="CRYPTO.switchTab('exchange')">🔗 Exchange Sync</button>
 </div>
 
 <!-- Actions bar -->
@@ -265,7 +256,7 @@ const CRYPTO = (() => {
 <div id="cryptoContent"></div>
 
 <!-- Add Coin Modal -->
-<div id="cryptoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:none;align-items:center;justify-content:center">
+<div id="cryptoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
   <div style="background:var(--card-bg);border-radius:16px;padding:28px;width:100%;max-width:480px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <button onclick="CRYPTO.closeModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
     <h3 style="margin:0 0 20px;font-size:18px;font-weight:700">Add Crypto Holding</h3>
@@ -292,8 +283,6 @@ const CRYPTO = (() => {
       renderHoldings(_holdings);
       const pt = document.getElementById('cPriceTime');
       if (pt) pt.textContent = 'Updated: ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
-
-      // tc001: (Re)connect SSE with current coin IDs
       _sseConnect();
     } catch (e) {
       if (content) content.innerHTML = typeof WdEmpty !== 'undefined'
@@ -323,9 +312,12 @@ const CRYPTO = (() => {
         <div style="font-size:48px;margin-bottom:12px">₿</div>
         <div style="font-size:15px;font-weight:600;margin-bottom:6px">Koi crypto holding nahi</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">
-          "Add Coin" karo apna Bitcoin, ETH ya koi bhi coin track karne ke liye
+          "Add Coin" karo ya CSV import karo apna portfolio track karne ke liye
         </div>
-        <button class="btn btn-primary" onclick="CRYPTO.openAddModal()">+ Add First Coin</button>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="CRYPTO.openAddModal()">+ Add Coin</button>
+          <button class="btn btn-secondary" onclick="CRYPTO.switchTab('import')">📥 Import CSV</button>
+        </div>
       </div>`;
       return;
     }
@@ -389,6 +381,9 @@ const CRYPTO = (() => {
       const data = await API.get('crypto_txns');
       const rows = (data || []).map(t => {
         const typeCls = t.txn_type === 'BUY' || t.txn_type === 'TRANSFER_IN' ? 'var(--green)' : 'var(--red)';
+        const srcBadge = t.import_source
+          ? `<span style="font-size:10px;background:var(--bg-secondary);border-radius:4px;padding:1px 5px;color:var(--text-muted)">${t.import_source}</span>`
+          : '';
         return `<tr>
           <td>${t.txn_date}</td>
           <td><span style="font-weight:700;color:${typeCls}">${t.txn_type}</span></td>
@@ -397,7 +392,7 @@ const CRYPTO = (() => {
           <td>${fmtInr(t.price_inr)}</td>
           <td style="font-weight:600">${fmtInr(t.amount_inr)}</td>
           <td style="color:var(--text-muted)">${t.tds_deducted > 0 ? fmtInr(t.tds_deducted) : '—'}</td>
-          <td style="font-size:12px;color:var(--text-muted)">${t.exchange || '—'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${t.exchange || '—'} ${srcBadge}</td>
         </tr>`;
       }).join('');
 
@@ -451,6 +446,490 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     }
   }
 
+  // ── t317: CSV Import Tab ───────────────────────────────────────────────
+  async function _loadImport() {
+    const content = document.getElementById('cryptoContent');
+    _importPreview = null;
+    _importExchange = '';
+
+    content.innerHTML = `
+<div style="max-width:860px">
+  <!-- Info banner -->
+  <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:12px;
+              padding:14px 18px;margin-bottom:20px;font-size:13px;color:#1e40af;display:flex;gap:12px;align-items:flex-start;">
+    <span style="font-size:20px;flex-shrink:0">📥</span>
+    <div>
+      <strong>CSV Import (t317)</strong> — Binance, WazirX, CoinDCX trade history directly import karo.<br>
+      <span style="font-size:12px;opacity:.8">Duplicate trades automatically skip ho jaate hain. Preview ke baad confirm karo.</span>
+    </div>
+  </div>
+
+  <!-- Upload form -->
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px;margin-bottom:18px">
+    <h4 style="margin:0 0 16px;font-size:14px;font-weight:700">1. CSV File Upload karo</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px">Exchange</label>
+        <select id="impExchange" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:var(--text)">
+          <option value="AUTO">Auto-detect</option>
+          <option value="BINANCE">Binance</option>
+          <option value="WAZIRX">WazirX</option>
+          <option value="COINDCX">CoinDCX</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px">Portfolio *</label>
+        <select id="impPortfolio" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:var(--text)">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px">CSV File *</label>
+        <input type="file" id="impFile" accept=".csv,text/csv"
+               style="width:100%;padding:6px 10px;border:1.5px dashed var(--border-color);border-radius:8px;font-size:12px">
+      </div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="CRYPTO._importPreviewLoad()" style="margin-right:8px">
+      🔍 Preview Import
+    </button>
+    <span style="font-size:11px;color:var(--text-muted)">Preview mein check karo, phir confirm karo</span>
+  </div>
+
+  <!-- Preview area -->
+  <div id="importPreviewArea"></div>
+
+  <!-- Import log section -->
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px;margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h4 style="margin:0;font-size:14px;font-weight:700">Import History</h4>
+      <button class="btn btn-ghost btn-sm" onclick="CRYPTO._importLogLoad()">↻ Refresh</button>
+    </div>
+    <div id="importLogArea"><div style="font-size:13px;color:var(--text-muted)">Loading…</div></div>
+  </div>
+
+  <!-- Format guides -->
+  <div style="margin-top:16px;font-size:11px;color:var(--text-muted)">
+    <strong>Expected CSV formats:</strong><br>
+    Binance: Date(UTC), Pair, Side, Price, Executed, Amount, Fee<br>
+    WazirX: Date, Transaction Type, Currency, Volume, Price (INR), Amount (INR), Fee, TDS (INR)<br>
+    CoinDCX: created_at, type, currency, fee_currency, price, quantity, status
+  </div>
+</div>`;
+
+    // Load portfolios dropdown
+    _loadPortfoliosIntoSelect('impPortfolio');
+    // Load import log
+    _importLogLoad();
+  }
+
+  async function _loadPortfoliosIntoSelect(selId) {
+    try {
+      const data = await API.get('portfolios_list');
+      const sel  = document.getElementById(selId);
+      if (!sel) return;
+      const list = data.portfolios || data.list || [];
+      sel.innerHTML = list.length
+        ? list.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
+        : '<option value="">No portfolios found</option>';
+      if (list.length) _portfolioId = list[0].id;
+    } catch {
+      const sel = document.getElementById(selId);
+      if (sel) sel.innerHTML = '<option value="1">Default Portfolio</option>';
+    }
+  }
+
+  async function _importPreviewLoad() {
+    const fileInput = document.getElementById('impFile');
+    const exchange  = document.getElementById('impExchange')?.value || 'AUTO';
+    const portId    = document.getElementById('impPortfolio')?.value || '';
+    const area      = document.getElementById('importPreviewArea');
+
+    if (!fileInput?.files?.length) return WD.toast('CSV file select karo', 'error');
+    if (!portId) return WD.toast('Portfolio select karo', 'error');
+
+    area.innerHTML = '<div class="wd-loader" style="margin:20px auto"></div>';
+
+    const file = fileInput.files[0];
+    const csvData = await file.text();
+
+    try {
+      const base = window.WD?.appUrl || window.APP_URL || '';
+      const res = await fetch(`${base}/api/router.php`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          action: 'crypto_import_preview',
+          exchange, csv_data: csvData, portfolio_id: portId
+        })
+      });
+      const data = await res.json();
+      if (!data.success) { area.innerHTML = `<div class="wd-empty">⚠️ ${data.message}</div>`; return; }
+
+      _importPreview  = data.rows;
+      _importExchange = data.exchange;
+
+      const dupCount  = data.duplicates || 0;
+      const newCount  = data.total - dupCount;
+
+      const previewRows = (data.rows || []).slice(0, 50).map(r => {
+        const isDup = r.is_duplicate;
+        return `<tr style="${isDup?'opacity:.45;':''}">
+          <td>${isDup ? '<span style="color:var(--text-muted);font-size:10px">DUPLICATE</span>' : '✅'}</td>
+          <td style="font-size:12px">${(r.txn_date||'').slice(0,10)}</td>
+          <td><strong style="color:${r.txn_type==='BUY'?'var(--green)':'var(--red)'}">${r.txn_type}</strong></td>
+          <td>${r.coin_symbol}</td>
+          <td style="font-family:monospace;font-size:12px">${fmtQty(r.quantity)}</td>
+          <td style="font-size:12px">${fmtInr(r.price_inr)}</td>
+          <td style="font-size:12px;font-weight:600">${fmtInr(r.amount_inr)}</td>
+          <td style="font-size:11px;color:var(--text-muted)">${r.fee_amount > 0 ? r.fee_amount + ' ' + (r.fee_currency||'') : '—'}</td>
+          <td style="font-size:11px;color:var(--text-muted)">${r.tds_deducted > 0 ? fmtInr(r.tds_deducted) : '—'}</td>
+        </tr>`;
+      }).join('');
+
+      area.innerHTML = `
+<div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <h4 style="margin:0;font-size:14px;font-weight:700">2. Preview — ${data.exchange}</h4>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:12px;color:var(--text-muted)">${data.total} rows parsed</span>
+      <span style="font-size:12px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:99px">${newCount} new</span>
+      ${dupCount ? `<span style="font-size:12px;background:#f3f4f6;color:#6b7280;padding:2px 8px;border-radius:99px">${dupCount} duplicate</span>` : ''}
+    </div>
+  </div>
+  ${newCount === 0 ? '<div class="wd-empty" style="padding:20px">Sab trades already import ho chuke hain</div>' : ''}
+  <div style="overflow-x:auto;max-height:380px;overflow-y:auto">
+  <table class="wd-table" style="min-width:700px">
+    <thead style="position:sticky;top:0;z-index:1">
+      <tr><th></th><th>Date</th><th>Type</th><th>Coin</th><th>Qty</th><th>Price</th><th>Amount</th><th>Fee</th><th>TDS</th></tr>
+    </thead>
+    <tbody>${previewRows}</tbody>
+  </table>
+  </div>
+  ${data.total > 50 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Showing first 50 of ${data.total} rows</div>` : ''}
+  ${newCount > 0 ? `
+  <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+    <button class="btn btn-primary" onclick="CRYPTO._importConfirm()" style="min-width:160px">
+      ✅ Confirm Import (${newCount} trades)
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importPreviewArea').innerHTML=''">
+      Cancel
+    </button>
+    <span style="font-size:11px;color:var(--text-muted)">USD→INR rate: ₹${(data.usd_to_inr||85).toFixed(2)}</span>
+  </div>` : ''}
+</div>`;
+    } catch (e) {
+      area.innerHTML = `<div class="wd-empty">⚠️ ${e.message}</div>`;
+    }
+  }
+
+  async function _importConfirm() {
+    if (!_importPreview?.length) return;
+    const portId   = document.getElementById('impPortfolio')?.value || '';
+    const fileInput = document.getElementById('impFile');
+    if (!portId || !fileInput?.files?.length) return WD.toast('Portfolio/file missing', 'error');
+
+    const btn = document.querySelector('#importPreviewArea .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Importing…'; }
+
+    try {
+      const csvData = await fileInput.files[0].text();
+      const base    = window.WD?.appUrl || window.APP_URL || '';
+      const res = await fetch(`${base}/api/router.php`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({
+          action: 'crypto_import_confirm',
+          exchange: _importExchange,
+          csv_data: csvData,
+          portfolio_id: portId,
+          filename: fileInput.files[0].name
+        })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      WD.toast(`Import done! ${data.inserted} added, ${data.skipped} skipped.`, 'success');
+      document.getElementById('importPreviewArea').innerHTML = '';
+      _importPreview = null;
+      _importLogLoad();
+      setTimeout(() => _loadHoldings(), 500);
+    } catch (e) {
+      WD.toast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirm Import'; }
+    }
+  }
+
+  async function _importLogLoad() {
+    const area = document.getElementById('importLogArea');
+    if (!area) return;
+    try {
+      const data = await API.get('crypto_import_log');
+      const logs = data.logs || [];
+      if (!logs.length) {
+        area.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">Abhi tak koi import nahi hua</div>';
+        return;
+      }
+      const rows = logs.map(l => `<tr>
+        <td style="font-size:12px">${(l.imported_at||'').slice(0,16)}</td>
+        <td><strong>${l.exchange}</strong></td>
+        <td style="font-size:12px;color:var(--text-muted)">${l.filename}</td>
+        <td style="color:var(--green);font-weight:600">${l.rows_inserted}</td>
+        <td style="color:var(--text-muted)">${l.rows_skipped}</td>
+        <td style="font-size:11px;color:var(--text-muted);font-family:monospace">${(l.batch_id||'').slice(0,8)}…</td>
+      </tr>`).join('');
+      area.innerHTML = `<div style="overflow-x:auto">
+<table class="wd-table" style="min-width:520px">
+  <thead><tr><th>Date</th><th>Exchange</th><th>File</th><th>Added</th><th>Skipped</th><th>Batch</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div>`;
+    } catch (e) {
+      area.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">Could not load log</div>`;
+    }
+  }
+
+  // ── tc005: Exchange Sync Tab ───────────────────────────────────────────
+  async function _loadExchangeSync() {
+    const content = document.getElementById('cryptoContent');
+    content.innerHTML = `
+<div style="max-width:860px">
+  <!-- Info banner -->
+  <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac;border-radius:12px;
+              padding:14px 18px;margin-bottom:20px;font-size:13px;color:#15803d;display:flex;gap:12px;align-items:flex-start;">
+    <span style="font-size:20px;flex-shrink:0">🔗</span>
+    <div>
+      <strong>Exchange Sync (tc005)</strong> — Binance / WazirX API keys se live trade history pull karo.<br>
+      <span style="font-size:12px;opacity:.8">Keys AES-256-GCM encrypted rahti hain. Read-only permission use karo — withdrawal access mat do.</span>
+    </div>
+  </div>
+
+  <!-- Saved API keys -->
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h4 style="margin:0;font-size:14px;font-weight:700">Saved API Keys</h4>
+      <button class="btn btn-primary btn-sm" onclick="CRYPTO._openAddKeyModal()">+ Add API Key</button>
+    </div>
+    <div id="exchangeKeysList"><div class="wd-loader" style="margin:20px auto"></div></div>
+  </div>
+
+  <!-- Sync run -->
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px;margin-bottom:18px">
+    <h4 style="margin:0 0 14px;font-size:14px;font-weight:700">Run Sync</h4>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px">Exchange</label>
+        <select id="syncExchange" style="padding:8px 12px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:var(--text)">
+          <option value="BINANCE">Binance</option>
+          <option value="WAZIRX">WazirX</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px">Portfolio</label>
+        <select id="syncPortfolio" style="padding:8px 12px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:var(--text)">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="syncRunBtn" onclick="CRYPTO._runSync()" style="padding:8px 20px">
+        ▶ Sync Now
+      </button>
+    </div>
+    <div id="syncStatusMsg" style="margin-top:12px;font-size:13px;display:none"></div>
+  </div>
+
+  <!-- Sync history -->
+  <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;padding:22px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h4 style="margin:0;font-size:14px;font-weight:700">Sync History</h4>
+      <button class="btn btn-ghost btn-sm" onclick="CRYPTO._syncLogLoad()">↻ Refresh</button>
+    </div>
+    <div id="syncLogArea"><div class="wd-loader" style="margin:20px auto"></div></div>
+  </div>
+
+  <!-- Add Key Modal -->
+  <div id="addKeyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:var(--card-bg);border-radius:16px;padding:28px;width:100%;max-width:460px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <button onclick="CRYPTO._closeAddKeyModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
+      <h3 style="margin:0 0 20px;font-size:16px;font-weight:700">Add Exchange API Key</h3>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Exchange *</label>
+          <select id="akExchange" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;background:var(--card-bg);color:var(--text)">
+            <option value="BINANCE">Binance</option>
+            <option value="WAZIRX">WazirX</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">Label</label>
+          <input id="akLabel" placeholder="e.g. Main Binance account" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">API Key *</label>
+          <input id="akApiKey" placeholder="Paste API key here" type="password" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;box-sizing:border-box">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px">API Secret *</label>
+          <input id="akApiSecret" placeholder="Paste API secret here" type="password" style="width:100%;padding:8px 10px;border:1.5px solid var(--border-color);border-radius:8px;box-sizing:border-box">
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;font-size:11px;color:#92400e">
+          ⚠️ Read-only permissions use karo. Withdrawal permission bilkul mat do.
+          Keys encrypted hokar store hoti hain.
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+          <button class="btn btn-secondary" onclick="CRYPTO._closeAddKeyModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="CRYPTO._submitAddKey()">Save Key</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+    _loadPortfoliosIntoSelect('syncPortfolio');
+    _exchangeKeysLoad();
+    _syncLogLoad();
+  }
+
+  async function _exchangeKeysLoad() {
+    const area = document.getElementById('exchangeKeysList');
+    if (!area) return;
+    try {
+      const data = await API.get('exchange_keys_list');
+      const keys = data.keys || [];
+      if (!keys.length) {
+        area.innerHTML = `<div style="font-size:13px;color:var(--text-muted)">
+          Koi API key saved nahi hai. "Add API Key" karo.
+        </div>`;
+        return;
+      }
+      const rows = keys.map(k => {
+        const statusColor = k.is_active ? '#22c55e' : '#9ca3af';
+        return `<tr>
+          <td><strong>${k.exchange}</strong></td>
+          <td style="font-size:13px">${k.label || '—'}</td>
+          <td><span style="width:8px;height:8px;border-radius:50%;background:${statusColor};display:inline-block;margin-right:4px"></span>
+              ${k.is_active ? 'Active' : 'Inactive'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${k.last_synced ? k.last_synced.slice(0,16) : 'Never'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${(k.created_at||'').slice(0,10)}</td>
+          <td>
+            <button class="btn-icon-sm btn-danger-sm" onclick="CRYPTO._deleteKey(${k.id},'${k.exchange}')" title="Delete">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+      area.innerHTML = `<div style="overflow-x:auto">
+<table class="wd-table" style="min-width:560px">
+  <thead><tr><th>Exchange</th><th>Label</th><th>Status</th><th>Last Synced</th><th>Added</th><th></th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div>`;
+    } catch (e) {
+      area.innerHTML = `<div style="color:var(--text-muted);font-size:13px">Error loading keys</div>`;
+    }
+  }
+
+  function _openAddKeyModal() {
+    const m = document.getElementById('addKeyModal');
+    if (m) m.style.display = 'flex';
+  }
+
+  function _closeAddKeyModal() {
+    const m = document.getElementById('addKeyModal');
+    if (m) m.style.display = 'none';
+  }
+
+  async function _submitAddKey() {
+    const exchange  = document.getElementById('akExchange')?.value;
+    const label     = document.getElementById('akLabel')?.value?.trim();
+    const apiKey    = document.getElementById('akApiKey')?.value?.trim();
+    const apiSecret = document.getElementById('akApiSecret')?.value?.trim();
+
+    if (!apiKey || apiKey.length < 10)    return WD.toast('Valid API key enter karo', 'error');
+    if (!apiSecret || apiSecret.length < 10) return WD.toast('Valid API secret enter karo', 'error');
+
+    try {
+      const r = await API.post({ action: 'exchange_keys_save', exchange, label, api_key: apiKey, api_secret: apiSecret });
+      if (!r.success) throw new Error(r.message);
+      WD.toast(r.message || 'Key saved!', 'success');
+      _closeAddKeyModal();
+      document.getElementById('akApiKey').value = '';
+      document.getElementById('akApiSecret').value = '';
+      _exchangeKeysLoad();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _deleteKey(id, exchange) {
+    if (!confirm(`${exchange} API key delete karo?`)) return;
+    try {
+      const r = await API.post({ action: 'exchange_keys_delete', key_id: id });
+      if (!r.success) throw new Error(r.message);
+      WD.toast('Key deleted', 'success');
+      _exchangeKeysLoad();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _runSync() {
+    const exchange   = document.getElementById('syncExchange')?.value;
+    const portfolioId = document.getElementById('syncPortfolio')?.value;
+    const btn        = document.getElementById('syncRunBtn');
+    const statusEl   = document.getElementById('syncStatusMsg');
+
+    if (!portfolioId) return WD.toast('Portfolio select karo', 'error');
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--text-muted)';
+      statusEl.textContent = `${exchange} se trades fetch ho rahe hain… (1-2 min lag sakta hai)`;
+    }
+
+    try {
+      const r = await API.post({ action: 'exchange_sync_run', exchange, portfolio_id: portfolioId });
+      if (!r.success) throw new Error(r.message);
+
+      if (statusEl) {
+        statusEl.style.color = '#22c55e';
+        statusEl.textContent = `✅ ${r.message} (Fetched: ${r.data?.fetched || 0})`;
+      }
+      WD.toast(r.message, 'success');
+      _syncLogLoad();
+      _exchangeKeysLoad();
+      setTimeout(() => _loadHoldings(), 1000);
+    } catch (e) {
+      if (statusEl) { statusEl.style.color = 'var(--red)'; statusEl.textContent = `⚠️ ${e.message}`; }
+      WD.toast(e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Sync Now'; }
+    }
+  }
+
+  async function _syncLogLoad() {
+    const area = document.getElementById('syncLogArea');
+    if (!area) return;
+    try {
+      const data = await API.get('exchange_sync_log');
+      const log  = data.log || [];
+      if (!log.length) {
+        area.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">Abhi tak koi sync nahi hua</div>';
+        return;
+      }
+      const rows = log.map(l => {
+        const statusColor = l.status === 'OK' ? '#22c55e' : l.status === 'PARTIAL' ? '#f59e0b' : '#ef4444';
+        return `<tr>
+          <td style="font-size:12px">${(l.synced_at||'').slice(0,16)}</td>
+          <td><strong>${l.exchange}</strong></td>
+          <td><span style="font-size:11px;font-weight:700;color:${statusColor}">${l.status}</span></td>
+          <td style="text-align:center">${l.trades_fetched}</td>
+          <td style="text-align:center;color:var(--green)">${l.trades_new}</td>
+          <td style="text-align:center;color:var(--text-muted)">${l.trades_skipped}</td>
+          <td style="font-size:11px;color:var(--red);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.error_msg || '—'}</td>
+        </tr>`;
+      }).join('');
+      area.innerHTML = `<div style="overflow-x:auto">
+<table class="wd-table" style="min-width:620px">
+  <thead><tr><th>Date</th><th>Exchange</th><th>Status</th><th>Fetched</th><th>New</th><th>Skipped</th><th>Error</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div>`;
+    } catch {
+      area.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">Log load failed</div>';
+    }
+  }
+
   // ── Tab Switching ──────────────────────────────────────────────────────
   function switchTab(tab) {
     _tab = tab;
@@ -461,9 +940,11 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     const bar = document.getElementById('cActionBar');
     if (bar) bar.style.display = tab === 'holdings' ? 'flex' : 'none';
 
-    if (tab === 'holdings')     _loadHoldings();
+    if (tab === 'holdings')        _loadHoldings();
     else if (tab === 'transactions') _loadTransactions();
-    else if (tab === 'tax')     _loadTax();
+    else if (tab === 'tax')          _loadTax();
+    else if (tab === 'import')       _loadImport();
+    else if (tab === 'exchange')     _loadExchangeSync();
   }
 
   // ── Refresh Prices ─────────────────────────────────────────────────────
@@ -553,13 +1034,11 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
   </div>
 </div>`;
 
-    // Pre-select if editing
     if (coinId) {
       const sel = document.getElementById('cAddCoinSel');
       if (sel) sel.value = coinId;
     }
 
-    // Live amount preview
     ['cQty','cPrice'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', _updateAmountPreview);
@@ -660,8 +1139,8 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
         background:var(--bg); cursor:pointer; font-size:13px; font-weight:700;
         color:var(--text-muted); transition:all .12s;
       }
-      .btn-icon-sm:hover         { background: var(--accent);      color:#fff; border-color:var(--accent); }
-      .btn-icon-sm.btn-danger-sm:hover { background: var(--red);   color:#fff; border-color:var(--red); }
+      .btn-icon-sm:hover         { background: var(--accent);    color:#fff; border-color:var(--accent); }
+      .btn-icon-sm.btn-danger-sm:hover { background: var(--red); color:#fff; border-color:var(--red); }
     `;
     document.head.appendChild(s);
   }
@@ -682,6 +1161,11 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     // tc001: SSE controls
     connectLive:    _sseConnect,
     disconnectLive: _sseDisconnect,
+    // t317: Import
+    _importPreviewLoad, _importConfirm, _importLogLoad,
+    // tc005: Exchange Sync
+    _openAddKeyModal, _closeAddKeyModal, _submitAddKey,
+    _deleteKey, _runSync, _syncLogLoad,
   };
 })();
 

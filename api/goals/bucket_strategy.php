@@ -470,10 +470,10 @@ elseif ($action === 'bucket_strategy_save') {
 
     try {
         DB::execute(
-            "INSERT INTO user_settings (portfolio_id, setting_key, setting_value)
-             VALUES (?,?,?)
+            "INSERT INTO user_kv_settings (user_id, portfolio_id, setting_key, setting_value)
+             VALUES (?,?,?,?)
              ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)",
-            [$portfolioId, 'bucket_targets', json_encode(['b1'=>$b1,'b2'=>$b2,'b3'=>$b3])]
+            [$userId, $portfolioId, 'bucket_targets', json_encode(['b1'=>$b1,'b2'=>$b2,'b3'=>$b3])]
         );
     } catch (Exception $e) {
         // user_settings table might not exist — ignore, return ok
@@ -485,7 +485,7 @@ elseif ($action === 'bucket_strategy_load') {
     $targets = ['b1'=>10,'b2'=>20,'b3'=>70];
     try {
         $row = DB::fetchRow(
-            "SELECT setting_value FROM user_settings WHERE portfolio_id=? AND setting_key='bucket_targets'",
+            "SELECT setting_value FROM user_kv_settings WHERE portfolio_id=? AND setting_key='bucket_targets'",
             [$portfolioId]
         );
         if ($row) $targets = json_decode($row['setting_value'], true) ?: $targets;

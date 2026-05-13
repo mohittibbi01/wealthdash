@@ -1,0 +1,114 @@
+============================================================
+ROUTER NOTES — ID-M (mohit87jain87@gmail.com)
+Tasks: t211 · t479 · t480 · t504
+Master: api/router.php mein merge karo
+============================================================
+
+──────────────────────────────────────────────────────────
+t211 — Admin DB Backup & Restore
+Route file: api/admin/db_backup.php
+──────────────────────────────────────────────────────────
+
+1. $csrfExempt array mein add karo:
+   'admin_db_backup_list', 'admin_db_backup_stats',
+   'admin_db_restore_log',
+
+2. switch($action) mein add karo (admin_db_status case ke baad):
+
+        // ── t211: Admin — DB Backup & Restore ────────────────────
+        case 'admin_db_backup_list':
+        case 'admin_db_backup_stats':
+        case 'admin_db_backup_create':
+        case 'admin_db_backup_delete':
+        case 'admin_db_backup_download':
+        case 'admin_db_restore_upload':
+        case 'admin_db_restore_run':
+        case 'admin_db_restore_log':
+            if (!$isAdmin) json_response(false, 'Admin only.', [], 403);
+            require APP_ROOT . '/api/admin/db_backup.php'; exit;
+
+NOTE: admin_db_backup_download is a direct GET that streams a file.
+      router.php handles it — no special treatment needed (same file,
+      switch case internally does ob_end_clean + readfile + exit).
+
+──────────────────────────────────────────────────────────
+t479 — Duplicate Transaction Detector
+Route file: api/mutual_funds/dedup_detector.php
+──────────────────────────────────────────────────────────
+
+1. $csrfExempt array mein add karo:
+   'dedup_stats', 'dedup_list', 'dedup_check_new',
+
+2. switch($action) mein add karo (data_quality section ke paas):
+
+        // ── t479: Duplicate Transaction Detector ─────────────────
+        case 'dedup_scan':
+        case 'dedup_list':
+        case 'dedup_merge':
+        case 'dedup_dismiss':
+        case 'dedup_check_new':
+        case 'dedup_stats':
+            require APP_ROOT . '/api/mutual_funds/dedup_detector.php'; exit;
+
+──────────────────────────────────────────────────────────
+t480 — Data Validation Rules
+Route file: api/mutual_funds/data_validation.php
+──────────────────────────────────────────────────────────
+
+1. $csrfExempt array mein add karo:
+   'validate_entry', 'validation_rules_list', 'validation_violations',
+
+2. switch($action) mein add karo (data_quality section ke paas):
+
+        // ── t480: Data Validation Rules ───────────────────────────
+        case 'validate_entry':
+        case 'validation_rules_list':
+        case 'validation_rule_save':
+        case 'validation_rule_toggle':
+        case 'validation_rule_delete':
+        case 'validation_scan':
+        case 'validation_violations':
+        case 'validation_resolve':
+            require APP_ROOT . '/api/mutual_funds/data_validation.php'; exit;
+
+──────────────────────────────────────────────────────────
+t504 — WealthDash REST API (API Key Management)
+Route files:
+  api/rest/api_key_manager.php  → key CRUD (via router)
+  api/rest/middleware.php       → included by REST endpoints
+  api/rest/v1/index.php         → standalone REST entry point (NOT via router)
+──────────────────────────────────────────────────────────
+
+1. $csrfExempt array mein add karo:
+   'api_keys_list', 'api_usage_stats',
+
+2. switch($action) mein add karo (user_settings section ke paas):
+
+        // ── t504: REST API — Key Management ───────────────────────
+        case 'api_keys_list':
+        case 'api_key_create':
+        case 'api_key_delete':
+        case 'api_key_toggle':
+        case 'api_usage_stats':
+            require APP_ROOT . '/api/rest/api_key_manager.php'; exit;
+
+3. REST v1 ENTRY POINT — router se nahi jaata, directly serve hota hai:
+   Server pe ek .htaccess rule chahiye (Master add kare):
+
+   In /api/rest/v1/.htaccess:
+     Options -Indexes
+     RewriteEngine On
+     RewriteCond %{REQUEST_FILENAME} !-f
+     RewriteRule ^ index.php [QSA,L]
+
+   Ya nginx mein:
+     location /api/rest/v1/ {
+       try_files $uri /api/rest/v1/index.php?$args;
+     }
+
+   REST API ka base URL: /api/rest/v1/
+   Auth: Authorization: Bearer <api_key>
+
+============================================================
+END ROUTER NOTES — ID-M
+============================================================

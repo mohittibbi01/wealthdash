@@ -306,11 +306,11 @@ async function t211LoadStats() {
         const r = await API.get('admin_db_backup_stats');
         if (r.ok) {
             const d = r.data;
-            document.getElementById('stat-count').textContent = d.db_backup_count ?? '—';
-            document.getElementById('stat-size').textContent  = d.total_size_human ?? '0 B';
-            document.getElementById('stat-disk').textContent  = d.disk_free_human  ?? '—';
-            if (d.last_backup) {
-                document.getElementById('stat-last').textContent = t211FmtDate(d.last_backup);
+            document.getElementById('stat-count').textContent = d.total_backups ?? '—';
+            document.getElementById('stat-size').textContent  = d.disk_used_human ?? '0 B';
+            document.getElementById('stat-disk').textContent  = '—';
+            if (d.last_backup_at) {
+                document.getElementById('stat-last').textContent = t211FmtDate(d.last_backup_at);
             } else {
                 document.getElementById('stat-last').textContent = 'Never';
             }
@@ -396,7 +396,7 @@ async function t211CreateBackup() {
 async function t211DeleteBackup(id, filename) {
     if (!confirm(`Delete backup: ${filename}?\nThis cannot be undone.`)) return;
     try {
-        const r = await API.post('admin_db_backup_delete', { id });
+        const r = await API.post('admin_db_backup_delete', { backup_id: id });
         if (r.ok) {
             showToast('Backup deleted.');
             t211LoadBackups();
@@ -444,13 +444,13 @@ async function t211UploadFile() {
     const fd = new FormData();
     fd.append('action', 'admin_db_restore_upload');
     fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
-    fd.append('sql_file', fileInput.files[0]);
+    fd.append('backup_file', fileInput.files[0]);
 
     try {
         const resp = await fetch('<?= APP_URL ?>/api/router.php', { method: 'POST', body: fd });
         const r    = await resp.json();
         if (r.ok) {
-            t211_upload_temp = r.data.temp_filename;
+            t211_upload_temp = r.data.temp_file;
             showToast('File uploaded. Now confirm and run restore.');
             document.getElementById('restore-confirm-wrap-upload').style.display = 'block';
             document.getElementById('btn-restore-upload').style.display = 'inline-flex';
@@ -481,8 +481,8 @@ async function t211RestoreUpload() {
     try {
         const r = await API.post('admin_db_restore_run', {
             source: 'upload',
-            temp_filename: t211_upload_temp,
-            confirm: 'RESTORE',
+            filename: t211_upload_temp,
+            confirmed: true,
         });
         if (r.ok) {
             showToast(`✅ Restored! Tables: ${r.data.tables_restored}`);
@@ -570,9 +570,8 @@ async function t211DoRestore() {
     btn.innerHTML = '<span class="t211-spin"></span> Restoring...';
     try {
         const r = await API.post('admin_db_restore_run', {
-            source: 'backup',
             backup_id: t211_restore_backup_id,
-            confirm: 'RESTORE',
+            confirmed: true,
         });
         if (r.ok) {
             showToast(`✅ Restore complete! Tables: ${r.data.tables_restored}`);
@@ -596,7 +595,7 @@ async function t211LoadRestoreLog() {
     try {
         const r = await API.get('admin_db_restore_log');
         if (!r.ok) { wrap.innerHTML = `<div class="t211-empty">Error: ${r.message}</div>`; return; }
-        const logs = r.data.logs || [];
+        const logs = r.data.log || [];
         if (!logs.length) {
             wrap.innerHTML = '<div class="t211-empty"><div class="t211-empty-icon">📋</div>No restore history yet.</div>';
             return;

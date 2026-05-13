@@ -1,422 +1,627 @@
 <?php
 /**
- * WealthDash — SGB (Sovereign Gold Bonds) API
- * Task   : t113
- * Routes : sgb_list, sgb_add, sgb_update, sgb_delete, sgb_summary,
- *          sgb_live_price, sgb_refresh_nav, sgb_interest_add,
- *          sgb_interest_list, sgb_series_list
+ * WealthDash — t394: Sovereign Gold Bonds (SGB) Page
+ * Full UI: Holdings table, live price widget, add/edit modal, interest tracker
  */
-defined('WEALTHDASH') or die();
+define('WEALTHDASH', true);
+require_once dirname(dirname(dirname(__FILE__))) . '/config/config.php';
+require_once APP_ROOT . '/includes/auth_check.php';
+require_once APP_ROOT . '/includes/helpers.php';
 
-$action   = clean($_POST['action'] ?? $_GET['action'] ?? '');
-$userId   = (int) $_SESSION['user_id'];
-$isAdmin  = is_admin();
+$currentUser   = require_auth();
+$pageTitle     = 'Sovereign Gold Bonds';
+$activePage    = 'sgb';
+$activeSection = 'alt_investments';
+$pageScript    = 'app.js';
 
-// Helper: resolve portfolio
-function sgb_portfolio(int $userId, bool $isAdmin): ?int
-{
-    $pid = (int) ($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ?? 0);
-    if ($pid && can_access_portfolio($pid, $userId, $isAdmin)) {
-        return $pid;
-    }
-    return get_user_portfolio_id($userId) ?: null;
-}
+ob_start();
+?>
+<style>
+.sgb-gold-bar { background: linear-gradient(135deg, #d4a017 0%, #f5c842 40%, #d4a017 100%); }
+.sgb-chip { display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600; }
+.sgb-chip.active { background:rgba(34,197,94,.15);color:#16a34a; }
+.sgb-chip.matured { background:rgba(148,163,184,.15);color:#64748b; }
+.sgb-chip.maturing-soon { background:rgba(245,158,11,.15);color:#d97706; }
+.sgb-stat-card { background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center; }
+.sgb-stat-label { font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px; }
+.sgb-stat-value { font-size:22px;font-weight:700;color:var(--text-primary); }
+.sgb-stat-sub { font-size:12px;color:var(--text-secondary);margin-top:2px; }
+.sgb-price-banner { display:flex;align-items:center;gap:16px;background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:24px; }
+.sgb-price-gram { font-size:28px;font-weight:800;color:#d4a017; }
+.sgb-table-wrap { overflow-x:auto; }
+.sgb-table { width:100%;border-collapse:collapse;font-size:13px; }
+.sgb-table th { background:var(--table-header-bg, rgba(0,0,0,.04));padding:10px 14px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary);white-space:nowrap;border-bottom:1px solid var(--border); }
+.sgb-table td { padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle; }
+.sgb-table tr:hover td { background:var(--hover-bg, rgba(0,0,0,.02)); }
+.sgb-table .series-name { font-weight:600;color:var(--text-primary);max-width:200px; }
+.sgb-table .num { text-align:right; }
+.gain-pos { color:#16a34a;font-weight:600; }
+.gain-neg { color:#dc2626;font-weight:600; }
+.btn-icon { background:none;border:1px solid var(--border);border-radius:6px;padding:5px 8px;cursor:pointer;color:var(--text-secondary);font-size:13px;transition:.15s; }
+.btn-icon:hover { background:var(--hover-bg);color:var(--text-primary); }
+#sgbModal .modal-dialog { max-width:560px; }
+.interest-badge { background:rgba(234,179,8,.15);color:#a16207;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:600; }
+</style>
 
-// Helper: latest gold price per gram from cache or external
-function sgb_gold_price(): ?float
-{
-    // Try cache (max 4 h old)
-    $cached = DB::fetchOne(
-        "SELECT price_24k_gram FROM gold_price_cache
-          WHERE date_for = CURDATE() AND source = 'ibja'
-          ORDER BY id DESC LIMIT 1"
-    );
-    if ($cached) {
-        return (float) $cached['price_24k_gram'];
-    }
+<div class="page-wrapper">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:24px 0 20px;border-bottom:1px solid var(--border);margin-bottom:24px;">
+    <div>
+      <h1 style="margin:0;font-size:24px;font-weight:700;">🏅 Sovereign Gold Bonds</h1>
+      <p style="color:var(--text-secondary);margin:4px 0 0;font-size:13px;">RBI-issued SGBs — live gold price + 2.5% annual interest</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-outline-secondary btn-sm" onclick="sgbRefreshNav()" id="btnRefreshNav">
+        <span id="refreshIcon">🔄</span> Refresh NAV
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="sgbOpenAddModal()">
+        ＋ Add SGB
+      </button>
+    </div>
+  </div>
 
-    // Attempt live fetch from public IBJA endpoint (best-effort)
-    $url = 'https://ibja.co/api/gold-rate';
-    $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw) {
-        $json = json_decode($raw, true);
-        $price = (float) ($json['rate24k'] ?? $json['price'] ?? 0);
-        if ($price > 0) {
-            DB::run(
-                "INSERT INTO gold_price_cache (source, price_24k_gram, date_for) VALUES (?,?,CURDATE())",
-                ['ibja', $price]
-            );
-            return $price;
-        }
-    }
-    return null;
-}
+  <!-- Live Gold Price Banner -->
+  <div class="sgb-price-banner" id="sgbPriceBanner">
+    <div style="font-size:24px;">🥇</div>
+    <div>
+      <div class="sgb-stat-label">Live Gold Price (24K)</div>
+      <div class="sgb-price-gram" id="liveGoldPrice">Loading…</div>
+    </div>
+    <div style="margin-left:auto;text-align:right;">
+      <div class="sgb-stat-label">Source</div>
+      <div id="priceSource" style="font-size:12px;color:var(--text-secondary);">—</div>
+      <div id="priceTime" style="font-size:11px;color:var(--text-muted,#94a3b8);">—</div>
+    </div>
+  </div>
 
-// Helper: recalculate & update current_value for an SGB row
-function sgb_refresh_value(int $id): void
-{
-    $row = DB::fetchOne("SELECT units, current_nav FROM sgb_holdings WHERE id=?", [$id]);
-    if ($row && $row['current_nav']) {
-        $val = round((float)$row['units'] * (float)$row['current_nav'], 2);
-        DB::run("UPDATE sgb_holdings SET current_value=?, nav_updated_at=NOW() WHERE id=?", [$val, $id]);
-    }
-}
+  <!-- Summary Cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px;" id="sgbSummaryCards">
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Holdings</div>
+      <div class="sgb-stat-value" id="sumCount">—</div>
+      <div class="sgb-stat-sub">SGB bonds</div>
+    </div>
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Total Units</div>
+      <div class="sgb-stat-value" id="sumUnits">—</div>
+      <div class="sgb-stat-sub">grams</div>
+    </div>
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Invested</div>
+      <div class="sgb-stat-value" id="sumInvested">—</div>
+    </div>
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Current Value</div>
+      <div class="sgb-stat-value" id="sumValue">—</div>
+    </div>
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Capital Gain</div>
+      <div class="sgb-stat-value" id="sumGain">—</div>
+      <div class="sgb-stat-sub">Tax-free on maturity</div>
+    </div>
+    <div class="sgb-stat-card">
+      <div class="sgb-stat-label">Interest Earned</div>
+      <div class="sgb-stat-value" id="sumInterest">—</div>
+      <div class="sgb-stat-sub">2.5% p.a. (taxable)</div>
+    </div>
+  </div>
 
-// Helper: next interest date after a given date (semi-annual / annual)
-function sgb_next_interest(string $issueDate, string $payout): ?string
-{
+  <!-- Holdings Table -->
+  <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <h3 style="margin:0;font-size:15px;font-weight:600;">Your SGB Holdings</h3>
+      <span id="holdingCount" style="font-size:12px;color:var(--text-secondary);"></span>
+    </div>
+    <div class="sgb-table-wrap">
+      <table class="sgb-table" id="sgbTable">
+        <thead>
+          <tr>
+            <th>Series</th>
+            <th class="num">Units (g)</th>
+            <th class="num">Issue Price</th>
+            <th class="num">Invested</th>
+            <th class="num">Current NAV</th>
+            <th class="num">Current Value</th>
+            <th class="num">Gain/Loss</th>
+            <th class="num">CAGR</th>
+            <th class="num">Interest</th>
+            <th>Maturity</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sgbTbody">
+          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-secondary);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tax Info Box -->
+  <div style="margin-top:20px;background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.3);border-radius:10px;padding:16px 20px;">
+    <strong style="color:#a16207;">📋 SGB Tax Rules</strong>
+    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
+      <li><strong>Capital Gains on Maturity:</strong> Completely <strong>tax-free</strong> (held 8 years to maturity)</li>
+      <li><strong>Early Exit (after 5 years):</strong> Long-term capital gains with indexation benefit</li>
+      <li><strong>Interest Income:</strong> 2.5% p.a. — taxable as per your income slab (no TDS)</li>
+      <li><strong>Listing:</strong> SGBs are listed on NSE/BSE — can be sold before 5 years (STCG/LTCG applies)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══ ADD / EDIT MODAL ══════════════════════════════════════════════════ -->
+<div class="modal fade" id="sgbModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sgbModalTitle">Add SGB Holding</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="sgbEditId">
+
+        <!-- Quick-fill from known series -->
+        <div class="mb-3">
+          <label class="form-label">Quick-fill from RBI Series</label>
+          <select class="form-select form-select-sm" id="sgbSeriesSelect" onchange="sgbFillFromSeries(this.value)">
+            <option value="">— Select series to auto-fill —</option>
+          </select>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-12">
+            <label class="form-label">Series Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="sgbSeriesName" placeholder="e.g. SGB 2022-23 Series I">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Tranche Code</label>
+            <input type="text" class="form-control form-control-sm" id="sgbTrancheCode" placeholder="SGB2022-23S1">
+          </div>
+          <div class="col-6">
+            <label class="form-label">NSE Symbol</label>
+            <input type="text" class="form-control form-control-sm" id="sgbNseSymbol" placeholder="e.g. SGBFEB32">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Issue Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control form-control-sm" id="sgbIssueDate">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Maturity Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control form-control-sm" id="sgbMaturityDate">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Units / Grams <span class="text-danger">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="sgbUnits" placeholder="e.g. 10" min="1" step="1">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Issue Price (₹/gram) <span class="text-danger">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="sgbIssuePrice" placeholder="e.g. 5091" step="0.01">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Coupon Rate (%)</label>
+            <input type="number" class="form-control form-control-sm" id="sgbCouponRate" value="2.50" step="0.01">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Interest Payout</label>
+            <select class="form-select form-select-sm" id="sgbInterestPayout">
+              <option value="semi-annual">Semi-Annual</option>
+              <option value="annual">Annual</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control form-control-sm" id="sgbNotes" rows="2" placeholder="e.g. via Zerodha, Demat: ..."></textarea>
+          </div>
+        </div>
+
+        <!-- Estimated investment preview -->
+        <div id="sgbPreview" style="margin-top:12px;padding:10px 14px;background:rgba(212,160,23,.1);border-radius:8px;font-size:13px;display:none;">
+          Total Invested: <strong id="previewInvested">—</strong> &nbsp;|&nbsp;
+          Est. Annual Interest: <strong id="previewInterest">—</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="sgbSave()" id="btnSgbSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INTEREST LOG MODAL ══════════════════════════════════════════════ -->
+<div class="modal fade" id="sgbInterestModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Interest Payout Log</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="interestSgbId">
+        <div style="margin-bottom:16px;">
+          <h6 id="interestSgbName" style="margin:0 0 4px;font-size:14px;font-weight:600;"></h6>
+        </div>
+        <!-- Add payout form -->
+        <div style="background:var(--surface-secondary,rgba(0,0,0,.03));border-radius:8px;padding:12px;margin-bottom:16px;">
+          <strong style="font-size:12px;">Log New Payout</strong>
+          <div class="row g-2 mt-1">
+            <div class="col-5">
+              <input type="date" class="form-control form-control-sm" id="interestDate" placeholder="Payout Date">
+            </div>
+            <div class="col-4">
+              <input type="number" class="form-control form-control-sm" id="interestAmount" placeholder="Amount ₹" step="0.01">
+            </div>
+            <div class="col-3">
+              <button class="btn btn-primary btn-sm w-100" onclick="sgbLogInterest()">Add</button>
+            </div>
+          </div>
+        </div>
+        <!-- History table -->
+        <div id="interestHistoryWrap">
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:6px;font-weight:600;color:var(--text-secondary);font-size:11px;">Date</th>
+                <th style="padding:6px;text-align:right;font-weight:600;color:var(--text-secondary);font-size:11px;">Amount</th>
+                <th style="padding:6px;text-align:right;font-weight:600;color:var(--text-secondary);font-size:11px;">Rate</th>
+              </tr>
+            </thead>
+            <tbody id="interestTbody">
+              <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-secondary);">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '<?= APP_URL ?>/api/index.php';
+  let sgbData = [];
+  let seriesList = [];
+  let liveNav = null;
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  async function init() {
+    await Promise.all([loadSeriesList(), loadLivePrice()]);
+    await loadHoldings();
+  }
+
+  // ── Live Gold Price ───────────────────────────────────────────────────
+  async function loadLivePrice() {
     try {
-        $issue = new DateTime($issueDate);
-        $now   = new DateTime();
-        $month = (int) $issue->format('m');
-        $day   = (int) $issue->format('d');
-        $step  = ($payout === 'annual') ? 12 : 6;
+      const r = await fetch(`${API}?action=sgb_live_price`);
+      const d = await r.json();
+      if (d.success) {
+        liveNav = d.price_24k_gram;
+        document.getElementById('liveGoldPrice').textContent = '₹' + fmt(liveNav) + '/g';
+        document.getElementById('priceSource').textContent = d.source;
+        document.getElementById('priceTime').textContent = d.fetched_at ? new Date(d.fetched_at).toLocaleTimeString('en-IN') : '';
+      }
+    } catch(e) {
+      document.getElementById('liveGoldPrice').textContent = 'Unavailable';
+    }
+  }
 
-        // Walk forward until we find the next upcoming date
-        $candidate = clone $issue;
-        for ($i = 0; $i < 200; $i++) {
-            $candidate->modify("+{$step} months");
-            if ($candidate > $now) {
-                return $candidate->format('Y-m-d');
-            }
-        }
-    } catch (Exception $e) {}
-    return null;
-}
+  // ── Series List ───────────────────────────────────────────────────────
+  async function loadSeriesList() {
+    try {
+      const r = await fetch(`${API}?action=sgb_series_list`);
+      const d = await r.json();
+      if (d.success) {
+        seriesList = d.series || [];
+        const sel = document.getElementById('sgbSeriesSelect');
+        // Group by FY
+        const grouped = {};
+        seriesList.forEach(s => {
+          const fy = s.code.match(/SGB(\d{4}-\d{2,4})/)?.[1] || 'Other';
+          if (!grouped[fy]) grouped[fy] = [];
+          grouped[fy].push(s);
+        });
+        Object.keys(grouped).sort().reverse().forEach(fy => {
+          const og = document.createElement('optgroup');
+          og.label = 'FY ' + fy;
+          grouped[fy].forEach(s => {
+            const o = document.createElement('option');
+            o.value = s.code;
+            o.textContent = s.name + ' — ₹' + s.issue_price;
+            og.appendChild(o);
+          });
+          sel.appendChild(og);
+        });
+      }
+    } catch(e) {}
+  }
 
-switch ($action) {
+  // ── Load Holdings ─────────────────────────────────────────────────────
+  async function loadHoldings() {
+    const tbody = document.getElementById('sgbTbody');
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-secondary);">Loading…</td></tr>';
+    try {
+      const r = await fetch(`${API}?action=sgb_list`);
+      const d = await r.json();
+      if (!d.success) { tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:30px;color:#dc2626;">${d.message}</td></tr>`; return; }
+      sgbData = d.holdings || [];
+      renderSummary(d.summary);
+      renderTable(sgbData);
+    } catch(e) {
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#dc2626;">Failed to load. Please try again.</td></tr>';
+    }
+  }
 
-    // ─── LIST ────────────────────────────────────────────────────────────────
-    case 'sgb_list':
-        $pid = sgb_portfolio($userId, $isAdmin);
-        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
+  function renderSummary(s) {
+    document.getElementById('sumCount').textContent = s.count || 0;
+    document.getElementById('sumUnits').textContent = fmtD(s.total_units, 2);
+    document.getElementById('sumInvested').textContent = '₹' + fmt(s.total_invested);
+    document.getElementById('sumValue').textContent = '₹' + fmt(s.total_value);
+    const g = s.total_gain;
+    const gainEl = document.getElementById('sumGain');
+    gainEl.textContent = (g >= 0 ? '+' : '') + '₹' + fmt(Math.abs(g));
+    gainEl.style.color = g >= 0 ? '#16a34a' : '#dc2626';
+    document.getElementById('sumInterest').textContent = '₹' + fmt(s.total_interest);
+  }
 
-        $rows = DB::fetchAll(
-            "SELECT s.*,
-                    DATEDIFF(s.maturity_date, CURDATE()) AS days_to_maturity,
-                    CASE
-                        WHEN CURDATE() >= s.maturity_date THEN 'matured'
-                        WHEN DATEDIFF(s.maturity_date, CURDATE()) <= 365 THEN 'near_maturity'
-                        ELSE 'active'
-                    END AS maturity_status
-             FROM sgb_holdings s
-             WHERE s.portfolio_id = ? AND s.is_active = 1
-             ORDER BY s.maturity_date ASC",
-            [$pid]
-        );
+  function renderTable(rows) {
+    const tbody = document.getElementById('sgbTbody');
+    document.getElementById('holdingCount').textContent = rows.length + ' holding' + (rows.length !== 1 ? 's' : '');
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text-secondary);">
+        No SGB holdings yet. <a href="#" onclick="sgbOpenAddModal();return false;">Add your first SGB →</a></td></tr>`;
+      return;
+    }
+    const today = new Date();
+    tbody.innerHTML = rows.map(r => {
+      const matDate = new Date(r.maturity_date);
+      const daysLeft = r.days_to_maturity;
+      let statusChip = '';
+      if (r.is_matured) {
+        statusChip = '<span class="sgb-chip matured">Matured</span>';
+      } else if (daysLeft <= 365) {
+        statusChip = `<span class="sgb-chip maturing-soon">Matures in ${daysLeft}d</span>`;
+      } else {
+        statusChip = '<span class="sgb-chip active">Active</span>';
+      }
 
-        // Enrich: unrealised gain, annualised return
-        foreach ($rows as &$r) {
-            $invested = (float) $r['total_invested'];
-            $current  = (float) ($r['current_value'] ?? 0);
-            $r['unrealised_gain']     = $current > 0 ? round($current - $invested, 2) : null;
-            $r['unrealised_gain_pct'] = ($current > 0 && $invested > 0)
-                ? round(($current - $invested) / $invested * 100, 2) : null;
+      const gainCls = (r.gain_loss ?? 0) >= 0 ? 'gain-pos' : 'gain-neg';
+      const gainSign = (r.gain_loss ?? 0) >= 0 ? '+' : '';
 
-            // Years held
-            try {
-                $days = (int) (new DateTime())->diff(new DateTime($r['issue_date']))->days;
-            } catch (Exception $e) { $days = 0; }
-            $years = $days / 365;
+      return `<tr>
+        <td>
+          <div class="series-name">${esc(r.series_name)}</div>
+          ${r.tranche_code ? `<div style="font-size:10px;color:var(--text-secondary);">${esc(r.tranche_code)}</div>` : ''}
+          ${r.next_interest_date ? `<div style="font-size:10px;color:#a16207;margin-top:2px;">Next interest: ${fmtDate(r.next_interest_date)}</div>` : ''}
+        </td>
+        <td class="num">${fmtD(r.units, 2)}</td>
+        <td class="num">₹${fmt(r.issue_price)}</td>
+        <td class="num">₹${fmt(r.total_invested)}</td>
+        <td class="num">${r.current_nav ? '₹' + fmt(r.current_nav) : '—'}</td>
+        <td class="num">${r.current_value ? '₹' + fmt(r.current_value) : '—'}</td>
+        <td class="num ${gainCls}">${r.gain_loss !== null ? gainSign + '₹' + fmt(Math.abs(r.gain_loss)) : '—'}
+          ${r.gain_pct !== null ? `<div style="font-size:10px;">${r.gain_pct >= 0 ? '+' : ''}${r.gain_pct}%</div>` : ''}
+        </td>
+        <td class="num">${r.cagr_pct !== null ? (r.cagr_pct >= 0 ? '+' : '') + r.cagr_pct + '%' : '—'}</td>
+        <td class="num">
+          <span class="interest-badge">₹${fmt(r.total_interest_received)}</span>
+          <div style="font-size:10px;color:var(--text-secondary);">₹${fmt(r.annual_interest_amount)}/yr</div>
+        </td>
+        <td style="white-space:nowrap;">
+          <div>${fmtDate(r.maturity_date)}</div>
+          ${!r.is_matured ? `<div style="font-size:10px;color:var(--text-secondary);">${daysLeft} days</div>` : ''}
+        </td>
+        <td>${statusChip}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn-icon" title="Log Interest" onclick="sgbOpenInterestModal(${r.id},'${esc(r.series_name)}')">💰</button>
+          <button class="btn-icon" title="Edit" onclick="sgbEdit(${r.id})">✏️</button>
+          <button class="btn-icon" title="Delete" onclick="sgbDelete(${r.id},'${esc(r.series_name)}')">🗑️</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
 
-            // CAGR
-            if ($current > 0 && $invested > 0 && $years > 0.1) {
-                $r['cagr_pct'] = round((pow($current / $invested, 1 / $years) - 1) * 100, 2);
-            } else {
-                $r['cagr_pct'] = null;
-            }
+  // ── Refresh NAV ───────────────────────────────────────────────────────
+  window.sgbRefreshNav = async function() {
+    const btn = document.getElementById('btnRefreshNav');
+    const icon = document.getElementById('refreshIcon');
+    btn.disabled = true;
+    icon.textContent = '⏳';
+    try {
+      const r = await fetch(`${API}?action=sgb_refresh_nav`);
+      const d = await r.json();
+      if (d.success) {
+        liveNav = d.current_nav;
+        document.getElementById('liveGoldPrice').textContent = '₹' + fmt(liveNav) + '/g';
+        document.getElementById('priceSource').textContent = d.price_source;
+        document.getElementById('priceTime').textContent = new Date(d.fetched_at).toLocaleTimeString('en-IN');
+        await loadHoldings();
+        icon.textContent = '✅';
+        setTimeout(() => { icon.textContent = '🔄'; btn.disabled = false; }, 2000);
+      } else {
+        alert('Refresh failed: ' + d.message);
+        icon.textContent = '🔄'; btn.disabled = false;
+      }
+    } catch(e) {
+      icon.textContent = '🔄'; btn.disabled = false;
+    }
+  };
 
-            // Annual interest amount
-            $r['annual_interest'] = round((float)$r['units'] * (float)$r['issue_price'] * (float)$r['coupon_rate'] / 100, 2);
-        }
-        unset($r);
+  // ── Add Modal ─────────────────────────────────────────────────────────
+  window.sgbOpenAddModal = function() {
+    document.getElementById('sgbEditId').value = '';
+    document.getElementById('sgbModalTitle').textContent = 'Add SGB Holding';
+    document.getElementById('sgbSeriesSelect').value = '';
+    ['sgbSeriesName','sgbTrancheCode','sgbNseSymbol','sgbNotes'].forEach(id => document.getElementById(id).value = '');
+    ['sgbIssueDate','sgbMaturityDate'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('sgbUnits').value = '';
+    document.getElementById('sgbIssuePrice').value = '';
+    document.getElementById('sgbCouponRate').value = '2.50';
+    document.getElementById('sgbInterestPayout').value = 'semi-annual';
+    document.getElementById('sgbPreview').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('sgbModal')).show();
+  };
 
-        json_response(true, '', ['data' => $rows]);
+  window.sgbFillFromSeries = function(code) {
+    if (!code) return;
+    const s = seriesList.find(x => x.code === code);
+    if (!s) return;
+    document.getElementById('sgbSeriesName').value   = s.name;
+    document.getElementById('sgbTrancheCode').value  = s.code;
+    document.getElementById('sgbIssueDate').value    = s.issue_date;
+    document.getElementById('sgbMaturityDate').value = s.maturity_date;
+    document.getElementById('sgbIssuePrice').value   = s.issue_price;
+    updatePreview();
+  };
 
+  function updatePreview() {
+    const units  = parseFloat(document.getElementById('sgbUnits').value) || 0;
+    const price  = parseFloat(document.getElementById('sgbIssuePrice').value) || 0;
+    const coupon = parseFloat(document.getElementById('sgbCouponRate').value) || 2.5;
+    if (units > 0 && price > 0) {
+      const invested = units * price;
+      const interest = invested * coupon / 100;
+      document.getElementById('previewInvested').textContent = '₹' + fmt(invested);
+      document.getElementById('previewInterest').textContent = '₹' + fmt(interest) + '/year';
+      document.getElementById('sgbPreview').style.display = '';
+    } else {
+      document.getElementById('sgbPreview').style.display = 'none';
+    }
+  }
 
-    // ─── ADD ─────────────────────────────────────────────────────────────────
-    case 'sgb_add':
-        $pid = sgb_portfolio($userId, $isAdmin);
-        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
+  // Listen for changes
+  ['sgbUnits','sgbIssuePrice','sgbCouponRate'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updatePreview);
+  });
 
-        $series    = clean($_POST['series_name']    ?? '');
-        $tranche   = clean($_POST['tranche_code']   ?? '');
-        $isin      = clean($_POST['isin']           ?? '');
-        $nse_sym   = clean($_POST['nse_symbol']     ?? '');
-        $issue_dt  = clean($_POST['issue_date']     ?? '');
-        $mat_dt    = clean($_POST['maturity_date']  ?? '');
-        $units     = (float) ($_POST['units']       ?? 0);
-        $price     = (float) ($_POST['issue_price'] ?? 0);
-        $coupon    = (float) ($_POST['coupon_rate'] ?? 2.50);
-        $payout    = in_array($_POST['interest_payout'] ?? '', ['semi-annual','annual'])
-                     ? $_POST['interest_payout'] : 'semi-annual';
-        $notes     = clean($_POST['notes']          ?? '');
+  // ── Edit ──────────────────────────────────────────────────────────────
+  window.sgbEdit = function(id) {
+    const r = sgbData.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('sgbEditId').value     = id;
+    document.getElementById('sgbModalTitle').textContent = 'Edit SGB Holding';
+    document.getElementById('sgbSeriesName').value  = r.series_name;
+    document.getElementById('sgbTrancheCode').value = r.tranche_code || '';
+    document.getElementById('sgbNseSymbol').value   = r.nse_symbol || '';
+    document.getElementById('sgbIssueDate').value   = r.issue_date;
+    document.getElementById('sgbMaturityDate').value= r.maturity_date;
+    document.getElementById('sgbUnits').value       = r.units;
+    document.getElementById('sgbIssuePrice').value  = r.issue_price;
+    document.getElementById('sgbCouponRate').value  = r.coupon_rate;
+    document.getElementById('sgbInterestPayout').value = r.interest_payout;
+    document.getElementById('sgbNotes').value       = r.notes || '';
+    updatePreview();
+    new bootstrap.Modal(document.getElementById('sgbModal')).show();
+  };
 
-        if (!$series || !$issue_dt || !$mat_dt || $units <= 0 || $price <= 0) {
-            json_response(false, 'Series name, issue date, maturity date, units and issue price are required.');
-        }
+  // ── Save ──────────────────────────────────────────────────────────────
+  window.sgbSave = async function() {
+    const id = document.getElementById('sgbEditId').value;
+    const body = new URLSearchParams({
+      action:           id ? 'sgb_update' : 'sgb_add',
+      series_name:      document.getElementById('sgbSeriesName').value.trim(),
+      tranche_code:     document.getElementById('sgbTrancheCode').value.trim(),
+      nse_symbol:       document.getElementById('sgbNseSymbol').value.trim(),
+      issue_date:       document.getElementById('sgbIssueDate').value,
+      maturity_date:    document.getElementById('sgbMaturityDate').value,
+      units:            document.getElementById('sgbUnits').value,
+      issue_price:      document.getElementById('sgbIssuePrice').value,
+      coupon_rate:      document.getElementById('sgbCouponRate').value,
+      interest_payout:  document.getElementById('sgbInterestPayout').value,
+      notes:            document.getElementById('sgbNotes').value.trim(),
+    });
+    if (id) body.set('id', id);
 
-        $total     = round($units * $price, 2);
-        $nextInt   = sgb_next_interest($issue_dt, $payout);
+    const btn = document.getElementById('btnSgbSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(API, { method:'POST', body });
+      const d = await r.json();
+      if (d.success) {
+        bootstrap.Modal.getInstance(document.getElementById('sgbModal'))?.hide();
+        loadHoldings();
+      } else {
+        alert('Error: ' + d.message);
+      }
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  };
 
-        DB::run(
-            "INSERT INTO sgb_holdings
-             (portfolio_id, series_name, tranche_code, isin, nse_symbol,
-              issue_date, maturity_date, units, issue_price, total_invested,
-              coupon_rate, interest_payout, next_interest_date, notes)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [$pid, $series, $tranche ?: null, $isin ?: null, $nse_sym ?: null,
-             $issue_dt, $mat_dt, $units, $price, $total, $coupon, $payout, $nextInt, $notes ?: null]
-        );
-        $newId = (int) DB::conn()->lastInsertId();
-        json_response(true, 'SGB holding added.', ['id' => $newId]);
+  // ── Delete ────────────────────────────────────────────────────────────
+  window.sgbDelete = async function(id, name) {
+    if (!confirm(`Remove "${name}"?`)) return;
+    const r = await fetch(API, { method:'POST', body: new URLSearchParams({ action:'sgb_delete', id }) });
+    const d = await r.json();
+    if (d.success) loadHoldings();
+    else alert('Error: ' + d.message);
+  };
 
+  // ── Interest Modal ────────────────────────────────────────────────────
+  window.sgbOpenInterestModal = async function(sgbId, name) {
+    document.getElementById('interestSgbId').value = sgbId;
+    document.getElementById('interestSgbName').textContent = name;
+    document.getElementById('interestDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('interestAmount').value = '';
+    new bootstrap.Modal(document.getElementById('sgbInterestModal')).show();
+    await loadInterestHistory(sgbId);
+  };
 
-    // ─── UPDATE ──────────────────────────────────────────────────────────────
-    case 'sgb_update':
-        $id  = (int) ($_POST['id'] ?? 0);
-        $pid = sgb_portfolio($userId, $isAdmin);
-        if (!$id || !$pid) { json_response(false, 'Invalid request.'); }
+  async function loadInterestHistory(sgbId) {
+    const tbody = document.getElementById('interestTbody');
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-secondary);">Loading…</td></tr>';
+    try {
+      const r = await fetch(`${API}?action=sgb_interest_list&sgb_id=${sgbId}`);
+      const d = await r.json();
+      if (d.success && d.payouts.length) {
+        tbody.innerHTML = d.payouts.map(p => `
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 6px;">${fmtDate(p.payout_date)}</td>
+            <td style="padding:8px 6px;text-align:right;font-weight:600;color:#16a34a;">₹${fmt(p.amount)}</td>
+            <td style="padding:8px 6px;text-align:right;color:var(--text-secondary);">${p.rate_pct}%</td>
+          </tr>`).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-secondary);">No payouts logged yet.</td></tr>';
+      }
+    } catch(e) {
+      tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;">Error loading history.</td></tr>';
+    }
+  }
 
-        $existing = DB::fetchOne(
-            "SELECT id FROM sgb_holdings WHERE id=? AND portfolio_id=?", [$id, $pid]
-        );
-        if (!$existing) { json_response(false, 'Not found.'); }
+  window.sgbLogInterest = async function() {
+    const sgbId  = document.getElementById('interestSgbId').value;
+    const date   = document.getElementById('interestDate').value;
+    const amount = document.getElementById('interestAmount').value;
+    if (!date || !amount || parseFloat(amount) <= 0) { alert('Enter date and amount.'); return; }
+    const body = new URLSearchParams({ action:'sgb_interest_add', sgb_id:sgbId, payout_date:date, amount });
+    const r = await fetch(API, { method:'POST', body });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('interestAmount').value = '';
+      await loadInterestHistory(sgbId);
+      loadHoldings();
+    } else { alert('Error: ' + d.message); }
+  };
 
-        $fields = ['series_name','tranche_code','isin','nse_symbol','issue_date',
-                   'maturity_date','units','issue_price','coupon_rate','interest_payout',
-                   'last_interest_date','notes'];
-        $allowed = [];
-        $params  = [];
-        foreach ($fields as $f) {
-            if (isset($_POST[$f])) {
-                $allowed[] = "`{$f}` = ?";
-                $params[]  = clean($_POST[$f]);
-            }
-        }
-        if (!$allowed) { json_response(false, 'Nothing to update.'); }
+  // ── Utils ─────────────────────────────────────────────────────────────
+  function fmt(n) {
+    n = parseFloat(n) || 0;
+    if (n >= 1e7) return (n/1e7).toFixed(2) + 'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(2) + 'L';
+    return n.toLocaleString('en-IN', {maximumFractionDigits:0});
+  }
+  function fmtD(n, d=2) { return parseFloat(n).toFixed(d); }
+  function fmtDate(s) {
+    if (!s) return '—';
+    const d = new Date(s);
+    return d.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+  }
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
 
-        // Recalculate total_invested if units or price changed
-        if (isset($_POST['units']) || isset($_POST['issue_price'])) {
-            $row   = DB::fetchOne("SELECT units, issue_price FROM sgb_holdings WHERE id=?", [$id]);
-            $units = (float) ($_POST['units']       ?? $row['units']);
-            $price = (float) ($_POST['issue_price'] ?? $row['issue_price']);
-            $allowed[] = '`total_invested` = ?';
-            $params[]  = round($units * $price, 2);
-        }
-
-        $params[] = $id;
-        DB::run("UPDATE sgb_holdings SET " . implode(', ', $allowed) . " WHERE id=?", $params);
-        sgb_refresh_value($id);
-        json_response(true, 'SGB holding updated.');
-
-
-    // ─── DELETE ──────────────────────────────────────────────────────────────
-    case 'sgb_delete':
-        $id  = (int) ($_POST['id'] ?? 0);
-        $pid = sgb_portfolio($userId, $isAdmin);
-        if (!$id || !$pid) { json_response(false, 'Invalid request.'); }
-
-        $existing = DB::fetchOne(
-            "SELECT id FROM sgb_holdings WHERE id=? AND portfolio_id=?", [$id, $pid]
-        );
-        if (!$existing) { json_response(false, 'Not found.'); }
-
-        // Soft-delete
-        DB::run("UPDATE sgb_holdings SET is_active=0 WHERE id=?", [$id]);
-        json_response(true, 'SGB holding removed.');
-
-
-    // ─── SUMMARY ─────────────────────────────────────────────────────────────
-    case 'sgb_summary':
-        $pid = sgb_portfolio($userId, $isAdmin);
-        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
-
-        $row = DB::fetchOne(
-            "SELECT COUNT(*) AS total_bonds,
-                    SUM(units) AS total_units,
-                    SUM(total_invested) AS total_invested,
-                    SUM(COALESCE(current_value, 0)) AS current_value,
-                    SUM(total_interest_received) AS total_interest_received,
-                    MIN(maturity_date) AS earliest_maturity,
-                    MAX(maturity_date) AS latest_maturity
-             FROM sgb_holdings WHERE portfolio_id=? AND is_active=1",
-            [$pid]
-        );
-
-        $invested = (float) ($row['total_invested'] ?? 0);
-        $current  = (float) ($row['current_value']  ?? 0);
-        $gain     = $current > 0 ? round($current - $invested, 2) : 0;
-        $gainPct  = ($invested > 0 && $current > 0) ? round($gain / $invested * 100, 2) : 0;
-
-        // Maturing within 12 months
-        $maturing = (int) DB::fetchVal(
-            "SELECT COUNT(*) FROM sgb_holdings
-              WHERE portfolio_id=? AND is_active=1
-                AND maturity_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 12 MONTH)",
-            [$pid]
-        );
-
-        json_response(true, '', [
-            'data' => array_merge($row, [
-                'unrealised_gain'     => $gain,
-                'unrealised_gain_pct' => $gainPct,
-                'maturing_in_12m'     => $maturing,
-                'gold_price_gram'     => sgb_gold_price(),
-            ])
-        ]);
-
-
-    // ─── LIVE GOLD PRICE ─────────────────────────────────────────────────────
-    case 'sgb_live_price':
-        $price = sgb_gold_price();
-        if ($price === null) {
-            json_response(false, 'Could not fetch live gold price.');
-        }
-        json_response(true, '', ['price_per_gram' => $price, 'as_on' => date('Y-m-d')]);
-
-
-    // ─── REFRESH NAV (batch update all active SGBs) ───────────────────────────
-    case 'sgb_refresh_nav':
-        $price = sgb_gold_price();
-        if ($price === null) { json_response(false, 'Gold price unavailable.'); }
-
-        $pid  = sgb_portfolio($userId, $isAdmin);
-        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
-
-        $ids = DB::fetchAll(
-            "SELECT id, units FROM sgb_holdings WHERE portfolio_id=? AND is_active=1", [$pid]
-        );
-        $updated = 0;
-        foreach ($ids as $row) {
-            $val = round((float)$row['units'] * $price, 2);
-            DB::run(
-                "UPDATE sgb_holdings SET current_nav=?, current_value=?, nav_updated_at=NOW() WHERE id=?",
-                [$price, $val, $row['id']]
-            );
-            $updated++;
-        }
-        json_response(true, "NAV refreshed for {$updated} holding(s).", ['updated' => $updated, 'gold_price' => $price]);
-
-
-    // ─── INTEREST ADD ────────────────────────────────────────────────────────
-    case 'sgb_interest_add':
-        $sgb_id  = (int) ($_POST['sgb_id']      ?? 0);
-        $pid     = sgb_portfolio($userId, $isAdmin);
-        if (!$sgb_id || !$pid) { json_response(false, 'Invalid request.'); }
-
-        $sgb = DB::fetchOne(
-            "SELECT id, portfolio_id, units, coupon_rate, issue_price, interest_payout
-             FROM sgb_holdings WHERE id=? AND portfolio_id=? AND is_active=1",
-            [$sgb_id, $pid]
-        );
-        if (!$sgb) { json_response(false, 'SGB not found.'); }
-
-        $payout_dt = clean($_POST['payout_date'] ?? date('Y-m-d'));
-        $period    = clean($_POST['period']       ?? '');
-        $rate      = (float) ($_POST['rate_pct'] ?? $sgb['coupon_rate']);
-        $notes     = clean($_POST['notes']        ?? '');
-
-        // Auto-calc amount: units * issue_price * (rate/100) / payouts_per_year
-        $perYear   = ($sgb['interest_payout'] === 'annual') ? 1 : 2;
-        $amount    = (float) ($_POST['amount'] ?? 0);
-        if ($amount <= 0) {
-            $amount = round((float)$sgb['units'] * (float)$sgb['issue_price'] * ($rate / 100) / $perYear, 2);
-        }
-
-        DB::run(
-            "INSERT INTO sgb_interest_log
-             (sgb_id, portfolio_id, payout_date, period, units, rate_pct, amount, notes)
-             VALUES (?,?,?,?,?,?,?,?)",
-            [$sgb_id, $pid, $payout_dt, $period ?: null,
-             $sgb['units'], $rate, $amount, $notes ?: null]
-        );
-
-        // Update cumulative interest & last/next dates on parent
-        $nextInt = sgb_next_interest($payout_dt, $sgb['interest_payout']);
-        DB::run(
-            "UPDATE sgb_holdings
-             SET total_interest_received = total_interest_received + ?,
-                 last_interest_date = ?,
-                 next_interest_date = ?
-             WHERE id=?",
-            [$amount, $payout_dt, $nextInt, $sgb_id]
-        );
-        json_response(true, 'Interest payout recorded.', ['amount' => $amount]);
-
-
-    // ─── INTEREST LIST ───────────────────────────────────────────────────────
-    case 'sgb_interest_list':
-        $sgb_id = (int) ($_GET['sgb_id'] ?? $_POST['sgb_id'] ?? 0);
-        $pid    = sgb_portfolio($userId, $isAdmin);
-        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
-
-        $where = $sgb_id ? "sgb_id = {$sgb_id} AND portfolio_id = {$pid}"
-                         : "portfolio_id = {$pid}";
-
-        $rows = DB::fetchAll(
-            "SELECT l.*, s.series_name
-             FROM sgb_interest_log l
-             JOIN sgb_holdings s ON s.id = l.sgb_id
-             WHERE {$where}
-             ORDER BY l.payout_date DESC"
-        );
-        json_response(true, '', ['data' => $rows]);
-
-
-    // ─── SERIES LIST (RBI master list of SGB tranches) ────────────────────────
-    case 'sgb_series_list':
-        // Static curated list — extend as new tranches are issued
-        $series = [
-            ['series' => 'SGB 2015-16 Series I',  'issue_date' => '2015-11-30', 'maturity_date' => '2023-11-30', 'issue_price' => 2684.00, 'tranche' => 'SGB-I'],
-            ['series' => 'SGB 2016-17 Series I',  'issue_date' => '2016-08-05', 'maturity_date' => '2024-08-05', 'issue_price' => 3119.00, 'tranche' => 'SGB16-I'],
-            ['series' => 'SGB 2017-18 Series I',  'issue_date' => '2017-05-12', 'maturity_date' => '2025-05-12', 'issue_price' => 2951.00, 'tranche' => 'SGB17-I'],
-            ['series' => 'SGB 2017-18 Series II', 'issue_date' => '2017-07-28', 'maturity_date' => '2025-07-28', 'issue_price' => 2830.00, 'tranche' => 'SGB17-II'],
-            ['series' => 'SGB 2018-19 Series I',  'issue_date' => '2018-04-23', 'maturity_date' => '2026-04-23', 'issue_price' => 3114.00, 'tranche' => 'SGB18-I'],
-            ['series' => 'SGB 2018-19 Series II', 'issue_date' => '2018-05-22', 'maturity_date' => '2026-05-22', 'issue_price' => 3119.00, 'tranche' => 'SGB18-II'],
-            ['series' => 'SGB 2018-19 Series III','issue_date' => '2018-06-25', 'maturity_date' => '2026-06-25', 'issue_price' => 3130.00, 'tranche' => 'SGB18-III'],
-            ['series' => 'SGB 2018-19 Series IV', 'issue_date' => '2018-07-23', 'maturity_date' => '2026-07-23', 'issue_price' => 2916.00, 'tranche' => 'SGB18-IV'],
-            ['series' => 'SGB 2019-20 Series I',  'issue_date' => '2019-06-11', 'maturity_date' => '2027-06-11', 'issue_price' => 3196.00, 'tranche' => 'SGB19-I'],
-            ['series' => 'SGB 2019-20 Series II', 'issue_date' => '2019-07-16', 'maturity_date' => '2027-07-16', 'issue_price' => 3443.00, 'tranche' => 'SGB19-II'],
-            ['series' => 'SGB 2019-20 Series III','issue_date' => '2019-08-14', 'maturity_date' => '2027-08-14', 'issue_price' => 3499.00, 'tranche' => 'SGB19-III'],
-            ['series' => 'SGB 2019-20 Series IV', 'issue_date' => '2019-09-10', 'maturity_date' => '2027-09-10', 'issue_price' => 3890.00, 'tranche' => 'SGB19-IV'],
-            ['series' => 'SGB 2019-20 Series V',  'issue_date' => '2019-10-15', 'maturity_date' => '2027-10-15', 'issue_price' => 3788.00, 'tranche' => 'SGB19-V'],
-            ['series' => 'SGB 2019-20 Series VI',  'issue_date' => '2019-11-19','maturity_date' => '2027-11-19', 'issue_price' => 3835.00, 'tranche' => 'SGB19-VI'],
-            ['series' => 'SGB 2019-20 Series VII', 'issue_date' => '2019-12-17','maturity_date' => '2027-12-17', 'issue_price' => 3795.00, 'tranche' => 'SGB19-VII'],
-            ['series' => 'SGB 2019-20 Series VIII','issue_date' => '2020-01-28','maturity_date' => '2028-01-28', 'issue_price' => 4016.00, 'tranche' => 'SGB19-VIII'],
-            ['series' => 'SGB 2019-20 Series IX',  'issue_date' => '2020-02-25','maturity_date' => '2028-02-25', 'issue_price' => 4260.00, 'tranche' => 'SGB19-IX'],
-            ['series' => 'SGB 2019-20 Series X',   'issue_date' => '2020-03-11','maturity_date' => '2028-03-11', 'issue_price' => 4260.00, 'tranche' => 'SGB19-X'],
-            ['series' => 'SGB 2020-21 Series I',   'issue_date' => '2020-04-28','maturity_date' => '2028-04-28', 'issue_price' => 4590.00, 'tranche' => 'SGB20-I'],
-            ['series' => 'SGB 2020-21 Series II',  'issue_date' => '2020-05-19','maturity_date' => '2028-05-19', 'issue_price' => 4677.00, 'tranche' => 'SGB20-II'],
-            ['series' => 'SGB 2020-21 Series III', 'issue_date' => '2020-07-14','maturity_date' => '2028-07-14', 'issue_price' => 4852.00, 'tranche' => 'SGB20-III'],
-            ['series' => 'SGB 2020-21 Series IV',  'issue_date' => '2020-09-08','maturity_date' => '2028-09-08', 'issue_price' => 5117.00, 'tranche' => 'SGB20-IV'],
-            ['series' => 'SGB 2020-21 Series V',   'issue_date' => '2020-10-09','maturity_date' => '2028-10-09', 'issue_price' => 5051.00, 'tranche' => 'SGB20-V'],
-            ['series' => 'SGB 2020-21 Series VI',  'issue_date' => '2020-11-17','maturity_date' => '2028-11-17', 'issue_price' => 5177.00, 'tranche' => 'SGB20-VI'],
-            ['series' => 'SGB 2020-21 Series VII', 'issue_date' => '2021-01-12','maturity_date' => '2029-01-12', 'issue_price' => 5104.00, 'tranche' => 'SGB20-VII'],
-            ['series' => 'SGB 2020-21 Series VIII','issue_date' => '2021-02-16','maturity_date' => '2029-02-16', 'issue_price' => 4912.00, 'tranche' => 'SGB20-VIII'],
-            ['series' => 'SGB 2020-21 Series IX',  'issue_date' => '2021-03-09','maturity_date' => '2029-03-09', 'issue_price' => 4662.00, 'tranche' => 'SGB20-IX'],
-            ['series' => 'SGB 2020-21 Series X',   'issue_date' => '2021-03-30','maturity_date' => '2029-03-30', 'issue_price' => 4727.00, 'tranche' => 'SGB20-X'],
-            ['series' => 'SGB 2021-22 Series I',   'issue_date' => '2021-05-28','maturity_date' => '2029-05-28', 'issue_price' => 4777.00, 'tranche' => 'SGB21-I'],
-            ['series' => 'SGB 2021-22 Series II',  'issue_date' => '2021-07-19','maturity_date' => '2029-07-19', 'issue_price' => 4807.00, 'tranche' => 'SGB21-II'],
-            ['series' => 'SGB 2021-22 Series III', 'issue_date' => '2021-08-17','maturity_date' => '2029-08-17', 'issue_price' => 4790.00, 'tranche' => 'SGB21-III'],
-            ['series' => 'SGB 2021-22 Series IV',  'issue_date' => '2021-09-24','maturity_date' => '2029-09-24', 'issue_price' => 4761.00, 'tranche' => 'SGB21-IV'],
-            ['series' => 'SGB 2021-22 Series V',   'issue_date' => '2021-11-29','maturity_date' => '2029-11-29', 'issue_price' => 4791.00, 'tranche' => 'SGB21-V'],
-            ['series' => 'SGB 2021-22 Series VI',  'issue_date' => '2022-01-10','maturity_date' => '2030-01-10', 'issue_price' => 4786.00, 'tranche' => 'SGB21-VI'],
-            ['series' => 'SGB 2021-22 Series VII', 'issue_date' => '2022-02-22','maturity_date' => '2030-02-22', 'issue_price' => 5109.00, 'tranche' => 'SGB21-VII'],
-            ['series' => 'SGB 2021-22 Series VIII','issue_date' => '2022-03-22','maturity_date' => '2030-03-22', 'issue_price' => 5359.00, 'tranche' => 'SGB21-VIII'],
-            ['series' => 'SGB 2022-23 Series I',   'issue_date' => '2022-06-28','maturity_date' => '2030-06-28', 'issue_price' => 5091.00, 'tranche' => 'SGB22-I'],
-            ['series' => 'SGB 2022-23 Series II',  'issue_date' => '2022-08-22','maturity_date' => '2030-08-22', 'issue_price' => 5197.00, 'tranche' => 'SGB22-II'],
-            ['series' => 'SGB 2022-23 Series III', 'issue_date' => '2022-12-27','maturity_date' => '2030-12-27', 'issue_price' => 5409.00, 'tranche' => 'SGB22-III'],
-            ['series' => 'SGB 2022-23 Series IV',  'issue_date' => '2023-03-06','maturity_date' => '2031-03-06', 'issue_price' => 5611.00, 'tranche' => 'SGB22-IV'],
-            ['series' => 'SGB 2023-24 Series I',   'issue_date' => '2023-06-19','maturity_date' => '2031-06-19', 'issue_price' => 5926.00, 'tranche' => 'SGB23-I'],
-            ['series' => 'SGB 2023-24 Series II',  'issue_date' => '2023-09-11','maturity_date' => '2031-09-11', 'issue_price' => 5923.00, 'tranche' => 'SGB23-II'],
-            ['series' => 'SGB 2023-24 Series III', 'issue_date' => '2023-12-18','maturity_date' => '2031-12-18', 'issue_price' => 6199.00, 'tranche' => 'SGB23-III'],
-            ['series' => 'SGB 2023-24 Series IV',  'issue_date' => '2024-02-12','maturity_date' => '2032-02-12', 'issue_price' => 6263.00, 'tranche' => 'SGB23-IV'],
-        ];
-        json_response(true, '', ['data' => $series, 'count' => count($series)]);
-
-
-    default:
-        json_response(false, "Unknown SGB action: {$action}", [], 400);
-}
+  init();
+})();
+</script>
+<?php
+$content = ob_get_clean();
+require APP_ROOT . '/templates/layout.php';
