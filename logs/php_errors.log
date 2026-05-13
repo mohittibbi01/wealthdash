@@ -1,2 +1,4 @@
 [12-May-2026 07:41:04 Asia/Kolkata] API error [live_nav_estimate]: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'mh.current_nav' in 'field list'
 [13-May-2026 06:58:57 Asia/Kolkata] API error [live_nav_estimate]: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'mh.current_nav' in 'field list'
+[13-May-2026 19:12:31 Asia/Kolkata] API error [live_nav_estimate]: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'mh.current_nav' in 'field list'
+[13-May-2026 19:12:50 Asia/Kolkata] API error [live_nav_estimate]: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'mh.current_nav' in 'field list'
