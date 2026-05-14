@@ -238,6 +238,8 @@ const CRYPTO = (() => {
 <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:1.5px solid var(--border);padding-bottom:0;flex-wrap:wrap;">
   <button class="crypto-tab active" id="ctab_holdings"     onclick="CRYPTO.switchTab('holdings')">💼 Holdings</button>
   <button class="crypto-tab"        id="ctab_transactions" onclick="CRYPTO.switchTab('transactions')">📋 Transactions</button>
+  <button class="crypto-tab"        id="ctab_defi"         onclick="CRYPTO.switchTab('defi')">🌐 DeFi & Staking</button>
+  <button class="crypto-tab"        id="ctab_rebalance"    onclick="CRYPTO.switchTab('rebalance')">⚖️ Rebalance</button>
   <button class="crypto-tab"        id="ctab_tax"          onclick="CRYPTO.switchTab('tax')">🧾 VDA Tax</button>
   <button class="crypto-tab"        id="ctab_import"       onclick="CRYPTO.switchTab('import')">📥 Import CSV</button>
   <button class="crypto-tab"        id="ctab_exchange"     onclick="CRYPTO.switchTab('exchange')">🔗 Exchange Sync</button>
@@ -945,6 +947,8 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     else if (tab === 'tax')          _loadTax();
     else if (tab === 'import')       _loadImport();
     else if (tab === 'exchange')     _loadExchangeSync();
+    else if (tab === 'defi')         _loadDefi();
+    else if (tab === 'rebalance')    _loadRebalance();
   }
 
   // ── Refresh Prices ─────────────────────────────────────────────────────
@@ -981,52 +985,64 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
 
     body.innerHTML = `
 <div style="display:grid;gap:14px">
+  <!-- t40: CoinGecko live search -->
   <div>
-    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Coin *</label>
-    <select id="cAddCoinSel" onchange="CRYPTO._onCoinSelect(this)" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--text)">
-      <option value="">-- Select coin --</option>
-      ${coinOptions}
-      <option value="__custom">Other (manual entry)</option>
-    </select>
+    <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Coin Search (CoinGecko) *</label>
+    <div style="position:relative">
+      <input id="cCoinSearch" type="text" placeholder="Search by name or symbol (e.g. BTC, Solana)…"
+             autocomplete="off"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;box-sizing:border-box"
+             oninput="CRYPTO._cgSearch(this.value)">
+      <div id="cCoinDropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:200;
+           background:var(--card-bg);border:1.5px solid var(--border);border-radius:8px;
+           box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:220px;overflow-y:auto;margin-top:2px"></div>
+    </div>
+    <div id="cCoinSelected" style="display:none;margin-top:6px;background:var(--bg-secondary,#f3f4f6);
+         border-radius:6px;padding:7px 10px;font-size:12px;display:flex;align-items:center;gap:8px">
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+      Or pick popular:
+      <select id="cAddCoinSel" onchange="CRYPTO._onCoinSelect(this)"
+              style="margin-left:4px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;font-size:11px;background:var(--card-bg);color:var(--text)">
+        <option value="">-- Popular coins --</option>
+        ${coinOptions}
+      </select>
+    </div>
+    <!-- Hidden fields for selected coin -->
+    <input type="hidden" id="cCoinId"  value="${coinId}">
+    <input type="hidden" id="cCoinSym" value="${sym}">
+    <input type="hidden" id="cCoinName"value="${name}">
   </div>
-  <div id="cCustomCoinWrap" style="display:none;display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    <div>
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">CoinGecko ID *</label>
-      <input id="cCoinId" placeholder="e.g. bitcoin" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
-    </div>
-    <div>
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Symbol *</label>
-      <input id="cCoinSym" placeholder="BTC" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
-    </div>
-    <div style="grid-column:1/-1">
-      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Coin Name *</label>
-      <input id="cCoinName" placeholder="Bitcoin" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
-    </div>
-  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
     <div>
       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Quantity *</label>
-      <input id="cQty" type="number" step="any" min="0" placeholder="0.005" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+      <input id="cQty" type="number" step="any" min="0" placeholder="0.005"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
     </div>
     <div>
       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Buy Price (₹/coin) *</label>
-      <input id="cPrice" type="number" step="any" min="0" placeholder="5000000" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+      <input id="cPrice" type="number" step="any" min="0" placeholder="5000000"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
     </div>
   </div>
   <div id="cAmountPreview" style="font-size:12px;color:var(--text-muted);display:none;background:var(--bg);border-radius:6px;padding:8px 12px"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
     <div>
       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Exchange</label>
-      <input id="cExchange" placeholder="WazirX / Binance" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+      <input id="cExchange" placeholder="WazirX / Binance"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
     </div>
     <div>
       <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Buy Date *</label>
-      <input id="cDate" type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+      <input id="cDate" type="date" value="${new Date().toISOString().slice(0,10)}"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
     </div>
   </div>
   <div>
     <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Notes</label>
-    <input id="cNotes" placeholder="Optional notes" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    <input id="cNotes" placeholder="Optional notes"
+           style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
   </div>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
     <button class="btn btn-secondary" onclick="CRYPTO.closeModal()">Cancel</button>
@@ -1034,9 +1050,15 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
   </div>
 </div>`;
 
-    if (coinId) {
-      const sel = document.getElementById('cAddCoinSel');
-      if (sel) sel.value = coinId;
+    if (coinId && sym) {
+      const ci = document.getElementById('cCoinSelected');
+      if (ci) {
+        ci.style.display = 'flex';
+        ci.innerHTML = `<strong>${sym}</strong><span style="color:var(--text-muted)">${name}</span>
+          <span style="font-size:10px;color:var(--text-muted);font-family:monospace">${coinId}</span>`;
+      }
+      const inp = document.getElementById('cCoinSearch');
+      if (inp) inp.value = name;
     }
 
     ['cQty','cPrice'].forEach(id => {
@@ -1048,19 +1070,95 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     if (modal) { modal.style.display = 'flex'; }
   }
 
-  function _onCoinSelect(sel) {
-    const custom = document.getElementById('cCustomCoinWrap');
-    if (sel.value === '__custom') {
-      custom.style.display = 'grid';
-    } else {
-      custom.style.display = 'none';
-      const opt = sel.options[sel.selectedIndex];
-      if (opt) {
-        const ci = document.getElementById('cCoinId'); if (ci) ci.value = sel.value;
-        const cs = document.getElementById('cCoinSym'); if (cs) cs.value = opt.dataset.sym || '';
-        const cn = document.getElementById('cCoinName'); if (cn) cn.value = opt.dataset.name || '';
-      }
+  // t40: Live CoinGecko coin search debounce
+  let _cgSearchTimer = null;
+  function _cgSearch(q) {
+    clearTimeout(_cgSearchTimer);
+    const dd = document.getElementById('cCoinDropdown');
+    if (!q || q.length < 2) { if (dd) dd.style.display = 'none'; return; }
+
+    if (dd) {
+      dd.style.display = 'block';
+      dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text-muted)">Searching…</div>';
     }
+
+    _cgSearchTimer = setTimeout(async () => {
+      try {
+        const base = window.WD?.appUrl || window.APP_URL || '';
+        const res = await fetch(`${base}/api/router.php?action=coingecko_search&q=` + encodeURIComponent(q));
+        const data = await res.json();
+        const results = data.results || [];
+
+        if (!dd) return;
+        if (!results.length) {
+          dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text-muted)">No results found</div>';
+          return;
+        }
+
+        dd.innerHTML = results.map(r => `
+          <div onclick="CRYPTO._cgSelectCoin('${r.id}','${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.thumb||''}')"
+               style="padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;
+                      border-bottom:1px solid var(--border-color,#f0f0f0);transition:background .1s"
+               onmouseover="this.style.background='var(--bg-secondary,#f9fafb)'"
+               onmouseout="this.style.background=''">
+            ${r.thumb ? `<img src="${r.thumb}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0">` : `<div style="width:22px;height:22px;border-radius:50%;background:var(--accent,#6366f1);flex-shrink:0"></div>`}
+            <div>
+              <span style="font-weight:700;font-size:13px">${r.symbol}</span>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:6px">${r.name}</span>
+            </div>
+            ${r.market_cap_rank ? `<span style="margin-left:auto;font-size:10px;color:var(--text-muted)">#${r.market_cap_rank}</span>` : ''}
+          </div>`).join('');
+      } catch {
+        if (dd) dd.innerHTML = '<div style="padding:10px 12px;font-size:12px;color:var(--text-muted)">Search failed</div>';
+      }
+    }, 350);
+  }
+
+  function _cgSelectCoin(id, sym, name, thumb) {
+    document.getElementById('cCoinId').value   = id;
+    document.getElementById('cCoinSym').value  = sym.toUpperCase();
+    document.getElementById('cCoinName').value = name;
+    const inp = document.getElementById('cCoinSearch');
+    if (inp) inp.value = `${sym.toUpperCase()} — ${name}`;
+    const dd = document.getElementById('cCoinDropdown');
+    if (dd) dd.style.display = 'none';
+    const sel = document.getElementById('cCoinSelected');
+    if (sel) {
+      sel.style.display = 'flex';
+      sel.innerHTML = (thumb ? `<img src="${thumb}" style="width:20px;height:20px;border-radius:50%">` : '') +
+        `<strong>${sym.toUpperCase()}</strong><span style="color:var(--text-muted)">${name}</span>
+         <span style="font-size:10px;font-family:monospace;color:var(--text-muted)">${id}</span>
+         <button onclick="CRYPTO._cgClearCoin()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:12px">✕</button>`;
+    }
+    // Try to fetch live price and pre-fill
+    _cgFetchPrice(id);
+  }
+
+  function _cgClearCoin() {
+    document.getElementById('cCoinId').value = '';
+    document.getElementById('cCoinSym').value = '';
+    document.getElementById('cCoinName').value = '';
+    const inp = document.getElementById('cCoinSearch');
+    if (inp) { inp.value = ''; inp.focus(); }
+    const sel = document.getElementById('cCoinSelected');
+    if (sel) sel.style.display = 'none';
+  }
+
+  async function _cgFetchPrice(coinId) {
+    try {
+      const base = window.WD?.appUrl || window.APP_URL || '';
+      const res  = await fetch(`${base}/api/router.php?action=coingecko_coin_detail&coin_id=${coinId}`);
+      const data = await res.json();
+      if (data.success && data.price_inr > 0) {
+        const priceEl = document.getElementById('cPrice');
+        if (priceEl && !priceEl.value) {
+          priceEl.value = data.price_inr;
+          _updateAmountPreview();
+          const hint = document.getElementById('cAmountPreview');
+          if (hint) hint.style.display = 'block';
+        }
+      }
+    } catch { /* silent */ }
   }
 
   function _updateAmountPreview() {
@@ -1077,24 +1175,16 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
   }
 
   async function _submitAdd() {
-    const sel     = document.getElementById('cAddCoinSel');
-    const isCustom = sel && sel.value === '__custom';
-    const coinId  = isCustom
-      ? (document.getElementById('cCoinId')?.value?.trim() || '')
-      : (sel?.value || '');
-    const sym     = isCustom
-      ? (document.getElementById('cCoinSym')?.value?.trim().toUpperCase() || '')
-      : (sel?.options[sel.selectedIndex]?.dataset.sym || '');
-    const name    = isCustom
-      ? (document.getElementById('cCoinName')?.value?.trim() || sym)
-      : (sel?.options[sel.selectedIndex]?.dataset.name || sym);
-    const qty     = parseFloat(document.getElementById('cQty')?.value || 0);
+    const coinId  = (document.getElementById('cCoinId')?.value  || '').trim();
+    const sym     = (document.getElementById('cCoinSym')?.value || '').trim().toUpperCase();
+    const name    = (document.getElementById('cCoinName')?.value|| sym).trim();
+    const qty     = parseFloat(document.getElementById('cQty')?.value   || 0);
     const price   = parseFloat(document.getElementById('cPrice')?.value || 0);
-    const exchange = document.getElementById('cExchange')?.value?.trim() || '';
+    const exchange= document.getElementById('cExchange')?.value?.trim() || '';
     const date    = document.getElementById('cDate')?.value || '';
     const notes   = document.getElementById('cNotes')?.value?.trim() || '';
 
-    if (!coinId) return WD.toast('Coin select karo', 'error');
+    if (!coinId) return WD.toast('Coin search se select karo', 'error');
     if (!sym)    return WD.toast('Symbol required', 'error');
     if (qty <= 0) return WD.toast('Quantity enter karo', 'error');
     if (price <= 0) return WD.toast('Buy price enter karo', 'error');
@@ -1153,16 +1243,543 @@ ${rows ? `<div style="overflow-x:auto"><table class="wd-table" style="min-width:
     return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // ── tc003: DeFi & Staking Income Tab ──────────────────────────────────
+  async function _loadDefi() {
+    const content = document.getElementById('cryptoContent');
+    content.innerHTML = '<div class="wd-loader" style="margin:40px auto"></div>';
+    try {
+      const [listData, summaryData] = await Promise.all([
+        API.get('crypto_defi_list'),
+        API.get('crypto_defi_summary'),
+      ]);
+      const positions = listData.positions || [];
+      const sum       = summaryData.summary || {};
+
+      const typeColors = {
+        STAKING:'#7c3aed', LIQUID_STAKING:'#6366f1', LP:'#2563eb',
+        LENDING:'#0891b2', YIELD_FARMING:'#059669', VAULT:'#d97706', OTHER:'#6b7280'
+      };
+
+      const posRows = positions.map(p => {
+        const gain = p.unrealised_pnl || 0;
+        const gainCls = gain >= 0 ? 'var(--green,#16a34a)' : 'var(--red,#dc2626)';
+        const typeColor = typeColors[p.position_type] || '#6b7280';
+        const statusBg = p.status === 'ACTIVE' ? '#dcfce7' : '#f3f4f6';
+        const statusTxt = p.status === 'ACTIVE' ? '#15803d' : '#6b7280';
+        return `<tr>
+          <td>
+            <div style="font-weight:700">${p.protocol}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${p.chain}</div>
+          </td>
+          <td>
+            <span style="background:${typeColor}20;color:${typeColor};font-size:11px;font-weight:700;
+                         padding:2px 7px;border-radius:99px">${p.position_type_label}</span>
+          </td>
+          <td style="font-weight:700">${p.coin_symbol}${p.pair_symbol ? ' / ' + p.pair_symbol : ''}</td>
+          <td>${fmtInr(p.principal_inr)}</td>
+          <td style="font-weight:600">${fmtInr(p.current_value_inr)}</td>
+          <td style="color:${gainCls};font-weight:600">${(gain>=0?'+':'')}${fmtInr(gain)}</td>
+          <td>${fmtInr(p.rewards_value_inr)}</td>
+          <td style="font-size:12px">${p.apy_pct ? p.apy_pct + '%' : '—'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${p.days_active}d</td>
+          <td>
+            <span style="background:${statusBg};color:${statusTxt};font-size:10px;font-weight:700;
+                         padding:2px 7px;border-radius:99px">${p.status}</span>
+          </td>
+          <td>
+            <button class="btn-icon-sm" onclick="CRYPTO._defiEditModal(${p.id})" title="Edit">✏</button>
+            ${p.status === 'ACTIVE'
+              ? `<button class="btn-icon-sm" onclick="CRYPTO._defiCloseModal(${p.id},'${p.protocol} ${p.coin_symbol}')" title="Close Position" style="color:var(--amber,#d97706)">✓</button>`
+              : ''}
+            <button class="btn-icon-sm btn-danger-sm" onclick="CRYPTO._defiDelete(${p.id},'${p.protocol}')" title="Delete">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      content.innerHTML = `
+<!-- Summary cards -->
+<div class="stats-grid" style="margin-bottom:18px">
+  <div class="stat-card"><div class="stat-label">Total Value Locked</div>
+    <div class="stat-value">${fmtInr(sum.total_tvl)}</div></div>
+  <div class="stat-card"><div class="stat-label">Total Rewards Earned</div>
+    <div class="stat-value" style="color:var(--green)">${fmtInr(sum.total_rewards_earned)}</div></div>
+  <div class="stat-card"><div class="stat-label">Unrealised P&L</div>
+    <div class="stat-value" style="color:${(sum.unrealised_pnl||0)>=0?'var(--green)':'var(--red)'}">${fmtInr(sum.unrealised_pnl)}</div></div>
+  <div class="stat-card"><div class="stat-label">Active Positions</div>
+    <div class="stat-value">${sum.active_positions}</div>
+    <div class="stat-sub">Avg APY: ${sum.avg_apy || 0}%</div></div>
+</div>
+
+<!-- Action bar -->
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+  <button class="btn btn-primary btn-sm" onclick="CRYPTO._defiAddModal()">+ Add DeFi Position</button>
+  <button class="btn btn-ghost btn-sm" onclick="CRYPTO._loadDefi()">↻ Refresh</button>
+</div>
+
+${!positions.length
+  ? '<div class="wd-empty" style="padding:48px 20px;text-align:center"><div style="font-size:40px;margin-bottom:10px">🌐</div><p>Koi DeFi position nahi. Protocol aur chain enter karke track karo.</p></div>'
+  : `<div style="overflow-x:auto">
+<table class="wd-table" style="width:100%;min-width:860px">
+  <thead><tr>
+    <th>Protocol</th><th>Type</th><th>Token(s)</th>
+    <th>Invested</th><th>Current Value</th><th>P&L</th>
+    <th>Rewards</th><th>APY</th><th>Age</th><th>Status</th><th></th>
+  </tr></thead>
+  <tbody>${posRows}</tbody>
+</table></div>`}
+
+<!-- Add / Edit DeFi Modal -->
+<div id="defiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:var(--card-bg);border-radius:16px;padding:28px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <button onclick="CRYPTO._defiCloseModalEl()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
+    <h3 id="defiModalTitle" style="margin:0 0 20px;font-size:16px;font-weight:700">Add DeFi Position</h3>
+    <div id="defiModalBody"></div>
+  </div>
+</div>`;
+
+    } catch (e) {
+      content.innerHTML = `<div class="wd-empty">⚠️ ${e.message}</div>`;
+    }
+  }
+
+  function _defiAddModal(editData = null) {
+    const body = document.getElementById('defiModalBody');
+    const title = document.getElementById('defiModalTitle');
+    if (!body) return;
+    if (title) title.textContent = editData ? 'Edit DeFi Position' : 'Add DeFi Position';
+
+    const protocols = ['Aave','Uniswap','Compound','Curve','SushiSwap','PancakeSwap',
+                       'Yearn','Balancer','Lido','Rocket Pool','Convex','GMX','dYdX','WazirX','Other'];
+    const chains    = ['Ethereum','Binance Smart Chain','Polygon','Solana','Avalanche','Arbitrum','Optimism','Base','Other'];
+    const types     = [{v:'STAKING',l:'Staking'},{v:'LIQUID_STAKING',l:'Liquid Staking'},
+                       {v:'LP',l:'Liquidity Pool'},{v:'LENDING',l:'Lending'},
+                       {v:'YIELD_FARMING',l:'Yield Farming'},{v:'VAULT',l:'Vault / Auto-compound'},{v:'OTHER',l:'Other'}];
+
+    const d = editData || {};
+    const idField = editData ? `<input type="hidden" id="defiId" value="${editData.id}">` : '';
+    const actionVal = editData ? 'crypto_defi_edit' : 'crypto_defi_add';
+
+    body.innerHTML = `
+${idField}
+<div style="display:grid;gap:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Protocol *</label>
+      <input id="dfProtocol" list="dfProtoList" value="${d.protocol||''}" placeholder="Aave, Uniswap…"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+      <datalist id="dfProtoList">${protocols.map(p=>`<option value="${p}">`).join('')}</datalist>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Chain *</label>
+      <select id="dfChain" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--text)">
+        ${chains.map(c=>`<option value="${c}" ${(d.chain||'Ethereum')===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Position Type *</label>
+      <select id="dfType" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--card-bg);color:var(--text)">
+        ${types.map(t=>`<option value="${t.v}" ${(d.position_type||'STAKING')===t.v?'selected':''}>${t.l}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Token Symbol *</label>
+      <input id="dfCoinSym" value="${d.coin_symbol||''}" placeholder="ETH, USDC…"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Token Name</label>
+      <input id="dfCoinName" value="${d.coin_name||''}" placeholder="Ethereum"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Pair (LP only)</label>
+      <input id="dfPair" value="${d.pair_symbol||''}" placeholder="ETH/USDC"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Principal (₹) *</label>
+      <input id="dfPrincipal" type="number" step="any" value="${d.principal_inr||''}" placeholder="50000"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Current Value (₹)</label>
+      <input id="dfCurVal" type="number" step="any" value="${d.current_value_inr||''}" placeholder="Same as principal"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">APY %</label>
+      <input id="dfApy" type="number" step="any" value="${d.apy_pct||''}" placeholder="12.5"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Entry Date *</label>
+      <input id="dfEntry" type="date" value="${d.entry_date||new Date().toISOString().slice(0,10)}"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Rewards Earned (₹)</label>
+      <input id="dfRewardsVal" type="number" step="any" value="${d.rewards_value_inr||''}" placeholder="0"
+             style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+    </div>
+  </div>
+  <div>
+    <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Wallet Address</label>
+    <input id="dfWallet" value="${d.wallet_address||''}" placeholder="0x… or wallet tag"
+           style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+  </div>
+  <div>
+    <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Notes</label>
+    <input id="dfNotes" value="${d.notes||''}" placeholder="Optional"
+           style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+    <button class="btn btn-secondary" onclick="CRYPTO._defiCloseModalEl()">Cancel</button>
+    <button class="btn btn-primary" onclick="CRYPTO._defiSubmit('${actionVal}')">
+      ${editData ? 'Update' : 'Add Position'}
+    </button>
+  </div>
+</div>`;
+
+    const m = document.getElementById('defiModal');
+    if (m) m.style.display = 'flex';
+  }
+
+  function _defiCloseModalEl() {
+    const m = document.getElementById('defiModal');
+    if (m) m.style.display = 'none';
+  }
+
+  async function _defiSubmit(actionType) {
+    const isEdit = actionType === 'crypto_defi_edit';
+    const sym    = (document.getElementById('dfCoinSym')?.value || '').trim().toUpperCase();
+    if (!document.getElementById('dfProtocol')?.value) return WD.toast('Protocol required', 'error');
+    if (!sym) return WD.toast('Token symbol required', 'error');
+    const principal = parseFloat(document.getElementById('dfPrincipal')?.value || 0);
+    if (!isEdit && principal <= 0) return WD.toast('Principal amount required', 'error');
+
+    const payload = {
+      action:             actionType,
+      protocol:           document.getElementById('dfProtocol')?.value  || '',
+      chain:              document.getElementById('dfChain')?.value      || 'Ethereum',
+      position_type:      document.getElementById('dfType')?.value       || 'STAKING',
+      coin_symbol:        sym,
+      coin_name:          document.getElementById('dfCoinName')?.value   || sym,
+      pair_symbol:        document.getElementById('dfPair')?.value       || '',
+      principal_inr:      principal,
+      current_value_inr:  parseFloat(document.getElementById('dfCurVal')?.value    || principal) || principal,
+      apy_pct:            parseFloat(document.getElementById('dfApy')?.value       || 0),
+      entry_date:         document.getElementById('dfEntry')?.value      || '',
+      rewards_value_inr:  parseFloat(document.getElementById('dfRewardsVal')?.value|| 0),
+      wallet_address:     document.getElementById('dfWallet')?.value     || '',
+      notes:              document.getElementById('dfNotes')?.value      || '',
+    };
+
+    if (isEdit) {
+      payload.id = document.getElementById('defiId')?.value || '';
+    }
+
+    try {
+      const r = await API.post(payload);
+      if (!r.success) throw new Error(r.message);
+      WD.toast(r.message || (isEdit ? 'Updated!' : 'Position added!'), 'success');
+      _defiCloseModalEl();
+      _loadDefi();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _defiEditModal(id) {
+    try {
+      const data = await API.get('crypto_defi_list');
+      const pos  = (data.positions || []).find(p => p.id === id);
+      if (pos) _defiAddModal(pos);
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  function _defiCloseModal(id, label) {
+    const exitVal = prompt(`"${label}" position close karo.\nExit value (₹) enter karo:`, '');
+    if (exitVal === null) return;
+    const val = parseFloat(exitVal) || 0;
+    API.post({ action: 'crypto_defi_close', id, exit_value_inr: val })
+      .then(r => {
+        if (!r.success) throw new Error(r.message);
+        WD.toast(r.message, 'success');
+        _loadDefi();
+      }).catch(e => WD.toast(e.message, 'error'));
+  }
+
+  async function _defiDelete(id, proto) {
+    if (!confirm(`"${proto}" position delete karo?`)) return;
+    try {
+      const r = await API.post({ action: 'crypto_defi_delete', id });
+      if (!r.success) throw new Error(r.message);
+      WD.toast('Deleted', 'success');
+      _loadDefi();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  // ── tc004: Portfolio Rebalancing Tab ───────────────────────────────────
+  async function _loadRebalance() {
+    const content = document.getElementById('cryptoContent');
+    content.innerHTML = '<div class="wd-loader" style="margin:40px auto"></div>';
+    try {
+      const data = await API.get('crypto_rebalance_targets');
+      const targets = data.targets || [];
+      const totalTarget = data.total_target_pct || 0;
+      const totalCurrent = data.total_current || 0;
+      const remaining = Math.max(0, 100 - totalTarget).toFixed(2);
+
+      const rowsHtml = targets.map(t => {
+        const driftAbs  = Math.abs(t.drift_pct);
+        const driftColor = driftAbs < 2 ? '#22c55e' : driftAbs < 5 ? '#f59e0b' : '#ef4444';
+        const driftLabel = driftAbs < 2 ? '✓' : (t.drift_pct > 0 ? '▲ OW' : '▼ UW');
+        return `<tr>
+          <td><strong>${t.coin_symbol}</strong> <span style="font-size:11px;color:var(--text-muted)">${t.coin_name}</span></td>
+          <td>
+            <input type="number" step="0.01" min="0" max="100" value="${t.target_pct}"
+                   onchange="CRYPTO._rbSetTarget('${t.coin_id}','${t.coin_symbol}','${t.coin_name}',this.value)"
+                   style="width:70px;padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;text-align:right;font-weight:700">%
+          </td>
+          <td>${t.actual_pct}%
+            <div style="width:80px;height:5px;background:var(--border);border-radius:99px;margin-top:3px;overflow:hidden">
+              <div style="width:${Math.min(t.actual_pct,100)}%;height:100%;background:var(--accent,#6366f1);border-radius:99px"></div>
+            </div>
+          </td>
+          <td style="font-weight:700;color:${driftColor}">${t.drift_pct > 0 ? '+' : ''}${t.drift_pct}% <small>${driftLabel}</small></td>
+          <td>${fmtInr(t.current_value)}</td>
+          <td>
+            <button class="btn-icon-sm btn-danger-sm" onclick="CRYPTO._rbDeleteTarget('${t.coin_id}','${t.coin_symbol}')" title="Remove">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+      const isValid = Math.abs(totalTarget - 100) < 0.1 || totalTarget === 0;
+
+      content.innerHTML = `
+<div style="max-width:900px">
+  <!-- Header + Add target -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div>
+      <h3 style="margin:0;font-size:15px;font-weight:700">⚖️ Portfolio Rebalancing</h3>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-muted)">Target allocation set karo — phir AI suggest karega kya buy/sell karna hai</p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="CRYPTO._rbAddTargetModal()">+ Add Target</button>
+  </div>
+
+  <!-- Allocation status -->
+  <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="flex:1">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px">ALLOCATED</div>
+      <div style="font-size:22px;font-weight:800;color:${isValid?'var(--green,#16a34a)':'var(--amber,#d97706)'}">${totalTarget.toFixed(2)}%</div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px">REMAINING</div>
+      <div style="font-size:22px;font-weight:800">${remaining}%</div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px">PORTFOLIO</div>
+      <div style="font-size:22px;font-weight:800">${fmtInr(totalCurrent)}</div>
+    </div>
+    <div style="flex:2">
+      ${isValid && totalTarget > 0
+        ? `<button class="btn btn-primary" onclick="CRYPTO._rbSuggest()"
+              style="background:#7c3aed;border-color:#7c3aed;width:100%;padding:10px 0;font-weight:700">
+              ✨ Get Rebalancing Suggestions
+           </button>`
+        : `<div style="font-size:12px;color:var(--text-muted);background:var(--bg-secondary);border-radius:8px;padding:10px">
+              ${totalTarget === 0 ? '👆 Pehle targets set karo' : `⚠️ Total ${totalTarget}% hai — exactly 100% banana zaroori hai`}
+           </div>`}
+    </div>
+  </div>
+
+  <!-- Targets table -->
+  ${!targets.length
+    ? `<div class="wd-empty" style="padding:40px;text-align:center">
+        <div style="font-size:40px;margin-bottom:10px">🎯</div>
+        <p>Koi target set nahi. "Add Target" se shuru karo.<br>
+        <small style="color:var(--text-muted)">Example: BTC 40%, ETH 30%, SOL 20%, BNB 10%</small></p>
+       </div>`
+    : `<div style="overflow-x:auto">
+<table class="wd-table" style="width:100%;min-width:580px">
+  <thead><tr><th>Coin</th><th>Target %</th><th>Actual %</th><th>Drift</th><th>Current Value</th><th></th></tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table></div>`}
+
+  <!-- Suggestions area -->
+  <div id="rbSuggestArea" style="margin-top:20px"></div>
+
+  <!-- Add Target Modal -->
+  <div id="rbAddModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:var(--card-bg);border-radius:16px;padding:28px;width:100%;max-width:420px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <button onclick="document.getElementById('rbAddModal').style.display='none'"
+              style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">✕</button>
+      <h3 style="margin:0 0 18px;font-size:16px;font-weight:700">Add Rebalance Target</h3>
+      <div style="display:grid;gap:12px">
+        <div>
+          <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Coin ID (CoinGecko) *</label>
+          <input id="rbCoinId" placeholder="bitcoin" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Symbol *</label>
+            <input id="rbSym" placeholder="BTC" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Name</label>
+            <input id="rbName" placeholder="Bitcoin" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Target % *</label>
+          <input id="rbPct" type="number" step="0.01" min="0.01" max="100" placeholder="40.00"
+                 style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Remaining: ${remaining}%</div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-secondary" onclick="document.getElementById('rbAddModal').style.display='none'">Cancel</button>
+          <button class="btn btn-primary" onclick="CRYPTO._rbSaveTarget()">Save Target</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+    } catch (e) {
+      content.innerHTML = `<div class="wd-empty">⚠️ ${e.message}</div>`;
+    }
+  }
+
+  function _rbAddTargetModal() {
+    const m = document.getElementById('rbAddModal');
+    if (m) m.style.display = 'flex';
+  }
+
+  async function _rbSaveTarget() {
+    const coinId = (document.getElementById('rbCoinId')?.value || '').trim();
+    const sym    = (document.getElementById('rbSym')?.value    || '').trim().toUpperCase();
+    const name   = (document.getElementById('rbName')?.value   || sym).trim();
+    const pct    = parseFloat(document.getElementById('rbPct')?.value || 0);
+
+    if (!coinId) return WD.toast('CoinGecko ID required', 'error');
+    if (!sym)    return WD.toast('Symbol required', 'error');
+    if (pct <= 0 || pct > 100) return WD.toast('Target % must be 0.01–100', 'error');
+
+    try {
+      const r = await API.post({ action: 'crypto_rebalance_set', coin_id: coinId, coin_symbol: sym, coin_name: name, target_pct: pct });
+      if (!r.success) throw new Error(r.message);
+      WD.toast(r.message, 'success');
+      const m = document.getElementById('rbAddModal');
+      if (m) m.style.display = 'none';
+      _loadRebalance();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _rbSetTarget(coinId, sym, name, pct) {
+    try {
+      const r = await API.post({ action: 'crypto_rebalance_set', coin_id: coinId, coin_symbol: sym, coin_name: name, target_pct: parseFloat(pct) });
+      if (!r.success) throw new Error(r.message);
+      WD.toast(`${sym}: ${pct}% set`, 'success');
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _rbDeleteTarget(coinId, sym) {
+    if (!confirm(`${sym} target remove karo?`)) return;
+    try {
+      const r = await API.post({ action: 'crypto_rebalance_delete', coin_id: coinId });
+      if (!r.success) throw new Error(r.message);
+      WD.toast('Target removed', 'success');
+      _loadRebalance();
+    } catch (e) { WD.toast(e.message, 'error'); }
+  }
+
+  async function _rbSuggest() {
+    const area = document.getElementById('rbSuggestArea');
+    if (!area) return;
+    area.innerHTML = '<div class="wd-loader" style="margin:20px auto"></div>';
+    try {
+      const data = await API.get('crypto_rebalance_suggest');
+      const sugg = data.suggestions || [];
+      const sum  = data.summary || {};
+      const notes= data.notes   || {};
+
+      const actionIcon = { BUY: '🟢', SELL: '🔴', HOLD: '⚪' };
+      const actionColor = { BUY: '#16a34a', SELL: '#dc2626', HOLD: '#6b7280' };
+
+      const rows = sugg.map(s => {
+        const icon  = actionIcon[s.action]  || '⚪';
+        const color = actionColor[s.action] || '#6b7280';
+        return `<tr>
+          <td><strong>${s.coin_symbol}</strong></td>
+          <td style="font-weight:700;color:${color}">${icon} ${s.action}</td>
+          <td>${s.actual_pct}%</td>
+          <td>${s.target_pct}%</td>
+          <td style="font-weight:700;color:${s.diff_inr>=0?'var(--green)':'var(--red)'}">
+            ${s.diff_inr >= 0 ? '+' : ''}${fmtInr(s.diff_inr)}
+          </td>
+          <td style="font-family:monospace;font-size:12px">
+            ${s.action !== 'HOLD' && s.qty_to_trade > 0
+              ? (s.action === 'BUY' ? 'Buy ' : 'Sell ') + s.qty_to_trade.toFixed(6) + ' ' + s.coin_symbol
+              : '—'}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted)">${fmtInr(s.price_inr)}</td>
+        </tr>`;
+      }).join('');
+
+      area.innerHTML = `
+<div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1px solid #7dd3fc;border-radius:12px;padding:18px;margin-bottom:16px">
+  <h4 style="margin:0 0 12px;font-size:14px;font-weight:700;color:#075985">⚖️ Rebalancing Plan</h4>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
+    <div><div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase">Buy Total</div>
+         <div style="font-size:17px;font-weight:800;color:#16a34a">${fmtInr(sum.total_buy_value)}</div></div>
+    <div><div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase">Sell Total</div>
+         <div style="font-size:17px;font-weight:800;color:#dc2626">${fmtInr(sum.total_sell_value)}</div></div>
+    <div><div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase">Net Cash Needed</div>
+         <div style="font-size:17px;font-weight:800;color:${sum.net_cash_needed>0?'#dc2626':'#16a34a'}">${sum.net_cash_needed>0?'+':''}${fmtInr(sum.net_cash_needed)}</div></div>
+  </div>
+  ${sum.is_balanced ? '<div style="font-size:12px;color:#15803d;background:#dcfce7;border-radius:6px;padding:6px 10px">✅ Portfolio already balanced (drift < 2%)</div>' : ''}
+</div>
+
+<div style="overflow-x:auto">
+<table class="wd-table" style="min-width:640px">
+  <thead><tr><th>Coin</th><th>Action</th><th>Actual %</th><th>Target %</th><th>Diff (₹)</th><th>Trade Qty</th><th>Price</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></div>
+
+<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:11px;color:#78350f">
+  ⚠️ <strong>Tax Warning:</strong> ${notes.tax_warning}<br>
+  💡 <strong>Tip:</strong> ${notes.recommendation}
+</div>`;
+
+    } catch (e) {
+      area.innerHTML = `<div class="wd-empty">⚠️ ${e.message}</div>`;
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────
   return {
     init, switchTab, refreshPrices, deleteHolding,
     openAddModal, closeModal, renderHoldings,
     _onCoinSelect, _submitAdd, _updateAmountPreview,
+    // t40: CoinGecko live search
+    _cgSearch, _cgSelectCoin, _cgClearCoin, _cgFetchPrice,
     // tc001: SSE controls
     connectLive:    _sseConnect,
     disconnectLive: _sseDisconnect,
     // t317: Import
     _importPreviewLoad, _importConfirm, _importLogLoad,
+    // tc003: DeFi & Staking
+    _loadDefi, _defiAddModal, _defiCloseModalEl, _defiSubmit,
+    _defiEditModal, _defiCloseModal, _defiDelete,
+    // tc004: Rebalancing
+    _loadRebalance, _rbAddTargetModal, _rbSaveTarget,
+    _rbSetTarget, _rbDeleteTarget, _rbSuggest,
     // tc005: Exchange Sync
     _openAddKeyModal, _closeAddKeyModal, _submitAddKey,
     _deleteKey, _runSync, _syncLogLoad,
