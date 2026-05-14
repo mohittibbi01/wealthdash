@@ -1,316 +1,485 @@
 <?php
 /**
- * WealthDash — Smallcase Portfolio Sync
+ * WealthDash — Smallcase Portfolio Sync API
  * Task: t120
- * Routes: smallcase_list, smallcase_summary, smallcase_add, smallcase_edit,
- *         smallcase_delete, smallcase_holdings, smallcase_sync,
- *         smallcase_add_txn, smallcase_txns, smallcase_performance
+ * Path: api/smallcase/smallcase.php
+ * Actions:
+ *   smallcase_list | smallcase_add | smallcase_edit | smallcase_delete | smallcase_summary
+ *   smallcase_holding_list | smallcase_holding_save | smallcase_holding_delete | smallcase_holding_bulk_import
+ *   smallcase_txn_list | smallcase_txn_add | smallcase_txn_delete
+ *   smallcase_rebalance_add | smallcase_rebalance_list
+ *   smallcase_price_update | smallcase_calc_xirr
  */
 defined('WEALTHDASH') or die();
 
-$db     = DB::conn();
-$uid    = (int)($_SESSION['user_id'] ?? 0);
-$action = $_REQUEST['action'] ?? '';
-
-header('Content-Type: application/json');
-
-if (!$uid) { echo json_encode(['success' => false, 'error' => 'Unauthenticated']); exit; }
-
-/* ── Helpers ──────────────────────────────────────────────── */
-function sc_json(mixed $data, bool $ok = true): void {
-    echo json_encode(['success' => $ok, 'data' => $data]);
-    exit;
-}
-function sc_err(string $msg, int $code = 400): void {
-    http_response_code($code);
-    echo json_encode(['success' => false, 'error' => $msg]);
-    exit;
+$db          = DB::conn();
+$userId      = (int)$_SESSION['user_id'];
+$portfolioId = (int)($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ?? 0);
+if (!$portfolioId) {
+    $r = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+    $r->execute([$userId]);
+    $portfolioId = (int)($r->fetchColumn() ?: 0);
 }
 
-/* ── Fetch live stock price (Yahoo) ─────────────────────────  */
-function sc_fetch_price(string $symbol): ?float {
-    $ySymbol = $symbol . '.NS';
-    $url = "https://query1.finance.yahoo.com/v8/finance/chart/{$ySymbol}?interval=1d&range=1d";
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0',
-        CURLOPT_SSL_VERIFYPEER => false,
-    ]);
-    $res  = curl_exec($ch);
-    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($http !== 200 || !$res) return null;
-    $json  = json_decode($res, true);
-    $price = $json['chart']['result'][0]['meta']['regularMarketPrice'] ?? null;
-    return $price ? (float)$price : null;
-}
-
-/* ── Summary builder ─────────────────────────────────────── */
-function sc_portfolio_summary(PDO $db, int $uid): array {
-    $st = $db->prepare("
-        SELECT p.*,
-          (SELECT COUNT(*) FROM smallcase_holdings h WHERE h.portfolio_id = p.id) AS stock_count,
-          (SELECT MAX(txn_date) FROM smallcase_transactions t WHERE t.portfolio_id = p.id) AS last_txn_date
-        FROM smallcase_portfolios p
-        WHERE p.user_id = ? AND p.is_active = 1
-        ORDER BY p.current_value DESC
-    ");
-    $st->execute([$uid]);
-    $portfolios = $st->fetchAll(PDO::FETCH_ASSOC);
-
-    $total_invested = 0; $total_current = 0;
-    foreach ($portfolios as &$p) {
-        $total_invested += (float)$p['invested_amount'];
-        $total_current  += (float)$p['current_value'];
-        $gain = (float)$p['current_value'] - (float)$p['invested_amount'];
-        $p['gain_loss']     = round($gain, 2);
-        $p['gain_loss_pct'] = $p['invested_amount'] > 0
-            ? round(($gain / (float)$p['invested_amount']) * 100, 2) : 0;
-    }
-    unset($p);
-
-    return [
-        'portfolios'     => $portfolios,
-        'total_invested' => round($total_invested, 2),
-        'total_current'  => round($total_current, 2),
-        'total_gain'     => round($total_current - $total_invested, 2),
-        'total_gain_pct' => $total_invested > 0
-            ? round((($total_current - $total_invested) / $total_invested) * 100, 2) : 0,
-    ];
-}
-
-/* ── Route ────────────────────────────────────────────────── */
 switch ($action) {
 
-    /* ---- List / summary ------------------------------------ */
-    case 'smallcase_list':
-    case 'smallcase_summary':
-        sc_json(sc_portfolio_summary($db, $uid));
+// ── LIST SMALLCASES ──────────────────────────────────────────
+case 'smallcase_list':
+    $rows = $db->prepare("
+        SELECT s.*,
+               COUNT(h.id) AS stock_count,
+               SUM(h.invested_amount) AS calc_invested,
+               SUM(h.current_value) AS calc_value
+        FROM smallcase_portfolios s
+        LEFT JOIN smallcase_holdings h ON h.smallcase_id = s.id
+        WHERE s.user_id=? AND s.portfolio_id=?
+        GROUP BY s.id
+        ORDER BY s.name
+    ");
+    $rows->execute([$userId, $portfolioId]);
+    $list = $rows->fetchAll(PDO::FETCH_ASSOC);
 
-    /* ---- Add portfolio / basket ---------------------------- */
-    case 'smallcase_add': {
-        $sc_id    = trim($_POST['smallcase_id']  ?? '');
-        $name     = trim($_POST['name']          ?? '');
-        $pub      = trim($_POST['publisher']     ?? '');
-        $stype    = $_POST['strategy_type']      ?? 'model';
-        $freq     = $_POST['rebalance_freq']     ?? 'quarterly';
-        $min_inv  = (float)($_POST['min_investment'] ?? 0);
-        $desc     = trim($_POST['description']   ?? '');
-        $invested = (float)($_POST['invested_amount'] ?? 0);
+    $totalInvested = array_sum(array_column($list, 'invested_amount'));
+    $totalValue    = array_sum(array_column($list, 'calc_value'));
 
-        if (!$sc_id || !$name) sc_err('smallcase_id and name required');
+    json_response(true, '', [
+        'smallcases'     => $list,
+        'total_invested' => $totalInvested,
+        'total_value'    => $totalValue ?: $totalInvested,
+        'total_gain'     => ($totalValue ?: $totalInvested) - $totalInvested,
+    ]);
+    break;
 
-        $valid_types = ['model','thematic','quantamental','sectoral','smart_beta','other'];
-        if (!in_array($stype, $valid_types)) $stype = 'model';
+// ── SUMMARY ──────────────────────────────────────────────────
+case 'smallcase_summary':
+    $stmt = $db->prepare("
+        SELECT COUNT(*) AS count,
+               SUM(invested_amount) AS invested,
+               SUM(current_value) AS value_now,
+               SUM(gain_loss) AS gain_loss
+        FROM smallcase_portfolios
+        WHERE user_id=? AND portfolio_id=? AND is_active=1
+    ");
+    $stmt->execute([$userId, $portfolioId]);
+    json_response(true, '', $stmt->fetch(PDO::FETCH_ASSOC));
+    break;
 
+// ── ADD SMALLCASE ────────────────────────────────────────────
+case 'smallcase_add':
+    $name       = clean($_POST['name'] ?? '');
+    $desc       = clean($_POST['description'] ?? '');
+    $strategy   = clean($_POST['strategy_type'] ?? '');
+    $manager    = clean($_POST['manager'] ?? '');
+    $extId      = clean($_POST['external_id'] ?? '');
+    $invested   = (float)($_POST['invested_amount'] ?? 0);
+    $subFee     = (float)($_POST['subscription_fee'] ?? 0);
+    $feeFreq    = clean($_POST['fee_frequency'] ?? '');
+    $notes      = clean($_POST['notes'] ?? '');
+
+    if (!$name) json_response(false, 'Smallcase name required');
+
+    $db->prepare("
+        INSERT INTO smallcase_portfolios
+            (user_id, portfolio_id, name, description, strategy_type, manager, external_id,
+             invested_amount, subscription_fee, fee_frequency, notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    ")->execute([$userId, $portfolioId, $name, $desc ?: null, $strategy ?: null, $manager ?: null,
+                 $extId ?: null, $invested, $subFee, $feeFreq ?: null, $notes ?: null]);
+
+    $id = (int)$db->lastInsertId();
+
+    // Auto-create invest transaction if amount given
+    if ($invested > 0) {
         $db->prepare("
-            INSERT INTO smallcase_portfolios
-              (user_id, smallcase_id, name, publisher, strategy_type,
-               rebalance_freq, min_investment, description, invested_amount)
-            VALUES (?,?,?,?,?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE name=VALUES(name), publisher=VALUES(publisher),
-              strategy_type=VALUES(strategy_type), rebalance_freq=VALUES(rebalance_freq),
-              description=VALUES(description), updated_at=NOW()
-        ")->execute([$uid, $sc_id, $name, $pub, $stype, $freq, $min_inv ?: null, $desc, $invested]);
-
-        sc_json(['message' => 'Portfolio added']);
+            INSERT INTO smallcase_transactions (smallcase_id, user_id, txn_type, txn_date, amount, notes)
+            VALUES (?,?,'invest',CURDATE(),?,'Initial investment')
+        ")->execute([$id, $userId, $invested]);
     }
 
-    /* ---- Edit -------------------------------------------- */
-    case 'smallcase_edit': {
-        $pid      = (int)($_POST['id']           ?? 0);
-        $name     = trim($_POST['name']          ?? '');
-        $pub      = trim($_POST['publisher']     ?? '');
-        $freq     = $_POST['rebalance_freq']     ?? 'quarterly';
-        $invested = (float)($_POST['invested_amount'] ?? 0);
-        $current  = (float)($_POST['current_value']  ?? 0);
-        $desc     = trim($_POST['description']   ?? '');
-        $cagr1    = isset($_POST['cagr_1y'])  ? (float)$_POST['cagr_1y']  : null;
-        $cagr3    = isset($_POST['cagr_3y'])  ? (float)$_POST['cagr_3y']  : null;
-        $vol      = isset($_POST['volatility']) ? (float)$_POST['volatility'] : null;
+    json_response(true, 'Smallcase added', ['id' => $id]);
+    break;
 
-        if (!$pid || !$name) sc_err('id and name required');
+// ── EDIT SMALLCASE ───────────────────────────────────────────
+case 'smallcase_edit':
+    $id         = (int)($_POST['id'] ?? 0);
+    $name       = clean($_POST['name'] ?? '');
+    $desc       = clean($_POST['description'] ?? '');
+    $strategy   = clean($_POST['strategy_type'] ?? '');
+    $manager    = clean($_POST['manager'] ?? '');
+    $extId      = clean($_POST['external_id'] ?? '');
+    $invested   = (float)($_POST['invested_amount'] ?? 0);
+    $subFee     = (float)($_POST['subscription_fee'] ?? 0);
+    $feeFreq    = clean($_POST['fee_frequency'] ?? '');
+    $lastReb    = clean($_POST['last_rebalanced'] ?? '');
+    $nextReb    = clean($_POST['next_rebalance'] ?? '');
+    $notes      = clean($_POST['notes'] ?? '');
+    $isActive   = (int)($_POST['is_active'] ?? 1);
 
+    if (!$id || !$name) json_response(false, 'ID and name required');
+
+    $db->prepare("
+        UPDATE smallcase_portfolios SET
+            name=?, description=?, strategy_type=?, manager=?, external_id=?,
+            invested_amount=?, subscription_fee=?, fee_frequency=?,
+            last_rebalanced=?, next_rebalance=?, is_active=?, notes=?, updated_at=NOW()
+        WHERE id=? AND user_id=? AND portfolio_id=?
+    ")->execute([$name, $desc ?: null, $strategy ?: null, $manager ?: null, $extId ?: null,
+                 $invested, $subFee, $feeFreq ?: null, $lastReb ?: null, $nextReb ?: null,
+                 $isActive, $notes ?: null, $id, $userId, $portfolioId]);
+
+    json_response(true, 'Updated');
+    break;
+
+// ── DELETE SMALLCASE ─────────────────────────────────────────
+case 'smallcase_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) json_response(false, 'ID required');
+    $db->prepare("DELETE FROM smallcase_rebalance_history WHERE smallcase_id=? AND user_id=?")->execute([$id, $userId]);
+    $db->prepare("DELETE FROM smallcase_transactions WHERE smallcase_id=? AND user_id=?")->execute([$id, $userId]);
+    $db->prepare("DELETE FROM smallcase_holdings WHERE smallcase_id=? AND user_id=?")->execute([$id, $userId]);
+    $db->prepare("DELETE FROM smallcase_portfolios WHERE id=? AND user_id=? AND portfolio_id=?")->execute([$id, $userId, $portfolioId]);
+    json_response(true, 'Smallcase deleted');
+    break;
+
+// ── HOLDING LIST ─────────────────────────────────────────────
+case 'smallcase_holding_list':
+    $scId = (int)($_GET['smallcase_id'] ?? 0);
+    if (!$scId) json_response(false, 'smallcase_id required');
+
+    $rows = $db->prepare("
+        SELECT * FROM smallcase_holdings
+        WHERE smallcase_id=? AND user_id=?
+        ORDER BY weight_pct DESC, invested_amount DESC
+    ");
+    $rows->execute([$scId, $userId]);
+    $list = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalInvested = array_sum(array_column($list, 'invested_amount'));
+    $totalValue    = array_sum(array_column($list, 'current_value'));
+
+    json_response(true, '', [
+        'holdings'       => $list,
+        'total_invested' => $totalInvested,
+        'total_value'    => $totalValue ?: $totalInvested,
+    ]);
+    break;
+
+// ── HOLDING SAVE (add/edit individual stock) ─────────────────
+case 'smallcase_holding_save':
+    $holdingId     = (int)($_POST['id'] ?? 0);
+    $scId          = (int)($_POST['smallcase_id'] ?? 0);
+    $symbol        = strtoupper(clean($_POST['symbol'] ?? ''));
+    $companyName   = clean($_POST['company_name'] ?? '');
+    $exchange      = clean($_POST['exchange'] ?? 'NSE');
+    $isin          = clean($_POST['isin'] ?? '');
+    $quantity      = (float)($_POST['quantity'] ?? 0);
+    $avgBuyPrice   = (float)($_POST['avg_buy_price'] ?? 0);
+    $weightPct     = (float)($_POST['weight_pct'] ?? 0);
+    $targetWeight  = (float)($_POST['target_weight_pct'] ?? 0);
+    $sector        = clean($_POST['sector'] ?? '');
+    $curPrice      = (float)($_POST['current_price'] ?? 0);
+
+    if (!$scId || !$symbol || $quantity <= 0 || $avgBuyPrice <= 0) {
+        json_response(false, 'smallcase_id, symbol, quantity, avg_buy_price required');
+    }
+
+    $investedAmount = round($quantity * $avgBuyPrice, 2);
+    $curValue       = $curPrice > 0 ? round($quantity * $curPrice, 2) : null;
+
+    if ($holdingId) {
         $db->prepare("
-            UPDATE smallcase_portfolios
-            SET name=?, publisher=?, rebalance_freq=?, invested_amount=?,
-                current_value=?, description=?, cagr_1y=?, cagr_3y=?, volatility=?, updated_at=NOW()
-            WHERE id=? AND user_id=?
-        ")->execute([$name, $pub, $freq, $invested, $current, $desc, $cagr1, $cagr3, $vol, $pid, $uid]);
-
-        sc_json(['message' => 'Portfolio updated']);
-    }
-
-    /* ---- Delete ------------------------------------------- */
-    case 'smallcase_delete': {
-        $pid = (int)($_POST['id'] ?? 0);
-        if (!$pid) sc_err('id required');
-        // Soft delete
-        $db->prepare("UPDATE smallcase_portfolios SET is_active=0 WHERE id=? AND user_id=?")
-           ->execute([$pid, $uid]);
-        sc_json(['message' => 'Portfolio removed']);
-    }
-
-    /* ---- Holdings for a portfolio -------------------------- */
-    case 'smallcase_holdings': {
-        $pid = (int)($_GET['portfolio_id'] ?? 0);
-        if (!$pid) sc_err('portfolio_id required');
-
-        // Verify ownership
-        $chk = $db->prepare("SELECT id FROM smallcase_portfolios WHERE id=? AND user_id=?");
-        $chk->execute([$pid, $uid]);
-        if (!$chk->fetch()) sc_err('Portfolio not found', 404);
-
-        $st = $db->prepare("SELECT * FROM smallcase_holdings WHERE portfolio_id=? ORDER BY weight_pct DESC");
-        $st->execute([$pid]);
-        $holdings = $st->fetchAll(PDO::FETCH_ASSOC);
-
-        foreach ($holdings as &$h) {
-            $cur = (float)($h['current_price'] ?? $h['avg_price']);
-            $h['current_value']  = round($cur * (float)$h['quantity'], 2);
-            $h['gain_loss']      = round($h['current_value'] - (float)$h['invested_value'], 2);
-            $h['gain_loss_pct']  = $h['invested_value'] > 0
-                ? round(($h['gain_loss'] / (float)$h['invested_value']) * 100, 2) : 0;
-        }
-        unset($h);
-        sc_json($holdings);
-    }
-
-    /* ---- Sync holdings (manual JSON upload) ---------------- */
-    case 'smallcase_sync': {
-        $pid      = (int)($_POST['portfolio_id'] ?? 0);
-        $raw      = $_POST['holdings_json'] ?? '';
-        if (!$pid || !$raw) sc_err('portfolio_id and holdings_json required');
-
-        $chk = $db->prepare("SELECT id FROM smallcase_portfolios WHERE id=? AND user_id=?");
-        $chk->execute([$pid, $uid]);
-        if (!$chk->fetch()) sc_err('Portfolio not found', 404);
-
-        $holdings = json_decode($raw, true);
-        if (!is_array($holdings)) sc_err('Invalid holdings_json');
-
-        $ins = $db->prepare("
+            UPDATE smallcase_holdings SET
+                symbol=?, company_name=?, exchange=?, isin=?, quantity=?, avg_buy_price=?,
+                invested_amount=?, current_price=?, current_value=?,
+                weight_pct=?, target_weight_pct=?, sector=?, updated_at=NOW()
+            WHERE id=? AND user_id=? AND smallcase_id=?
+        ")->execute([$symbol, $companyName, $exchange, $isin ?: null, $quantity, $avgBuyPrice,
+                     $investedAmount, $curPrice ?: null, $curValue, $weightPct ?: null,
+                     $targetWeight ?: null, $sector ?: null, $holdingId, $userId, $scId]);
+    } else {
+        $db->prepare("
             INSERT INTO smallcase_holdings
-              (portfolio_id, user_id, symbol, isin, stock_name, quantity, avg_price,
-               current_price, invested_value, current_value, weight_pct, last_rebalanced)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE
-              stock_name=VALUES(stock_name), quantity=VALUES(quantity),
-              avg_price=VALUES(avg_price), current_price=VALUES(current_price),
-              invested_value=VALUES(invested_value), current_value=VALUES(current_value),
-              weight_pct=VALUES(weight_pct), last_rebalanced=VALUES(last_rebalanced),
-              updated_at=NOW()
-        ");
+                (smallcase_id, user_id, symbol, company_name, exchange, isin, quantity, avg_buy_price,
+                 invested_amount, current_price, current_value, weight_pct, target_weight_pct, sector)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ")->execute([$scId, $userId, $symbol, $companyName, $exchange, $isin ?: null, $quantity,
+                     $avgBuyPrice, $investedAmount, $curPrice ?: null, $curValue,
+                     $weightPct ?: null, $targetWeight ?: null, $sector ?: null]);
+    }
 
-        $total_inv = 0; $total_cur = 0;
-        foreach ($holdings as $h) {
-            $qty    = (float)($h['quantity']      ?? 0);
-            $avg    = (float)($h['avg_price']     ?? 0);
-            $cur    = (float)($h['current_price'] ?? $avg);
-            $inv    = round($qty * $avg, 2);
-            $curVal = round($qty * $cur, 2);
-            $ins->execute([
-                $pid, $uid,
-                $h['symbol']     ?? '',
-                $h['isin']       ?? null,
-                $h['stock_name'] ?? $h['symbol'] ?? '',
-                $qty, $avg, $cur, $inv, $curVal,
-                (float)($h['weight_pct'] ?? 0),
-                $h['last_rebalanced'] ?? null,
-            ]);
-            $total_inv += $inv;
-            $total_cur += $curVal;
-        }
+    _sc_recalc_portfolio($db, $scId, $userId);
+    json_response(true, 'Holding saved');
+    break;
 
-        // Update portfolio totals
+// ── HOLDING DELETE ───────────────────────────────────────────
+case 'smallcase_holding_delete':
+    $holdingId = (int)($_POST['id'] ?? 0);
+    $scId      = (int)($_POST['smallcase_id'] ?? 0);
+    if (!$holdingId) json_response(false, 'ID required');
+    $db->prepare("DELETE FROM smallcase_holdings WHERE id=? AND user_id=?")->execute([$holdingId, $userId]);
+    if ($scId) _sc_recalc_portfolio($db, $scId, $userId);
+    json_response(true, 'Stock removed');
+    break;
+
+// ── BULK IMPORT HOLDINGS (CSV / paste) ──────────────────────
+case 'smallcase_holding_bulk_import':
+    $scId = (int)($_POST['smallcase_id'] ?? 0);
+    $rows = json_decode($_POST['rows'] ?? '[]', true);
+
+    if (!$scId || empty($rows)) json_response(false, 'smallcase_id and rows required');
+
+    $ins = $db->prepare("
+        INSERT INTO smallcase_holdings
+            (smallcase_id, user_id, symbol, company_name, exchange, quantity, avg_buy_price,
+             invested_amount, weight_pct, sector)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+            quantity=VALUES(quantity), avg_buy_price=VALUES(avg_buy_price),
+            invested_amount=VALUES(invested_amount), updated_at=NOW()
+    ");
+
+    $saved = 0;
+    foreach ($rows as $row) {
+        $sym      = strtoupper(trim($row['symbol'] ?? ''));
+        $qty      = (float)($row['quantity'] ?? 0);
+        $avgPrice = (float)($row['avg_buy_price'] ?? 0);
+        if (!$sym || $qty <= 0 || $avgPrice <= 0) continue;
+
+        $ins->execute([
+            $scId, $userId, $sym,
+            clean($row['company_name'] ?? $sym),
+            clean($row['exchange'] ?? 'NSE'),
+            $qty, $avgPrice, round($qty * $avgPrice, 2),
+            (float)($row['weight_pct'] ?? 0) ?: null,
+            clean($row['sector'] ?? '') ?: null,
+        ]);
+        $saved++;
+    }
+
+    _sc_recalc_portfolio($db, $scId, $userId);
+    json_response(true, "$saved stocks imported");
+    break;
+
+// ── TRANSACTION LIST ─────────────────────────────────────────
+case 'smallcase_txn_list':
+    $scId = (int)($_GET['smallcase_id'] ?? 0);
+    $where  = "t.user_id=?";
+    $params = [$userId];
+    if ($scId) { $where .= " AND t.smallcase_id=?"; $params[] = $scId; }
+
+    $rows = $db->prepare("
+        SELECT t.*, s.name AS sc_name
+        FROM smallcase_transactions t
+        JOIN smallcase_portfolios s ON s.id = t.smallcase_id
+        WHERE $where ORDER BY t.txn_date DESC LIMIT 200
+    ");
+    $rows->execute($params);
+    $list = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalInvested  = array_sum(array_map(fn($r) => $r['txn_type'] === 'invest'  ? (float)$r['amount'] : 0, $list));
+    $totalRedeemed  = array_sum(array_map(fn($r) => $r['txn_type'] === 'redeem'  ? (float)$r['amount'] : 0, $list));
+
+    json_response(true, '', [
+        'transactions'   => $list,
+        'total_invested' => $totalInvested,
+        'total_redeemed' => $totalRedeemed,
+    ]);
+    break;
+
+// ── TRANSACTION ADD ──────────────────────────────────────────
+case 'smallcase_txn_add':
+    $scId    = (int)($_POST['smallcase_id'] ?? 0);
+    $txnType = clean($_POST['txn_type'] ?? 'invest');
+    $txnDate = clean($_POST['txn_date'] ?? date('Y-m-d'));
+    $amount  = (float)($_POST['amount'] ?? 0);
+    $notes   = clean($_POST['notes'] ?? '');
+
+    if (!$scId || $amount <= 0) json_response(false, 'smallcase_id and amount required');
+
+    $db->prepare("
+        INSERT INTO smallcase_transactions (smallcase_id, user_id, txn_type, txn_date, amount, notes)
+        VALUES (?,?,?,?,?,?)
+    ")->execute([$scId, $userId, $txnType, $txnDate, $amount, $notes ?: null]);
+
+    // Update invested_amount in portfolio for invest/redeem
+    if (in_array($txnType, ['invest', 'redeem'])) {
+        $sign = $txnType === 'invest' ? '+' : '-';
         $db->prepare("
-            UPDATE smallcase_portfolios
-            SET invested_amount=?, current_value=?, last_synced_at=NOW()
+            UPDATE smallcase_portfolios SET invested_amount = invested_amount $sign ?, updated_at=NOW()
             WHERE id=? AND user_id=?
-        ")->execute([$total_inv, $total_cur, $pid, $uid]);
-
-        // Snapshot
-        $db->prepare("
-            INSERT INTO smallcase_value_history (portfolio_id, snap_date, invested, current_value)
-            VALUES (?,CURDATE(),?,?)
-            ON DUPLICATE KEY UPDATE invested=VALUES(invested), current_value=VALUES(current_value)
-        ")->execute([$pid, $total_inv, $total_cur]);
-
-        sc_json(['synced' => count($holdings), 'total_invested' => $total_inv, 'total_current' => $total_cur]);
+        ")->execute([$amount, $scId, $userId]);
     }
 
-    /* ---- Add transaction ----------------------------------- */
-    case 'smallcase_add_txn': {
-        $pid      = (int)($_POST['portfolio_id'] ?? 0);
-        $txn_type = $_POST['txn_type']           ?? 'invest';
-        $txn_date = $_POST['txn_date']           ?? date('Y-m-d');
-        $amount   = (float)($_POST['amount']     ?? 0);
-        $notes    = trim($_POST['notes']         ?? '');
+    json_response(true, 'Transaction added');
+    break;
 
-        if (!$pid || $amount <= 0) sc_err('portfolio_id and amount required');
-        if (!in_array($txn_type, ['invest','sip','rebalance','withdraw','dividend'])) sc_err('Invalid txn_type');
+// ── TRANSACTION DELETE ───────────────────────────────────────
+case 'smallcase_txn_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) json_response(false, 'ID required');
+    $db->prepare("DELETE FROM smallcase_transactions WHERE id=? AND user_id=?")->execute([$id, $userId]);
+    json_response(true, 'Deleted');
+    break;
 
-        $chk = $db->prepare("SELECT id FROM smallcase_portfolios WHERE id=? AND user_id=?");
-        $chk->execute([$pid, $uid]);
-        if (!$chk->fetch()) sc_err('Portfolio not found', 404);
+// ── REBALANCE ADD ────────────────────────────────────────────
+case 'smallcase_rebalance_add':
+    $scId       = (int)($_POST['smallcase_id'] ?? 0);
+    $rebDate    = clean($_POST['rebalance_date'] ?? date('Y-m-d'));
+    $reason     = clean($_POST['reason'] ?? '');
+    $added      = clean($_POST['stocks_added'] ?? '');
+    $removed    = clean($_POST['stocks_removed'] ?? '');
+    $changed    = clean($_POST['stocks_changed'] ?? '');
+    $portValue  = (float)($_POST['portfolio_value'] ?? 0);
+    $notes      = clean($_POST['notes'] ?? '');
 
-        $db->prepare("
-            INSERT INTO smallcase_transactions (portfolio_id, user_id, txn_type, txn_date, amount, notes)
-            VALUES (?,?,?,?,?,?)
-        ")->execute([$pid, $uid, $txn_type, $txn_date, $amount, $notes]);
+    if (!$scId || !$rebDate) json_response(false, 'smallcase_id and date required');
 
-        // Recompute invested amount from invest/sip/withdraw txns
-        $inv = $db->prepare("
-            SELECT SUM(CASE WHEN txn_type IN ('invest','sip') THEN amount
-                            WHEN txn_type = 'withdraw' THEN -amount
-                            ELSE 0 END)
-            FROM smallcase_transactions WHERE portfolio_id=? AND user_id=?
-        ");
-        $inv->execute([$pid, $uid]);
-        $newInv = max(0, (float)$inv->fetchColumn());
-        $db->prepare("UPDATE smallcase_portfolios SET invested_amount=? WHERE id=? AND user_id=?")
-           ->execute([$newInv, $pid, $uid]);
+    $db->prepare("
+        INSERT INTO smallcase_rebalance_history
+            (smallcase_id, user_id, rebalance_date, reason, stocks_added, stocks_removed, stocks_changed, portfolio_value, notes)
+        VALUES (?,?,?,?,?,?,?,?,?)
+    ")->execute([$scId, $userId, $rebDate, $reason ?: null, $added ?: null, $removed ?: null,
+                 $changed ?: null, $portValue ?: null, $notes ?: null]);
 
-        sc_json(['message' => 'Transaction added']);
+    // Update last_rebalanced in portfolio
+    $db->prepare("
+        UPDATE smallcase_portfolios SET last_rebalanced=?, updated_at=NOW()
+        WHERE id=? AND user_id=?
+    ")->execute([$rebDate, $scId, $userId]);
+
+    json_response(true, 'Rebalance recorded');
+    break;
+
+// ── REBALANCE LIST ───────────────────────────────────────────
+case 'smallcase_rebalance_list':
+    $scId = (int)($_GET['smallcase_id'] ?? 0);
+    if (!$scId) json_response(false, 'smallcase_id required');
+    $rows = $db->prepare("
+        SELECT * FROM smallcase_rebalance_history
+        WHERE smallcase_id=? AND user_id=?
+        ORDER BY rebalance_date DESC LIMIT 50
+    ");
+    $rows->execute([$scId, $userId]);
+    json_response(true, '', ['history' => $rows->fetchAll(PDO::FETCH_ASSOC)]);
+    break;
+
+// ── PRICE UPDATE (bulk) ──────────────────────────────────────
+case 'smallcase_price_update':
+    $scId   = (int)($_POST['smallcase_id'] ?? 0);
+    $prices = json_decode($_POST['prices'] ?? '[]', true); // [{symbol, price}]
+
+    if (!$scId || empty($prices)) json_response(false, 'smallcase_id and prices required');
+
+    $upd = $db->prepare("
+        UPDATE smallcase_holdings SET
+            current_price=?, current_value=ROUND(quantity*?,2),
+            last_price_date=CURDATE(), updated_at=NOW()
+        WHERE smallcase_id=? AND user_id=? AND symbol=?
+    ");
+
+    $updated = 0;
+    foreach ($prices as $p) {
+        $sym   = strtoupper(trim($p['symbol'] ?? ''));
+        $price = (float)($p['price'] ?? 0);
+        if (!$sym || $price <= 0) continue;
+        $upd->execute([$price, $price, $scId, $userId, $sym]);
+        $updated++;
     }
 
-    /* ---- Transaction list ---------------------------------- */
-    case 'smallcase_txns': {
-        $pid = (int)($_GET['portfolio_id'] ?? 0);
-        if (!$pid) sc_err('portfolio_id required');
+    _sc_recalc_portfolio($db, $scId, $userId);
+    json_response(true, "$updated prices updated");
+    break;
 
-        $chk = $db->prepare("SELECT id FROM smallcase_portfolios WHERE id=? AND user_id=?");
-        $chk->execute([$pid, $uid]);
-        if (!$chk->fetch()) sc_err('Portfolio not found', 404);
+// ── CALC XIRR ────────────────────────────────────────────────
+case 'smallcase_calc_xirr':
+    $scId = (int)($_GET['smallcase_id'] ?? 0);
+    if (!$scId) json_response(false, 'smallcase_id required');
 
-        $st = $db->prepare("SELECT * FROM smallcase_transactions WHERE portfolio_id=? ORDER BY txn_date DESC LIMIT 200");
-        $st->execute([$pid]);
-        sc_json($st->fetchAll(PDO::FETCH_ASSOC));
+    $txns = $db->prepare("
+        SELECT txn_date, amount, txn_type
+        FROM smallcase_transactions
+        WHERE smallcase_id=? AND user_id=? AND txn_type IN('invest','redeem')
+        ORDER BY txn_date
+    ");
+    $txns->execute([$scId, $userId]);
+    $txnList = $txns->fetchAll(PDO::FETCH_ASSOC);
+
+    $sc = $db->prepare("SELECT current_value, invested_amount FROM smallcase_portfolios WHERE id=? AND user_id=?");
+    $sc->execute([$scId, $userId]);
+    $scRow = $sc->fetch(PDO::FETCH_ASSOC);
+
+    if (!$scRow || empty($txnList)) {
+        json_response(true, 'Insufficient data for XIRR', ['xirr' => null]);
     }
 
-    /* ---- Performance chart data ---------------------------- */
-    case 'smallcase_performance': {
-        $pid = (int)($_GET['portfolio_id'] ?? 0);
-        if (!$pid) sc_err('portfolio_id required');
+    // Build cashflows
+    $cashflows = [];
+    foreach ($txnList as $t) {
+        $cashflows[] = [
+            'date'   => $t['txn_date'],
+            'amount' => $t['txn_type'] === 'invest' ? -(float)$t['amount'] : (float)$t['amount'],
+        ];
+    }
+    // Final value as positive cashflow today
+    $cashflows[] = ['date' => date('Y-m-d'), 'amount' => (float)($scRow['current_value'] ?: $scRow['invested_amount'])];
 
-        $chk = $db->prepare("SELECT id FROM smallcase_portfolios WHERE id=? AND user_id=?");
-        $chk->execute([$pid, $uid]);
-        if (!$chk->fetch()) sc_err('Portfolio not found', 404);
-
-        $st = $db->prepare("
-            SELECT snap_date, invested, current_value,
-              ROUND(current_value - invested, 2) AS gain,
-              CASE WHEN invested > 0 THEN ROUND((current_value - invested) / invested * 100, 2) ELSE 0 END AS gain_pct
-            FROM smallcase_value_history
-            WHERE portfolio_id=?
-            ORDER BY snap_date
-        ");
-        $st->execute([$pid]);
-        sc_json($st->fetchAll(PDO::FETCH_ASSOC));
+    $xirr = _sc_xirr($cashflows);
+    if ($xirr !== null) {
+        $db->prepare("UPDATE smallcase_portfolios SET xirr=?, updated_at=NOW() WHERE id=? AND user_id=?")
+           ->execute([round($xirr * 100, 4), $scId, $userId]);
     }
 
-    default:
-        sc_err("Unknown action: $action", 404);
+    json_response(true, '', ['xirr' => $xirr !== null ? round($xirr * 100, 2) : null]);
+    break;
+
+default:
+    json_response(false, "Unknown action: $action");
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function _sc_recalc_portfolio(PDO $db, int $scId, int $userId): void {
+    $stmt = $db->prepare("
+        SELECT SUM(invested_amount) AS invested, SUM(current_value) AS value_now
+        FROM smallcase_holdings WHERE smallcase_id=? AND user_id=?
+    ");
+    $stmt->execute([$scId, $userId]);
+    $agg = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $invested = (float)($agg['invested'] ?? 0);
+    $value    = (float)($agg['value_now'] ?? 0);
+    $gl       = $value > 0 ? $value - $invested : null;
+    $glPct    = ($invested > 0 && $gl !== null) ? round($gl / $invested * 100, 4) : null;
+
+    $db->prepare("
+        UPDATE smallcase_portfolios SET
+            current_value=?, gain_loss=?, gain_loss_pct=?, updated_at=NOW()
+        WHERE id=? AND user_id=?
+    ")->execute([$value > 0 ? $value : null, $gl, $glPct, $scId, $userId]);
+}
+
+function _sc_xirr(array $cashflows, float $guess = 0.1, int $maxIter = 100): ?float {
+    if (count($cashflows) < 2) return null;
+    $baseDate = strtotime($cashflows[0]['date']);
+
+    $npv = function (float $rate) use ($cashflows, $baseDate): float {
+        $sum = 0;
+        foreach ($cashflows as $cf) {
+            $t    = (strtotime($cf['date']) - $baseDate) / 86400 / 365;
+            $sum += $cf['amount'] / pow(1 + $rate, $t);
+        }
+        return $sum;
+    };
+
+    $rate = $guess;
+    for ($i = 0; $i < $maxIter; $i++) {
+        $f  = $npv($rate);
+        $f2 = $npv($rate + 0.0001);
+        $df = ($f2 - $f) / 0.0001;
+        if (abs($df) < 1e-10) break;
+        $newRate = $rate - $f / $df;
+        if (abs($newRate - $rate) < 0.0000001) return $newRate;
+        $rate = $newRate;
+        if ($rate < -0.9999) $rate = -0.9999;
+    }
+    return abs($npv($rate)) < 0.01 ? $rate : null;
 }

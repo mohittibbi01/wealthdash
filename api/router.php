@@ -180,6 +180,49 @@ $csrfExempt = [
     'portfolio_risk', 'smart_insights', 'transactions',
     // Notifications (read-only)
     'notif_unread_count', 'notif_list', 'notif_mark_read',
+    // t211 — DB Backup & Restore
+    'admin_db_backup_list', 'admin_db_backup_stats', 'admin_db_restore_log',
+    // t479 — Duplicate Detector
+    'dedup_stats', 'dedup_list', 'dedup_check_new',
+    // t480 — Data Validation
+    'validate_entry', 'validation_rules_list', 'validation_violations',
+    // t504 — REST API Keys
+    'api_keys_list', 'api_usage_stats',
+    // t115 — REITs & InvITs
+    'reit_list', 'reit_summary', 'reit_master_list',
+    // t120 — Smallcase
+    'smallcase_list', 'smallcase_summary', 'smallcase_holdings', 'smallcase_txns', 'smallcase_performance',
+    // t144 — SIP Step-Up Nudge
+    'stepup_dashboard', 'stepup_salary_list', 'stepup_nudges', 'stepup_projection_get',
+    // t317 — Crypto Import
+    'crypto_import_log',
+    // tc005 — Exchange Sync
+    'exchange_keys_list', 'exchange_sync_log',
+    // t113 — SGB
+    'sgb_list', 'sgb_summary', 'sgb_live_price', 'sgb_series_list', 'sgb_interest_list',
+    // t117 — ESOP/RSU
+    'esop_list', 'esop_summary', 'esop_vesting_list', 'esop_exercise_log',
+    // t203 — PPF Tracker
+    'ppf_deposit_get', 'ppf_deposits_list', 'ppf_deposit_history',
+    // t151 — EPFO Passbook
+    'epfo_accounts_list', 'epfo_passbook', 'epfo_summary', 'epfo_sync_log',
+    // t139 — Goal Buckets
+    'bucket_list', 'bucket_summary', 'bucket_progress',
+    // t151 (W5) — EPFO Passbook
+    'epfo_passbook_entries',
+    // t474 — SIP vs EMI
+    'sip_emi_summary', 'sip_emi_monthly_breakdown',
+    // t498 — Investment Calendar
+    'inv_calendar_events', 'inv_calendar_month',
+    // t380 — AI Portfolio Review
+    'ai_review_get', 'ai_review_history', 'ai_review_status', 'ai_review_prefs_get',
+    // t381 — AI Chat
+    'ai_chat_session_get', 'ai_chat_history', 'ai_chat_usage',
+    // t205 — NSC Tracker
+    'nsc_list', 'nsc_80c_schedule', 'nsc_fy_declaration', 'nsc_maturity_calc',
+    // t206 — MIS/SCSS Payout
+    'mis_payout_calendar', 'scss_payout_calendar', 'payout_income_fy',
+    'payout_upcoming', 'mis_payout_summary', 'scss_payout_summary',
 ];
 if (!in_array($action, $csrfExempt)) {
     csrf_verify();
@@ -1085,6 +1128,246 @@ try {
         case 'hl_tax_claim_save':
         case 'hl_emi_calendar':
             require APP_ROOT . '/api/loan/home_loan_tracker.php'; exit;
+
+        // ── t211: Admin — DB Backup & Restore ────────────────────
+        case 'admin_db_backup_list':
+        case 'admin_db_backup_stats':
+        case 'admin_db_backup_create':
+        case 'admin_db_backup_delete':
+        case 'admin_db_backup_download':
+        case 'admin_db_restore_upload':
+        case 'admin_db_restore_run':
+        case 'admin_db_restore_log':
+            if (!$isAdmin) json_response(false, 'Admin only.', [], 403);
+            require APP_ROOT . '/api/admin/db_backup.php'; exit;
+
+        // ── t479: Duplicate Transaction Detector ─────────────────
+        case 'dedup_scan':
+        case 'dedup_list':
+        case 'dedup_merge':
+        case 'dedup_dismiss':
+        case 'dedup_check_new':
+        case 'dedup_stats':
+            require APP_ROOT . '/api/mutual_funds/dedup_detector.php'; exit;
+
+        // ── t480: Data Validation Rules ───────────────────────────
+        case 'validate_entry':
+        case 'validation_rules_list':
+        case 'validation_rule_save':
+        case 'validation_rule_toggle':
+        case 'validation_rule_delete':
+        case 'validation_scan':
+        case 'validation_violations':
+        case 'validation_resolve':
+            require APP_ROOT . '/api/mutual_funds/data_validation.php'; exit;
+
+        // ── t504: REST API — Key Management ───────────────────────
+        case 'api_keys_list':
+        case 'api_key_create':
+        case 'api_key_delete':
+        case 'api_key_toggle':
+        case 'api_usage_stats':
+            require APP_ROOT . '/api/rest/api_key_manager.php'; exit;
+
+        // ── t115: REITs & InvITs ──────────────────────────────────
+        case 'reit_list':
+        case 'reit_summary':
+        case 'reit_master_list':
+        case 'reit_add_holding':
+        case 'reit_edit_holding':
+        case 'reit_delete_holding':
+        case 'reit_add_txn':
+        case 'reit_delete_txn':
+        case 'reit_txns':
+        case 'reit_add_dist':
+        case 'reit_distributions':
+        case 'reit_update_price':
+            require APP_ROOT . '/api/reits/reits.php'; exit;
+
+        // ── t120: Smallcase Portfolio Sync ────────────────────────
+        case 'smallcase_list':
+        case 'smallcase_summary':
+        case 'smallcase_add':
+        case 'smallcase_edit':
+        case 'smallcase_delete':
+        case 'smallcase_holdings':
+        case 'smallcase_sync':
+        case 'smallcase_add_txn':
+        case 'smallcase_txns':
+        case 'smallcase_performance':
+            require APP_ROOT . '/api/smallcase/smallcase.php'; exit;
+
+        // ── t144: SIP Step-Up Nudge ───────────────────────────────
+        case 'stepup_dashboard':
+        case 'stepup_salary_add':
+        case 'stepup_salary_list':
+        case 'stepup_nudges':
+        case 'stepup_respond':
+        case 'stepup_calculate':
+        case 'stepup_projection_save':
+        case 'stepup_projection_get':
+        case 'stepup_apply':
+            require APP_ROOT . '/api/mutual_funds/sip_stepup_nudge.php'; exit;
+
+        // ── t317: Crypto Exchange CSV Import ─────────────────────
+        case 'crypto_import_preview':
+        case 'crypto_import_confirm':
+        case 'crypto_import_log':
+            require APP_ROOT . '/api/crypto/crypto_import.php'; exit;
+
+        // ── tc005: Exchange Sync (Binance / WazirX API) ──────────
+        case 'exchange_keys_save':
+        case 'exchange_keys_list':
+        case 'exchange_keys_delete':
+        case 'exchange_sync_run':
+        case 'exchange_sync_log':
+            require APP_ROOT . '/api/crypto/crypto_exchange_sync.php'; exit;
+
+
+        // ── t117: ESOP / RSU — Grant + Vesting Tracker ───────────
+        case 'esop_list':
+        case 'esop_add':
+        case 'esop_update':
+        case 'esop_delete':
+        case 'esop_summary':
+        case 'esop_vesting_list':
+        case 'esop_vesting_add':
+        case 'esop_vesting_update':
+        case 'esop_exercise_add':
+        case 'esop_exercise_log':
+        case 'esop_fmv_update':
+        case 'esop_schedule_generate':
+            require APP_ROOT . '/api/esop/esop.php'; exit;
+
+        // ── t203: PPF Annual Deposit Tracker ─────────────────────
+        case 'ppf_deposit_save':
+        case 'ppf_deposit_delete':
+        case 'ppf_deposit_get':
+        case 'ppf_deposits_list':
+        case 'ppf_deposit_history':
+            require APP_ROOT . '/api/ppf/ppf_tracker.php'; exit;
+
+        // ── t151: EPFO Passbook Sync ──────────────────────────────
+        case 'epfo_accounts_list':
+        case 'epfo_account_add':
+        case 'epfo_account_delete':
+        case 'epfo_import_pdf':
+        case 'epfo_passbook':
+        case 'epfo_summary':
+        case 'epfo_sync_log':
+            require APP_ROOT . '/api/epfo/epfo_sync.php'; exit;
+
+        // ── t139: Goal-Based Buckets ──────────────────────────────
+        case 'bucket_list':
+        case 'bucket_summary':
+        case 'bucket_progress':
+        case 'bucket_add':
+        case 'bucket_edit':
+        case 'bucket_delete':
+        case 'bucket_contribute':
+        case 'bucket_link_asset':
+        case 'bucket_unlink_asset':
+        case 'bucket_mark_achieved':
+            require APP_ROOT . '/api/goals/goal_buckets.php'; exit;
+
+        // ── t151 (W5): EPFO Passbook — updated file + actions ────
+        case 'epfo_passbook_import':
+        case 'epfo_passbook_entries':
+            require APP_ROOT . '/api/epfo/passbook.php'; exit;
+
+        // ── t474: SIP vs EMI Monthly Load Analysis ────────────────
+        case 'sip_emi_summary':
+        case 'sip_emi_monthly_breakdown':
+            require APP_ROOT . '/api/tools/sip_emi_balance.php'; exit;
+
+        // ── t498: Investment Calendar ─────────────────────────────
+        case 'inv_calendar_events':
+        case 'inv_calendar_month':
+            require APP_ROOT . '/api/tools/investment_calendar.php'; exit;
+
+        // ── t380: AI Portfolio Review ─────────────────────────────
+        case 'ai_review_generate':
+        case 'ai_review_get':
+        case 'ai_review_history':
+        case 'ai_review_status':
+        case 'ai_review_prefs_get':
+        case 'ai_review_prefs_save':
+        case 'ai_review_delete':
+            require APP_ROOT . '/api/reports/ai_portfolio_review.php'; exit;
+
+        // ── t381: AI Chat Assistant ───────────────────────────────
+        case 'ai_chat_message':
+        case 'ai_chat_session_new':
+        case 'ai_chat_session_get':
+        case 'ai_chat_session_delete':
+        case 'ai_chat_history':
+        case 'ai_chat_usage':
+        case 'ai_chat_clear_all':
+            require APP_ROOT . '/api/ai/ai_chat.php'; exit;
+
+        // ── t205: NSC Interest Tracker ────────────────────────────
+        case 'nsc_list':
+        case 'nsc_80c_schedule':
+        case 'nsc_fy_declaration':
+        case 'nsc_maturity_calc':
+        case 'nsc_80c_log_save':
+        case 'nsc_80c_log_delete':
+            require APP_ROOT . '/api/po_schemes/nsc_tracker.php'; exit;
+
+        // ── t206: MIS/SCSS Payout Tracker ────────────────────────
+        case 'mis_payout_calendar':
+        case 'scss_payout_calendar':
+        case 'payout_income_fy':
+        case 'payout_upcoming':
+        case 'mis_payout_summary':
+        case 'scss_payout_summary':
+        case 'payout_mark_received':
+        case 'payout_mark_pending':
+        case 'payout_bulk_generate':
+        case 'payout_tds_log_save':
+        case 'payout_tds_log_delete':
+            require APP_ROOT . '/api/po_schemes/mis_scss_payout.php'; exit;
+
+        // ── t115 (W1): REITs — additional actions ─────────────────
+        case 'reits_list':
+        case 'reits_summary':
+        case 'reits_add':
+        case 'reits_edit':
+        case 'reits_delete':
+        case 'reits_txn_add':
+        case 'reits_txn_list':
+        case 'reits_txn_delete':
+        case 'reits_dist_add':
+        case 'reits_dist_list':
+        case 'reits_dist_delete':
+        case 'reits_price_refresh':
+        case 'reits_master_search':
+            require APP_ROOT . '/api/reits/reits.php'; exit;
+
+        // ── t120 (W1): Smallcase — additional actions ─────────────
+        case 'smallcase_holding_list':
+        case 'smallcase_holding_save':
+        case 'smallcase_holding_delete':
+        case 'smallcase_holding_bulk_import':
+        case 'smallcase_txn_list':
+        case 'smallcase_txn_add':
+        case 'smallcase_txn_delete':
+        case 'smallcase_rebalance_add':
+        case 'smallcase_rebalance_list':
+        case 'smallcase_price_update':
+        case 'smallcase_calc_xirr':
+            require APP_ROOT . '/api/smallcase/smallcase.php'; exit;
+
+        // ── t144 (W1): SIP Step-Up — additional actions ───────────
+        case 'stepup_list':
+        case 'stepup_save':
+        case 'stepup_delete':
+        case 'stepup_history':
+        case 'stepup_preview':
+        case 'stepup_simulate':
+        case 'stepup_nudge_dismiss':
+        case 'stepup_nudge_salary_hike':
+            require APP_ROOT . '/api/sip/sip_stepup.php'; exit;
 
         default:
             json_response(false, "Unknown action: {$action}", [], 400);

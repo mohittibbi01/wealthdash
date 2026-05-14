@@ -1,281 +1,367 @@
 <?php
 /**
- * WealthDash — REITs & InvITs Portfolio
+ * WealthDash — REITs & InvITs API
  * Task: t115
- * Routes: reit_list, reit_summary, reit_add_holding, reit_edit_holding,
- *         reit_delete_holding, reit_add_txn, reit_delete_txn, reit_txns,
- *         reit_add_dist, reit_distributions, reit_master_list, reit_update_price
+ * Path: api/reits/reits.php
+ * Actions: reits_list | reits_add | reits_edit | reits_delete | reits_summary
+ *          reits_txn_add | reits_txn_list | reits_txn_delete
+ *          reits_dist_add | reits_dist_list | reits_dist_delete
+ *          reits_price_refresh | reits_master_search
  */
 defined('WEALTHDASH') or die();
 
-$db     = DB::conn();
-$uid    = (int)($_SESSION['user_id'] ?? 0);
-$action = $_REQUEST['action'] ?? '';
-
-header('Content-Type: application/json');
-
-if (!$uid) { echo json_encode(['success' => false, 'error' => 'Unauthenticated']); exit; }
-
-/* ── Helpers ──────────────────────────────────────────────── */
-function reit_json(mixed $data, bool $ok = true): void {
-    echo json_encode(['success' => $ok, 'data' => $data]);
-    exit;
-}
-function reit_err(string $msg, int $code = 400): void {
-    http_response_code($code);
-    echo json_encode(['success' => false, 'error' => $msg]);
-    exit;
+$db          = DB::conn();
+$userId      = (int)$_SESSION['user_id'];
+$portfolioId = (int)($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ?? 0);
+if (!$portfolioId) {
+    $r = $db->prepare("SELECT id FROM portfolios WHERE user_id=? AND is_default=1 LIMIT 1");
+    $r->execute([$userId]);
+    $portfolioId = (int)($r->fetchColumn() ?: 0);
 }
 
-/* ── Fetch live price (Yahoo Finance fallback) ────────────── */
-function fetch_reit_price(string $symbol): ?float {
-    $ySymbol = $symbol . '.NS';
-    $url = "https://query1.finance.yahoo.com/v8/finance/chart/{$ySymbol}?interval=1d&range=1d";
-    $ch  = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0',
-        CURLOPT_SSL_VERIFYPEER => false,
-    ]);
-    $res  = curl_exec($ch);
-    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($http !== 200 || !$res) return null;
-    $json = json_decode($res, true);
-    $price = $json['chart']['result'][0]['meta']['regularMarketPrice'] ?? null;
-    return $price ? (float)$price : null;
-}
-
-/* ── Portfolio summary helpers ────────────────────────────── */
-function reit_portfolio_summary(PDO $db, int $uid): array {
-    $holdings = $db->prepare("
-        SELECT h.*, m.name, m.symbol, m.type, m.distribution_freq,
-               p.price AS current_price
-        FROM reit_invit_holdings h
-        JOIN reit_invit_master m ON m.id = h.trust_id
-        LEFT JOIN reit_invit_prices p ON p.trust_id = h.trust_id
-        WHERE h.user_id = ? AND h.units > 0
-        ORDER BY h.total_invested DESC
-    ");
-    $holdings->execute([$uid]);
-    $rows = $holdings->fetchAll(PDO::FETCH_ASSOC);
-
-    $totalInvested = 0; $totalCurrent = 0; $totalGain = 0;
-    $byType = ['REIT' => ['invested' => 0, 'current' => 0], 'InvIT' => ['invested' => 0, 'current' => 0]];
-
-    foreach ($rows as &$r) {
-        $cur = (float)($r['current_price'] ?? $r['avg_cost']);
-        $curr_val = $cur * (float)$r['units'];
-        $gain     = $curr_val - (float)$r['total_invested'];
-        $gain_pct = $r['total_invested'] > 0 ? ($gain / (float)$r['total_invested']) * 100 : 0;
-
-        $r['current_price']  = $cur;
-        $r['current_value']  = round($curr_val, 2);
-        $r['gain_loss']      = round($gain, 2);
-        $r['gain_loss_pct']  = round($gain_pct, 2);
-
-        $totalInvested += (float)$r['total_invested'];
-        $totalCurrent  += $curr_val;
-        $byType[$r['type']]['invested'] += (float)$r['total_invested'];
-        $byType[$r['type']]['current']  += $curr_val;
-    }
-    unset($r);
-
-    $totalGain = $totalCurrent - $totalInvested;
-    return [
-        'holdings'       => $rows,
-        'total_invested' => round($totalInvested, 2),
-        'total_current'  => round($totalCurrent, 2),
-        'total_gain'     => round($totalGain, 2),
-        'total_gain_pct' => $totalInvested > 0 ? round(($totalGain / $totalInvested) * 100, 2) : 0,
-        'by_type'        => $byType,
-    ];
-}
-
-/* ── Route ────────────────────────────────────────────────── */
 switch ($action) {
 
-    /* ---- Master list ---------------------------------------- */
-    case 'reit_master_list':
-        $type = $_GET['type'] ?? null;
-        $sql  = "SELECT * FROM reit_invit_master WHERE is_active = 1";
-        $params = [];
-        if ($type && in_array($type, ['REIT', 'InvIT'])) {
-            $sql .= " AND type = ?"; $params[] = $type;
+// ── LIST ─────────────────────────────────────────────────────
+case 'reits_list':
+    $type   = clean($_GET['trust_type'] ?? '');
+    $where  = "h.user_id=? AND h.portfolio_id=?";
+    $params = [$userId, $portfolioId];
+    if ($type) { $where .= " AND h.trust_type=?"; $params[] = $type; }
+
+    $rows = $db->prepare("
+        SELECT h.*,
+               COALESCE(h.current_value, h.units * h.avg_buy_price) AS value_now,
+               SUM(d.total_amount) AS total_distributions
+        FROM reits_invits h
+        LEFT JOIN reits_invits_distributions d ON d.holding_id = h.id
+        WHERE $where
+        GROUP BY h.id
+        ORDER BY h.trust_type, h.name
+    ");
+    $rows->execute($params);
+    $holdings = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalInvested = array_sum(array_column($holdings, 'total_invested'));
+    $totalValue    = array_sum(array_column($holdings, 'current_value') ?: array_column($holdings, 'value_now'));
+    $totalDist     = array_sum(array_column($holdings, 'total_distributions'));
+
+    json_response(true, '', [
+        'holdings'       => $holdings,
+        'total_invested' => $totalInvested,
+        'total_value'    => $totalValue,
+        'total_distributions' => $totalDist,
+        'gain_loss'      => $totalValue - $totalInvested,
+    ]);
+    break;
+
+// ── SUMMARY ──────────────────────────────────────────────────
+case 'reits_summary':
+    $stmt = $db->prepare("
+        SELECT
+            trust_type,
+            COUNT(*) AS count,
+            SUM(total_invested) AS invested,
+            SUM(current_value) AS value_now
+        FROM reits_invits
+        WHERE user_id=? AND portfolio_id=?
+        GROUP BY trust_type
+    ");
+    $stmt->execute([$userId, $portfolioId]);
+    $byType = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $distStmt = $db->prepare("
+        SELECT SUM(d.total_amount) AS total_dist
+        FROM reits_invits_distributions d
+        JOIN reits_invits h ON h.id = d.holding_id
+        WHERE h.user_id=? AND h.portfolio_id=?
+    ");
+    $distStmt->execute([$userId, $portfolioId]);
+    $dist = $distStmt->fetchColumn() ?: 0;
+
+    json_response(true, '', ['by_type' => $byType, 'total_distributions' => $dist]);
+    break;
+
+// ── ADD HOLDING ──────────────────────────────────────────────
+case 'reits_add':
+    $symbol    = strtoupper(clean($_POST['symbol'] ?? ''));
+    $name      = clean($_POST['name'] ?? '');
+    $trustType = clean($_POST['trust_type'] ?? 'REIT');
+    $exchange  = clean($_POST['exchange'] ?? 'NSE');
+    $isin      = clean($_POST['isin'] ?? '');
+    $units     = (float)($_POST['units'] ?? 0);
+    $avgPrice  = (float)($_POST['avg_buy_price'] ?? 0);
+    $notes     = clean($_POST['notes'] ?? '');
+
+    if (!$symbol || !$name || $units <= 0 || $avgPrice <= 0) {
+        json_response(false, 'Symbol, name, units aur price required hain');
+    }
+
+    $totalInvested = round($units * $avgPrice, 2);
+
+    // Check duplicate
+    $dup = $db->prepare("SELECT id FROM reits_invits WHERE user_id=? AND portfolio_id=? AND symbol=?");
+    $dup->execute([$userId, $portfolioId, $symbol]);
+    if ($dup->fetchColumn()) {
+        json_response(false, "$symbol already added in this portfolio");
+    }
+
+    $ins = $db->prepare("
+        INSERT INTO reits_invits
+            (user_id, portfolio_id, symbol, name, trust_type, exchange, isin, units, avg_buy_price, total_invested, notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    ");
+    $ins->execute([$userId, $portfolioId, $symbol, $name, $trustType, $exchange, $isin ?: null, $units, $avgPrice, $totalInvested, $notes ?: null]);
+    $holdingId = (int)$db->lastInsertId();
+
+    // Auto-create BUY transaction
+    $db->prepare("
+        INSERT INTO reits_invits_transactions
+            (holding_id, user_id, portfolio_id, symbol, transaction_type, txn_date, units, price, amount, notes)
+        VALUES (?,?,?,?,'BUY',CURDATE(),?,?,?,?)
+    ")->execute([$holdingId, $userId, $portfolioId, $symbol, $units, $avgPrice, $totalInvested, 'Initial holding entry']);
+
+    json_response(true, "$symbol added successfully", ['id' => $holdingId]);
+    break;
+
+// ── EDIT HOLDING ─────────────────────────────────────────────
+case 'reits_edit':
+    $id        = (int)($_POST['id'] ?? 0);
+    $units     = (float)($_POST['units'] ?? 0);
+    $avgPrice  = (float)($_POST['avg_buy_price'] ?? 0);
+    $notes     = clean($_POST['notes'] ?? '');
+    $curPrice  = (float)($_POST['current_price'] ?? 0);
+
+    if (!$id || $units <= 0 || $avgPrice <= 0) {
+        json_response(false, 'Invalid data');
+    }
+
+    $totalInvested = round($units * $avgPrice, 2);
+    $curValue      = $curPrice > 0 ? round($units * $curPrice, 2) : null;
+    $gainLoss      = $curValue !== null ? $curValue - $totalInvested : null;
+    $gainPct       = ($totalInvested > 0 && $gainLoss !== null) ? round($gainLoss / $totalInvested * 100, 4) : null;
+
+    $db->prepare("
+        UPDATE reits_invits SET
+            units=?, avg_buy_price=?, total_invested=?,
+            current_price=?, current_value=?, gain_loss=?, gain_loss_pct=?,
+            notes=?, updated_at=NOW()
+        WHERE id=? AND user_id=? AND portfolio_id=?
+    ")->execute([$units, $avgPrice, $totalInvested, $curPrice ?: null, $curValue, $gainLoss, $gainPct, $notes ?: null, $id, $userId, $portfolioId]);
+
+    json_response(true, 'Holding updated');
+    break;
+
+// ── DELETE HOLDING ───────────────────────────────────────────
+case 'reits_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) json_response(false, 'ID required');
+
+    $db->prepare("DELETE FROM reits_invits_distributions WHERE holding_id=? AND user_id=?")->execute([$id, $userId]);
+    $db->prepare("DELETE FROM reits_invits_transactions WHERE holding_id=? AND user_id=?")->execute([$id, $userId]);
+    $db->prepare("DELETE FROM reits_invits WHERE id=? AND user_id=? AND portfolio_id=?")->execute([$id, $userId, $portfolioId]);
+    json_response(true, 'Holding deleted');
+    break;
+
+// ── TRANSACTION ADD ──────────────────────────────────────────
+case 'reits_txn_add':
+    $holdingId = (int)($_POST['holding_id'] ?? 0);
+    $txnType   = clean($_POST['transaction_type'] ?? 'BUY');
+    $txnDate   = clean($_POST['txn_date'] ?? date('Y-m-d'));
+    $units     = (float)($_POST['units'] ?? 0);
+    $price     = (float)($_POST['price'] ?? 0);
+    $brokerage = (float)($_POST['brokerage'] ?? 0);
+    $notes     = clean($_POST['notes'] ?? '');
+
+    if (!$holdingId || $units <= 0 || $price <= 0) {
+        json_response(false, 'Holding, units aur price required');
+    }
+
+    $amount = round($units * $price, 2);
+
+    $db->prepare("
+        INSERT INTO reits_invits_transactions
+            (holding_id, user_id, portfolio_id, symbol, transaction_type, txn_date, units, price, amount, brokerage, notes)
+        SELECT ?, ?, portfolio_id, symbol, ?, ?, ?, ?, ?, ?, ?
+        FROM reits_invits WHERE id=? AND user_id=?
+    ")->execute([$holdingId, $userId, $txnType, $txnDate, $units, $price, $amount, $brokerage, $notes ?: null, $holdingId, $userId]);
+
+    // Recalc units and avg_price
+    _reits_recalc_holding($db, $holdingId, $userId);
+
+    json_response(true, 'Transaction added', ['amount' => $amount]);
+    break;
+
+// ── TRANSACTION LIST ─────────────────────────────────────────
+case 'reits_txn_list':
+    $holdingId = (int)($_GET['holding_id'] ?? 0);
+    $where     = "t.user_id=?";
+    $params    = [$userId];
+    if ($holdingId) { $where .= " AND t.holding_id=?"; $params[] = $holdingId; }
+
+    $rows = $db->prepare("
+        SELECT t.*, h.name AS holding_name
+        FROM reits_invits_transactions t
+        JOIN reits_invits h ON h.id = t.holding_id
+        WHERE $where ORDER BY t.txn_date DESC LIMIT 200
+    ");
+    $rows->execute($params);
+    json_response(true, '', ['transactions' => $rows->fetchAll(PDO::FETCH_ASSOC)]);
+    break;
+
+// ── TRANSACTION DELETE ───────────────────────────────────────
+case 'reits_txn_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) json_response(false, 'ID required');
+    $row = $db->prepare("SELECT holding_id FROM reits_invits_transactions WHERE id=? AND user_id=?");
+    $row->execute([$id, $userId]);
+    $hid = (int)($row->fetchColumn() ?: 0);
+    $db->prepare("DELETE FROM reits_invits_transactions WHERE id=? AND user_id=?")->execute([$id, $userId]);
+    if ($hid) _reits_recalc_holding($db, $hid, $userId);
+    json_response(true, 'Transaction deleted');
+    break;
+
+// ── DISTRIBUTION ADD ─────────────────────────────────────────
+case 'reits_dist_add':
+    $holdingId    = (int)($_POST['holding_id'] ?? 0);
+    $distType     = clean($_POST['dist_type'] ?? 'dividend');
+    $exDate       = clean($_POST['ex_date'] ?? '');
+    $payDate      = clean($_POST['pay_date'] ?? '');
+    $perUnit      = (float)($_POST['per_unit_amount'] ?? 0);
+    $unitsHeld    = (float)($_POST['units_held'] ?? 0);
+    $tds          = (float)($_POST['tds_deducted'] ?? 0);
+    $notes        = clean($_POST['notes'] ?? '');
+
+    if (!$holdingId || !$exDate || $perUnit <= 0 || $unitsHeld <= 0) {
+        json_response(false, 'Required fields missing');
+    }
+
+    $totalAmount = round($perUnit * $unitsHeld, 2);
+    $netAmount   = round($totalAmount - $tds, 2);
+
+    $sym = $db->prepare("SELECT symbol FROM reits_invits WHERE id=? AND user_id=?");
+    $sym->execute([$holdingId, $userId]);
+    $symbol = $sym->fetchColumn();
+
+    $db->prepare("
+        INSERT INTO reits_invits_distributions
+            (holding_id, user_id, symbol, dist_type, ex_date, pay_date, per_unit_amount, units_held, total_amount, tds_deducted, net_amount, notes)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+    ")->execute([$holdingId, $userId, $symbol, $distType, $exDate, $payDate ?: null, $perUnit, $unitsHeld, $totalAmount, $tds, $netAmount, $notes ?: null]);
+
+    json_response(true, 'Distribution added', ['total' => $totalAmount, 'net' => $netAmount]);
+    break;
+
+// ── DISTRIBUTION LIST ────────────────────────────────────────
+case 'reits_dist_list':
+    $holdingId = (int)($_GET['holding_id'] ?? 0);
+    $where     = "d.user_id=?";
+    $params    = [$userId];
+    if ($holdingId) { $where .= " AND d.holding_id=?"; $params[] = $holdingId; }
+
+    $rows = $db->prepare("
+        SELECT d.*, h.name AS holding_name, h.trust_type
+        FROM reits_invits_distributions d
+        JOIN reits_invits h ON h.id = d.holding_id
+        WHERE $where ORDER BY d.ex_date DESC LIMIT 200
+    ");
+    $rows->execute($params);
+    $list = $rows->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalDist = array_sum(array_column($list, 'total_amount'));
+    $totalNet  = array_sum(array_column($list, 'net_amount'));
+    json_response(true, '', ['distributions' => $list, 'total_gross' => $totalDist, 'total_net' => $totalNet]);
+    break;
+
+// ── DISTRIBUTION DELETE ──────────────────────────────────────
+case 'reits_dist_delete':
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) json_response(false, 'ID required');
+    $db->prepare("DELETE FROM reits_invits_distributions WHERE id=? AND user_id=?")->execute([$id, $userId]);
+    json_response(true, 'Distribution deleted');
+    break;
+
+// ── PRICE REFRESH (via NSE quote if available) ───────────────
+case 'reits_price_refresh':
+    $holdingId = (int)($_POST['id'] ?? 0);
+    $price     = (float)($_POST['price'] ?? 0);
+    $priceDate = clean($_POST['price_date'] ?? date('Y-m-d'));
+
+    if (!$holdingId || $price <= 0) json_response(false, 'ID and price required');
+
+    $h = $db->prepare("SELECT units, total_invested FROM reits_invits WHERE id=? AND user_id=?");
+    $h->execute([$holdingId, $userId]);
+    $holding = $h->fetch(PDO::FETCH_ASSOC);
+    if (!$holding) json_response(false, 'Holding not found');
+
+    $curValue = round((float)$holding['units'] * $price, 2);
+    $gainLoss = round($curValue - (float)$holding['total_invested'], 2);
+    $gainPct  = (float)$holding['total_invested'] > 0
+                ? round($gainLoss / (float)$holding['total_invested'] * 100, 4) : 0;
+
+    $db->prepare("
+        UPDATE reits_invits SET
+            current_price=?, current_value=?, gain_loss=?, gain_loss_pct=?,
+            last_price_date=?, updated_at=NOW()
+        WHERE id=? AND user_id=?
+    ")->execute([$price, $curValue, $gainLoss, $gainPct, $priceDate, $holdingId, $userId]);
+
+    json_response(true, 'Price updated', [
+        'current_value' => $curValue,
+        'gain_loss'     => $gainLoss,
+        'gain_loss_pct' => $gainPct,
+    ]);
+    break;
+
+// ── MASTER SEARCH ────────────────────────────────────────────
+case 'reits_master_search':
+    $q    = clean($_GET['q'] ?? '');
+    $type = clean($_GET['trust_type'] ?? '');
+    if (strlen($q) < 1) { json_response(true, '', ['results' => []]); }
+
+    $where  = "(symbol LIKE ? OR name LIKE ?)";
+    $params = ["%$q%", "%$q%"];
+    if ($type) { $where .= " AND trust_type=?"; $params[] = $type; }
+
+    $rows = $db->prepare("SELECT * FROM reits_invits_master WHERE $where AND is_active=1 ORDER BY trust_type, name LIMIT 20");
+    $rows->execute($params);
+    json_response(true, '', ['results' => $rows->fetchAll(PDO::FETCH_ASSOC)]);
+    break;
+
+default:
+    json_response(false, "Unknown action: $action");
+}
+
+// ── Helper: recalculate holding units & avg price ─────────────
+function _reits_recalc_holding(PDO $db, int $holdingId, int $userId): void {
+    $stmt = $db->prepare("
+        SELECT transaction_type, units, price, amount
+        FROM reits_invits_transactions
+        WHERE holding_id=? AND user_id=? ORDER BY txn_date, id
+    ");
+    $stmt->execute([$holdingId, $userId]);
+    $txns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $totalUnits   = 0;
+    $totalCost    = 0;
+
+    foreach ($txns as $t) {
+        if ($t['transaction_type'] === 'BUY') {
+            $totalCost  += (float)$t['amount'];
+            $totalUnits += (float)$t['units'];
+        } elseif ($t['transaction_type'] === 'SELL') {
+            $totalUnits -= (float)$t['units'];
+            if ($totalUnits > 0 && $totalCost > 0) {
+                $avgBeforeSell = $totalCost / ($totalUnits + (float)$t['units']);
+                $totalCost    -= $avgBeforeSell * (float)$t['units'];
+            }
         }
-        $sql .= " ORDER BY type, name";
-        $st = $db->prepare($sql); $st->execute($params);
-        reit_json($st->fetchAll(PDO::FETCH_ASSOC));
-
-    /* ---- Holdings list + summary --------------------------- */
-    case 'reit_list':
-    case 'reit_summary':
-        reit_json(reit_portfolio_summary($db, $uid));
-
-    /* ---- Add / edit holding -------------------------------- */
-    case 'reit_add_holding':
-    case 'reit_edit_holding': {
-        $trust_id      = (int)($_POST['trust_id']      ?? 0);
-        $units         = (float)($_POST['units']        ?? 0);
-        $avg_cost      = (float)($_POST['avg_cost']     ?? 0);
-        $total_invested = (float)($_POST['total_invested'] ?? ($units * $avg_cost));
-        $broker        = trim($_POST['broker']         ?? '');
-        $demat         = trim($_POST['demat_account']  ?? '');
-        $notes         = trim($_POST['notes']          ?? '');
-
-        if (!$trust_id || $units <= 0 || $avg_cost <= 0) reit_err('trust_id, units, avg_cost required');
-
-        if ($action === 'reit_add_holding') {
-            $db->prepare("
-                INSERT INTO reit_invit_holdings (user_id, trust_id, units, avg_cost, total_invested, broker, demat_account, notes)
-                VALUES (?,?,?,?,?,?,?,?)
-                ON DUPLICATE KEY UPDATE units=VALUES(units), avg_cost=VALUES(avg_cost),
-                  total_invested=VALUES(total_invested), broker=VALUES(broker),
-                  demat_account=VALUES(demat_account), notes=VALUES(notes), updated_at=NOW()
-            ")->execute([$uid, $trust_id, $units, $avg_cost, $total_invested, $broker, $demat, $notes]);
-        } else {
-            $hid = (int)($_POST['id'] ?? 0);
-            if (!$hid) reit_err('id required for edit');
-            $db->prepare("
-                UPDATE reit_invit_holdings SET units=?, avg_cost=?, total_invested=?,
-                  broker=?, demat_account=?, notes=?, updated_at=NOW()
-                WHERE id=? AND user_id=?
-            ")->execute([$units, $avg_cost, $total_invested, $broker, $demat, $notes, $hid, $uid]);
-        }
-        reit_json(['message' => 'Holding saved']);
     }
 
-    /* ---- Delete holding ------------------------------------ */
-    case 'reit_delete_holding': {
-        $hid = (int)($_POST['id'] ?? 0);
-        if (!$hid) reit_err('id required');
-        $db->prepare("DELETE FROM reit_invit_holdings WHERE id=? AND user_id=?")->execute([$hid, $uid]);
-        reit_json(['message' => 'Holding deleted']);
-    }
+    $avgPrice      = $totalUnits > 0 ? round($totalCost / $totalUnits, 4) : 0;
+    $totalInvested = round($totalCost, 2);
 
-    /* ---- Transactions ------------------------------------- */
-    case 'reit_txns': {
-        $trust_id = (int)($_GET['trust_id'] ?? 0);
-        $sql  = "SELECT t.*, m.name, m.symbol FROM reit_invit_transactions t
-                 JOIN reit_invit_master m ON m.id = t.trust_id
-                 WHERE t.user_id = ?";
-        $params = [$uid];
-        if ($trust_id) { $sql .= " AND t.trust_id = ?"; $params[] = $trust_id; }
-        $sql .= " ORDER BY t.txn_date DESC LIMIT 200";
-        $st = $db->prepare($sql); $st->execute($params);
-        reit_json($st->fetchAll(PDO::FETCH_ASSOC));
-    }
-
-    case 'reit_add_txn': {
-        $trust_id   = (int)($_POST['trust_id']     ?? 0);
-        $txn_type   = $_POST['txn_type']            ?? 'buy';
-        $txn_date   = $_POST['txn_date']            ?? date('Y-m-d');
-        $units      = (float)($_POST['units']       ?? 0);
-        $price      = (float)($_POST['price_per_unit'] ?? 0);
-        $brokerage  = (float)($_POST['brokerage']   ?? 0);
-        $stt        = (float)($_POST['stt']         ?? 0);
-        $total      = (float)($_POST['total_amount'] ?? ($units * $price + $brokerage + $stt));
-        $notes      = trim($_POST['notes']          ?? '');
-
-        if (!$trust_id || $units <= 0 || $price <= 0) reit_err('trust_id, units, price_per_unit required');
-        if (!in_array($txn_type, ['buy','sell','bonus','rights'])) reit_err('Invalid txn_type');
-
-        $db->prepare("
-            INSERT INTO reit_invit_transactions
-              (user_id, trust_id, txn_type, txn_date, units, price_per_unit, brokerage, stt, total_amount, notes)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        ")->execute([$uid, $trust_id, $txn_type, $txn_date, $units, $price, $brokerage, $stt, $total, $notes]);
-
-        // Recalculate holding
-        $agg = $db->prepare("
-            SELECT
-              SUM(CASE WHEN txn_type IN ('buy','bonus','rights') THEN units ELSE -units END) AS net_units,
-              SUM(CASE WHEN txn_type = 'buy' THEN total_amount ELSE 0 END) AS total_inv,
-              SUM(CASE WHEN txn_type = 'buy' THEN units ELSE 0 END) AS buy_units
-            FROM reit_invit_transactions WHERE user_id=? AND trust_id=?
-        ");
-        $agg->execute([$uid, $trust_id]);
-        $row = $agg->fetch(PDO::FETCH_ASSOC);
-        $net_units = max(0, (float)$row['net_units']);
-        $avg_cost  = $row['buy_units'] > 0 ? (float)$row['total_inv'] / (float)$row['buy_units'] : 0;
-
-        $db->prepare("
-            INSERT INTO reit_invit_holdings (user_id, trust_id, units, avg_cost, total_invested)
-            VALUES (?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE units=VALUES(units), avg_cost=VALUES(avg_cost),
-              total_invested=VALUES(total_invested), updated_at=NOW()
-        ")->execute([$uid, $trust_id, $net_units, $avg_cost, (float)$row['total_inv']]);
-
-        reit_json(['message' => 'Transaction added']);
-    }
-
-    case 'reit_delete_txn': {
-        $tid = (int)($_POST['id'] ?? 0);
-        if (!$tid) reit_err('id required');
-        $db->prepare("DELETE FROM reit_invit_transactions WHERE id=? AND user_id=?")->execute([$tid, $uid]);
-        reit_json(['message' => 'Transaction deleted']);
-    }
-
-    /* ---- Distributions ------------------------------------ */
-    case 'reit_distributions': {
-        $trust_id = (int)($_GET['trust_id'] ?? 0);
-        $sql  = "SELECT d.*, m.name, m.symbol FROM reit_invit_distributions d
-                 JOIN reit_invit_master m ON m.id = d.trust_id
-                 WHERE d.user_id = ?";
-        $params = [$uid];
-        if ($trust_id) { $sql .= " AND d.trust_id = ?"; $params[] = $trust_id; }
-        $sql .= " ORDER BY d.distribution_date DESC LIMIT 200";
-        $st = $db->prepare($sql); $st->execute($params);
-        reit_json($st->fetchAll(PDO::FETCH_ASSOC));
-    }
-
-    case 'reit_add_dist': {
-        $trust_id   = (int)($_POST['trust_id']       ?? 0);
-        $dist_date  = $_POST['distribution_date']    ?? date('Y-m-d');
-        $dist_type  = $_POST['dist_type']            ?? 'interest';
-        $amt_unit   = (float)($_POST['amount_per_unit'] ?? 0);
-        $units_held = (float)($_POST['units_held']   ?? 0);
-        $total      = (float)($_POST['total_received'] ?? ($amt_unit * $units_held));
-        $tds        = (float)($_POST['tds_deducted'] ?? 0);
-        $net        = $total - $tds;
-        $reinvest   = (int)($_POST['is_reinvested']  ?? 0);
-        $notes      = trim($_POST['notes']           ?? '');
-
-        if (!$trust_id || $amt_unit <= 0) reit_err('trust_id, amount_per_unit required');
-
-        $db->prepare("
-            INSERT INTO reit_invit_distributions
-              (user_id, trust_id, distribution_date, dist_type, amount_per_unit,
-               units_held, total_received, tds_deducted, net_received, is_reinvested, notes)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-        ")->execute([$uid, $trust_id, $dist_date, $dist_type, $amt_unit,
-                     $units_held, $total, $tds, $net, $reinvest, $notes]);
-        reit_json(['message' => 'Distribution recorded']);
-    }
-
-    /* ---- Update live price --------------------------------- */
-    case 'reit_update_price': {
-        $trust_id = (int)($_POST['trust_id'] ?? 0);
-        if (!$trust_id) reit_err('trust_id required');
-
-        $trust = $db->prepare("SELECT symbol FROM reit_invit_master WHERE id=?");
-        $trust->execute([$trust_id]);
-        $row = $trust->fetch(PDO::FETCH_ASSOC);
-        if (!$row) reit_err('Trust not found', 404);
-
-        $price = fetch_reit_price($row['symbol']);
-        if (!$price) reit_err('Could not fetch live price');
-
-        $db->prepare("
-            INSERT INTO reit_invit_prices (trust_id, price, price_date)
-            VALUES (?,?,CURDATE())
-            ON DUPLICATE KEY UPDATE price=VALUES(price), price_date=VALUES(price_date), updated_at=NOW()
-        ")->execute([$trust_id, $price]);
-
-        reit_json(['price' => $price, 'symbol' => $row['symbol']]);
-    }
-
-    default:
-        reit_err("Unknown action: $action", 404);
+    $db->prepare("
+        UPDATE reits_invits SET units=?, avg_buy_price=?, total_invested=?, updated_at=NOW()
+        WHERE id=? AND user_id=?
+    ")->execute([round($totalUnits, 4), $avgPrice, $totalInvested, $holdingId, $userId]);
 }

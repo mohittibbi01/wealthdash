@@ -1,247 +1,274 @@
 <?php
 /**
  * WealthDash — t386: 2FA TOTP (Google Authenticator)
- * Actions: 2fa_status | 2fa_setup | 2fa_verify_setup | 2fa_disable | 2fa_verify_login
+ * Handles: 2fa_status, 2fa_setup, 2fa_verify_setup, 2fa_disable, 2fa_verify_login
  */
 defined('WEALTHDASH') or die('Direct access not allowed.');
 
-$currentUser = require_auth();
-$userId      = (int)$currentUser['id'];
-$db          = DB::conn();
-$action      = $_POST['action'] ?? $_GET['action'] ?? '2fa_status';
+// ── Tiny pure-PHP TOTP (no composer dep) ──────────────────────────────────
+class WD_TOTP {
+    const DIGITS = 6;
+    const PERIOD = 30;
+    const ALGO   = 'sha1';
+    const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-// ── Pure-PHP TOTP (no library needed) ─────────────────────────
-class TOTP {
-    const DIGITS   = 6;
-    const PERIOD   = 30;
-    const ALGO     = 'sha1';
-
-    /** Generate a random Base32 secret (20 bytes = 160 bits) */
-    static function generateSecret(): string {
-        $bytes  = random_bytes(20);
-        $base32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-        $bin    = '';
-        foreach (str_split($bytes) as $b) $bin .= str_pad(decbin(ord($b)), 8, '0', STR_PAD_LEFT);
-        $output = '';
-        foreach (str_split($bin, 5) as $chunk)
-            $output .= $base32[bindec(str_pad($chunk, 5, '0', STR_PAD_RIGHT))];
-        return $output;
+    static function generateSecret(int $bytes = 20): string {
+        $raw = random_bytes($bytes);
+        return self::base32Encode($raw);
     }
 
-    /** Decode Base32 to binary */
-    static function base32Decode(string $secret): string {
-        $base32  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-        $secret  = strtoupper($secret);
-        $bin     = '';
-        foreach (str_split($secret) as $c) {
-            $pos = strpos($base32, $c);
-            if ($pos === false) continue;
-            $bin .= str_pad(decbin($pos), 5, '0', STR_PAD_LEFT);
-        }
-        $bytes = '';
-        foreach (str_split($bin, 8) as $chunk)
-            if (strlen($chunk) === 8) $bytes .= chr(bindec($chunk));
-        return $bytes;
+    static function getCode(string $secret, int $offset = 0): string {
+        $key   = self::base32Decode($secret);
+        $time  = intdiv(time(), self::PERIOD) + $offset;
+        $msg   = pack('J', $time);
+        $hash  = hash_hmac(self::ALGO, $msg, $key, true);
+        $off   = ord($hash[strlen($hash) - 1]) & 0x0F;
+        $val   = ((ord($hash[$off]) & 0x7F) << 24)
+               | ((ord($hash[$off+1]) & 0xFF) << 16)
+               | ((ord($hash[$off+2]) & 0xFF) << 8)
+               |  (ord($hash[$off+3]) & 0xFF);
+        return str_pad((string)($val % (10 ** self::DIGITS)), self::DIGITS, '0', STR_PAD_LEFT);
     }
 
-    /** Generate OTP for a given counter */
-    static function hotp(string $secret, int $counter): string {
-        $key     = self::base32Decode($secret);
-        $counter = pack('N*', 0) . pack('N*', $counter);
-        $hash    = hash_hmac(self::ALGO, $counter, $key, true);
-        $offset  = ord($hash[strlen($hash) - 1]) & 0x0F;
-        $code    = (
-            ((ord($hash[$offset])     & 0x7F) << 24) |
-            ((ord($hash[$offset + 1]) & 0xFF) << 16) |
-            ((ord($hash[$offset + 2]) & 0xFF) << 8)  |
-             (ord($hash[$offset + 3]) & 0xFF)
-        ) % (10 ** self::DIGITS);
-        return str_pad($code, self::DIGITS, '0', STR_PAD_LEFT);
-    }
-
-    /** Verify OTP — allows ±1 window for clock skew */
-    static function verify(string $secret, string $otp): bool {
-        $otp     = preg_replace('/\s+/', '', $otp);
-        $counter = (int) floor(time() / self::PERIOD);
-        for ($i = -1; $i <= 1; $i++) {
-            if (hash_equals(self::hotp($secret, $counter + $i), $otp)) return true;
+    static function verify(string $secret, string $code, int $window = 1): bool {
+        $code = trim($code);
+        for ($i = -$window; $i <= $window; $i++) {
+            if (hash_equals(self::getCode($secret, $i), $code)) return true;
         }
         return false;
     }
 
-    /** OTP Auth URI for QR code */
-    static function otpauthUri(string $secret, string $email, string $issuer = 'WealthDash'): string {
-        return 'otpauth://totp/' . rawurlencode($issuer) . ':' . rawurlencode($email)
+    static function qrUri(string $secret, string $user, string $issuer = 'WealthDash'): string {
+        $label = rawurlencode($issuer) . ':' . rawurlencode($user);
+        return 'otpauth://totp/' . $label
              . '?secret=' . $secret
              . '&issuer=' . rawurlencode($issuer)
              . '&algorithm=SHA1&digits=6&period=30';
     }
-}
 
-// ── Ensure 2fa_settings column exists ─────────────────────────
-// (Run once at startup — cheap no-op if already present)
-try {
-    $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64) DEFAULT NULL");
-    $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled TINYINT(1) NOT NULL DEFAULT 0");
-    $db->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT DEFAULT NULL");
-} catch (Exception $e) { /* already exists */ }
-
-// ── Helpers ────────────────────────────────────────────────────
-function get2faUser(int $userId): array {
-    return DB::fetchRow('SELECT totp_enabled, totp_secret, totp_backup_codes FROM users WHERE id = ?', [$userId]) ?? [];
-}
-
-function generateBackupCodes(): array {
-    $codes = [];
-    for ($i = 0; $i < 8; $i++) {
-        $codes[] = strtoupper(bin2hex(random_bytes(4)));
+    // ── Base32 ──────────────────────────────────────────────
+    private static function base32Encode(string $data): string {
+        $b32 = self::BASE32;
+        $out = '';
+        $len = strlen($data);
+        $buf = 0; $bits = 0;
+        for ($i = 0; $i < $len; $i++) {
+            $buf = ($buf << 8) | ord($data[$i]);
+            $bits += 8;
+            while ($bits >= 5) {
+                $bits -= 5;
+                $out .= $b32[($buf >> $bits) & 0x1F];
+            }
+        }
+        if ($bits) $out .= $b32[($buf << (5 - $bits)) & 0x1F];
+        while (strlen($out) % 8) $out .= '=';
+        return $out;
     }
-    return $codes;
+
+    private static function base32Decode(string $data): string {
+        $data = strtoupper(str_replace('=', '', $data));
+        $b32  = self::BASE32;
+        $out  = '';
+        $buf  = 0; $bits = 0;
+        for ($i = 0; $i < strlen($data); $i++) {
+            $pos = strpos($b32, $data[$i]);
+            if ($pos === false) continue;
+            $buf = ($buf << 5) | $pos;
+            $bits += 5;
+            if ($bits >= 8) {
+                $bits -= 8;
+                $out .= chr(($buf >> $bits) & 0xFF);
+            }
+        }
+        return $out;
+    }
 }
 
-// ════════════════════════════════════════════════════════════════
+// ── Route dispatcher ──────────────────────────────────────────────────────
+$action = clean($_POST['action'] ?? $_GET['action'] ?? '');
+$userId = (int)$_SESSION['user_id'];
+$db     = DB::getInstance();
+
 switch ($action) {
 
-    // ── STATUS ─────────────────────────────────────────────────
-    case '2fa_status':
-        $row = get2faUser($userId);
-        json_response(true, '', [
-            'enabled' => (bool) ($row['totp_enabled'] ?? false),
-            'has_backup_codes' => !empty($row['totp_backup_codes']),
+    // ── STATUS: is 2FA enabled? ──────────────────────────────────────────
+    case '2fa_status': {
+        csrf_check_exempt();
+        $row = DB::fetchRow(
+            "SELECT totp_enabled, totp_setup_at FROM users WHERE id = ?",
+            [$userId]
+        );
+        json_response(true, 'ok', [
+            'enabled'    => (bool)($row['totp_enabled'] ?? false),
+            'setup_at'   => $row['totp_setup_at'] ?? null,
         ]);
+        break;
+    }
 
-    // ── SETUP: generate secret + QR ────────────────────────────
-    case '2fa_setup':
-        $row = get2faUser($userId);
-        if (!empty($row['totp_enabled'])) {
-            json_response(false, '2FA pehle se enabled hai. Pehle disable karo.');
-        }
-
-        $secret  = TOTP::generateSecret();
-        $email   = $currentUser['email'];
-        $uri     = TOTP::otpauthUri($secret, $email);
-
-        // Store pending secret (not yet active until verified)
-        DB::run('UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?', [$secret, $userId]);
-
-        // QR code URL via Google Charts (free, no library needed)
-        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' . urlencode($uri);
-
-        json_response(true, '', [
-            'secret'   => $secret,
-            'qr_url'   => $qrUrl,
-            'otp_uri'  => $uri,
-            'instructions' => 'Google Authenticator app mein + button dabaao → "Scan QR code" select karo. Phir neeche verify karo.',
-        ]);
-
-    // ── VERIFY SETUP: confirm OTP before activating ─────────────
-    case '2fa_verify_setup':
+    // ── SETUP: generate secret + QR URI ─────────────────────────────────
+    case '2fa_setup': {
         csrf_verify();
-        $otp = clean($_POST['otp'] ?? '');
-        if (!$otp) json_response(false, 'OTP required hai.');
+        RateLimit::check('2fa_setup');
 
-        $row = get2faUser($userId);
-        if (empty($row['totp_secret'])) {
-            json_response(false, 'Pehle 2fa_setup karo.');
-        }
-        if (!empty($row['totp_enabled'])) {
-            json_response(false, '2FA pehle se active hai.');
+        $user = DB::fetchRow("SELECT email, totp_enabled FROM users WHERE id = ?", [$userId]);
+        if ($user['totp_enabled']) {
+            json_response(false, '2FA is already enabled. Disable first to re-setup.');
         }
 
-        if (!TOTP::verify($row['totp_secret'], $otp)) {
-            json_response(false, 'OTP galat hai ya expire ho gaya. Dobara try karo.');
-        }
+        $secret = WD_TOTP::generateSecret();
+        $qrUri  = WD_TOTP::qrUri($secret, $user['email']);
 
-        // Activate + generate backup codes
-        $backupCodes = generateBackupCodes();
-        DB::run(
-            'UPDATE users SET totp_enabled = 1, totp_backup_codes = ? WHERE id = ?',
-            [json_encode($backupCodes), $userId]
+        // Store pending secret (not active until verified)
+        DB::execute(
+            "UPDATE users SET totp_secret_pending = ? WHERE id = ?",
+            [$secret, $userId]
         );
 
-        audit_log('2fa_enabled', 'user', $userId);
-        json_response(true, '✅ Two-Factor Authentication successfully enable ho gaya!', [
-            'backup_codes' => $backupCodes,
-            'backup_note'  => 'Ye codes safe jagah save karo — agar phone kho jaye to inhi se login hoga.',
+        // QR as Google Charts URL (no JS lib needed)
+        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='
+               . rawurlencode($qrUri);
+
+        json_response(true, 'Secret generated', [
+            'secret'  => $secret,
+            'qr_url'  => $qrUrl,
+            'otp_uri' => $qrUri,
         ]);
+        break;
+    }
 
-    // ── VERIFY LOGIN: called after password check ───────────────
-    case '2fa_verify_login':
-        $otp       = clean($_POST['otp'] ?? '');
-        $loginId   = (int) ($_POST['user_id'] ?? $userId);
+    // ── VERIFY SETUP: confirm TOTP code before activating ───────────────
+    case '2fa_verify_setup': {
+        csrf_verify();
+        RateLimit::check('2fa_setup');
 
-        if (!$otp) json_response(false, 'OTP required hai.');
+        $code = clean($_POST['code'] ?? '');
+        if (!$code) json_response(false, 'Code required.');
 
         $row = DB::fetchRow(
-            'SELECT totp_secret, totp_enabled, totp_backup_codes FROM users WHERE id = ?',
-            [$loginId]
+            "SELECT totp_secret_pending FROM users WHERE id = ?",
+            [$userId]
+        );
+        if (empty($row['totp_secret_pending'])) {
+            json_response(false, 'No pending 2FA setup. Start setup first.');
+        }
+
+        if (!WD_TOTP::verify($row['totp_secret_pending'], $code)) {
+            json_response(false, 'Invalid code. Check your authenticator app.');
+        }
+
+        // Generate backup codes
+        $backupCodes = [];
+        for ($i = 0; $i < 8; $i++) {
+            $backupCodes[] = strtoupper(bin2hex(random_bytes(4)));
+        }
+        $backupHash = json_encode(array_map('password_hash', $backupCodes, array_fill(0, 8, PASSWORD_DEFAULT)));
+
+        DB::execute(
+            "UPDATE users SET
+                totp_enabled = 1,
+                totp_secret  = totp_secret_pending,
+                totp_secret_pending = NULL,
+                totp_setup_at = NOW(),
+                totp_backup_codes = ?
+             WHERE id = ?",
+            [$backupHash, $userId]
         );
 
-        if (!$row || empty($row['totp_enabled'])) {
-            json_response(false, '2FA is user ke liye enabled nahi hai.');
-        }
+        audit_log($userId, '2fa_enabled', '2FA TOTP enabled');
+        json_response(true, '2FA enabled successfully', ['backup_codes' => $backupCodes]);
+        break;
+    }
 
-        // Check TOTP
-        if (TOTP::verify($row['totp_secret'], $otp)) {
-            audit_log('2fa_login_success', 'user', $loginId);
-            json_response(true, 'OTP verified.', ['verified' => true]);
-        }
-
-        // Check backup codes
-        $codes = json_decode($row['totp_backup_codes'] ?? '[]', true);
-        $otpUpper = strtoupper(preg_replace('/\s+/', '', $otp));
-        if (in_array($otpUpper, $codes, true)) {
-            // Remove used backup code
-            $remaining = array_values(array_filter($codes, fn($c) => $c !== $otpUpper));
-            DB::run('UPDATE users SET totp_backup_codes = ? WHERE id = ?',
-                [json_encode($remaining), $loginId]);
-            audit_log('2fa_backup_code_used', 'user', $loginId);
-            json_response(true, 'Backup code se login hua. Baaki ' . count($remaining) . ' codes remaining.', [
-                'verified'         => true,
-                'used_backup_code' => true,
-                'remaining_codes'  => count($remaining),
-            ]);
-        }
-
-        audit_log('2fa_login_failed', 'user', $loginId);
-        json_response(false, 'OTP galat hai. Authenticator app check karo ya backup code use karo.');
-
-    // ── DISABLE ─────────────────────────────────────────────────
-    case '2fa_disable':
+    // ── DISABLE ──────────────────────────────────────────────────────────
+    case '2fa_disable': {
         csrf_verify();
-        $otp = clean($_POST['otp'] ?? '');
-        if (!$otp) json_response(false, 'Current OTP required to disable 2FA.');
+        RateLimit::check('2fa_setup');
 
-        $row = get2faUser($userId);
-        if (empty($row['totp_enabled'])) {
-            json_response(false, '2FA pehle se disabled hai.');
+        $code     = clean($_POST['code'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if (!$code || !$password) {
+            json_response(false, 'Code and password required.');
         }
 
-        if (!TOTP::verify($row['totp_secret'], $otp)) {
-            json_response(false, 'OTP galat hai. 2FA disable nahi hua.');
+        $row = DB::fetchRow(
+            "SELECT password_hash, totp_secret, totp_enabled FROM users WHERE id = ?",
+            [$userId]
+        );
+        if (!$row['totp_enabled']) {
+            json_response(false, '2FA is not enabled.');
+        }
+        if (!password_verify($password, $row['password_hash'])) {
+            json_response(false, 'Incorrect password.');
+        }
+        if (!WD_TOTP::verify($row['totp_secret'], $code)) {
+            json_response(false, 'Invalid 2FA code.');
         }
 
-        DB::run('UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_backup_codes = NULL WHERE id = ?', [$userId]);
-        audit_log('2fa_disabled', 'user', $userId);
-        json_response(true, '2FA disable ho gaya.');
+        DB::execute(
+            "UPDATE users SET totp_enabled=0, totp_secret=NULL,
+             totp_secret_pending=NULL, totp_backup_codes=NULL,
+             totp_setup_at=NULL WHERE id=?",
+            [$userId]
+        );
 
-    // ── REGENERATE BACKUP CODES ──────────────────────────────────
-    case '2fa_regen_backup':
-        csrf_verify();
-        $otp = clean($_POST['otp'] ?? '');
-        $row = get2faUser($userId);
+        audit_log($userId, '2fa_disabled', '2FA TOTP disabled');
+        json_response(true, '2FA disabled successfully.');
+        break;
+    }
 
-        if (empty($row['totp_enabled'])) {
-            json_response(false, '2FA enabled nahi hai.');
+    // ── VERIFY LOGIN: used during login flow ─────────────────────────────
+    case '2fa_verify_login': {
+        // No full CSRF needed here — we check pending_2fa_userid in session
+        RateLimit::check('2fa_verify_login');
+
+        $pendingId = (int)($_SESSION['pending_2fa_userid'] ?? 0);
+        if (!$pendingId) {
+            json_response(false, 'No pending 2FA session.', [], 403);
         }
-        if (!TOTP::verify($row['totp_secret'], $otp)) {
-            json_response(false, 'OTP galat hai.');
+
+        $code = clean($_POST['code'] ?? '');
+        if (!$code) json_response(false, 'Code required.');
+
+        $row = DB::fetchRow(
+            "SELECT totp_secret, totp_backup_codes FROM users WHERE id = ? AND totp_enabled = 1",
+            [$pendingId]
+        );
+        if (!$row) json_response(false, 'User not found or 2FA not enabled.', [], 403);
+
+        $valid = WD_TOTP::verify($row['totp_secret'], $code);
+
+        // Backup code fallback
+        if (!$valid && strlen($code) === 8) {
+            $backups = json_decode($row['totp_backup_codes'] ?? '[]', true);
+            foreach ($backups as $idx => $hash) {
+                if (password_verify(strtoupper($code), $hash)) {
+                    // Consume backup code (one-time use)
+                    unset($backups[$idx]);
+                    DB::execute(
+                        "UPDATE users SET totp_backup_codes = ? WHERE id = ?",
+                        [json_encode(array_values($backups)), $pendingId]
+                    );
+                    $valid = true;
+                    break;
+                }
+            }
         }
 
-        $newCodes = generateBackupCodes();
-        DB::run('UPDATE users SET totp_backup_codes = ? WHERE id = ?', [json_encode($newCodes), $userId]);
-        audit_log('2fa_backup_regenerated', 'user', $userId);
-        json_response(true, 'Naye backup codes generate ho gaye.', ['backup_codes' => $newCodes]);
+        if (!$valid) {
+            json_response(false, 'Invalid code. Try again.');
+        }
+
+        // Complete login
+        $_SESSION['user_id']          = $pendingId;
+        $_SESSION['2fa_verified']     = true;
+        unset($_SESSION['pending_2fa_userid']);
+        session_regenerate_id(true);
+
+        audit_log($pendingId, '2fa_login', '2FA login verified');
+        json_response(true, '2FA verified. Logging in…', ['redirect' => APP_URL . '?page=dashboard']);
+        break;
+    }
 
     default:
         json_response(false, 'Unknown 2FA action.', [], 400);

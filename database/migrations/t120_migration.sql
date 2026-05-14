@@ -1,91 +1,87 @@
--- ============================================================
--- WealthDash — Migration t120: Smallcase Portfolio Sync
--- Task: t120 — Basket strategy tracker
--- ============================================================
+-- ═══════════════════════════════════════════════════════════════
+-- WealthDash — t120: Smallcase Portfolio Sync
+-- Migration: t120_migration.sql
+-- ═══════════════════════════════════════════════════════════════
 
--- ── Smallcase strategies (user's subscribed baskets) ─────────
-CREATE TABLE IF NOT EXISTS `smallcase_portfolios` (
-  `id`              INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id`         INT UNSIGNED NOT NULL,
-  `smallcase_id`    VARCHAR(50)  NOT NULL COMMENT 'Smallcase slug/id e.g. EQUITY_50',
-  `name`            VARCHAR(150) NOT NULL,
-  `publisher`       VARCHAR(100) NULL COMMENT 'Windmill Capital / SEBI RIA name',
-  `strategy_type`   ENUM('model','thematic','quantamental','sectoral','smart_beta','other') NOT NULL DEFAULT 'model',
-  `rebalance_freq`  ENUM('monthly','quarterly','half_yearly','yearly','event_based') DEFAULT 'quarterly',
-  `min_investment`  DECIMAL(12,2) NULL,
-  `cagr_1y`         DECIMAL(6,2) NULL,
-  `cagr_3y`         DECIMAL(6,2) NULL,
-  `volatility`      DECIMAL(6,2) NULL,
-  `description`     TEXT NULL,
-  `invested_amount` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `current_value`   DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `last_synced_at`  DATETIME NULL,
-  `is_active`       TINYINT(1) NOT NULL DEFAULT 1,
-  `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_sc_user` (`user_id`),
-  INDEX `idx_sc_active` (`is_active`),
-  UNIQUE KEY `uq_sc_user_id` (`user_id`, `smallcase_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='User smallcase basket subscriptions';
+CREATE TABLE IF NOT EXISTS smallcase_portfolios (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id          INT UNSIGNED NOT NULL,
+    portfolio_id     INT UNSIGNED NOT NULL,
+    name             VARCHAR(200) NOT NULL,
+    description      TEXT         DEFAULT NULL,
+    strategy_type    VARCHAR(100) DEFAULT NULL,
+    manager          VARCHAR(100) DEFAULT NULL,
+    external_id      VARCHAR(100) DEFAULT NULL COMMENT 'Smallcase basket ID if available',
+    invested_amount  DECIMAL(14,2) NOT NULL DEFAULT 0,
+    current_value    DECIMAL(14,2) DEFAULT NULL,
+    gain_loss        DECIMAL(14,2) DEFAULT NULL,
+    gain_loss_pct    DECIMAL(8,4)  DEFAULT NULL,
+    xirr             DECIMAL(8,4)  DEFAULT NULL,
+    subscription_fee DECIMAL(10,2) DEFAULT 0,
+    fee_frequency    ENUM('monthly','quarterly','yearly','one_time') DEFAULT NULL,
+    last_rebalanced  DATE          DEFAULT NULL,
+    next_rebalance   DATE          DEFAULT NULL,
+    is_active        TINYINT(1)    NOT NULL DEFAULT 1,
+    notes            TEXT          DEFAULT NULL,
+    created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_user       (user_id),
+    INDEX idx_portfolio  (portfolio_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Holdings inside each smallcase (stock-level) ─────────────
-CREATE TABLE IF NOT EXISTS `smallcase_holdings` (
-  `id`                INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `portfolio_id`      INT UNSIGNED NOT NULL,
-  `user_id`           INT UNSIGNED NOT NULL,
-  `symbol`            VARCHAR(20)  NOT NULL,
-  `isin`              VARCHAR(12)  NULL,
-  `stock_name`        VARCHAR(150) NOT NULL,
-  `quantity`          DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
-  `avg_price`         DECIMAL(12,4) NOT NULL DEFAULT 0.0000,
-  `current_price`     DECIMAL(12,4) NULL,
-  `invested_value`    DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `current_value`     DECIMAL(14,2) NULL,
-  `weight_pct`        DECIMAL(6,2)  NULL COMMENT 'Weight in basket %',
-  `last_rebalanced`   DATE NULL,
-  `updated_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_sc_holding_portfolio` (`portfolio_id`),
-  INDEX `idx_sc_holding_user` (`user_id`),
-  UNIQUE KEY `uq_sc_portfolio_symbol` (`portfolio_id`, `symbol`),
-  CONSTRAINT `fk_sc_holding_portfolio` FOREIGN KEY (`portfolio_id`) REFERENCES `smallcase_portfolios`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Stock-level holdings per smallcase portfolio';
+CREATE TABLE IF NOT EXISTS smallcase_holdings (
+    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    smallcase_id       INT UNSIGNED NOT NULL,
+    user_id            INT UNSIGNED NOT NULL,
+    symbol             VARCHAR(30)  NOT NULL,
+    company_name       VARCHAR(200) NOT NULL,
+    exchange           ENUM('NSE','BSE') NOT NULL DEFAULT 'NSE',
+    isin               VARCHAR(20)  DEFAULT NULL,
+    quantity           DECIMAL(14,4) NOT NULL DEFAULT 0,
+    avg_buy_price      DECIMAL(12,4) NOT NULL DEFAULT 0,
+    invested_amount    DECIMAL(14,2) NOT NULL DEFAULT 0,
+    current_price      DECIMAL(12,4) DEFAULT NULL,
+    current_value      DECIMAL(14,2) DEFAULT NULL,
+    weight_pct         DECIMAL(6,2)  DEFAULT NULL COMMENT 'Allocation % in this basket',
+    target_weight_pct  DECIMAL(6,2)  DEFAULT NULL,
+    sector             VARCHAR(100)  DEFAULT NULL,
+    last_price_date    DATE          DEFAULT NULL,
+    created_at         DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_smallcase (smallcase_id),
+    INDEX idx_user      (user_id),
+    INDEX idx_symbol    (symbol)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Transactions (invest / SIP / rebalance / withdraw) ───────
-CREATE TABLE IF NOT EXISTS `smallcase_transactions` (
-  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `portfolio_id`  INT UNSIGNED NOT NULL,
-  `user_id`       INT UNSIGNED NOT NULL,
-  `txn_type`      ENUM('invest','sip','rebalance','withdraw','dividend') NOT NULL,
-  `txn_date`      DATE NOT NULL,
-  `amount`        DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `notes`         VARCHAR(255) NULL,
-  `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_sc_txn_portfolio` (`portfolio_id`),
-  INDEX `idx_sc_txn_user` (`user_id`),
-  INDEX `idx_sc_txn_date` (`txn_date`),
-  CONSTRAINT `fk_sc_txn_portfolio` FOREIGN KEY (`portfolio_id`) REFERENCES `smallcase_portfolios`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Smallcase invest/SIP/rebalance transactions';
+CREATE TABLE IF NOT EXISTS smallcase_transactions (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    smallcase_id     INT UNSIGNED NOT NULL,
+    user_id          INT UNSIGNED NOT NULL,
+    txn_type         ENUM('invest','redeem','rebalance','dividend','switch') NOT NULL DEFAULT 'invest',
+    txn_date         DATE         NOT NULL,
+    amount           DECIMAL(14,2) NOT NULL DEFAULT 0,
+    units_change     DECIMAL(14,4) DEFAULT NULL COMMENT 'For individual stock change in rebalance',
+    notes            TEXT          DEFAULT NULL,
+    import_source    VARCHAR(50)   DEFAULT 'manual',
+    created_at       DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_smallcase (smallcase_id),
+    INDEX idx_user      (user_id),
+    INDEX idx_date      (txn_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Value snapshot (for performance chart) ───────────────────
-CREATE TABLE IF NOT EXISTS `smallcase_value_history` (
-  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `portfolio_id`  INT UNSIGNED NOT NULL,
-  `snap_date`     DATE NOT NULL,
-  `invested`      DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `current_value` DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  `xirr`          DECIMAL(8,4) NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_sc_snap` (`portfolio_id`, `snap_date`),
-  INDEX `idx_sc_snap_date` (`snap_date`),
-  CONSTRAINT `fk_sc_hist_portfolio` FOREIGN KEY (`portfolio_id`) REFERENCES `smallcase_portfolios`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Daily value snapshots for XIRR / chart';
-
-SELECT 'Smallcase Portfolio Sync migration t120 complete ✅' AS status;
-SHOW TABLES LIKE 'smallcase%';
+CREATE TABLE IF NOT EXISTS smallcase_rebalance_history (
+    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    smallcase_id     INT UNSIGNED NOT NULL,
+    user_id          INT UNSIGNED NOT NULL,
+    rebalance_date   DATE         NOT NULL,
+    reason           VARCHAR(200) DEFAULT NULL COMMENT 'e.g. Quarterly rebalance, Stock addition',
+    stocks_added     TEXT         DEFAULT NULL COMMENT 'JSON array of symbols added',
+    stocks_removed   TEXT         DEFAULT NULL COMMENT 'JSON array of symbols removed',
+    stocks_changed   TEXT         DEFAULT NULL COMMENT 'JSON array of weight changes',
+    portfolio_value  DECIMAL(14,2) DEFAULT NULL,
+    notes            TEXT         DEFAULT NULL,
+    created_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_smallcase (smallcase_id),
+    INDEX idx_user      (user_id),
+    INDEX idx_date      (rebalance_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

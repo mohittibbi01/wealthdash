@@ -1,36 +1,16 @@
--- t386: 2FA — TOTP Google Authenticator
--- Run once; idempotent via IF NOT EXISTS / IF NOT EXISTS column checks
+-- WealthDash — t386: 2FA TOTP Migration
+-- Run once on existing DB
 
 ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS totp_secret       VARCHAR(64)   DEFAULT NULL        COMMENT 'Base32-encoded TOTP secret',
-    ADD COLUMN IF NOT EXISTS totp_enabled       TINYINT(1)    NOT NULL DEFAULT 0  COMMENT '1 = 2FA active',
-    ADD COLUMN IF NOT EXISTS totp_verified_at   DATETIME      DEFAULT NULL        COMMENT 'When user first verified setup',
-    ADD COLUMN IF NOT EXISTS totp_backup_codes  TEXT          DEFAULT NULL        COMMENT 'JSON array of bcrypt-hashed backup codes';
+  ADD COLUMN IF NOT EXISTS totp_enabled        TINYINT(1)   NOT NULL DEFAULT 0         AFTER password_hash,
+  ADD COLUMN IF NOT EXISTS totp_secret         VARCHAR(64)  NULL     DEFAULT NULL       AFTER totp_enabled,
+  ADD COLUMN IF NOT EXISTS totp_secret_pending VARCHAR(64)  NULL     DEFAULT NULL       AFTER totp_secret,
+  ADD COLUMN IF NOT EXISTS totp_backup_codes   TEXT         NULL     DEFAULT NULL       AFTER totp_secret_pending,
+  ADD COLUMN IF NOT EXISTS totp_setup_at       DATETIME     NULL     DEFAULT NULL       AFTER totp_backup_codes;
 
-CREATE TABLE IF NOT EXISTS totp_sessions (
-    id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    user_id     INT UNSIGNED     NOT NULL,
-    token       VARCHAR(64)      NOT NULL COMMENT 'Random token stored in session, used as challenge key',
-    ip          VARCHAR(45)      DEFAULT NULL,
-    user_agent  VARCHAR(255)     DEFAULT NULL,
-    created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at  DATETIME         NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_token (token),
-    KEY idx_user (user_id),
-    KEY idx_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Audit log entries for 2FA events (if audit_log table exists)
+-- Assumes: audit_log(id, user_id, action, detail, created_at)
+-- No schema change needed — uses existing audit_log table.
 
-CREATE TABLE IF NOT EXISTS totp_audit (
-    id          BIGINT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    user_id     INT UNSIGNED     NOT NULL,
-    event       VARCHAR(32)      NOT NULL COMMENT 'setup|verify|disable|login_ok|login_fail|backup_used',
-    ip          VARCHAR(45)      DEFAULT NULL,
-    user_agent  VARCHAR(255)     DEFAULT NULL,
-    detail      VARCHAR(255)     DEFAULT NULL,
-    created_at  DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_user (user_id),
-    KEY idx_event (event),
-    KEY idx_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Index for fast lookup
+CREATE INDEX IF NOT EXISTS idx_users_totp_enabled ON users(totp_enabled);
