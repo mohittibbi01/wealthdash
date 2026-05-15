@@ -301,4 +301,153 @@ if ($action === 'week52_tracker') {
     json_response(true, '', $stocks);
 }
 
+
+/* ── t431: Extended fundamentals — ROE, ROCE, D/E, promoter holding ────── */
+if ($action === 'stocks_fundamentals') {
+    $stockId  = (int)($_GET['stock_id'] ?? $_POST['stock_id'] ?? 0);
+    $symbol   = strtoupper(clean($_GET['symbol'] ?? $_POST['symbol'] ?? ''));
+    $exchange = strtoupper(clean($_GET['exchange'] ?? 'NSE'));
+    if (!$stockId && $symbol) {
+        $sm      = DB::fetchOne("SELECT id FROM stock_master WHERE symbol=? AND exchange=? LIMIT 1", [$symbol, $exchange]);
+        $stockId = (int)($sm['id'] ?? 0);
+    }
+    if (!$stockId) { json_response(false, 'stock_id or symbol required'); }
+
+    $row = DB::fetchOne("SELECT * FROM stock_master WHERE id=?", [$stockId]);
+    if (!$row) { json_response(false, 'Stock not found.'); }
+
+    // Check cache
+    $stale = !$row['fundamentals_updated_at'] || (time() - strtotime($row['fundamentals_updated_at'])) > 86400;
+    if (!$stale) { json_response(true, 'cached', $row); }
+
+    // Fetch from Yahoo
+    $f = wd_fetch_fundamentals($row['symbol'], $row['exchange']);
+
+    // Also try to get ROE, ROCE from Yahoo financialData module
+    $ySym = wd_yahoo_sym($row['symbol'], $row['exchange']);
+    $ctx  = stream_context_create(['http' => ['timeout'=>8,'user_agent'=>'Mozilla/5.0','ignore_errors'=>true]]);
+    $fdUrl = "https://query1.finance.yahoo.com/v10/finance/quoteSummary/{$ySym}?modules=financialData,defaultKeyStatistics,assetProfile,summaryDetail";
+    $fdRaw = @file_get_contents($fdUrl, false, $ctx);
+    if ($fdRaw) {
+        $fdData  = json_decode($fdRaw, true);
+        $fdRes   = $fdData['quoteSummary']['result'][0] ?? [];
+        $fin     = $fdRes['financialData']        ?? [];
+        $ks      = $fdRes['defaultKeyStatistics']  ?? [];
+        $profile = $fdRes['assetProfile']          ?? [];
+        $sd      = $fdRes['summaryDetail']          ?? [];
+
+        $f['roe']                  = ((float)($fin['returnOnEquity']['raw'] ?? 0)) * 100 ?: null;
+        $f['roa']                  = ((float)($fin['returnOnAssets']['raw'] ?? 0)) * 100 ?: null;
+        $f['debt_to_equity']       = ((float)($fin['debtToEquity']['raw']   ?? 0)) ?: null;
+        $f['current_ratio']        = ((float)($fin['currentRatio']['raw']   ?? 0)) ?: null;
+        $f['quick_ratio']          = ((float)($fin['quickRatio']['raw']     ?? 0)) ?: null;
+        $f['revenue_ttm']          = ((float)($fin['totalRevenue']['raw']   ?? 0)) ?: null;
+        $f['net_profit_ttm']       = ((float)($fin['netIncomeToCommon']['raw'] ?? 0)) ?: null;
+        $f['ps_ratio']             = ((float)($ks['priceToSalesTrailing12Months']['raw'] ?? 0)) ?: null;
+        $f['ev_ebitda']            = ((float)($ks['enterpriseToEbitda']['raw'] ?? 0)) ?: null;
+        $f['enterprise_value']     = ((float)($ks['enterpriseValue']['raw'] ?? 0)) ?: null;
+        $f['book_value']           = ((float)($ks['bookValue']['raw'] ?? 0)) ?: null;
+        $f['shares_outstanding']   = isset($ks['sharesOutstanding']['raw']) ? (int)$ks['sharesOutstanding']['raw'] : null;
+        $f['beta']                 = ((float)($sd['beta']['raw'] ?? 0)) ?: null;
+        $f['sector']               = $profile['sector']   ?? null;
+        $f['industry']             = $profile['industry'] ?? null;
+        $f['fundamentals_source']  = 'yahoo';
+    }
+
+    if ($f && $stockId) {
+        // Extended save
+        $extCols = ['pe_ratio','pb_ratio','ps_ratio','ev_ebitda','eps','market_cap','enterprise_value',
+                    'dividend_yield','high_52','low_52','roe','roa','debt_to_equity','current_ratio',
+                    'quick_ratio','revenue_ttm','net_profit_ttm','beta','sector','industry',
+                    'book_value','shares_outstanding','fundamentals_source'];
+        $sets = $params = [];
+        foreach ($extCols as $col) {
+            if (array_key_exists($col, $f)) { $sets[] = "`{$col}`=?"; $params[] = $f[$col]; }
+        }
+        $sets[] = '`fundamentals_updated_at`=NOW()';
+        $params[] = $stockId;
+        DB::run("UPDATE stock_master SET " . implode(',', $sets) . " WHERE id=?", $params);
+
+        // Save snapshot to history
+        DB::run("INSERT INTO stock_fundamentals_history
+            (stock_id, period, period_type, pe_ratio, pb_ratio, market_cap, eps, revenue, net_profit, roe, debt_to_equity, source, fetched_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,'yahoo',NOW())
+            ON DUPLICATE KEY UPDATE pe_ratio=VALUES(pe_ratio), roe=VALUES(roe), fetched_at=NOW()",
+            [$stockId, date('Q').'FY'.substr(date('Y'),2), 'quarterly',
+             $f['pe_ratio']??null, $f['pb_ratio']??null, $f['market_cap']??null,
+             $f['eps_ttm']??$f['eps']??null, $f['revenue_ttm']??null,
+             $f['net_profit_ttm']??null, $f['roe']??null, $f['debt_to_equity']??null]);
+    }
+
+    $updated = DB::fetchOne("SELECT * FROM stock_master WHERE id=?", [$stockId]);
+    json_response(true, 'fetched', $updated);
+}
+
+/* t431: Fundamentals history for a stock (quarterly snapshots) */
+if ($action === 'fundamentals_history') {
+    $stockId = (int)($_GET['stock_id'] ?? 0);
+    $periods = min((int)($_GET['periods'] ?? 8), 20);
+    if (!$stockId) { json_response(false, 'stock_id required'); }
+    $rows = DB::fetchAll("SELECT * FROM stock_fundamentals_history WHERE stock_id=? ORDER BY fetched_at DESC LIMIT ?", [$stockId, $periods]);
+    $current = DB::fetchOne("SELECT * FROM stock_master WHERE id=?", [$stockId]);
+    json_response(true, '', ['current' => $current, 'history' => $rows]);
+}
+
+/* t431: Compare fundamentals across user's holdings */
+if ($action === 'fundamentals_compare') {
+    $holdings = DB::fetchAll("
+        SELECT DISTINCT sm.*,
+               sh.quantity, sh.avg_buy_price,
+               ROUND((sm.latest_price - sh.avg_buy_price) / NULLIF(sh.avg_buy_price,0) * 100, 2) AS gain_pct
+        FROM stock_master sm
+        JOIN stock_holdings sh ON sh.stock_id=sm.id
+        JOIN portfolios p ON p.id=sh.portfolio_id
+        WHERE p.user_id=? AND sh.quantity>0
+          AND sm.pe_ratio IS NOT NULL
+        ORDER BY sm.pe_ratio ASC
+    ", [$userId]);
+    json_response(true, '', ['data' => $holdings]);
+}
+
+/* t431: Stock screener against user's holdings */
+if ($action === 'screener') {
+    $peMax     = isset($_GET['pe_max'])    ? (float)$_GET['pe_max']    : null;
+    $peMin     = isset($_GET['pe_min'])    ? (float)$_GET['pe_min']    : null;
+    $pbMax     = isset($_GET['pb_max'])    ? (float)$_GET['pb_max']    : null;
+    $roeMin    = isset($_GET['roe_min'])   ? (float)$_GET['roe_min']   : null;
+    $deMax     = isset($_GET['de_max'])    ? (float)$_GET['de_max']    : null;
+    $sector    = clean($_GET['sector']    ?? '');
+    $dyMin     = isset($_GET['dy_min'])    ? (float)$_GET['dy_min']    : null;
+    $mcMin     = isset($_GET['mc_min'])    ? (float)$_GET['mc_min']    : null;
+
+    $where  = ["sh.quantity > 0", "p.user_id = ?"];
+    $params = [$userId];
+
+    if ($peMax  !== null) { $where[] = "sm.pe_ratio <= ?";    $params[] = $peMax;  }
+    if ($peMin  !== null) { $where[] = "sm.pe_ratio >= ?";    $params[] = $peMin;  }
+    if ($pbMax  !== null) { $where[] = "sm.pb_ratio <= ?";    $params[] = $pbMax;  }
+    if ($roeMin !== null) { $where[] = "sm.roe >= ?";         $params[] = $roeMin; }
+    if ($deMax  !== null) { $where[] = "sm.debt_to_equity <= ?"; $params[] = $deMax; }
+    if ($dyMin  !== null) { $where[] = "sm.dividend_yield >= ?"; $params[] = $dyMin; }
+    if ($mcMin  !== null) { $where[] = "sm.market_cap >= ?";  $params[] = $mcMin;  }
+    if ($sector)          { $where[] = "sm.sector = ?";       $params[] = $sector; }
+
+    $rows = DB::fetchAll("
+        SELECT sm.symbol, sm.company_name, sm.sector, sm.industry,
+               sm.latest_price, sm.pe_ratio, sm.pb_ratio, sm.roe, sm.roce,
+               sm.debt_to_equity, sm.dividend_yield, sm.market_cap,
+               sm.high_52, sm.low_52, sh.quantity,
+               ROUND((sm.latest_price - sh.avg_buy_price) / NULLIF(sh.avg_buy_price,0)*100, 2) AS gain_pct
+        FROM stock_master sm
+        JOIN stock_holdings sh ON sh.stock_id=sm.id
+        JOIN portfolios p ON p.id=sh.portfolio_id
+        WHERE " . implode(' AND ', $where) . "
+        GROUP BY sm.id
+        ORDER BY sm.pe_ratio ASC
+        LIMIT 100
+    ", $params);
+
+    json_response(true, '', ['data' => $rows, 'count' => count($rows)]);
+}
+
 json_response(false, 'Unknown action');

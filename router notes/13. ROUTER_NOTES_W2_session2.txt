@@ -1,0 +1,47 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — ID-W2 Router Notes
+Worker: mohitjain.doit1@gmail.com
+Tasks:  t42, tc006
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Master ko router.php mein ye cases ADD karne hain
+(existing crypto block ke BAAD, ~line 832):
+
+────────────────────────────────────────────────
+[t42] Crypto Tax 30% Flat Calculator
+────────────────────────────────────────────────
+case 'crypto_tax_calc':
+case 'crypto_tax_report':
+case 'crypto_tax_save':
+case 'crypto_tax_history':
+case 'crypto_tax_delete':
+    require APP_ROOT . '/api/crypto/crypto_tax_calc.php'; exit;
+
+────────────────────────────────────────────────
+[tc006] Cold Wallet Tracker
+────────────────────────────────────────────────
+case 'cold_wallet_list':
+case 'cold_wallet_add':
+case 'cold_wallet_edit':
+case 'cold_wallet_delete':
+case 'cold_wallet_refresh':
+case 'cold_wallet_summary':
+    require APP_ROOT . '/api/crypto/crypto_cold_wallet.php'; exit;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MIGRATION SEQUENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. database/migrations/t42_migration.sql
+2. database/migrations/tc006_migration.sql
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE OVERWRITE STATUS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+api/crypto/crypto_tax_calc.php   → NEW FILE
+api/crypto/crypto_cold_wallet.php→ NEW FILE
+public/js/crypto.js              → OVERWRITE (Tax Calc + Cold Wallet tabs added)
+database/migrations/t42_migration.sql  → NEW FILE
+database/migrations/tc006_migration.sql→ NEW FILE
+templates/pages/crypto.php       → NO CHANGE (all changes in JS)
+api/router.php                   → SIRF NOTES (Master merge karega)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

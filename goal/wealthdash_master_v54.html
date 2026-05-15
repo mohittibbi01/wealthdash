@@ -308,10 +308,10 @@ const DESIGN_STEPS = [];
   <div class="logo">
     <div class="logo-mark">💎</div>
     <span class="logo-text">WealthDash</span>
-    <span class="logo-ver">v51</span>
+    <span class="logo-ver">v54</span>
   </div>
   <div class="topbar-right">
-    <span class="last-saved" id="lastSaved">📅 02 May 2026 — MASTER v52</span>
+    <span class="last-saved" id="lastSaved">📅 02 May 2026 — MASTER v54</span>
     <button class="tbtn tbtn-gray" onclick="collapseAll()">⊟ Collapse</button>
     <button class="tbtn tbtn-gray" onclick="expandAll()">⊞ Expand</button>
     <button class="tbtn tbtn-indigo" onclick="exportStatus()">📤 Export MD</button>
@@ -649,8 +649,8 @@ const DESIGN_STEPS = [];
       </div>
       <div style="background:var(--surface);border:1px solid var(--red-border);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:10px;line-height:1.8">
         <span style="color:var(--muted2)">// FIX — in updatePhaseHeader() replace first line:</span><br>
-        <span style="color:#dc2626">- const _allPh2=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS]; const ph = _allPh2.find(p => p.id === pid);</span><br>
-        <span style="color:#16a34a">+ const _allPh = [...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS];</span><br>
+        <span style="color:#dc2626">- const _allPh2=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS,...ARCH_FIXES_PHASES]; const ph = _allPh2.find(p => p.id === pid);</span><br>
+        <span style="color:#16a34a">+ const _allPh = [...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS,...ARCH_FIXES_PHASES];</span><br>
         <span style="color:#16a34a">+ const ph = _allPh.find(p => p.id === pid);</span>
       </div>
       <div style="margin-top:8px"><span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);font-weight:700">✅ Fixed in v21</span></div>
@@ -2784,7 +2784,7 @@ const DEBUG_CHECKS={
 // =============================================
 // STATE
 // =============================================
-const SK='wd_v3',NK='wd_notes_v3',CK='wd_custom_v3',CLK='wd_chk_v3';
+const SK='wd_v4',NK='wd_notes_v4',CK='wd_custom_v4',CLK='wd_chk_v4';
 let S={},N={},CUSTOM_TASKS=[],CHK_STATE={};
 let newTaskFiles=[],newTaskSubs=[];
 let debugResults=[];
@@ -2824,7 +2824,7 @@ function switchTab(id,el){
 // =============================================
 let taskNumMap={};
 function buildTaskNums(phases){
-  phases = phases || [...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS];
+  phases = phases || [...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS,...ARCH_FIXES_PHASES];
   let n=0;phases.forEach(ph=>ph.tasks.forEach(t=>{taskNumMap[t.id]=++n}))
 }
 
@@ -2971,6 +2971,56 @@ function scrollToTask(tid) {
   }, 200);
 }
 
+
+// =============================================
+// ARCH FIXES & NEW TASKS (v54 — May 2026)
+// =============================================
+const ARCH_FIXES_PHASES = [
+{id:'p_arch_fixes_v54',ico:'🏗️',color:'#4fa3ff',title:'Phase v54 — Architecture Fixes & New Tasks',cat:'general',tasks:[
+  {id:'tnew01',title:'Router.php Audit — Dead routes + missing routes fix',pr:'p0',type:'bug',eff:'2-3 hr',
+   files:['api/router.php','api/ai/fund_recommend.php','api/automation/rules.php','api/broker/zerodha_sync.php'],
+   desc:'api/router.php mein bahut saari files hain jo routes nahi. Workers ne sirf "note" kiya, merge kabhi nahi hua. Audit karo aur sab dead/missing routes fix karo. Stub files identify karo.',
+   sub:['List all files in api/ directory','For each file check if route exists in router.php','Dead routes remove karo','Missing routes add karo','Stub files (< 600 bytes) list karo — decision lo: implement ya delete'],cat:'general'},
+  {id:'tnew02',title:'Stub Files Cleanup — Empty API stubs implement ya delete',pr:'p0',type:'bug',eff:'3-4 hr',
+   files:['api/ai/fund_recommend.php','api/ai/goal_advisor.php','api/ai/news_impact.php','api/ai/sip_optimizer.php','api/automation/rules.php','api/broker/zerodha_sync.php'],
+   desc:'Identified stub files (< 600 bytes each) — all are placeholders with no real logic. Decision needed: ya implement karo ya delete karo + router se remove karo + coordinator mein mark karo.',
+   sub:['api/ai/fund_recommend.php (489B) — fund recommendation logic implement karo','api/ai/goal_advisor.php (472B) — goal advice implement karo','api/ai/news_impact.php (488B) — news impact implement karo','api/ai/sip_optimizer.php (479B) — SIP optimizer implement karo','api/automation/rules.php (484B) — automation rules implement ya delete','api/broker/zerodha_sync.php (482B) — zerodha sync stub ya proper implement'],cat:'general'},
+  {id:'tnew03',title:'AI Folder Merge — api/ai/ aur api/ai_advisor/ unify karo',pr:'p1',type:'bug',eff:'2-3 hr',
+   files:['api/ai/ai_chat.php','api/ai_advisor/chat.php','api/ai_advisor/'],
+   desc:'Dono folders overlap karte hain. api/ai/ai_chat.php (17KB working) aur api/ai_advisor/chat.php (455B stub) dono hain. Workers ko confusion hota hai kahan kaam karna hai. Merge karo.',
+   sub:['api/ai_advisor/ folder ki sab files audit karo','Working code ai/ai_chat.php mein already hai','ai_advisor/ stubs ko ya merge karo ya delete karo','Router mein ai_advisor routes update karo','Workers ko clear instruction do: sirf api/ai/ use karo'],cat:'general'},
+  {id:'tnew04',title:'API Response Standardization — Consistent JSON format everywhere',pr:'p1',type:'feat',eff:'3-4 hr',
+   files:['includes/response_helper.php (NEW)','api/router.php'],
+   desc:'Kuch files {success: true, data: [...]} return karte hain, kuch sirf [...] ya {error: ...}. Standard format banao aur sab APIs pe enforce karo. Frontend error handling simpler ho jayegi.',
+   sub:['Standard: {success: bool, data: any, error: string|null, meta: {total?, page?}} define karo','includes/response_helper.php banao: success_response(), error_response() functions','Sab api/ files mein apply karo (grep karo inconsistent patterns)','Frontend: consistent error handling'],cat:'general'},
+  {id:'tnew05',title:'Coordinator-Master Sync — Done tasks mismatch fix karo',pr:'p1',type:'bug',eff:'2-3 hr',
+   files:['goal/wealthdash_coordinator_v8.html','goal/wealthdash_master_v53_fixed.html'],
+   desc:'V53 master mein kuch tasks done:true hain jo coordinator mein pending hain aur vice versa. Audit karo — actual state kya hai? Dono files sync karo. Script banao jo mismatch detect kare.',
+   sub:['Master mein done:true tasks list karo','Coordinator mein done tasks list karo','Mismatch find karo','Per-task: actual implementation check karo','Sync update karo dono files mein'],cat:'general'},
+  {id:'tnew06',title:'Error Handler Layer — Global PHP + JS error management',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['includes/error_handler.php (NEW)','public/js/error-boundary.js (NEW)'],
+   desc:'No centralized error handling. PHP errors sirf error_log mein. JS errors silently fail. includes/error_handler.php banao aur JS error boundary bhi.',
+   sub:['PHP: includes/error_handler.php — set_error_handler(), set_exception_handler()','Standard error format: {code, message, file, line (dev only)}','JS: window.onerror + unhandledrejection capture','Admin dashboard mein error count dikhao','Sentry-lite: DB mein errors store karo (error_log table)'],cat:'general'},
+  {id:'tnew07',title:'Rate Limiting — All API endpoints pe consistent limit',pr:'p2',type:'feat',eff:'2-3 hr',
+   files:['api/security/rate_limit.php','api/router.php'],
+   desc:'api/security/rate_limit.php exist karta hai lekin sabhi endpoints pe apply nahi hua. AI endpoints pe especially critical (Claude API cost control).',
+   sub:['rate_limit.php middleware review karo','Router.php mein before every route run karo','AI endpoints: stricter limit (10 req/min)','Regular endpoints: 100 req/min','Rate limit exceeded: 429 JSON response','Redis ya APCu se rate limit state store karo'],cat:'general'},
+  {id:'tnew08',title:'Input Validation Layer — Centralized validation middleware',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['includes/validator.php (NEW)','api/mutual_funds/data_validation.php'],
+   desc:'data_validation.php exist karta hai for MF lekin sab APIs isko use nahi karte. Centralized validator banao. SQL injection aur XSS protection ensure karo.',
+   sub:['includes/validator.php — validate_required(), validate_amount(), validate_date(), validate_isin()','All POST endpoints pe run karo','Sanitize all inputs (htmlspecialchars, intval, floatval)','ISIN format validation: 12 chars, alphanumeric','Date validation: DD-MM-YYYY format enforce'],cat:'general'},
+  {id:'tnew09',title:'Mobile Audit — Bottom nav, swipe, responsive tables fix',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['templates/partials/mobile_nav.php (NEW)','public/css/mobile.css'],
+   desc:'Mobile UX incomplete. Bottom navigation bar (t256) pending. Many tables overflow on mobile. Touch targets < 44px. Comprehensive mobile audit + fix.',
+   sub:['Bottom nav: Dashboard/MF/Stocks/Reports/Profile — 5 tabs (t256)','All tables: overflow-x:auto wrapper add karo','Touch targets: min 44x44px for all buttons','Pull-to-refresh: swipe down on main pages','Test on 375px (iPhone SE) width','Viewport: meta tag correct hai?'],cat:'general'},
+  {id:'tnew10',title:'Dashboard unified.php Split — Break god file into modules',pr:'p2',type:'feat',eff:'3-4 hr',
+   files:['api/dashboard/unified.php','api/dashboard/market_data.php (NEW)','api/dashboard/portfolio_summary.php (NEW)','api/dashboard/goals_summary.php (NEW)'],
+   desc:'api/dashboard/unified.php (37KB) bahut bada god file hai. Maintain karna mushkil hai. Market data, Portfolio summary, Goals summary — alag endpoints mein split karo.',
+   sub:['Market data endpoint: /api/dashboard/market → Nifty/Sensex/Crypto prices','Portfolio summary: /api/dashboard/portfolio → MF+Stocks+FD totals','Goals summary: /api/dashboard/goals → goal progress','Net worth: /api/dashboard/networth → total calculation','unified.php: delegate karo in-file functions se','Frontend: parallel fetch karo 4 endpoints ko'],cat:'general'},
+]},
+];
+
+
 function renderAll(){
   // Merge NEW_PHASES + NEW_PHASES_EXT into PHASES for rendering
   const ALL_PHASES = [...PHASES, ...NEW_PHASES, ...NEW_PHASES_EXT, ...GODMODE_PHASES, ...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS];
@@ -3037,7 +3087,7 @@ function expandAll(){document.querySelectorAll('.phase-block').forEach(b=>b.clas
 
 function updatePhaseHeader(pid){
   // FIX v21: search ALL phase arrays, not just PHASES
-  const _allPh=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS];
+  const _allPh=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS,...ARCH_FIXES_PHASES];
   const ph=_allPh.find(p=>p.id===pid);if(!ph)return;
   const total=ph.tasks.length;
   const done=ph.tasks.filter(t=>S[t.id+'_m']).length;
@@ -3049,7 +3099,7 @@ function updatePhaseHeader(pid){
 }
 
 function updateStats(){
-  const allPh=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS];
+  const allPh=[...PHASES,...NEW_PHASES,...NEW_PHASES_EXT,...GODMODE_PHASES,...EXTRA_PHASES,...MORE_PHASES,...FINAL_PHASES,...LAST_TASKS,...ARCH_FIXES_PHASES];
   let total=0,done=0,sub=0;
   allPh.forEach(ph=>ph.tasks.forEach(t=>{
     total++;if(S[t.id+'_m'])done++;
@@ -6662,7 +6712,7 @@ audit_log('data_export', 'report', 0, ['type' => 'tax_report']);`
   }
 ];
 
-const FIX_STATE_KEY = 'wd_fix_state_v52';
+const FIX_STATE_KEY = 'wd_fix_state_v54';
 let fixState = JSON.parse(localStorage.getItem(FIX_STATE_KEY) || '{}');
 
 function fixRender() {
@@ -6985,7 +7035,7 @@ const VALIDATION_PAGES = [
   },
 ];
 
-const VAL_STATE_KEY = 'wd_val_state_v52';
+const VAL_STATE_KEY = 'wd_val_state_v54';
 let valState = JSON.parse(localStorage.getItem(VAL_STATE_KEY) || '{}');
 
 function valRender() {

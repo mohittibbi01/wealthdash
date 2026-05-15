@@ -1,543 +1,545 @@
 <?php
 /**
- * WealthDash — t315: Crypto Holdings — Full Portfolio Tracking
- *
- * Actions handled (routed from router.php):
- *   GET  crypto_portfolio_stats  — exchange breakdown, category pie, summary
- *   GET  crypto_staking_list     — staking / yield rewards list + totals
- *   POST crypto_staking_add      — add staking reward entry
- *   POST crypto_staking_delete   — delete staking reward
- *   POST crypto_edit_holding     — edit exchange / wallet / category / notes
- *   GET  crypto_wl_list          — watchlist with live prices + alert flags
- *   POST crypto_wl_add           — add / upsert watchlist entry
- *   POST crypto_wl_delete        — remove watchlist entry
- *   GET  crypto_tax_year_summary — FY-wise VDA tax snapshot (30% flat)
- *
- * Router note (add to router.php case block ~line 795):
- *   case 'crypto_portfolio_stats':
- *   case 'crypto_staking_list':
- *   case 'crypto_staking_add':
- *   case 'crypto_staking_delete':
- *   case 'crypto_edit_holding':
- *   case 'crypto_wl_list':
- *   case 'crypto_wl_add':
- *   case 'crypto_wl_delete':
- *   case 'crypto_tax_year_summary':
- *       require APP_ROOT . '/api/crypto/crypto_holdings.php'; exit;
- *
- * DB deps: crypto_holdings, crypto_transactions, crypto_price_cache,
- *          crypto_staking_rewards (t315_migration.sql),
- *          crypto_watchlist (t315_migration.sql), portfolios
+ * WealthDash — t40: Crypto Holdings + CoinGecko Full Integration
+ * Actions: crypto_list, crypto_add, crypto_edit_holding, crypto_delete,
+ *          crypto_txn_add, crypto_txns, crypto_prices, crypto_summary,
+ *          crypto_portfolio_stats, crypto_coingecko_search,
+ *          crypto_coingecko_coin, crypto_refresh_prices,
+ *          crypto_wl_list, crypto_wl_add, crypto_wl_delete
  */
 declare(strict_types=1);
 defined('WEALTHDASH') or die('Direct access not allowed.');
 
 $currentUser = require_auth();
 $userId      = (int)$currentUser['id'];
-$isAdmin     = (bool)($currentUser['is_admin'] ?? false);
-$db          = DB::pdo();
+$db          = DB::conn();
+$action      = clean($_GET['action'] ?? $_POST['action'] ?? '');
 
-$action      = $_GET['action'] ?? $_POST['action'] ?? '';
-$portfolioId = (int)($_GET['portfolio_id'] ?? $_POST['portfolio_id'] ?? 0);
-$pWhere      = $portfolioId
-    ? "AND p.id = {$portfolioId} AND p.user_id = {$userId}"
-    : "AND p.user_id = {$userId}";
+// ── CoinGecko helpers ─────────────────────────────────────────────────────────
 
-// ── Shared: get live prices for a coin list ───────────────────────────────────
-function t315_prices(PDO $db, array $coinIds): array
+define('CG_BASE', 'https://api.coingecko.com/api/v3');
+
+function cg_get(string $path, array $params = []): ?array
+{
+    $qs  = $params ? '?' . http_build_query($params) : '';
+    $url = CG_BASE . $path . $qs;
+    $ctx = stream_context_create(['http' => [
+        'timeout'       => 10,
+        'user_agent'    => 'WealthDash/2.0',
+        'ignore_errors' => true,
+        'header'        => "Accept: application/json\r\n",
+    ]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!$raw) return null;
+    return json_decode($raw, true) ?: null;
+}
+
+/**
+ * Fetch prices for multiple coin IDs from CoinGecko.
+ * Returns ['bitcoin' => ['inr' => 4500000, 'inr_24h_change' => 1.2], ...]
+ */
+function cg_prices(array $coinIds, string $currency = 'inr'): ?array
 {
     if (empty($coinIds)) return [];
-    $ph     = implode(',', array_fill(0, count($coinIds), '?'));
-    $cached = $db->prepare(
-        "SELECT coin_id, price_inr, price_usd, change_24h
-         FROM crypto_price_cache
-         WHERE coin_id IN ($ph) AND fetched_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)"
-    );
-    $cached->execute($coinIds);
-    $prices = [];
-    foreach ($cached->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $prices[$r['coin_id']] = $r;
-    }
-
-    $missing = array_values(array_diff($coinIds, array_keys($prices)));
-    if (!empty($missing)) {
-        $idsParam = implode(',', array_map('rawurlencode', $missing));
-        $url      = "https://api.coingecko.com/api/v3/simple/price"
-                  . "?ids={$idsParam}&vs_currencies=inr,usd"
-                  . "&include_24hr_change=true&include_market_cap=true";
-        $ctx  = stream_context_create(['http' => ['timeout' => 7, 'header' => "User-Agent: WealthDash/1.0\r\n"]]);
-        $raw  = @file_get_contents($url, false, $ctx);
-        $data = $raw ? json_decode($raw, true) : [];
-
-        if (is_array($data)) {
-            $ups = $db->prepare(
-                "INSERT INTO crypto_price_cache (coin_id, price_inr, price_usd, change_24h, market_cap)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE price_inr=VALUES(price_inr), price_usd=VALUES(price_usd),
-                     change_24h=VALUES(change_24h), market_cap=VALUES(market_cap), fetched_at=NOW()"
-            );
-            foreach ($missing as $cid) {
-                $r = $data[$cid] ?? null;
-                if (!$r) continue;
-                $pInr = (float)($r['inr'] ?? 0);
-                $pUsd = (float)($r['usd'] ?? 0);
-                $chg  = $r['inr_24h_change'] ?? $r['usd_24h_change'] ?? null;
-                $mcap = isset($r['inr_market_cap']) ? (int)$r['inr_market_cap'] : null;
-                $ups->execute([$cid, $pInr, $pUsd, $chg, $mcap]);
-                $prices[$cid] = ['coin_id' => $cid, 'price_inr' => $pInr,
-                                 'price_usd' => $pUsd, 'change_24h' => $chg];
-            }
-        }
-    }
-    return $prices;
+    return cg_get('/simple/price', [
+        'ids'                       => implode(',', $coinIds),
+        'vs_currencies'             => $currency,
+        'include_24hr_change'       => 'true',
+        'include_24hr_vol'          => 'true',
+        'include_market_cap'        => 'true',
+        'include_last_updated_at'   => 'true',
+    ]);
 }
 
-// ── Auto-categorise a coin_id ─────────────────────────────────────────────────
-function t315_category(string $coinId, string $symbol): string
+/**
+ * Get portfolio ID for user; optionally verify access.
+ */
+function crypto_portfolio(int $userId): ?int
 {
-    $btc  = ['bitcoin'];
-    $eth  = ['ethereum', 'ethereum-2-0'];
-    $stable = ['tether', 'usd-coin', 'binance-usd', 'dai', 'true-usd', 'frax',
-               'usdc', 'usdt', 'busd', 'tusd'];
-    $defi = ['uniswap', 'aave', 'compound-governance-token', 'maker', 'curve-dao-token',
-              'sushiswap', '1inch', 'yearn-finance', 'balancer', 'synthetix-network-token'];
-    if (in_array($coinId, $btc))    return 'Bitcoin';
-    if (in_array($coinId, $eth))    return 'Ethereum';
-    if (in_array($coinId, $stable)) return 'Stablecoin';
-    if (in_array($coinId, $defi))   return 'DeFi';
-    if (in_array(strtolower($symbol), ['bnb','sol','ada','xrp','dot','avax','matic','trx','ltc','link']))
-        return 'Large-cap';
-    return 'Altcoin';
+    $pid = (int)($_POST['portfolio_id'] ?? $_GET['portfolio_id'] ?? 0);
+    if ($pid && can_access_portfolio($pid, $userId, is_admin())) return $pid;
+    return get_user_portfolio_id($userId) ?: null;
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// ACTIONS
-// ════════════════════════════════════════════════════════════════════════════════
+// ── Route ─────────────────────────────────────────────────────────────────────
 switch ($action) {
 
-    // ── PORTFOLIO STATS: exchange & category breakdown ────────────────────────
-    case 'crypto_portfolio_stats': {
+    // ─── LIST HOLDINGS ────────────────────────────────────────────────────────
+    case 'crypto_list':
+        $pid = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
 
-        $rows = DB::fetchAll(
-            "SELECT ch.coin_id, ch.coin_symbol, ch.coin_name,
-                    ch.quantity, ch.total_invested, ch.avg_buy_price,
-                    ch.exchange, ch.category, ch.wallet_tag,
-                    p.name AS portfolio_name
-             FROM crypto_holdings ch
-             JOIN portfolios p ON p.id = ch.portfolio_id
-             WHERE ch.quantity > 0 {$pWhere}
-             ORDER BY ch.total_invested DESC"
-        );
+        $holdings = $db->prepare("
+            SELECT ch.*,
+                   cm.coingecko_id, cm.symbol, cm.name, cm.logo_url,
+                   cm.current_price_inr, cm.price_change_24h, cm.market_cap_inr,
+                   cm.price_updated_at,
+                   ROUND(ch.quantity * cm.current_price_inr, 2)         AS current_value,
+                   ROUND(ch.quantity * cm.current_price_inr
+                         - ch.total_invested, 2)                         AS gain_loss,
+                   ROUND(CASE WHEN ch.total_invested > 0
+                         THEN ((ch.quantity * cm.current_price_inr - ch.total_invested)
+                               / ch.total_invested) * 100
+                         ELSE 0 END, 2)                                  AS gain_pct
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+            ORDER BY (ch.quantity * cm.current_price_inr) DESC
+        ");
+        $holdings->execute([$pid]);
+        $rows = $holdings->fetchAll();
 
-        $coinIds = array_unique(array_column($rows, 'coin_id'));
-        $prices  = t315_prices($db, $coinIds);
+        json_response(true, '', ['data' => $rows]);
 
-        // Per-row enrichment
-        $totalInvested = 0.0; $totalCurrent = 0.0;
-        $byExchange    = []; $byCategory = [];
-        $enriched      = [];
 
-        foreach ($rows as $r) {
-            $p          = $prices[$r['coin_id']] ?? null;
-            $priceInr   = (float)($p['price_inr'] ?? 0);
-            $curVal     = $priceInr * (float)$r['quantity'];
-            $inv        = (float)$r['total_invested'];
-            $gain       = $curVal - $inv;
-            $gainPct    = $inv > 0 ? ($gain / $inv * 100) : 0;
-            $cat        = $r['category'] ?: t315_category($r['coin_id'], $r['coin_symbol']);
-            $exch       = $r['exchange'] ?: 'Unknown';
+    // ─── SUMMARY ──────────────────────────────────────────────────────────────
+    case 'crypto_summary':
+        $pid = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
 
-            $totalInvested += $inv;
-            $totalCurrent  += $curVal;
+        $row = $db->prepare("
+            SELECT
+                COUNT(DISTINCT ch.coin_id)                               AS total_coins,
+                COALESCE(SUM(ch.total_invested), 0)                      AS total_invested,
+                COALESCE(SUM(ch.quantity * cm.current_price_inr), 0)     AS total_current_value,
+                COALESCE(SUM(ch.quantity * cm.current_price_inr
+                             - ch.total_invested), 0)                    AS total_gain_loss,
+                ROUND(CASE WHEN SUM(ch.total_invested) > 0
+                      THEN ((SUM(ch.quantity * cm.current_price_inr)
+                             - SUM(ch.total_invested)) / SUM(ch.total_invested)) * 100
+                      ELSE 0 END, 2)                                     AS gain_pct
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+        ");
+        $row->execute([$pid]);
+        $summary = $row->fetch();
 
-            // Exchange rollup
-            if (!isset($byExchange[$exch])) $byExchange[$exch] = ['exchange' => $exch, 'invested' => 0, 'current' => 0, 'coins' => 0];
-            $byExchange[$exch]['invested'] += $inv;
-            $byExchange[$exch]['current']  += $curVal;
-            $byExchange[$exch]['coins']++;
-
-            // Category rollup
-            if (!isset($byCategory[$cat])) $byCategory[$cat] = ['category' => $cat, 'invested' => 0, 'current' => 0, 'coins' => 0];
-            $byCategory[$cat]['invested'] += $inv;
-            $byCategory[$cat]['current']  += $curVal;
-            $byCategory[$cat]['coins']++;
-
-            $enriched[] = [
-                'coin_id'        => $r['coin_id'],
-                'coin_symbol'    => $r['coin_symbol'],
-                'coin_name'      => $r['coin_name'],
-                'quantity'       => (float)$r['quantity'],
-                'avg_buy_price'  => round((float)$r['avg_buy_price'], 4),
-                'total_invested' => round($inv, 2),
-                'price_inr'      => round($priceInr, 4),
-                'price_usd'      => round((float)($p['price_usd'] ?? 0), 6),
-                'change_24h'     => $p['change_24h'] ?? null,
-                'current_value'  => round($curVal, 2),
-                'gain_inr'       => round($gain, 2),
-                'gain_pct'       => round($gainPct, 2),
-                'exchange'       => $r['exchange'],
-                'wallet_tag'     => $r['wallet_tag'],
-                'category'       => $cat,
-                'portfolio_name' => $r['portfolio_name'],
-                'allocation_pct' => 0, // filled below
-            ];
-        }
-
-        // Allocation % (by current value)
-        foreach ($enriched as &$e) {
-            $e['allocation_pct'] = $totalCurrent > 0
-                ? round($e['current_value'] / $totalCurrent * 100, 2)
-                : 0;
-        }
-        unset($e);
-
-        // Add gain% to exchange/category breakdowns
-        foreach ($byExchange as &$ex) {
-            $ex['gain']      = round($ex['current'] - $ex['invested'], 2);
-            $ex['gain_pct']  = $ex['invested'] > 0 ? round(($ex['current'] - $ex['invested']) / $ex['invested'] * 100, 2) : 0;
-            $ex['alloc_pct'] = $totalCurrent > 0 ? round($ex['current'] / $totalCurrent * 100, 2) : 0;
-        }
-        unset($ex);
-        foreach ($byCategory as &$bc) {
-            $bc['gain']      = round($bc['current'] - $bc['invested'], 2);
-            $bc['gain_pct']  = $bc['invested'] > 0 ? round(($bc['current'] - $bc['invested']) / $bc['invested'] * 100, 2) : 0;
-            $bc['alloc_pct'] = $totalCurrent > 0 ? round($bc['current'] / $totalCurrent * 100, 2) : 0;
-        }
-        unset($bc);
-
-        // Total staking income (all time)
-        $stakingTotal = (float)(DB::fetchOne(
-            "SELECT COALESCE(SUM(sr.value_inr),0) AS tot
-             FROM crypto_staking_rewards sr
-             JOIN portfolios p ON p.id = sr.portfolio_id
-             WHERE 1=1 {$pWhere}"
-        )['tot'] ?? 0);
-
-        // Txn count
-        $txnCount = (int)(DB::fetchOne(
-            "SELECT COUNT(*) AS c FROM crypto_transactions ct
-             JOIN portfolios p ON p.id = ct.portfolio_id WHERE 1=1 {$pWhere}"
-        )['c'] ?? 0);
-
-        $totalGain    = $totalCurrent - $totalInvested;
-        $totalGainPct = $totalInvested > 0 ? round($totalGain / $totalInvested * 100, 2) : 0;
+        // Top gainer / loser
+        $gl = $db->prepare("
+            SELECT cm.symbol, cm.name,
+                   ROUND(cm.price_change_24h, 2) AS change_24h
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+            ORDER BY cm.price_change_24h DESC
+        ");
+        $gl->execute([$pid]);
+        $gainers = $gl->fetchAll();
+        $topGainer = $gainers[0]  ?? null;
+        $topLoser  = end($gainers) ?: null;
 
         json_response(true, '', [
-            'summary' => [
-                'total_invested'   => round($totalInvested, 2),
-                'total_current'    => round($totalCurrent, 2),
-                'total_gain'       => round($totalGain, 2),
-                'total_gain_pct'   => $totalGainPct,
-                'coin_count'       => count($rows),
-                'txn_count'        => $txnCount,
-                'staking_income'   => round($stakingTotal, 2),
-                'prices_at'        => date('H:i:s'),
-            ],
-            'holdings'      => $enriched,
-            'by_exchange'   => array_values($byExchange),
-            'by_category'   => array_values($byCategory),
+            'summary'    => $summary,
+            'top_gainer' => $topGainer,
+            'top_loser'  => $topLoser ?: null,
         ]);
-        break;
-    }
 
-    // ── EDIT HOLDING (exchange / wallet / category / notes) ──────────────────
-    case 'crypto_edit_holding': {
-        $id       = (int)($_POST['id'] ?? 0);
-        $exchange = clean($_POST['exchange']   ?? '');
-        $wallet   = clean($_POST['wallet_address'] ?? '');
-        $walletTag= clean($_POST['wallet_tag'] ?? '');
-        $category = clean($_POST['category']   ?? '');
-        $notes    = clean($_POST['notes']      ?? '');
 
-        if (!$id) json_response(false, 'Holding ID required.');
+    // ─── PORTFOLIO STATS ──────────────────────────────────────────────────────
+    case 'crypto_portfolio_stats':
+        $pid = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
 
-        // Ownership check
-        $row = DB::fetchOne(
-            "SELECT ch.id, p.user_id FROM crypto_holdings ch
-             JOIN portfolios p ON p.id = ch.portfolio_id WHERE ch.id=? LIMIT 1",
-            [$id]
-        );
-        if (!$row || ((int)$row['user_id'] !== $userId && !$isAdmin))
-            json_response(false, 'Not found or access denied.');
+        // Allocation per coin
+        $alloc = $db->prepare("
+            SELECT cm.symbol, cm.name, cm.logo_url,
+                   ROUND(ch.quantity * cm.current_price_inr, 2) AS value,
+                   ROUND((ch.quantity * cm.current_price_inr) /
+                         NULLIF(SUM(ch2.quantity * cm2.current_price_inr) OVER(), 0) * 100, 2) AS pct
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            JOIN crypto_holdings ch2 ON ch2.portfolio_id = ch.portfolio_id AND ch2.quantity > 0
+            JOIN crypto_master cm2 ON cm2.id = ch2.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+            GROUP BY ch.id
+            ORDER BY value DESC
+        ");
+        $alloc->execute([$pid]);
 
-        $allowed_categories = ['Bitcoin','Ethereum','Stablecoin','DeFi','Large-cap','Altcoin','NFT','Other'];
-        if ($category && !in_array($category, $allowed_categories))
-            json_response(false, 'Invalid category.');
+        // P&L per coin
+        $pnl = $db->prepare("
+            SELECT cm.symbol, cm.name,
+                   ch.total_invested,
+                   ROUND(ch.quantity * cm.current_price_inr, 2) AS current_value,
+                   ROUND(ch.quantity * cm.current_price_inr - ch.total_invested, 2) AS gain_loss,
+                   ROUND(CASE WHEN ch.total_invested > 0
+                         THEN ((ch.quantity * cm.current_price_inr - ch.total_invested)
+                               / ch.total_invested) * 100
+                         ELSE 0 END, 2) AS gain_pct
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+            ORDER BY gain_loss DESC
+        ");
+        $pnl->execute([$pid]);
 
-        $sets   = [];
-        $params = [];
-        if ($exchange !== '')  { $sets[] = 'exchange=?';        $params[] = $exchange ?: null; }
-        if ($wallet !== '')    { $sets[] = 'wallet_address=?';  $params[] = $wallet ?: null; }
-        if ($walletTag !== '') { $sets[] = 'wallet_tag=?';      $params[] = $walletTag ?: null; }
-        if ($category !== '')  { $sets[] = 'category=?';        $params[] = $category; }
-        if ($notes !== '')     { $sets[] = 'notes=?';           $params[] = $notes ?: null; }
+        json_response(true, '', [
+            'allocation' => $alloc->fetchAll(),
+            'pnl'        => $pnl->fetchAll(),
+        ]);
 
-        if (empty($sets)) json_response(false, 'Nothing to update.');
 
+    // ─── PRICES (batch refresh) ───────────────────────────────────────────────
+    case 'crypto_prices':
+    case 'crypto_refresh_prices':
+        $pid = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
+
+        // Get all coingecko_ids in this portfolio
+        $stmt = $db->prepare("
+            SELECT DISTINCT cm.id, cm.coingecko_id
+            FROM crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            WHERE ch.portfolio_id = ? AND ch.quantity > 0
+        ");
+        $stmt->execute([$pid]);
+        $coins = $stmt->fetchAll();
+
+        if (empty($coins)) { json_response(true, '', ['prices' => []]); }
+
+        $cgIds   = array_column($coins, 'coingecko_id');
+        $prices  = cg_prices($cgIds, 'inr');
+
+        if (!$prices) { json_response(false, 'CoinGecko API unavailable. Showing cached prices.'); }
+
+        $updated = 0;
+        foreach ($prices as $cgId => $data) {
+            $price   = (float)($data['inr']             ?? 0);
+            $change  = (float)($data['inr_24h_change']  ?? 0);
+            $mcap    = (float)($data['inr_market_cap']  ?? 0);
+            $vol     = (float)($data['inr_24h_vol']     ?? 0);
+            if ($price <= 0) continue;
+            $db->prepare("
+                UPDATE crypto_master
+                SET current_price_inr=?, price_change_24h=?, market_cap_inr=?,
+                    volume_24h_inr=?, price_updated_at=NOW()
+                WHERE coingecko_id=?
+            ")->execute([$price, $change, $mcap, $vol, $cgId]);
+            $updated++;
+        }
+
+        // Also refresh holdings current_value
+        $db->prepare("
+            UPDATE crypto_holdings ch
+            JOIN crypto_master cm ON cm.id = ch.coin_id
+            SET ch.current_value = ROUND(ch.quantity * cm.current_price_inr, 2)
+            WHERE ch.portfolio_id = ?
+        ")->execute([$pid]);
+
+        json_response(true, "Prices updated for {$updated} coins.", ['updated' => $updated, 'prices' => $prices]);
+
+
+    // ─── ADD HOLDING ──────────────────────────────────────────────────────────
+    case 'crypto_add':
+        $pid       = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
+
+        $coinId    = (int)  ($_POST['coin_id']    ?? 0);
+        $cgId      = clean  ($_POST['coingecko_id']?? '');
+        $symbol    = strtoupper(clean($_POST['symbol'] ?? ''));
+        $name      = clean  ($_POST['name']       ?? '');
+        $quantity  = (float)($_POST['quantity']   ?? 0);
+        $buyPrice  = (float)($_POST['buy_price']  ?? 0);
+        $buyDate   = clean  ($_POST['buy_date']   ?? date('Y-m-d'));
+        $exchange  = clean  ($_POST['exchange']   ?? '');
+        $wallet    = clean  ($_POST['wallet']      ?? '');
+        $notes     = clean  ($_POST['notes']       ?? '');
+
+        if ($quantity <= 0 || $buyPrice <= 0) {
+            json_response(false, 'Quantity and buy price are required.');
+        }
+
+        // Ensure coin in master
+        if (!$coinId && ($cgId || $symbol)) {
+            $existing = $db->prepare("SELECT id FROM crypto_master WHERE coingecko_id=? OR symbol=? LIMIT 1");
+            $existing->execute([$cgId ?: '', $symbol]);
+            $cm = $existing->fetch();
+            if ($cm) {
+                $coinId = (int)$cm['id'];
+            } else {
+                // Fetch from CoinGecko to populate master
+                $cgData = $cgId ? cg_get("/coins/{$cgId}", ['localization'=>'false','tickers'=>'false','community_data'=>'false']) : null;
+                $currentPrice = $cgData['market_data']['current_price']['inr'] ?? 0;
+                $db->prepare("
+                    INSERT INTO crypto_master (coingecko_id, symbol, name, logo_url, current_price_inr, price_updated_at)
+                    VALUES (?,?,?,?,?,NOW())
+                ")->execute([
+                    $cgId   ?: strtolower($symbol),
+                    $symbol,
+                    $name   ?: ($cgData['name'] ?? $symbol),
+                    $cgData['image']['thumb'] ?? null,
+                    $currentPrice,
+                ]);
+                $coinId = (int)$db->lastInsertId();
+            }
+        }
+
+        if (!$coinId) { json_response(false, 'Could not resolve coin. Provide coin_id or coingecko_id.'); }
+
+        $totalInvested = round($quantity * $buyPrice, 8);
+
+        // Check existing holding for this coin in portfolio
+        $existing = $db->prepare("SELECT id, quantity, total_invested, avg_buy_price FROM crypto_holdings WHERE portfolio_id=? AND coin_id=?");
+        $existing->execute([$pid, $coinId]);
+        $holding = $existing->fetch();
+
+        if ($holding) {
+            // Weighted avg price
+            $newQty    = $holding['quantity'] + $quantity;
+            $newTotal  = $holding['total_invested'] + $totalInvested;
+            $newAvg    = $newQty > 0 ? $newTotal / $newQty : 0;
+            $db->prepare("
+                UPDATE crypto_holdings SET quantity=?, total_invested=?, avg_buy_price=?, updated_at=NOW()
+                WHERE id=?
+            ")->execute([$newQty, $newTotal, $newAvg, $holding['id']]);
+            $holdingId = $holding['id'];
+        } else {
+            $db->prepare("
+                INSERT INTO crypto_holdings (portfolio_id, coin_id, quantity, total_invested, avg_buy_price, first_buy_date, created_at)
+                VALUES (?,?,?,?,?,?,NOW())
+            ")->execute([$pid, $coinId, $quantity, $totalInvested, $buyPrice, $buyDate]);
+            $holdingId = (int)$db->lastInsertId();
+        }
+
+        // Log transaction
+        $db->prepare("
+            INSERT INTO crypto_transactions (portfolio_id, coin_id, type, quantity, price_inr, total_inr, exchange_name, wallet, note, txn_date)
+            VALUES (?,?,'buy',?,?,?,?,?,?,?)
+        ")->execute([$pid, $coinId, $quantity, $buyPrice, $totalInvested, $exchange ?: null, $wallet ?: null, $notes ?: null, $buyDate]);
+
+        json_response(true, 'Holding added.', ['holding_id' => $holdingId]);
+
+
+    // ─── EDIT HOLDING ─────────────────────────────────────────────────────────
+    case 'crypto_edit_holding':
+        $id  = (int)($_POST['id'] ?? 0);
+        $pid = crypto_portfolio($userId);
+        if (!$id || !$pid) { json_response(false, 'Invalid request.'); }
+        $h = $db->prepare("SELECT id FROM crypto_holdings WHERE id=? AND portfolio_id=?")->execute([$id, $pid]);
+
+        $allowed = ['quantity','avg_buy_price','total_invested','first_buy_date','wallet','notes'];
+        $sets = $params = [];
+        foreach ($allowed as $f) {
+            if (isset($_POST[$f])) { $sets[] = "`{$f}`=?"; $params[] = clean($_POST[$f]); }
+        }
+        if (!$sets) { json_response(false, 'Nothing to update.'); }
         $params[] = $id;
-        DB::execute("UPDATE crypto_holdings SET " . implode(', ', $sets) . ", updated_at=NOW() WHERE id=?", $params);
-        audit_log('crypto_edit_holding', 'crypto_holdings', $id);
+        $db->prepare("UPDATE crypto_holdings SET " . implode(',', $sets) . " WHERE id=?")->execute($params);
         json_response(true, 'Holding updated.');
-        break;
-    }
 
-    // ── STAKING REWARDS: LIST ─────────────────────────────────────────────────
-    case 'crypto_staking_list': {
-        $coinFilter = clean($_GET['coin_id'] ?? '');
-        $coinCond   = $coinFilter ? "AND sr.coin_id = " . $db->quote($coinFilter) : '';
 
-        $rows = DB::fetchAll(
-            "SELECT sr.*
-             FROM crypto_staking_rewards sr
-             JOIN portfolios p ON p.id = sr.portfolio_id
-             WHERE 1=1 {$pWhere} {$coinCond}
-             ORDER BY sr.reward_date DESC, sr.id DESC
-             LIMIT 500"
-        );
+    // ─── DELETE HOLDING ───────────────────────────────────────────────────────
+    case 'crypto_delete':
+        $id  = (int)($_POST['id'] ?? 0);
+        $pid = crypto_portfolio($userId);
+        if (!$id || !$pid) { json_response(false, 'Invalid request.'); }
+        $db->prepare("DELETE FROM crypto_holdings WHERE id=? AND portfolio_id=?")->execute([$id, $pid]);
+        json_response(true, 'Holding removed.');
 
-        // Live value of staking tokens in portfolio
-        $coinIds = array_unique(array_column($rows, 'coin_id'));
-        $prices  = t315_prices($db, $coinIds);
 
-        $totalValueAtReceipt = 0.0;
-        $totalCurrentValue   = 0.0;
-        $byType              = [];
+    // ─── TRANSACTION LIST ─────────────────────────────────────────────────────
+    case 'crypto_txns':
+        $pid    = crypto_portfolio($userId);
+        $coinId = (int)($_GET['coin_id'] ?? 0);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
+        $where = $coinId ? 'AND t.coin_id=?' : '';
+        $params = $coinId ? [$pid, $coinId] : [$pid];
+        $stmt = $db->prepare("
+            SELECT t.*, cm.symbol, cm.name, cm.logo_url
+            FROM crypto_transactions t
+            JOIN crypto_master cm ON cm.id = t.coin_id
+            WHERE t.portfolio_id=? {$where}
+            ORDER BY t.txn_date DESC, t.id DESC
+            LIMIT 200
+        ");
+        $stmt->execute($params);
+        json_response(true, '', ['data' => $stmt->fetchAll()]);
 
-        foreach ($rows as &$r) {
-            $p         = $prices[$r['coin_id']] ?? null;
-            $curPrice  = (float)($p['price_inr'] ?? 0);
-            $curVal    = $curPrice * (float)$r['quantity'];
-            $r['current_price_inr'] = round($curPrice, 4);
-            $r['current_value_inr'] = round($curVal, 2);
-            $r['unrealised_gain']   = round($curVal - (float)$r['value_inr'], 2);
 
-            $totalValueAtReceipt += (float)$r['value_inr'];
-            $totalCurrentValue   += $curVal;
+    // ─── ADD TRANSACTION ──────────────────────────────────────────────────────
+    case 'crypto_txn_add':
+        $pid      = crypto_portfolio($userId);
+        $coinId   = (int)  ($_POST['coin_id']  ?? 0);
+        $type     = in_array($_POST['type'] ?? '', ['buy','sell','transfer_in','transfer_out','staking','airdrop','mining']) ? $_POST['type'] : 'buy';
+        $quantity = (float)($_POST['quantity'] ?? 0);
+        $price    = (float)($_POST['price_inr']?? 0);
+        $fee      = (float)($_POST['fee_inr']  ?? 0);
+        $txnDate  = clean  ($_POST['txn_date'] ?? date('Y-m-d'));
 
-            $t = $r['reward_type'];
-            if (!isset($byType[$t])) $byType[$t] = ['type' => $t, 'value_inr' => 0, 'count' => 0];
-            $byType[$t]['value_inr'] += (float)$r['value_inr'];
-            $byType[$t]['count']++;
+        if (!$pid || !$coinId || $quantity <= 0) {
+            json_response(false, 'portfolio_id, coin_id, and quantity required.');
         }
-        unset($r);
 
-        json_response(true, '', [
-            'rewards'               => $rows,
-            'total_value_at_receipt'=> round($totalValueAtReceipt, 2),
-            'total_current_value'   => round($totalCurrentValue, 2),
-            'by_type'               => array_values($byType),
+        $total = round($quantity * $price, 8);
+        $db->prepare("
+            INSERT INTO crypto_transactions
+            (portfolio_id, coin_id, type, quantity, price_inr, total_inr, fee_inr, exchange_name, wallet, note, txn_date)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        ")->execute([$pid, $coinId, $type, $quantity, $price, $total, $fee,
+            clean($_POST['exchange_name'] ?? ''), clean($_POST['wallet'] ?? ''),
+            clean($_POST['note'] ?? ''), $txnDate]);
+
+        // Update holding quantity
+        $existH = $db->prepare("SELECT id, quantity, total_invested, avg_buy_price FROM crypto_holdings WHERE portfolio_id=? AND coin_id=?")->execute([$pid, $coinId]);
+        $h = $db->prepare("SELECT * FROM crypto_holdings WHERE portfolio_id=? AND coin_id=?")->execute([$pid, $coinId]);
+
+        // Recalculate holding from all transactions
+        $reCalc = $db->prepare("
+            SELECT
+                SUM(CASE WHEN type IN ('buy','transfer_in','staking','airdrop','mining') THEN quantity ELSE -quantity END) AS net_qty,
+                SUM(CASE WHEN type = 'buy' THEN total_inr ELSE 0 END) AS buy_total,
+                SUM(CASE WHEN type = 'buy' THEN quantity ELSE 0 END)  AS buy_qty
+            FROM crypto_transactions WHERE portfolio_id=? AND coin_id=?
+        ");
+        $reCalc->execute([$pid, $coinId]);
+        $rc = $reCalc->fetch();
+        $netQty   = max(0, (float)($rc['net_qty']  ?? 0));
+        $avgPrice = ($rc['buy_qty'] ?? 0) > 0 ? (float)$rc['buy_total'] / (float)$rc['buy_qty'] : $price;
+
+        $existH2 = $db->prepare("SELECT id FROM crypto_holdings WHERE portfolio_id=? AND coin_id=?");
+        $existH2->execute([$pid, $coinId]);
+        $hRow = $existH2->fetch();
+        if ($hRow) {
+            $db->prepare("UPDATE crypto_holdings SET quantity=?, avg_buy_price=?, total_invested=?, updated_at=NOW() WHERE id=?")
+               ->execute([$netQty, $avgPrice, ($rc['buy_total'] ?? 0), $hRow['id']]);
+        } elseif ($netQty > 0) {
+            $db->prepare("INSERT INTO crypto_holdings (portfolio_id, coin_id, quantity, avg_buy_price, total_invested, first_buy_date) VALUES (?,?,?,?,?,?)")
+               ->execute([$pid, $coinId, $netQty, $avgPrice, ($rc['buy_total'] ?? 0), $txnDate]);
+        }
+        json_response(true, 'Transaction logged.');
+
+
+    // ─── COINGECKO SEARCH ─────────────────────────────────────────────────────
+    case 'crypto_coingecko_search':
+        $q = clean($_GET['q'] ?? '');
+        if (strlen($q) < 2) { json_response(false, 'Query too short.'); }
+
+        // Try cache in crypto_master first
+        $stmt = $db->prepare("SELECT id, coingecko_id, symbol, name, logo_url, current_price_inr FROM crypto_master WHERE name LIKE ? OR symbol LIKE ? LIMIT 10");
+        $stmt->execute(["%{$q}%", "%{$q}%"]);
+        $cached = $stmt->fetchAll();
+
+        // Also live search from CoinGecko
+        $cgResults = cg_get('/search', ['query' => $q]);
+        $liveCoins = array_slice($cgResults['coins'] ?? [], 0, 10);
+
+        json_response(true, '', ['cached' => $cached, 'coingecko' => $liveCoins]);
+
+
+    // ─── COINGECKO COIN DETAIL ────────────────────────────────────────────────
+    case 'crypto_coingecko_coin':
+        $cgId = clean($_GET['id'] ?? '');
+        if (!$cgId) { json_response(false, 'id required.'); }
+
+        $data = cg_get("/coins/{$cgId}", [
+            'localization'   => 'false',
+            'tickers'        => 'false',
+            'community_data' => 'false',
+            'developer_data' => 'false',
+            'sparkline'      => 'false',
         ]);
-        break;
-    }
+        if (!$data) { json_response(false, 'CoinGecko unavailable.'); }
 
-    // ── STAKING REWARDS: ADD ──────────────────────────────────────────────────
-    case 'crypto_staking_add': {
-        $pid        = (int)($_POST['portfolio_id'] ?? 0) ?: get_user_portfolio_id($userId);
-        $coinId     = clean($_POST['coin_id']     ?? '');
-        $symbol     = strtoupper(clean($_POST['coin_symbol'] ?? ''));
-        $rewardType = clean($_POST['reward_type'] ?? 'STAKING');
-        $qty        = (float)($_POST['quantity']  ?? 0);
-        $priceInr   = (float)($_POST['price_inr'] ?? 0);
-        $platform   = clean($_POST['platform']    ?? '');
-        $rewardDate = clean($_POST['reward_date'] ?? date('Y-m-d'));
-        $notes      = clean($_POST['notes']       ?? '');
-
-        if (!$pid)    json_response(false, 'Portfolio required.');
-        if (!$coinId) json_response(false, 'Coin ID required.');
-        if (!$symbol) json_response(false, 'Coin symbol required.');
-        if ($qty <= 0) json_response(false, 'Quantity must be positive.');
-
-        $allowed = ['STAKING','YIELD','AIRDROP','MINING','INTEREST'];
-        if (!in_array($rewardType, $allowed)) json_response(false, 'Invalid reward type.');
-
-        if (!can_access_portfolio($pid, $userId, $isAdmin)) json_response(false, 'Access denied.');
-
-        // If price not supplied, try cache
-        if ($priceInr <= 0) {
-            $cached = DB::fetchOne("SELECT price_inr FROM crypto_price_cache WHERE coin_id=?", [$coinId]);
-            $priceInr = $cached ? (float)$cached['price_inr'] : 0;
+        // Cache / upsert in master
+        $priceInr = (float)($data['market_data']['current_price']['inr'] ?? 0);
+        $stmt = $db->prepare("SELECT id FROM crypto_master WHERE coingecko_id=?");
+        $stmt->execute([$cgId]);
+        $existing = $stmt->fetch();
+        if ($existing) {
+            $db->prepare("UPDATE crypto_master SET current_price_inr=?, name=?, logo_url=?, market_cap_inr=?, price_updated_at=NOW() WHERE coingecko_id=?")
+               ->execute([$priceInr, $data['name'], $data['image']['small'] ?? null,
+                    $data['market_data']['market_cap']['inr'] ?? 0, $cgId]);
+        } else {
+            $db->prepare("INSERT INTO crypto_master (coingecko_id, symbol, name, logo_url, current_price_inr, market_cap_inr, price_updated_at) VALUES (?,?,?,?,?,?,NOW())")
+               ->execute([
+                    $cgId,
+                    strtoupper($data['symbol'] ?? $cgId),
+                    $data['name'],
+                    $data['image']['small'] ?? null,
+                    $priceInr,
+                    $data['market_data']['market_cap']['inr'] ?? 0,
+               ]);
         }
-        $valueInr = round($qty * $priceInr, 2);
+        json_response(true, '', ['data' => $data]);
 
-        $id = DB::insert(
-            "INSERT INTO crypto_staking_rewards
-             (portfolio_id, coin_id, coin_symbol, reward_type, quantity, price_inr, value_inr, platform, reward_date, notes)
-             VALUES (?,?,?,?,?,?,?,?,?,?)",
-            [$pid, $coinId, $symbol, $rewardType, $qty, $priceInr, $valueInr, $platform ?: null, $rewardDate, $notes ?: null]
-        );
 
-        audit_log('crypto_staking_add', 'crypto_staking_rewards', (int)$id);
-        json_response(true, "Staking reward recorded (₹" . number_format($valueInr, 2) . " on {$rewardDate}).",
-            ['id' => $id, 'value_inr' => $valueInr]);
-        break;
-    }
+    // ─── WATCHLIST LIST ───────────────────────────────────────────────────────
+    case 'crypto_wl_list':
+        $stmt = $db->prepare("
+            SELECT cw.*, cm.coingecko_id, cm.symbol, cm.name, cm.logo_url,
+                   cm.current_price_inr, cm.price_change_24h, cm.market_cap_inr,
+                   ROUND(((cm.current_price_inr - cw.alert_price_low)  / NULLIF(cw.alert_price_low, 0)) * 100, 2)  AS pct_from_low,
+                   ROUND(((cw.alert_price_high - cm.current_price_inr) / NULLIF(cw.alert_price_high, 0)) * 100, 2) AS pct_from_high
+            FROM crypto_watchlist cw
+            JOIN crypto_master cm ON cm.id = cw.coin_id
+            WHERE cw.user_id=?
+            ORDER BY cw.created_at DESC
+        ");
+        $stmt->execute([$userId]);
+        json_response(true, '', ['data' => $stmt->fetchAll()]);
 
-    // ── STAKING REWARDS: DELETE ───────────────────────────────────────────────
-    case 'crypto_staking_delete': {
+
+    // ─── WATCHLIST ADD ────────────────────────────────────────────────────────
+    case 'crypto_wl_add':
+        $coinId  = (int)($_POST['coin_id']         ?? 0);
+        $low     = isset($_POST['alert_price_low'])  ? (float)$_POST['alert_price_low']  : null;
+        $high    = isset($_POST['alert_price_high']) ? (float)$_POST['alert_price_high'] : null;
+        $notes   = clean($_POST['notes']            ?? '');
+        if (!$coinId) { json_response(false, 'coin_id required.'); }
+
+        $exists = $db->prepare("SELECT id FROM crypto_watchlist WHERE user_id=? AND coin_id=?");
+        $exists->execute([$userId, $coinId]);
+        if ($exists->fetch()) { json_response(false, 'Already in watchlist.'); }
+
+        $db->prepare("INSERT INTO crypto_watchlist (user_id, coin_id, alert_price_low, alert_price_high, notes) VALUES (?,?,?,?,?)")
+           ->execute([$userId, $coinId, $low, $high, $notes ?: null]);
+        json_response(true, 'Added to watchlist.');
+
+
+    // ─── WATCHLIST DELETE ─────────────────────────────────────────────────────
+    case 'crypto_wl_delete':
         $id = (int)($_POST['id'] ?? 0);
-        if (!$id) json_response(false, 'ID required.');
-
-        $row = DB::fetchOne(
-            "SELECT sr.id, p.user_id FROM crypto_staking_rewards sr
-             JOIN portfolios p ON p.id = sr.portfolio_id WHERE sr.id=? LIMIT 1",
-            [$id]
-        );
-        if (!$row || ((int)$row['user_id'] !== $userId && !$isAdmin))
-            json_response(false, 'Not found or access denied.');
-
-        DB::execute("DELETE FROM crypto_staking_rewards WHERE id=?", [$id]);
-        audit_log('crypto_staking_delete', 'crypto_staking_rewards', $id);
-        json_response(true, 'Staking reward deleted.');
-        break;
-    }
-
-    // ── WATCHLIST: LIST with live prices ─────────────────────────────────────
-    case 'crypto_wl_list': {
-        $rows = DB::fetchAll(
-            "SELECT * FROM crypto_watchlist WHERE user_id=? ORDER BY created_at DESC",
-            [$userId]
-        );
-
-        $coinIds = array_column($rows, 'coin_id');
-        $prices  = t315_prices($db, $coinIds);
-
-        foreach ($rows as &$r) {
-            $p = $prices[$r['coin_id']] ?? null;
-            $priceInr         = (float)($p['price_inr'] ?? 0);
-            $r['price_inr']   = round($priceInr, 4);
-            $r['price_usd']   = round((float)($p['price_usd'] ?? 0), 6);
-            $r['change_24h']  = $p['change_24h'] ?? null;
-            $r['alert_high']  = $r['alert_high'] ? (float)$r['alert_high'] : null;
-            $r['alert_low']   = $r['alert_low']  ? (float)$r['alert_low']  : null;
-            // Trigger flags
-            $r['alert_high_triggered'] = $r['alert_high'] && $priceInr >= (float)$r['alert_high'];
-            $r['alert_low_triggered']  = $r['alert_low']  && $priceInr <= (float)$r['alert_low'];
-        }
-        unset($r);
-
-        json_response(true, '', $rows);
-        break;
-    }
-
-    // ── WATCHLIST: ADD / UPSERT ────────────────────────────────────────────────
-    case 'crypto_wl_add': {
-        $coinId  = clean($_POST['coin_id']     ?? '');
-        $symbol  = strtoupper(clean($_POST['coin_symbol'] ?? ''));
-        $name    = clean($_POST['coin_name']   ?? $symbol);
-        $high    = strlen($_POST['alert_high'] ?? '') > 0 ? (float)$_POST['alert_high'] : null;
-        $low     = strlen($_POST['alert_low']  ?? '') > 0 ? (float)$_POST['alert_low']  : null;
-        $notes   = clean($_POST['notes']       ?? '');
-
-        if (!$coinId) json_response(false, 'Coin ID required.');
-        if (!$symbol) json_response(false, 'Coin symbol required.');
-
-        DB::execute(
-            "INSERT INTO crypto_watchlist (user_id, coin_id, coin_symbol, coin_name, alert_high, alert_low, notes)
-             VALUES (?,?,?,?,?,?,?)
-             ON DUPLICATE KEY UPDATE alert_high=VALUES(alert_high), alert_low=VALUES(alert_low),
-                                     notes=VALUES(notes)",
-            [$userId, $coinId, $symbol, $name, $high, $low, $notes ?: null]
-        );
-        json_response(true, "{$name} added to watchlist.");
-        break;
-    }
-
-    // ── WATCHLIST: DELETE ─────────────────────────────────────────────────────
-    case 'crypto_wl_delete': {
-        $id = (int)($_POST['id'] ?? 0);
-        if (!$id) json_response(false, 'ID required.');
-
-        $row = DB::fetchOne("SELECT id FROM crypto_watchlist WHERE id=? AND user_id=?", [$id, $userId]);
-        if (!$row) json_response(false, 'Not found or access denied.');
-
-        DB::execute("DELETE FROM crypto_watchlist WHERE id=?", [$id]);
+        $db->prepare("DELETE FROM crypto_watchlist WHERE id=? AND user_id=?")->execute([$id, $userId]);
         json_response(true, 'Removed from watchlist.');
-        break;
-    }
 
-    // ── FY TAX YEAR SUMMARY ────────────────────────────────────────────────────
-    case 'crypto_tax_year_summary': {
-        $fy      = (int)($_GET['fy'] ?? ((int)date('n') >= 4 ? (int)date('Y') : (int)date('Y') - 1));
-        $fyStart = "{$fy}-04-01";
-        $fyEnd   = ($fy + 1) . "-03-31";
 
-        // Sell txns this FY
-        $sells = DB::fetchAll(
-            "SELECT ct.coin_id, ct.coin_symbol, ct.quantity,
-                    ct.price_inr, ct.amount_inr, ct.tds_deducted, ct.txn_date
-             FROM crypto_transactions ct
-             JOIN portfolios p ON p.id = ct.portfolio_id
-             WHERE ct.txn_type = 'SELL' AND ct.txn_date BETWEEN ? AND ? {$pWhere}
-             ORDER BY ct.txn_date",
-            [$fyStart, $fyEnd]
-        );
+    // ─── TAX YEAR SUMMARY ─────────────────────────────────────────────────────
+    case 'crypto_tax_year_summary':
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $pid  = crypto_portfolio($userId);
+        if (!$pid) { json_response(false, 'Invalid portfolio.'); }
 
-        // Avg buy prices from holdings
-        $avgMap = [];
-        $avgs = DB::fetchAll(
-            "SELECT ch.coin_id, ch.avg_buy_price FROM crypto_holdings ch
-             JOIN portfolios p ON p.id = ch.portfolio_id WHERE 1=1 {$pWhere}"
-        );
-        foreach ($avgs as $a) $avgMap[$a['coin_id']] = (float)$a['avg_buy_price'];
+        $stmt = $db->prepare("
+            SELECT t.*, cm.symbol, cm.name
+            FROM crypto_transactions t
+            JOIN crypto_master cm ON cm.id = t.coin_id
+            WHERE t.portfolio_id=?
+              AND YEAR(t.txn_date) = ?
+              AND t.type = 'sell'
+            ORDER BY t.txn_date ASC
+        ");
+        $stmt->execute([$pid, $year]);
+        $sells = $stmt->fetchAll();
 
-        $totalSale = 0; $totalCost = 0; $totalGain = 0; $totalTds = 0;
-        $breakdown = [];
-
+        $totalProceeds = 0; $totalCost = 0;
         foreach ($sells as $s) {
-            $saleVal   = (float)$s['amount_inr'];
-            $costBasis = ($avgMap[$s['coin_id']] ?? 0) * (float)$s['quantity'];
-            $gain      = $saleVal - $costBasis;
-            $tax30     = max(0, $gain * 0.30);
-            $tds       = (float)$s['tds_deducted'];
-
-            $totalSale += $saleVal; $totalCost += $costBasis;
-            $totalGain += $gain;   $totalTds  += $tds;
-
-            $breakdown[] = [
-                'date'         => $s['txn_date'],
-                'coin'         => $s['coin_symbol'],
-                'qty'          => (float)$s['quantity'],
-                'sale_price'   => round((float)$s['price_inr'], 4),
-                'sale_value'   => round($saleVal, 2),
-                'cost_basis'   => round($costBasis, 2),
-                'gain'         => round($gain, 2),
-                'tax_30pct'    => round($tax30, 2),
-                'tds_deducted' => round($tds, 2),
-                'net_tax_due'  => round(max(0, $tax30 - $tds), 2),
-            ];
+            $totalProceeds += (float)$s['total_inr'];
+            $totalCost     += (float)$s['quantity'] * (float)$s['price_inr'];
         }
 
-        // Staking income (fully taxable as income)
-        $stakingIncome = (float)(DB::fetchOne(
-            "SELECT COALESCE(SUM(sr.value_inr),0) AS tot
-             FROM crypto_staking_rewards sr
-             JOIN portfolios p ON p.id = sr.portfolio_id
-             WHERE sr.reward_date BETWEEN ? AND ? {$pWhere}",
-            [$fyStart, $fyEnd]
-        )['tot'] ?? 0);
-
-        $totalTaxPayable = max(0, $totalGain * 0.30);
-        $netTaxDue       = max(0, $totalTaxPayable - $totalTds);
-
         json_response(true, '', [
-            'fy'                 => "FY {$fy}-" . ($fy + 1),
-            'fy_start'           => $fyStart,
-            'fy_end'             => $fyEnd,
-            'total_sale_value'   => round($totalSale, 2),
-            'total_cost_basis'   => round($totalCost, 2),
-            'total_gain'         => round($totalGain, 2),
-            'total_tax_payable'  => round($totalTaxPayable, 2),
-            'total_tds_deducted' => round($totalTds, 2),
-            'net_tax_due'        => round($netTaxDue, 2),
-            'staking_income'     => round($stakingIncome, 2),
-            'staking_tax_note'   => 'Staking/airdrop income is taxable as income at slab rates (CBDT circular)',
-            'loss_offset_note'   => 'Crypto losses CANNOT be offset against any other income (Section 115BBH)',
-            'breakdown'          => $breakdown,
-            'txn_count'          => count($breakdown),
+            'year'            => $year,
+            'total_sells'     => count($sells),
+            'total_proceeds'  => $totalProceeds,
+            'total_cost'      => $totalCost,
+            'vda_gain'        => $totalProceeds - $totalCost,
+            'tax_rate_pct'    => 30,
+            'estimated_tax'   => max(0, ($totalProceeds - $totalCost) * 0.30),
+            'transactions'    => $sells,
         ]);
-        break;
-    }
+
 
     default:
-        json_response(false, "Unknown crypto_holdings action: {$action}");
+        json_response(false, "Unknown crypto action: {$action}", [], 400);
 }

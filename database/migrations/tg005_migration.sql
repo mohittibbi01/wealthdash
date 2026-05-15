@@ -24,7 +24,7 @@ ALTER TABLE goals
   ADD COLUMN IF NOT EXISTS priority    ENUM('low','medium','high') NOT NULL DEFAULT 'medium' AFTER goal_type,
   ADD COLUMN IF NOT EXISTS notes       TEXT         NULL AFTER priority;
 
--- NOTE: mf_sips goal_id column — run this ONLY if mf_sips table exists in your DB:
--- ALTER TABLE mf_sips
---   ADD COLUMN IF NOT EXISTS goal_id INT UNSIGNED NULL DEFAULT NULL AFTER portfolio_id,
---   ADD KEY IF NOT EXISTS idx_sip_goal (goal_id);
+-- mf_sips: add goal_id FK if not present (optional link)
+ALTER TABLE mf_sips
+  ADD COLUMN IF NOT EXISTS goal_id INT UNSIGNED NULL DEFAULT NULL AFTER portfolio_id,
+  ADD KEY IF NOT EXISTS idx_sip_goal (goal_id);
