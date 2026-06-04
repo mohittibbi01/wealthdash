@@ -77,6 +77,7 @@ C:\xampp\htdocs\wealthdash\api\pms_aif
 C:\xampp\htdocs\wealthdash\api\post_office
 C:\xampp\htdocs\wealthdash\api\po_schemes
 C:\xampp\htdocs\wealthdash\api\ppf
+C:\xampp\htdocs\wealthdash\api\profile
 C:\xampp\htdocs\wealthdash\api\public
 C:\xampp\htdocs\wealthdash\api\realestate
 C:\xampp\htdocs\wealthdash\api\reits
@@ -125,6 +126,7 @@ C:\xampp\htdocs\wealthdash\api\auth\2fa.php
 C:\xampp\htdocs\wealthdash\api\auth\session_security.php
 C:\xampp\htdocs\wealthdash\api\auth\totp.php
 C:\xampp\htdocs\wealthdash\api\automation\rules.php
+C:\xampp\htdocs\wealthdash\api\banks\banks.php
 C:\xampp\htdocs\wealthdash\api\banks\banks_list.php
 C:\xampp\htdocs\wealthdash\api\bonds\bonds.php
 C:\xampp\htdocs\wealthdash\api\bonds\bonds_54ec.php
@@ -132,6 +134,7 @@ C:\xampp\htdocs\wealthdash\api\bonds\govt_bonds.php
 C:\xampp\htdocs\wealthdash\api\broker\zerodha_sync.php
 C:\xampp\htdocs\wealthdash\api\cashflow\cashflow.php
 C:\xampp\htdocs\wealthdash\api\community\benchmarking.php
+C:\xampp\htdocs\wealthdash\api\crypto\cold_wallet.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_add.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_cold_wallet.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_defi.php
@@ -143,6 +146,7 @@ C:\xampp\htdocs\wealthdash\api\crypto\crypto_price_stream.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_rebalance.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_tax_calc.php
 C:\xampp\htdocs\wealthdash\api\crypto\defi_staking.php
+C:\xampp\htdocs\wealthdash\api\crypto\tax_calculator.php
 C:\xampp\htdocs\wealthdash\api\crypto\vda_tax.php
 C:\xampp\htdocs\wealthdash\api\dashboard\market_pulse.php
 C:\xampp\htdocs\wealthdash\api\dashboard\morning_briefing.php
@@ -152,6 +156,7 @@ C:\xampp\htdocs\wealthdash\api\dashboard\unified.php
 C:\xampp\htdocs\wealthdash\api\dashboard\widgets.php
 C:\xampp\htdocs\wealthdash\api\epf\epf_balance_tracker.php
 C:\xampp\htdocs\wealthdash\api\epf\epf_list.php
+C:\xampp\htdocs\wealthdash\api\epf\epf_monthly_tracker.php
 C:\xampp\htdocs\wealthdash\api\epf\epf_tax_tracker.php
 C:\xampp\htdocs\wealthdash\api\epf\eps_pension.php
 C:\xampp\htdocs\wealthdash\api\epf\gratuity.php
@@ -276,6 +281,8 @@ C:\xampp\htdocs\wealthdash\api\po_schemes\nsc_tracker.php
 C:\xampp\htdocs\wealthdash\api\po_schemes\po_schemes.php
 C:\xampp\htdocs\wealthdash\api\po_schemes\po_td_mis_kvp.php
 C:\xampp\htdocs\wealthdash\api\ppf\ppf_tracker.php
+C:\xampp\htdocs\wealthdash\api\profile\finance_profile.php
+C:\xampp\htdocs\wealthdash\api\profile\finance_score.php
 C:\xampp\htdocs\wealthdash\api\public\api_v1.php
 C:\xampp\htdocs\wealthdash\api\realestate\realestate.php
 C:\xampp\htdocs\wealthdash\api\reits\reits.php
@@ -297,6 +304,7 @@ C:\xampp\htdocs\wealthdash\api\reports\rebalancing.php
 C:\xampp\htdocs\wealthdash\api\reports\scheduled_reports.php
 C:\xampp\htdocs\wealthdash\api\reports\sip_tracker.php
 C:\xampp\htdocs\wealthdash\api\reports\snapshot.php
+C:\xampp\htdocs\wealthdash\api\reports\tax_80c_tracker.php
 C:\xampp\htdocs\wealthdash\api\reports\tax_intelligence.php
 C:\xampp\htdocs\wealthdash\api\reports\tax_planning.php
 C:\xampp\htdocs\wealthdash\api\reports\tax_slab_calc.php
@@ -331,7 +339,10 @@ C:\xampp\htdocs\wealthdash\api\stocks\stocks_search.php
 C:\xampp\htdocs\wealthdash\api\stocks\zerodha_kite.php
 C:\xampp\htdocs\wealthdash\api\stocks\zerodha_sync.php
 C:\xampp\htdocs\wealthdash\api\tax\capital_gains.php
+C:\xampp\htdocs\wealthdash\api\tax\cg_live_preview.php
+C:\xampp\htdocs\wealthdash\api\tools\annual_review.php
 C:\xampp\htdocs\wealthdash\api\tools\investment_calendar.php
+C:\xampp\htdocs\wealthdash\api\tools\sip_discipline.php
 C:\xampp\htdocs\wealthdash\api\tools\sip_emi_balance.php
 C:\xampp\htdocs\wealthdash\api\user\data_backup.php
 C:\xampp\htdocs\wealthdash\api\user\data_export.php
@@ -448,6 +459,7 @@ C:\xampp\htdocs\wealthdash\database\migrations\t315_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t317_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t321_insurance_tracker.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t334_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\t33_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t341_gratuity_tracker.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t344_t345_stock_alerts.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t347_number_format_settings.sql
@@ -465,15 +477,18 @@ C:\xampp\htdocs\wealthdash\database\migrations\t417_migration_log.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t42_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t431_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t434_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\t43_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t456_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t460_health_insurance_tracker.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t464_home_loan_emi_tracker.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t466_real_estate_physical_gold.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t467_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t469_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\t46_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t470_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t479_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t480_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\t48_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t490_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\t504_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tc001_migration.sql
@@ -488,8 +503,12 @@ C:\xampp\htdocs\wealthdash\database\migrations\tfix003_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tg001_mc_simulations.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tg003_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tg005_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\ti001_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\tj005_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tp003_migration.sql
+C:\xampp\htdocs\wealthdash\database\migrations\tv09_migration.sql
 C:\xampp\htdocs\wealthdash\database\migrations\tv12_migration.sql
+C:\xampp\htdocs\wealthdash\debug\debug.php
 C:\xampp\htdocs\wealthdash\debug\runner.php
 C:\xampp\htdocs\wealthdash\debug\tests
 C:\xampp\htdocs\wealthdash\debug\tests\test_api_files.php
@@ -516,20 +535,30 @@ C:\xampp\htdocs\wealthdash\logs\cache\80dd1c0f9dc32ec21177cb3cafbaf12d6b045710.c
 C:\xampp\htdocs\wealthdash\logs\cache\b7dd84357768cc9aaf62b4264bccae93da615f32.cache
 C:\xampp\htdocs\wealthdash\logs\cache\eed7b1c8e2fa8ec7a268c6d0cae8f082277d7800.cache
 C:\xampp\htdocs\wealthdash\nav_download\api.php
+C:\xampp\htdocs\wealthdash\nav_download\logs
 C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php
 C:\xampp\htdocs\wealthdash\nav_download\processor.php
 C:\xampp\htdocs\wealthdash\nav_download\status.php
+C:\xampp\htdocs\wealthdash\nav_download\logs\errors.log
 C:\xampp\htdocs\wealthdash\pages\admin
+C:\xampp\htdocs\wealthdash\pages\crypto
 C:\xampp\htdocs\wealthdash\pages\crypto.php
 C:\xampp\htdocs\wealthdash\pages\epfo
 C:\xampp\htdocs\wealthdash\pages\etf.php
+C:\xampp\htdocs\wealthdash\pages\profile
 C:\xampp\htdocs\wealthdash\pages\security
 C:\xampp\htdocs\wealthdash\pages\tools
 C:\xampp\htdocs\wealthdash\pages\us_stocks.php
 C:\xampp\htdocs\wealthdash\pages\admin\db_backup.php
+C:\xampp\htdocs\wealthdash\pages\crypto\cold_wallet.php
+C:\xampp\htdocs\wealthdash\pages\crypto\tax_calculator.php
 C:\xampp\htdocs\wealthdash\pages\epfo\passbook.php
+C:\xampp\htdocs\wealthdash\pages\profile\finance_profile.php
+C:\xampp\htdocs\wealthdash\pages\profile\finance_score.php
 C:\xampp\htdocs\wealthdash\pages\security\2fa.php
+C:\xampp\htdocs\wealthdash\pages\tools\annual_review.php
 C:\xampp\htdocs\wealthdash\pages\tools\investment_calendar.php
+C:\xampp\htdocs\wealthdash\pages\tools\sip_discipline.php
 C:\xampp\htdocs\wealthdash\pages\tools\sip_emi_balance.php
 C:\xampp\htdocs\wealthdash\peak_nav\api.php
 C:\xampp\htdocs\wealthdash\peak_nav\processor.php
@@ -596,6 +625,11 @@ C:\xampp\htdocs\wealthdash\router notes\10. HANDOFF.md
 C:\xampp\htdocs\wealthdash\router notes\11. HANDOFF.md
 C:\xampp\htdocs\wealthdash\router notes\12. ROUTER_NOTES_W2_session2.txt
 C:\xampp\htdocs\wealthdash\router notes\13. ROUTER_NOTES_W2_session2.txt
+C:\xampp\htdocs\wealthdash\router notes\14. HANDOFF.md
+C:\xampp\htdocs\wealthdash\router notes\14. ROUTER_NOTES_IDM.txt
+C:\xampp\htdocs\wealthdash\router notes\not given to master id
+C:\xampp\htdocs\wealthdash\router notes\not given to master id\HANDOFF_SUMMARY.txt
+C:\xampp\htdocs\wealthdash\router notes\not given to master id\ROUTER_NOTES.txt
 C:\xampp\htdocs\wealthdash\templates\2fa_challenge.php
 C:\xampp\htdocs\wealthdash\templates\banks.php
 C:\xampp\htdocs\wealthdash\templates\csv_templates
@@ -615,6 +649,7 @@ C:\xampp\htdocs\wealthdash\templates\csv_templates\wealthdash_stocks_template.cs
 C:\xampp\htdocs\wealthdash\templates\pages\403.php
 C:\xampp\htdocs\wealthdash\templates\pages\admin.php
 C:\xampp\htdocs\wealthdash\templates\pages\ai_tax_optimizer.php
+C:\xampp\htdocs\wealthdash\templates\pages\banks.php
 C:\xampp\htdocs\wealthdash\templates\pages\bonds.php
 C:\xampp\htdocs\wealthdash\templates\pages\bonds_54ec.php
 C:\xampp\htdocs\wealthdash\templates\pages\bucket_strategy.php

@@ -1,0 +1,56 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — ID-M Router Notes
+Worker : mohit87jain87@gmail.com
+Tasks  : t23, t43
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Master ko api/router.php mein ye changes karne hain:
+
+════════════════════════════════════════════════════════════
+[t43] Bank Accounts Tracker
+════════════════════════════════════════════════════════════
+
+1. $csrfExempt[] array mein ADD karo (read-only actions):
+
+    'bank_list', 'bank_get', 'bank_summary',
+    'bank_balance_history', 'bank_txn_list', 'banks_list',
+
+2. switch ($action) block mein ADD karo
+   (existing smallcase/stepup block ke BAAD, default case se PEHLE):
+
+        // ── t43 (ID-M): Bank Accounts Tracker ────────────────────
+        case 'bank_list':
+        case 'bank_get':
+        case 'bank_add':
+        case 'bank_edit':
+        case 'bank_delete':
+        case 'bank_update_balance':
+        case 'bank_summary':
+        case 'bank_balance_history':
+        case 'bank_txn_list':
+        case 'bank_txn_add':
+        case 'bank_txn_delete':
+        case 'banks_list':
+            require APP_ROOT . '/api/banks/banks.php'; exit;
+
+════════════════════════════════════════════════════════════
+[t23] Debug File
+════════════════════════════════════════════════════════════
+
+Koi router change nahi — debug/debug.php directly access hota hai.
+URL: /debug/debug.php  (IS_LOCAL ya ROLE_ADMIN required)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MIGRATION SEQUENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. database/migrations/t43_migration.sql   ← bank_accounts, bank_transactions, bank_balance_history
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE OVERWRITE STATUS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+debug/debug.php                          → NEW FILE
+api/banks/banks.php                      → NEW FILE (overwrite if exists)
+templates/pages/banks.php               → NEW FILE (overwrite if exists)
+database/migrations/t43_migration.sql   → NEW FILE
+api/router.php                           → SIRF NOTES (Master merge karega)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
