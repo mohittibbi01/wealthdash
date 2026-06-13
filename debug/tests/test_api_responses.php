@@ -1,78 +1,158 @@
 <?php
 /**
- * WealthDash Debug — test_api_responses.php
- * Checks API files exist + respond (not timeout).
- * Auth-protected routes → warn only (expected).
+ * WealthDash — Integration Tests: API Responses [t411]
+ * File: debug/tests/test_api_responses.php
+ * Worker: ID-M
  */
-defined('WD_DEBUG_RUNNER') or die('Direct access not allowed');
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
-$_sessionName = session_name();
-$_sessionId   = session_id();
-
-function wd_api_check(string $label, string $url, string $category = 'API'): void {
-    global $_sessionName, $_sessionId;
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_TIMEOUT        => 3,        // 3s max total
-        CURLOPT_CONNECTTIMEOUT => 2,        // 2s to connect
-        CURLOPT_HTTPHEADER     => ['Accept: application/json', 'X-Requested-With: XMLHttpRequest'],
-        CURLOPT_COOKIE         => $_sessionName . '=' . $_sessionId,
+// Helper: call internal API action (simulated — checks router file exists + action handled)
+function api_check(string $action, array $get = []): array {
+    $url = APP_URL . '/api/router.php?action=' . urlencode($action);
+    if ($get) $url .= '&' . http_build_query($get);
+    $ctx = stream_context_create([
+        'http' => [
+            'method'         => 'GET',
+            'timeout'        => 5,
+            'ignore_errors'  => true,
+            'header'         => [
+                'Cookie: ' . session_name() . '=' . session_id(),
+                'X-Requested-With: XMLHttpRequest',
+            ],
+        ],
     ]);
-    $body     = curl_exec($ch);
-    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    $curlErrNo= curl_errno($ch);
-    curl_close($ch);
-
-    // Connection refused / timeout = Apache not running or loopback blocked
-    if ($curlErrNo === CURLE_OPERATION_TIMEDOUT || $curlErrNo === CURLE_COULDNT_CONNECT) {
-        wd_warn($category, $label, "Cannot reach localhost — Apache off or loopback blocked (app works fine in browser)");
-        return;
-    }
-    if ($curlErr) {
-        wd_warn($category, $label, "cURL: $curlErr");
-        return;
-    }
-    if ($httpCode === 301 || $httpCode === 302) {
-        wd_warn($category, $label, "HTTP $httpCode redirect — auth required (expected)");
-        return;
-    }
-    if ($httpCode >= 500) {
-        $hint = '';
-        if (preg_match('/(?:Fatal|Parse) error[^:]*:\s*(.{0,150})/i', $body, $m)) $hint = trim($m[1]);
-        wd_fail($category, $label, "HTTP $httpCode" . ($hint ? " — $hint" : ''));
-        return;
-    }
-    if (preg_match('/(?:Parse error|Fatal error)\s*:?\s*(.{0,150})/i', $body, $m)) {
-        wd_fail($category, $label, "PHP error: " . trim($m[1]));
-        return;
-    }
-    if (str_contains($body, 'WealthDash — Login') || str_contains($body, 'auth/login')) {
-        wd_warn($category, $label, "Login redirect — auth works ✅");
-        return;
-    }
-    if (str_contains($body, 'Direct access not permitted') || str_contains($body, 'Direct access not allowed')) {
-        wd_warn($category, $label, "Direct access blocked — file exists, use router ✅");
-        return;
-    }
-    $json = @json_decode($body, true);
-    if ($json !== null) {
-        wd_pass($category, $label, "HTTP $httpCode — valid JSON ✅");
-        return;
-    }
-    $preview = substr(trim(strip_tags($body)), 0, 80);
-    wd_warn($category, $label, "Non-JSON response: $preview");
+    $body = @file_get_contents($url, false, $ctx);
+    $data = $body ? json_decode($body, true) : null;
+    return [
+        'ok'   => is_array($data),
+        'has_success' => isset($data['success']),
+        'data' => $data,
+        'raw'  => substr($body ?? '', 0, 200),
+    ];
 }
 
-$base = 'http://localhost/wealthdash';
+// ── Router File ───────────────────────────────────────────────────────────────
+WDTest::describe('Router', function () {
+    WDTest::it('router.php exists', function () {
+        assert_true(file_exists(APP_ROOT . '/api/router.php'));
+    });
 
-// Only test via router (avoids direct-access guards, reduces timeouts)
-wd_api_check('router alive',   "$base/api/?action=ping");
-wd_api_check('mf_list',        "$base/api/?action=mf_list&view=consolidated&portfolio_id=0");
-wd_api_check('nps_list',       "$base/api/?action=nps_list&type=holdings");
-wd_api_check('savings_list',   "$base/api/?action=savings_list");
-wd_api_check('nav_1d_change',  "$base/api/nav/nav_1d_change.php");
-wd_api_check('fund_screener',  "$base/api/mutual_funds/fund_screener.php?limit=3");
+    WDTest::it('router.php is readable', function () {
+        assert_true(is_readable(APP_ROOT . '/api/router.php'));
+    });
+
+    WDTest::it('Unknown action returns JSON with success=false', function () {
+        $r = api_check('__nonexistent_action_xyz__');
+        assert_true($r['ok'], 'Response must be valid JSON');
+        assert_true($r['has_success']);
+        assert_false($r['data']['success'] ?? true);
+    });
+});
+
+// ── Read-only API Actions ─────────────────────────────────────────────────────
+WDTest::describe('API: Dashboard', function () {
+    WDTest::it('get_dashboard_data returns JSON', function () {
+        $r = api_check('get_dashboard_data');
+        assert_true($r['ok'], 'get_dashboard_data must return JSON. Got: ' . $r['raw']);
+        assert_true($r['has_success']);
+    });
+});
+
+WDTest::describe('API: Mutual Funds', function () {
+    $actions = ['mf_list', 'sip_list'];
+    foreach ($actions as $a) {
+        WDTest::it("{$a} returns JSON", function () use ($a) {
+            $r = api_check($a);
+            assert_true($r['ok'], "{$a} did not return JSON. Got: " . $r['raw']);
+            assert_true($r['has_success']);
+        });
+    }
+});
+
+WDTest::describe('API: FD / Savings', function () {
+    foreach (['fd_list', 'savings_list'] as $a) {
+        WDTest::it("{$a} returns JSON", function () use ($a) {
+            $r = api_check($a);
+            assert_true($r['ok'], "{$a} must return JSON");
+        });
+    }
+});
+
+WDTest::describe('API: Banks', function () {
+    WDTest::it('bank_list returns JSON', function () {
+        $r = api_check('bank_list');
+        assert_true($r['ok'], 'bank_list must return JSON');
+        assert_true($r['has_success']);
+    });
+
+    WDTest::it('bank_summary returns JSON with grand_total', function () {
+        $r = api_check('bank_summary');
+        assert_true($r['ok']);
+        if ($r['data']['success'] ?? false) {
+            assert_keys(['grand_total'], $r['data']['data'] ?? []);
+        }
+    });
+});
+
+WDTest::describe('API: Admin', function () {
+    WDTest::it('health_ping returns JSON', function () {
+        $r = api_check('health_ping');
+        assert_true($r['ok'], 'health_ping must return JSON');
+    });
+
+    WDTest::it('al_list returns JSON', function () {
+        $r = api_check('al_list');
+        assert_true($r['ok'], 'al_list must return JSON');
+    });
+
+    WDTest::it('perf_live returns JSON', function () {
+        $r = api_check('perf_live');
+        assert_true($r['ok'], 'perf_live must return JSON');
+    });
+
+    WDTest::it('gs_list returns JSON', function () {
+        $r = api_check('gs_list');
+        assert_true($r['ok'], 'gs_list must return JSON');
+    });
+
+    WDTest::it('dbm_tables returns JSON', function () {
+        $r = api_check('dbm_tables');
+        assert_true($r['ok'], 'dbm_tables must return JSON');
+    });
+});
+
+WDTest::describe('API: External API Manager', function () {
+    WDTest::it('extapi_list returns JSON', function () {
+        $r = api_check('extapi_list');
+        assert_true($r['ok']);
+    });
+
+    WDTest::it('extapi_scopes returns scopes', function () {
+        $r = api_check('extapi_scopes');
+        assert_true($r['ok']);
+        if ($r['data']['success'] ?? false) {
+            assert_not_empty($r['data']['data']['scopes'] ?? [], 'Scopes must not be empty');
+        }
+    });
+});
+
+// ── JSON Structure ────────────────────────────────────────────────────────────
+WDTest::describe('API Response Structure', function () {
+    WDTest::it('All responses have success key', function () {
+        $actions = ['fd_list', 'savings_list', 'bank_list', 'health_ping'];
+        foreach ($actions as $a) {
+            $r = api_check($a);
+            assert_true(
+                isset($r['data']['success']),
+                "{$a} response missing 'success' key"
+            );
+        }
+    });
+
+    WDTest::it('Failed actions have message key', function () {
+        $r = api_check('__bad_action__');
+        if (isset($r['data']['success']) && !$r['data']['success']) {
+            assert_true(isset($r['data']['message']), "Error response must have 'message'");
+        }
+    });
+});

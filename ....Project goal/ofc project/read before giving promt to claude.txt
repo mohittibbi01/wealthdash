@@ -1,0 +1,8 @@
+यह prompt किसी भी Claude session/account से दे सकते हो — context पूरा self-contained है। 
+जब अगली बार नई requirement add करनी हो तो इस prompt के नीचे "ADDITIONAL REQUIREMENTS:" heading के साथ जोड़ दो।
+
+
+
+prompt for claude for devvalut ofc project.txt file do
+devvault_v3_task_plan.html is file me se task ka prompt lo or claude ko do 
+

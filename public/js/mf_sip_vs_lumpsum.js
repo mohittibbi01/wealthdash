@@ -1,395 +1,416 @@
 /**
- * WealthDash — SIP vs Lump Sum Comparison (tv07)
+ * WealthDash — SIP vs Lumpsum Historical Backtest JS (t234)
  * File: public/js/mf_sip_vs_lumpsum.js
- *
- * Screener fund drawer pe: agar tune X saal pehle ₹1L lump sum vs
- * monthly SIP diya hota — kaunsa better tha? Real NAV history se.
- *
- * Integration:
- *   1. Include in mf_screener.php before </body>
- *   2. Call MF_SIP_VS_LS.renderInDrawer(fundId, drawerEl) when drawer opens
- *      OR auto-hooks into existing openDrawer() if MF object available
- *
- * API needed:
- *   api/mutual_funds/mf_nav_history.php?action=nav_history&fund_id=X&period=5Y
- *   Returns: [{nav_date, nav}, ...]
  */
 
-const MF_SIP_VS_LS = (() => {
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════════════════ */
+const BT = {
+  fundId: 0,
+  fundName: '',
+  period: '10Y',
+  sipAmount: 5000,
+  sipDay: 1,
+  searchTimer: null,
+  growthChart: null,
+  activeTab: 'rolling',
+  activeWindow: '3Y',
+};
 
-  // ── Helpers ──────────────────────────────────────────
-  function fmtInr(v) {
-    const abs = Math.abs(v);
-    let s = abs >= 1e5 ? '₹'+(abs/1e5).toFixed(2)+'L' : '₹'+Math.round(abs).toLocaleString('en-IN');
-    return (v < 0 ? '-' : '') + s;
-  }
-  function fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════════════════ */
+function initSipLumpsumBacktest(prefundId, prePeriod) {
+  BT.fundId  = prefundId || 0;
+  BT.period  = prePeriod || '10Y';
 
-  // ── XIRR (Newton-Raphson) ───────────────────────────
-  function xirr(cashflows, dates) {
-    if (cashflows.length !== dates.length || cashflows.length < 2) return null;
-    const startDate = dates[0];
-    const yearFracs = dates.map(d => (d - startDate) / (365.25 * 86400000));
-    let rate = 0.15;
-    for (let iter = 0; iter < 100; iter++) {
-      let npv = 0, dnpv = 0;
-      for (let i = 0; i < cashflows.length; i++) {
-        const pv = cashflows[i] / Math.pow(1 + rate, yearFracs[i]);
-        npv  += pv;
-        dnpv += -yearFracs[i] * cashflows[i] / Math.pow(1 + rate, yearFracs[i] + 1);
-      }
-      const newRate = rate - npv / dnpv;
-      if (Math.abs(newRate - rate) < 1e-7) return newRate;
-      rate = newRate;
-      if (rate < -0.999) rate = -0.999;
-    }
-    return rate;
-  }
-
-  // ── Core calculation ─────────────────────────────────
-  function calculate(navHistory, amount, periodYears) {
-    if (!navHistory || navHistory.length < 30) return null;
-
-    // Sort by date
-    const sorted = [...navHistory].sort((a,b) => new Date(a.nav_date) - new Date(b.nav_date));
-    const latestDate = new Date(sorted[sorted.length - 1].nav_date);
-    const latestNav  = parseFloat(sorted[sorted.length - 1].nav);
-
-    // Start date = periodYears ago from latest
-    const startDate = new Date(latestDate);
-    startDate.setFullYear(startDate.getFullYear() - periodYears);
-
-    // Find closest NAV to start date
-    const startEntry = sorted.reduce((best, cur) => {
-      const cd = Math.abs(new Date(cur.nav_date) - startDate);
-      return cd < Math.abs(new Date(best.nav_date) - startDate) ? cur : best;
+  // Fund search
+  const searchEl = document.getElementById('btFundSearch');
+  if (searchEl) {
+    searchEl.addEventListener('input', () => {
+      clearTimeout(BT.searchTimer);
+      BT.searchTimer = setTimeout(() => btFundSearch(searchEl.value.trim()), 280);
     });
-    const startNav = parseFloat(startEntry.nav);
-    const actualStart = new Date(startEntry.nav_date);
-
-    // ─ Lump Sum ─
-    const lsUnits = amount / startNav;
-    const lsValue = lsUnits * latestNav;
-    const lsReturn = ((lsValue / amount) - 1) * 100;
-    const lsYears = (latestDate - actualStart) / (365.25 * 86400000);
-    const lsCAGR = (Math.pow(lsValue / amount, 1 / lsYears) - 1) * 100;
-
-    // ─ SIP: monthly installment = amount / (periodYears * 12) ─
-    // So total invested same as lump sum
-    const months = Math.round(lsYears * 12);
-    const sipMonthly = Math.round(amount / months);
-    const sipCfs = [], sipDates = [];
-    let sipUnitsTotal = 0;
-
-    for (let m = 0; m < months; m++) {
-      const sipDate = new Date(actualStart);
-      sipDate.setMonth(sipDate.getMonth() + m);
-      // Find closest NAV
-      const navEntry = sorted.reduce((best, cur) => {
-        const cd = Math.abs(new Date(cur.nav_date) - sipDate);
-        return cd < Math.abs(new Date(best.nav_date) - sipDate) ? cur : best;
-      });
-      const sipNav = parseFloat(navEntry.nav);
-      sipUnitsTotal += sipMonthly / sipNav;
-      sipCfs.push(-sipMonthly);
-      sipDates.push(sipDate);
-    }
-    // Final redemption
-    const sipValue = sipUnitsTotal * latestNav;
-    sipCfs.push(sipValue);
-    sipDates.push(latestDate);
-    const sipInvested = sipMonthly * months;
-
-    const sipXirrRate = xirr(sipCfs, sipDates);
-    const sipXirr = sipXirrRate !== null ? sipXirrRate * 100 : null;
-    const sipReturn = ((sipValue / sipInvested) - 1) * 100;
-
-    // ─ Monthly growth series for chart ─
-    const chartLabels = [], lsSeries = [], sipSeries = [];
-    let sipUnitsRunning = 0;
-    const checkpoints = [3, 6, 9, 12, 18, 24, 30, 36, 48, 60, 72, 84, 96, 108, 120].filter(m => m <= months);
-
-    let sipCumInvested = 0;
-    for (let m = 0; m <= months; m++) {
-      const d = new Date(actualStart);
-      d.setMonth(d.getMonth() + m);
-      const navEntry = sorted.reduce((best, cur) => {
-        const cd = Math.abs(new Date(cur.nav_date) - d);
-        return cd < Math.abs(new Date(best.nav_date) - d) ? cur : best;
-      });
-      const nav = parseFloat(navEntry.nav);
-
-      if (m < months) { sipUnitsRunning += sipMonthly / nav; sipCumInvested += sipMonthly; }
-
-      if (checkpoints.includes(m) || m === months) {
-        const yr = (m / 12).toFixed(1);
-        chartLabels.push(m < 12 ? m+'m' : Math.floor(m/12)+'y');
-        lsSeries.push(+(lsUnits * nav).toFixed(0));
-        sipSeries.push(+(sipUnitsRunning * nav).toFixed(0));
+    document.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('#btFundSearch') && !e.target.closest('#btFundDropdown')) {
+        document.getElementById('btFundDropdown').style.display = 'none';
       }
-    }
-
-    // ─ Winner ─
-    const sipBetter = sipValue > lsValue;
-    const diff = Math.abs(sipValue - lsValue);
-    const diffPct = (diff / lsValue * 100).toFixed(1);
-
-    return {
-      period: periodYears,
-      amount,
-      sipMonthly,
-      months,
-      lsValue, lsReturn, lsCAGR, lsInvested: amount,
-      sipValue, sipReturn, sipXirr, sipInvested,
-      sipBetter, diff, diffPct,
-      chartLabels, lsSeries, sipSeries,
-      startDate: startEntry.nav_date,
-      endDate: sorted[sorted.length-1].nav_date,
-    };
+    });
   }
 
-  // ── HTML Card ────────────────────────────────────────
-  function _html(r, fundName) {
-    if (!r) return '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">NAV history insufficient for comparison</div>';
+  document.getElementById('btnRunBacktest')?.addEventListener('click', runBacktest);
 
-    const winner = r.sipBetter ? '🏆 SIP' : '🏆 Lump Sum';
-    const winnerColor = r.sipBetter ? 'var(--green)' : 'var(--accent)';
-    const cid = 'svl_chart_' + Date.now();
-
-    return `
-<div class="svl-wrap">
-<style>
-.svl-wrap  { padding:14px 16px }
-.svl-hdr   { display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px }
-.svl-title { font-size:12px;font-weight:800 }
-.svl-period-btns { display:flex;gap:4px }
-.svl-pbtn  { padding:3px 9px;border-radius:5px;border:1.5px solid var(--border);font-size:10px;font-weight:700;cursor:pointer;background:var(--bg);color:var(--muted);font-family:inherit;transition:all .15s }
-.svl-pbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.svl-pbtn:hover:not(.active){border-color:var(--accent);color:var(--accent)}
-.svl-cols  { display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px }
-.svl-col   { border-radius:10px;padding:12px 14px;text-align:center;border:1.5px solid }
-.svl-col-ls{ background:#eff6ff;border-color:#93c5fd }
-.svl-col-sip{background:#edfbf2;border-color:#a3e6c4 }
-.svl-col-winner{ box-shadow:0 0 0 3px ${winnerColor}40 }
-.svl-lbl   { font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px }
-.svl-val   { font-size:18px;font-weight:800;line-height:1.1;letter-spacing:-.4px }
-.svl-sub   { font-size:10px;color:var(--muted);margin-top:3px }
-.svl-ret   { font-size:12px;font-weight:800;margin-top:4px }
-.svl-winner-banner{
-  background:linear-gradient(135deg,${r.sipBetter?'#edfbf2,#f0fdf4':'#eff6ff,#eef2ff'});
-  border:1.5px solid ${winnerColor}60;border-radius:8px;padding:8px 12px;
-  text-align:center;font-size:11px;font-weight:700;color:${winnerColor};margin-bottom:12px
+  // If fund_id in URL, pre-fill
+  if (BT.fundId) {
+    fetch(`${window.APP_URL || ''}/api/router.php?action=mf_list&fund_id=${BT.fundId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.data?.length) {
+          const f = d.data[0];
+          document.getElementById('btFundSearch').value = f.scheme_name;
+          document.getElementById('btFundInfo').textContent = f.category || '';
+          BT.fundName = f.scheme_name;
+        }
+      }).catch(() => {});
+  }
 }
-.svl-invested{font-size:10px;color:var(--muted);text-align:center;margin-bottom:10px}
-.svl-chart-wrap{background:var(--bg);border-radius:8px;padding:10px;border:1px solid var(--border);margin-bottom:8px}
-</style>
 
-<div class="svl-hdr">
-  <div class="svl-title">📊 SIP vs Lump Sum — ${r.period}Y</div>
-  <div class="svl-period-btns" id="svlPeriodBtns_${cid}">
-    ${[1,3,5].map(y => `<button class="svl-pbtn ${y===r.period?'active':''}" onclick="MF_SIP_VS_LS.switchPeriod(${y},'${cid}')">${y}Y</button>`).join('')}
-  </div>
-</div>
+/* ═══════════════════════════════════════════════════════════════════════════
+   FUND SEARCH AUTOCOMPLETE
+═══════════════════════════════════════════════════════════════════════════ */
+async function btFundSearch(q) {
+  const dd = document.getElementById('btFundDropdown');
+  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
 
-<div class="svl-invested">
-  Total Invested: <strong>${fmtInr(r.amount)}</strong> (Lump Sum) vs
-  <strong>₹${r.sipMonthly.toLocaleString('en-IN')}/mo × ${r.months}m = ${fmtInr(r.sipInvested)}</strong> (SIP)
-  · Period: ${r.startDate} → ${r.endDate}
-</div>
+  dd.style.display = 'block';
+  dd.innerHTML = '<div style="padding:12px;text-align:center;"><div class="spinner-sm"></div></div>';
 
-<div class="svl-winner-banner">
-  ${winner} wins by ${fmtInr(r.diff)} (${r.diffPct}% difference)
-</div>
+  try {
+    const r = await fetch(`${window.APP_URL || ''}/api/router.php?action=mf_search&q=${encodeURIComponent(q)}&limit=12`);
+    const d = await r.json();
+    const funds = d.funds || d.data || [];
 
-<div class="svl-cols">
-  <div class="svl-col svl-col-ls ${!r.sipBetter?'svl-col-winner':''}">
-    <div class="svl-lbl">💰 Lump Sum</div>
-    <div class="svl-val" style="color:#2563eb">${fmtInr(r.lsValue)}</div>
-    <div class="svl-sub">from ${fmtInr(r.lsInvested)}</div>
-    <div class="svl-ret" style="color:#2563eb">${fmtPct(r.lsReturn)} total · CAGR ${fmtPct(r.lsCAGR)}</div>
-  </div>
-  <div class="svl-col svl-col-sip ${r.sipBetter?'svl-col-winner':''}">
-    <div class="svl-lbl">🔄 SIP (Monthly)</div>
-    <div class="svl-val" style="color:#0d9f57">${fmtInr(r.sipValue)}</div>
-    <div class="svl-sub">from ${fmtInr(r.sipInvested)}</div>
-    <div class="svl-ret" style="color:#0d9f57">${fmtPct(r.sipReturn)} total${r.sipXirr!==null?' · XIRR '+fmtPct(r.sipXirr):''}</div>
-  </div>
-</div>
-
-<div class="svl-chart-wrap">
-  <canvas id="${cid}" height="110"></canvas>
-</div>
-
-<div style="font-size:10px;color:var(--muted);line-height:1.5;padding:6px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)">
-  💡 <strong>Note:</strong> Lump sum amount = SIP total invested amount for fair comparison.
-  Past returns don't guarantee future. SIP reduces timing risk via rupee cost averaging.
-  ${r.sipBetter ? 'In this period, SIP worked better — bought more units when market was lower.' :
-    'In this period, lump sum worked better — early investment captured the full bull run.'}
-</div>
-</div>`;
-  }
-
-  // ── Chart render (after DOM ready) ─────────────────
-  function _drawChart(r, cid) {
-    const canvas = document.getElementById(cid);
-    if (!canvas || typeof Chart === 'undefined') return;
-    new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels: r.chartLabels,
-        datasets: [
-          {
-            label: 'Lump Sum',
-            data: r.lsSeries,
-            borderColor: '#2563eb',
-            backgroundColor: '#2563eb18',
-            fill: true,
-            tension: 0.4,
-            pointRadius: 2,
-          },
-          {
-            label: 'SIP',
-            data: r.sipSeries,
-            borderColor: '#0d9f57',
-            backgroundColor: '#0d9f5718',
-            fill: true,
-            tension: 0.4,
-            pointRadius: 2,
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode:'index', intersect:false },
-        plugins: {
-          legend: { labels: { font:{size:10}, boxWidth:10 } },
-          tooltip: {
-            callbacks: {
-              label: ctx => ctx.dataset.label + ': ₹' + ctx.raw.toLocaleString('en-IN')
-            }
-          }
-        },
-        scales: {
-          x: { ticks:{font:{size:9}}, grid:{display:false} },
-          y: {
-            ticks: {
-              font:{size:9},
-              callback: v => v >= 100000 ? '₹'+(v/100000).toFixed(1)+'L' : '₹'+v.toLocaleString('en-IN')
-            }
-          }
-        }
-      }
-    });
-  }
-
-  // ── State ───────────────────────────────────────────
-  let _currentFundId = null;
-  let _currentNavHistory = null;
-  let _currentAmount = 100000;
-  let _currentCid = null;
-
-  // ── Public: render in a drawer element ──────────────
-  async function renderInDrawer(fundId, containerEl, amount = 100000, period = 3) {
-    _currentFundId = fundId;
-    _currentAmount = amount;
-
-    if (!containerEl) return;
-    containerEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">📊 Loading NAV history…</div>';
-
-    try {
-      // Fetch NAV history
-      let navHistory;
-      if (window.MF && MF._navCache && MF._navCache[fundId]) {
-        navHistory = MF._navCache[fundId];
-      } else {
-        const resp = await fetch(`/api/mutual_funds/mf_nav_history.php?action=nav_history&fund_id=${fundId}&period=5Y`);
-        const data = await resp.json();
-        navHistory = data.data || data.nav_history || data;
-        if (window.MF) { MF._navCache = MF._navCache || {}; MF._navCache[fundId] = navHistory; }
-      }
-      _currentNavHistory = navHistory;
-
-      const result = calculate(navHistory, amount, period);
-      const fundName = containerEl.closest('[data-fund-name]')?.dataset.fundName || '';
-      containerEl.innerHTML = _html(result, fundName);
-
-      // Draw chart after DOM render
-      if (result) {
-        const cid = containerEl.querySelector('canvas')?.id;
-        if (cid) { _currentCid = cid; setTimeout(() => _drawChart(result, cid), 50); }
-      }
-    } catch(e) {
-      containerEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px">⚠️ NAV data load nahi hua: ${e.message}</div>`;
+    if (!funds.length) {
+      dd.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--text-muted);">No funds found</div>';
+      return;
     }
+
+    dd.innerHTML = funds.map(f => `
+      <div class="fund-search-item" data-id="${f.id}" data-name="${escHtml(f.scheme_name)}"
+           data-nav="${f.latest_nav || ''}" data-cat="${escHtml(f.category || '')}"
+           style="padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border-color);"
+           onmouseenter="this.style.background='var(--bg-secondary)'"
+           onmouseleave="this.style.background=''"
+           onclick="btSelectFund(${f.id},'${escHtml(f.scheme_name).replace(/'/g,"\\'")}','${escHtml(f.category||'')}')">
+        <div style="font-size:13px;font-weight:500;">${escHtml(f.scheme_name)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+          ${escHtml(f.category || '')}
+          ${f.latest_nav ? ' · NAV ₹' + parseFloat(f.latest_nav).toFixed(2) : ''}
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    dd.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--danger);">Search failed</div>';
   }
+}
 
-  function switchPeriod(years, cid) {
-    if (!_currentNavHistory || !_currentFundId) return;
-    const result = calculate(_currentNavHistory, _currentAmount, years);
-    const wrap = document.getElementById(cid)?.closest('.svl-chart-wrap')?.parentElement?.parentElement;
-    if (!wrap) return;
+function btSelectFund(id, name, cat) {
+  BT.fundId   = id;
+  BT.fundName = name;
+  document.getElementById('btFundId').value    = id;
+  document.getElementById('btFundSearch').value = name;
+  document.getElementById('btFundInfo').textContent = cat;
+  document.getElementById('btFundDropdown').style.display = 'none';
+}
 
-    wrap.innerHTML = _html(result, '');
-    const newCid = wrap.querySelector('canvas')?.id;
-    if (newCid && result) setTimeout(() => _drawChart(result, newCid), 50);
+/* ═══════════════════════════════════════════════════════════════════════════
+   PERIOD TOGGLE
+═══════════════════════════════════════════════════════════════════════════ */
+function setBtPeriod(p) {
+  BT.period = p;
+  document.querySelectorAll('#btPeriodBtns .btn').forEach(b => {
+    const active = b.dataset.period === p;
+    b.classList.toggle('btn-primary', active);
+    b.classList.toggle('btn-ghost', !active);
+  });
+}
 
-    // Update active period button
-    wrap.querySelectorAll('.svl-pbtn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.textContent) === years);
-    });
+/* ═══════════════════════════════════════════════════════════════════════════
+   RUN BACKTEST
+═══════════════════════════════════════════════════════════════════════════ */
+async function runBacktest() {
+  const fundId   = parseInt(document.getElementById('btFundId').value) || BT.fundId;
+  const amount   = parseFloat(document.getElementById('btSipAmount').value) || 5000;
+  const sipDay   = parseInt(document.getElementById('btSipDay').value) || 1;
+  const period   = BT.period;
+
+  if (!fundId) { showBtError('Please select a fund first.'); return; }
+
+  BT.fundId   = fundId;
+  BT.sipAmount = amount;
+  BT.sipDay    = sipDay;
+
+  // Show loading
+  setBtView('loading');
+
+  try {
+    const url = `${window.APP_URL || ''}/api/router.php?action=sip_lumpsum_backtest` +
+                `&fund_id=${fundId}&period=${period}&amount=${amount}&sip_day=${sipDay}`;
+    const r = await fetch(url);
+    const d = await r.json();
+
+    if (!d.success) { showBtError(d.message || 'Backtest failed'); return; }
+
+    renderBacktest(d);
+    setBtView('results');
+
+  } catch (e) {
+    showBtError('Network error: ' + e.message);
   }
+}
 
-  // ── Quick widget (standalone, no drawer needed) ─────
-  function renderWidget(containerId, fundId, navHistory, amount = 100000, period = 3) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    _currentFundId = fundId;
-    _currentNavHistory = navHistory;
-    _currentAmount = amount;
-    const result = calculate(navHistory, amount, period);
-    el.innerHTML = _html(result, '');
-    const cid = el.querySelector('canvas')?.id;
-    if (cid && result) setTimeout(() => _drawChart(result, cid), 50);
-  }
+/* ═══════════════════════════════════════════════════════════════════════════
+   RENDER RESULTS
+═══════════════════════════════════════════════════════════════════════════ */
+function renderBacktest(d) {
+  const { sip, lumpsum, comparison, params, chart_data } = d;
+  const winner = comparison.winner;
 
-  return { renderInDrawer, renderWidget, switchPeriod, calculate };
-})();
+  // SIP card
+  document.getElementById('btSipInvested').textContent = fmtRs(sip.invested);
+  document.getElementById('btSipFinal').textContent    = fmtRs(sip.final_value);
+  document.getElementById('btSipGain').textContent     = fmtRs(sip.gain) + ` (${sip.gain_pct}%)`;
+  document.getElementById('btSipXirr').textContent     = sip.xirr + '% p.a.';
+  document.getElementById('btSipSubtitle').textContent = `₹${fmtNum(params.monthly_amount)}/mo × ${params.months} months`;
 
-// ── Hook into existing MF screener drawer ──────────────
-(function() {
-  // If MF screener has openDrawer, patch it to add SIP vs LS section
-  const _tryPatch = () => {
-    if (!window.MF || !MF.openDrawer) return;
-    const _orig = MF.openDrawer;
-    MF.openDrawer = function(fundId, ...args) {
-      _orig.call(this, fundId, ...args);
-      // Wait for drawer to render, then inject SIP vs LS section
-      setTimeout(() => {
-        const drawer = document.querySelector('.mf-drawer, #mfDrawer, .screener-drawer');
-        if (!drawer) return;
-        // Find or create SIP vs LS section
-        let svlSection = drawer.querySelector('.svl-section');
-        if (!svlSection) {
-          svlSection = document.createElement('div');
-          svlSection.className = 'svl-section';
-          svlSection.style.cssText = 'border-top:1.5px solid var(--border);margin-top:12px;padding-top:4px';
-          svlSection.innerHTML = `
-            <div style="padding:10px 16px 4px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">
-              📊 SIP vs Lump Sum
-            </div>
-            <div id="svlDrawerContent"></div>`;
-          drawer.appendChild(svlSection);
-        }
-        const container = document.getElementById('svlDrawerContent');
-        if (container) MF_SIP_VS_LS.renderInDrawer(fundId, container);
-      }, 200);
-    };
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(_tryPatch, 500));
+  const sipCard = document.getElementById('btSipCard');
+  const sipBadge = document.getElementById('btSipWinnerBadge');
+  if (winner === 'sip') {
+    sipCard.style.borderColor = 'var(--primary)';
+    sipBadge.textContent = '🏆 Winner';
+    sipBadge.style.cssText += ';display:block;background:rgba(99,102,241,.15);color:var(--primary);';
   } else {
-    setTimeout(_tryPatch, 500);
+    sipCard.style.borderColor = 'transparent';
+    sipBadge.style.display = 'none';
   }
-})();
+
+  // Lumpsum card
+  document.getElementById('btLsInvested').textContent = fmtRs(lumpsum.invested);
+  document.getElementById('btLsFinal').textContent    = fmtRs(lumpsum.final_value);
+  document.getElementById('btLsGain').textContent     = fmtRs(lumpsum.gain) + ` (${lumpsum.gain_pct}%)`;
+  document.getElementById('btLsCagr').textContent     = lumpsum.cagr + '% p.a.';
+  document.getElementById('btLsSubtitle').textContent = `₹${fmtNum(lumpsum.invested)} one-time`;
+
+  const lsCard  = document.getElementById('btLsCard');
+  const lsBadge = document.getElementById('btLsWinnerBadge');
+  if (winner === 'lumpsum') {
+    lsCard.style.borderColor = 'var(--warning,#f59e0b)';
+    lsBadge.textContent = '🏆 Winner';
+    lsBadge.style.cssText += ';display:block;background:rgba(245,158,11,.15);color:var(--warning,#f59e0b);';
+  } else {
+    lsCard.style.borderColor = 'transparent';
+    lsBadge.style.display = 'none';
+  }
+
+  // Verdict
+  const diff = Math.abs(comparison.sip_advantage);
+  document.getElementById('btVerdictEmoji').textContent = winner === 'sip' ? '📈' : '💰';
+  document.getElementById('btVerdictTitle').textContent  = comparison.verdict;
+  document.getElementById('btVerdictDesc').textContent   =
+    `Period: ${params.start_date} to ${params.end_date} · ` +
+    `XIRR diff: ${comparison.sip_xirr_vs_ls_cagr > 0 ? '+' : ''}${comparison.sip_xirr_vs_ls_cagr}%`;
+
+  // Growth Chart
+  renderGrowthChart(chart_data, params.monthly_amount * params.months);
+}
+
+function renderGrowthChart(chartData, lumpsumInvested) {
+  if (BT.growthChart) { BT.growthChart.destroy(); BT.growthChart = null; }
+
+  const labels   = chartData.map(p => p.date);
+  const sipVals  = chartData.map(p => p.sip_value);
+  const lsVals   = chartData.map(p => p.ls_value);
+  const invested = chartData.map(p => p.invested);
+
+  const ctx = document.getElementById('btGrowthChart').getContext('2d');
+  BT.growthChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'SIP Value',
+          data: sipVals,
+          borderColor: 'var(--primary, #6366f1)',
+          backgroundColor: 'rgba(99,102,241,.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: 'Lumpsum Value',
+          data: lsVals,
+          borderColor: '#f59e0b',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [0],
+        },
+        {
+          label: 'SIP Invested',
+          data: invested,
+          borderColor: 'rgba(150,150,150,.5)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0,
+          pointRadius: 0,
+          borderWidth: 1,
+          borderDash: [5, 4],
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ₹${fmtNum(Math.round(ctx.parsed.y))}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 8,
+            color: 'var(--text-muted)',
+            font: { size: 11 },
+          },
+          grid: { display: false },
+        },
+        y: {
+          ticks: {
+            color: 'var(--text-muted)',
+            font: { size: 11 },
+            callback: v => '₹' + (v >= 100000 ? (v/100000).toFixed(1) + 'L' : fmtNum(Math.round(v))),
+          },
+          grid: { color: 'rgba(128,128,128,.1)' },
+        },
+      },
+    },
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TAB SWITCH
+═══════════════════════════════════════════════════════════════════════════ */
+function switchBtTab(tab) {
+  BT.activeTab = tab;
+  const tabs = { rolling: 'tabRolling', bestentry: 'tabBestEntry' };
+  const contents = { rolling: 'tabContentRolling', bestentry: 'tabContentBestEntry' };
+
+  Object.keys(tabs).forEach(t => {
+    const active = t === tab;
+    document.getElementById(tabs[t]).style.borderBottom =
+      active ? '2px solid var(--primary)' : '2px solid transparent';
+    document.getElementById(contents[t]).style.display = active ? '' : 'none';
+  });
+
+  if (tab === 'rolling' && BT.fundId) loadRolling(BT.activeWindow);
+  if (tab === 'bestentry' && BT.fundId) loadBestEntry();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROLLING BACKTEST
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadRolling(w) {
+  if (!BT.fundId) return;
+  BT.activeWindow = w;
+
+  document.querySelectorAll('[data-window]').forEach(b => {
+    const active = b.dataset.window === w;
+    b.classList.toggle('btn-primary', active);
+    b.classList.toggle('btn-ghost', !active);
+  });
+
+  document.getElementById('btRollingStats').style.display = 'none';
+  document.getElementById('btRollingLoading').style.display = 'block';
+
+  try {
+    const url = `${window.APP_URL || ''}/api/router.php?action=sip_lumpsum_backtest` +
+                `&fund_id=${BT.fundId}&period=${BT.period}&amount=${BT.sipAmount}&window=${w}&action=rolling_backtest`;
+    // Override action param in URL
+    const url2 = `${window.APP_URL || ''}/api/router.php?action=sip_lumpsum_backtest_rolling` +
+                 `&fund_id=${BT.fundId}&amount=${BT.sipAmount}&window=${w}`;
+    const r = await fetch(url2);
+    const d = await r.json();
+
+    document.getElementById('btRollingLoading').style.display = 'none';
+    if (!d.success) { document.getElementById('btRollingVerdict').textContent = d.message || 'Failed'; return; }
+
+    document.getElementById('btRollingTotal').textContent    = d.total_windows;
+    document.getElementById('btRollingSipWins').textContent  = d.sip_wins;
+    document.getElementById('btRollingLsWins').textContent   = d.ls_wins;
+    document.getElementById('btRollingSipPct').textContent   = d.sip_win_pct + '%';
+    document.getElementById('btRollingVerdict').textContent  = d.verdict;
+    document.getElementById('btRollingStats').style.display  = '';
+  } catch (e) {
+    document.getElementById('btRollingLoading').style.display = 'none';
+    document.getElementById('btRollingVerdict').textContent = 'Failed: ' + e.message;
+    document.getElementById('btRollingStats').style.display = '';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BEST ENTRY ANALYSIS
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadBestEntry() {
+  if (!BT.fundId) return;
+  const amt = parseFloat(document.getElementById('btLsAmount').value) || 100000;
+
+  document.getElementById('btBestEntryContent').style.display = 'none';
+  document.getElementById('btBestEntryLoading').style.display = 'block';
+
+  try {
+    const url = `${window.APP_URL || ''}/api/router.php?action=sip_lumpsum_best_entry` +
+                `&fund_id=${BT.fundId}&amount=${amt}`;
+    const r = await fetch(url);
+    const d = await r.json();
+
+    document.getElementById('btBestEntryLoading').style.display = 'none';
+    if (!d.success) return;
+
+    const renderRows = (rows, tbody) => {
+      document.getElementById(tbody).innerHTML = rows.map(e => `
+        <tr>
+          <td>${e.date}</td>
+          <td class="text-right">${fmtRs(e.final_value)}</td>
+          <td class="text-right">${e.cagr}%</td>
+        </tr>`).join('');
+    };
+    renderRows(d.best_entries,  'btBestEntryBest');
+    renderRows(d.worst_entries, 'btBestEntryWorst');
+    document.getElementById('btBestEntryInsight').textContent = d.insight;
+    document.getElementById('btBestEntryContent').style.display = '';
+  } catch (e) {
+    document.getElementById('btBestEntryLoading').style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIEW HELPERS
+═══════════════════════════════════════════════════════════════════════════ */
+function setBtView(v) {
+  document.getElementById('btEmpty').style.display     = v === 'empty'   ? '' : 'none';
+  document.getElementById('btLoading').hidden           = v !== 'loading';
+  document.getElementById('btResults').hidden           = v !== 'results';
+  document.getElementById('btError').hidden             = v !== 'error';
+}
+
+function showBtError(msg) {
+  document.getElementById('btErrorMsg').textContent = msg;
+  setBtView('error');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FORMAT HELPERS
+═══════════════════════════════════════════════════════════════════════════ */
+function fmtRs(n) {
+  if (n == null) return '—';
+  n = parseFloat(n);
+  if (n >= 10000000)  return '₹' + (n / 10000000).toFixed(2) + ' Cr';
+  if (n >= 100000)    return '₹' + (n / 100000).toFixed(2) + ' L';
+  return '₹' + fmtNum(Math.round(n));
+}
+
+function fmtNum(n) {
+  return Number(n).toLocaleString('en-IN');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}

@@ -1,0 +1,96 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — ID-M Router Notes (Session 5)
+Worker : mohit87jain87@gmail.com
+Tasks  : t352, t353, t354, t415, t419, t500
+File   : router notes/18. ROUTER_NOTES_IDM_s5.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+[t352] Unit Tests PHP + JS
+════════════════════════════════════════════════════════════
+No router changes.
+- tests/unit/test_helpers.php — runner.php se run hoga
+- tests/unit/test_js.js — node tests/unit/test_js.js
+- tests/unit/test_js_runner.html — browser mein open karo
+
+════════════════════════════════════════════════════════════
+[t353] Integration Tests
+════════════════════════════════════════════════════════════
+No router changes.
+- tests/integration/test_crud_flows.php — runner.php se
+
+════════════════════════════════════════════════════════════
+[t354] E2E Tests
+════════════════════════════════════════════════════════════
+No router changes.
+- tests/e2e/test_e2e.php — runner.php se
+
+debug/runner.php mein suite map update karo:
+    'integration' => APP_ROOT . '/tests/integration/test_crud_flows.php',
+    'e2e'         => APP_ROOT . '/tests/e2e/test_e2e.php',
+    'unit'        => APP_ROOT . '/tests/unit/test_helpers.php',
+
+════════════════════════════════════════════════════════════
+[t415] Load Testing
+════════════════════════════════════════════════════════════
+No router changes needed.
+- debug/load_test.php — direct access (IS_LOCAL only)
+- tests/load/k6_script.js — k6 run tests/load/k6_script.js
+
+1. $csrfExempt[] mein ADD karo:
+    'load_test_list',
+
+2. switch ($action) mein ADD karo (optional API for history):
+
+    // ── t415 (ID-M): Load Test History ───────────────────────
+    case 'load_test_list':
+        require_auth(ROLE_ADMIN);
+        $rows = DB::fetchAll('SELECT * FROM load_test_runs ORDER BY created_at DESC LIMIT 50');
+        json_response(true, '', ['runs' => $rows]);
+        exit;
+
+════════════════════════════════════════════════════════════
+[t419] Code Quality Tools
+════════════════════════════════════════════════════════════
+No router changes.
+- debug/code_quality.php — direct access (IS_LOCAL only)
+- phpstan.neon — PHPStan config
+- .php-cs-fixer.php — CS Fixer config
+- .eslintrc.json — ESLint config
+- .github/workflows/ci.yml — GitHub Actions CI
+
+════════════════════════════════════════════════════════════
+[t500] GODMODE
+════════════════════════════════════════════════════════════
+No router changes.
+- debug/godmode.php — direct access (IS_LOCAL / admin)
+- database/migrations/t500_migration.sql — milestone_log table
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MIGRATION SEQUENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. t352_migration.sql  ← placeholder
+2. t353_migration.sql  ← placeholder
+3. t354_migration.sql  ← placeholder
+4. t415_migration.sql  ← load_test_runs
+5. t419_migration.sql  ← placeholder
+6. t500_migration.sql  ← milestone_log + GODMODE INSERT
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE OVERWRITE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+tests/unit/test_helpers.php          → NEW (overwrite)
+tests/unit/test_js.js                → NEW (overwrite)
+tests/unit/test_js_runner.html       → NEW (overwrite)
+tests/integration/test_crud_flows.php→ NEW (overwrite)
+tests/e2e/test_e2e.php               → NEW (overwrite)
+tests/load/k6_script.js              → NEW (overwrite)
+debug/load_test.php                  → NEW (overwrite)
+debug/code_quality.php               → NEW (overwrite)
+debug/godmode.php                    → NEW (overwrite)
+phpstan.neon                         → NEW (overwrite)
+.php-cs-fixer.php                    → NEW (overwrite)
+.eslintrc.json                       → NEW (overwrite)
+.github/workflows/ci.yml             → NEW (overwrite)
+All t3xx-t500 migration.sql files    → NEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WealthDash JS Tests</title>
+<style>
+:root{--bg:#0d0f18;--s:#161922;--s2:#1e2235;--border:#2a2f4a;--text:#e2e5f5;
+      --muted:#7b84a8;--done:#4fc3a1;--danger:#e05c5c;--accent:#7c6fcd;--warn:#e6a817}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',monospace;background:var(--bg);color:var(--text);font-size:13px;padding:20px}
+h1{font-size:18px;margin-bottom:4px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:16px}
+.summary{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.sc{background:var(--s);border:1px solid var(--border);border-radius:8px;padding:10px 16px}
+.sc-v{font-size:20px;font-weight:700}
+.sc-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.prog{height:4px;background:var(--s2);border-radius:2px;margin-bottom:16px}
+.prog-i{height:4px;border-radius:2px;transition:width .6s}
+.row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;
+     border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent);font-size:12px}
+.row:last-child{border-bottom:none}
+.badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;min-width:40px;text-align:center}
+.b-pass{background:color-mix(in srgb,var(--done) 16%,transparent);color:var(--done)}
+.b-fail{background:color-mix(in srgb,var(--danger) 20%,transparent);color:var(--danger)}
+.msg{color:var(--danger);font-size:11px;font-family:'Courier New',monospace;margin-top:2px}
+.name{flex:1}
+</style>
+</head>
+<body>
+<h1>WealthDash JS Unit Tests <span style="color:var(--accent);font-size:14px">t352</span></h1>
+<div class="sub" id="ts"></div>
+<div class="summary" id="summary"></div>
+<div class="prog"><div class="prog-i" id="prog"></div></div>
+<div id="results"></div>
+
+<script src="test_js.js"></script>
+<script>
+const s = WDJsTest.summary();
+const pct = s.total ? Math.round(s.passed / s.total * 100) : 0;
+const col = pct >= 90 ? 'var(--done)' : pct >= 70 ? 'var(--warn)' : 'var(--danger)';
+
+document.getElementById('ts').textContent = new Date().toLocaleString('en-IN');
+document.getElementById('prog').style.cssText = `width:${pct}%;background:${col}`;
+document.getElementById('summary').innerHTML = `
+    <div class="sc"><div class="sc-v" style="color:${col}">${pct}%</div><div class="sc-l">Pass Rate</div></div>
+    <div class="sc"><div class="sc-v">${s.total}</div><div class="sc-l">Total</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--done)">${s.passed}</div><div class="sc-l">Passed</div></div>
+    <div class="sc"><div class="sc-v" style="color:var(--danger)">${s.failed}</div><div class="sc-l">Failed</div></div>`;
+
+document.getElementById('results').innerHTML = s.results.map(r => `
+    <div class="row">
+        <span class="badge ${r.status === 'pass' ? 'b-pass' : 'b-fail'}">${r.status.toUpperCase()}</span>
+        <div class="name">${r.name}${r.msg ? `<div class="msg">${r.msg}</div>` : ''}</div>
+    </div>`).join('');
+</script>
+</body>
+</html>

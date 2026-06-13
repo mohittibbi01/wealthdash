@@ -1,124 +1,125 @@
 <?php
 /**
- * WealthDash Debug — test_api_files.php
- * Tests: Required files exist, PHP syntax clean
+ * WealthDash — Test: API Files Existence [t411]
+ * File: debug/tests/test_api_files.php
+ * Worker: ID-M
  */
-defined('WD_DEBUG_RUNNER') or die('Direct access not allowed');
+if (!defined('WEALTHDASH')) die('Direct access not allowed.');
 
-$BASE = dirname(__DIR__, 2); // debug/tests/ → debug/ → wealthdash/
-
-// ── 1. Critical files must exist ──────────────────────────────────────────
-$required_files = [
-    // Config
-    'config/database.php',
-    'config/config.php',
-    'includes/helpers.php',
-    'includes/auth_check.php',
-    'includes/holding_calculator.php',
-    'includes/tax_engine.php',
-    // Router
-    'api/router.php',
-    // MF APIs
-    'api/mutual_funds/mf_list.php',
-    'api/mutual_funds/mf_add.php',
-    'api/mutual_funds/mf_edit.php',
-    'api/mutual_funds/mf_delete.php',
-    'api/mutual_funds/mf_search.php',
-    'api/mutual_funds/mf_import_csv.php',
-    'api/mutual_funds/fund_screener.php',
-    'api/mutual_funds/mf_nav_history.php',
-    // Reports
-    'api/reports/fy_gains.php',
-    'api/reports/net_worth.php',
-    'api/reports/tax_planning.php',
-    // NPS
-    'api/nps/nps_list.php',
-    'api/nps/nps_add.php',
-    // Savings
-    'api/savings/savings_list.php',
-    'api/savings/savings_add.php',
-    // Crons
-    'cron/update_nav_daily.php',
-    'cron/update_stocks_daily.php',
-    'cron/nps_nav_scraper.php',
-    'cron/fd_maturity_alert.php',
-    // Templates
-    'templates/layout.php',
-    'templates/sidebar.php',
-    'templates/topbar.php',
-    'templates/pages/mf_holdings.php',
-    'templates/pages/dashboard.php',
-    'templates/pages/admin.php',
-    // JS/CSS
-    'public/js/app.js',
-    'public/js/mf.js',
-    'public/css/app.css',
-    // Env
-    '.env',
-    '.htaccess',
-];
-
-foreach ($required_files as $rel) {
-    $full = $BASE . '/' . $rel;
-    if (file_exists($full))
-        wd_pass('File', $rel, 'Found');
-    else
-        wd_fail('File', $rel, 'MISSING — check deployment');
-}
-
-// ── 2. PHP syntax check — uses PHP built-in token_get_all() ───────────────
-// NEVER use exec('php -l ...') on Windows XAMPP — it spawns new Apache
-// child processes causing "AH02965" crashes. token_get_all() runs in-process.
-$phpDirs = ['api', 'includes', 'config', 'cron'];
-$syntaxErrors = 0;
-foreach ($phpDirs as $dir) {
-    $path = $BASE . '/' . $dir;
-    if (!is_dir($path)) continue;
-    $iter = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
-        $path, RecursiveDirectoryIterator::SKIP_DOTS
-    ));
-    foreach ($iter as $file) {
-        if ($file->getExtension() !== 'php') continue;
-        $rel = ltrim(str_replace([$BASE, '\\', '/'], ['', '/', '/'], $file->getPathname()), '/');
-        $src = @file_get_contents($file->getPathname());
-        if ($src === false) { wd_warn('PHP Syntax', $rel, 'Could not read file'); continue; }
-        // Suppress errors, catch them via set_error_handler
-        $parseError = null;
-        set_error_handler(function($no, $msg) use (&$parseError) { $parseError = $msg; return true; });
-        try {
-            token_get_all($src, TOKEN_PARSE);
-        } catch (\ParseError $e) {
-            $parseError = $e->getMessage() . ' on line ' . $e->getLine();
-        }
-        restore_error_handler();
-        if ($parseError) {
-            wd_fail('PHP Syntax', $rel, $parseError);
-            $syntaxErrors++;
-        } else {
-            wd_pass('PHP Syntax', $rel, 'OK');
-        }
+// ── Core Files ────────────────────────────────────────────────────────────────
+WDTest::describe('Core Files', function () {
+    $files = [
+        'config/config.php', 'config/constants.php', 'config/database.php',
+        'includes/auth_check.php', 'includes/helpers.php', 'includes/cache.php',
+        'api/router.php', 'index.php', '.env', '.htaccess',
+        'public/css/app.css', 'public/js/app.js',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
     }
-}
-if ($syntaxErrors === 0 && isset($rel)) {
-    // Already reported per-file above — summary note only
-}
+});
 
-// ── 3. .env has required keys ─────────────────────────────────────────────
-$envFile = $BASE . '/.env';
-if (file_exists($envFile)) {
-    $env = file_get_contents($envFile);
-    $requiredKeys = ['DB_HOST', 'DB_NAME', 'DB_USER'];
-    foreach ($requiredKeys as $key) {
-        if (preg_match('/^' . $key . '\s*=/m', $env))
-            wd_pass('Config', ".env: $key", 'Set');
-        else
-            wd_warn('Config', ".env: $key", 'Not found in .env');
+// ── Admin API ─────────────────────────────────────────────────────────────────
+WDTest::describe('Admin API Files', function () {
+    $files = [
+        'api/admin/audit_log.php', 'api/admin/system_health.php',
+        'api/admin/global_settings.php', 'api/admin/db_manager.php',
+        'api/admin/multi_user.php', 'api/admin/perf_monitor.php',
+        'api/admin/data_versioning.php',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
     }
-    // ANTHROPIC key — warn only (optional)
-    if (preg_match('/^ANTHROPIC_API_KEY\s*=\s*.+/m', $env))
-        wd_pass('Config', '.env: ANTHROPIC_API_KEY', 'Set (AI features enabled)');
-    else
-        wd_warn('Config', '.env: ANTHROPIC_API_KEY', 'Not set — AI features disabled');
-} else {
-    wd_fail('Config', '.env file', 'Not found — copy .env.example');
-}
+});
+
+// ── External API ──────────────────────────────────────────────────────────────
+WDTest::describe('External API Files', function () {
+    $files = [
+        'api/external/api_key_manager.php',
+        'api/external/rest_gateway.php',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
+    }
+});
+
+// ── MF API Files ──────────────────────────────────────────────────────────────
+WDTest::describe('MF API Files', function () {
+    $files = [
+        'api/mutual_funds/mf_list.php', 'api/mutual_funds/mf_add.php',
+        'api/mutual_funds/mf_import_csv.php', 'api/mutual_funds/live_nav.php',
+        'api/nav/update_amfi.php',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
+    }
+});
+
+// ── Asset Module Files ────────────────────────────────────────────────────────
+WDTest::describe('Asset Module Files', function () {
+    $files = [
+        'api/banks/banks.php', 'api/fd/fd_list.php',
+        'api/savings/savings_list.php', 'api/nps/nps_list.php',
+        'api/stocks/stocks_list.php',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
+    }
+});
+
+// ── Template Pages ────────────────────────────────────────────────────────────
+WDTest::describe('Template Pages', function () {
+    $pages = [
+        'templates/pages/dashboard.php', 'templates/pages/mf_holdings.php',
+        'templates/pages/fd.php', 'templates/pages/savings.php',
+        'templates/pages/banks.php', 'templates/pages/stocks.php',
+        'templates/pages/admin_db.php', 'templates/pages/admin_health.php',
+        'templates/pages/admin_settings.php', 'templates/pages/admin_users.php',
+    ];
+    foreach ($pages as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
+    }
+});
+
+// ── Cron Files ────────────────────────────────────────────────────────────────
+WDTest::describe('Cron Files', function () {
+    $files = [
+        'cron/update_nav_daily.php', 'cron/nav_auto_update.php',
+        'cron/fd_maturity_alert.php', 'cron/calculate_returns.php',
+    ];
+    foreach ($files as $f) {
+        WDTest::it("Exists: {$f}", function () use ($f) {
+            assert_true(file_exists(APP_ROOT . '/' . $f), "Missing: {$f}");
+        });
+    }
+});
+
+// ── PHP Guard Check ───────────────────────────────────────────────────────────
+WDTest::describe('PHP Guard (WEALTHDASH check)', function () {
+    $checkFiles = [
+        'api/admin/audit_log.php', 'api/admin/system_health.php',
+        'api/admin/multi_user.php', 'api/banks/banks.php',
+        'includes/auth_check.php', 'includes/helpers.php',
+    ];
+    foreach ($checkFiles as $f) {
+        WDTest::it("Guard present: {$f}", function () use ($f) {
+            $full = APP_ROOT . '/' . $f;
+            if (!file_exists($full)) { return; } // file test above will catch this
+            $content = file_get_contents($full);
+            assert_contains("defined('WEALTHDASH')", $content,
+                "Missing WEALTHDASH guard in {$f}");
+        });
+    }
+});

@@ -1,0 +1,565 @@
+
+<body> <strong>Sequence yaad rakho: T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 → T-09 → T-10
+<br /><br /><br />Ek task ka kaam Claude ko dena, code lena, test karna, phir agla prompt use karna. Kisi bhi Claude account/session se de sakte ho — har prompt mein poora context hai.
+</strong><br /><br /><br /><br /></body>
+
+<body> <strong> <br />Prompt ke last me ye bhi add kr do</strong>
+to task 1 start kr do, or updated file hi dena, jis se main copy paste kr k file hi replace kr loon
+</body>
+
+
+
+<style>
+.tp { padding: 1rem 0; font-family: var(--font-sans); color: var(--color-text-primary); }
+.tp-phase { margin-bottom: 1.75rem; }
+.ph-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-tertiary); border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 6px; margin-bottom: 10px; }
+.task-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.task-row:last-child { border-bottom: none; }
+.task-num { font-size: 12px; font-weight: 500; color: var(--color-text-tertiary); min-width: 28px; padding-top: 1px; }
+.task-body { flex: 1; }
+.task-title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.task-sub { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+.tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; margin-left: 6px; vertical-align: middle; }
+.t-fix { background: var(--color-background-danger); color: var(--color-text-danger); }
+.t-sec { background: var(--color-background-warning); color: var(--color-text-warning); }
+.t-new { background: var(--color-background-info); color: var(--color-text-info); }
+.t-enh { background: var(--color-background-success); color: var(--color-text-success); }
+.task-dep { font-size: 11px; color: var(--color-text-tertiary); margin-top: 4px; }
+</style>
+<div class="tp">
+<h2 class="sr-only">DevVault v3.0 — Task plan</h2>
+
+<div class="tp-phase">
+  <div class="ph-label">Phase 1 — Foundation fixes (pehle ye karo, baaki sab iske upar build hoga)</div>
+  <div class="task-row">
+    <div class="task-num">T-01</div>
+    <div class="task-body">
+      <div class="task-title">Security fixes — .env key + MIME validation + force password change <span class="tag t-fix">Critical fix</span></div>
+      <div class="task-sub">ENCRYPT_KEY ko .env mein le jao. File upload mein MIME check add karo. Admin ko first login par password change force karo.</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-02</div>
+    <div class="task-body">
+      <div class="task-title">IP Whitelist access control <span class="tag t-sec">Security</span></div>
+      <div class="task-sub">config/admin se allowed IP list manage karo. Har request par IP check. Non-listed IP ko blocked page dikhao.</div>
+      <div class="task-dep">Depends on: T-01 (config refactor ke baad karo)</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-03</div>
+    <div class="task-body">
+      <div class="task-title">Session timeout with countdown timer <span class="tag t-sec">Security</span></div>
+      <div class="task-sub">5 min idle = alert modal. 1 min extend window. Activity se reset. Live countdown visible on screen.</div>
+      <div class="task-dep">Independent task — kisi pe depend nahi</div>
+    </div>
+  </div>
+</div>
+
+<div class="tp-phase">
+  <div class="ph-label">Phase 2 — Core data model enhancements (existing projects table extend hoga)</div>
+  <div class="task-row">
+    <div class="task-num">T-04</div>
+    <div class="task-body">
+      <div class="task-title">Technology sub-type field + AMC fields <span class="tag t-enh">Enhancement</span></div>
+      <div class="task-sub">.NET Classic/MVC/Core/Static etc. sub-type. AMC Amount, AMC Type (Paid/Exemption/Free), AMC dates. Project form + list mein dikhao.</div>
+      <div class="task-dep">Ye pehle karo — T-07 aur T-09 isko use karenge</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-05</div>
+    <div class="task-body">
+      <div class="task-title">Visitor count time-series history <span class="tag t-enh">Enhancement</span></div>
+      <div class="task-sub">Existing single-value field ko multi-entry log mein convert karo. Date-range report with delta calculation.</div>
+      <div class="task-dep">Ye migration carefully karna hoga — existing data preserve karo</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-06</div>
+    <div class="task-body">
+      <div class="task-title">Technology migration / change history <span class="tag t-new">New module</span></div>
+      <div class="task-sub">Project ki technology badlne par log ho. From/To tech, date, reason. Project detail mein history tab.</div>
+      <div class="task-dep">T-04 ke baad karo (subtype bhi log hoga)</div>
+    </div>
+  </div>
+</div>
+
+<div class="tp-phase">
+  <div class="ph-label">Phase 3 — New modules (fresh tables + UI)</div>
+  <div class="task-row">
+    <div class="task-num">T-07</div>
+    <div class="task-body">
+      <div class="task-title">SR (Service Request) tracking module <span class="tag t-new">New module</span></div>
+      <div class="task-sub">Per-project SR entries. SR number, date, status, remarks. History view. Relatively simple — ek naya module.</div>
+      <div class="task-dep">Independent — T-04 ke parallel kar sakte ho</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-08</div>
+    <div class="task-body">
+      <div class="task-title">Audit findings & punch list module <span class="tag t-new">New module</span></div>
+      <div class="task-sub">Per-project findings log. Severity, assignee, deadline, status. Dashboard mein open/overdue count.</div>
+      <div class="task-dep">T-07 ke baad karo — similar structure, seekh ke karo</div>
+    </div>
+  </div>
+  <div class="task-row">
+    <div class="task-num">T-09</div>
+    <div class="task-body">
+      <div class="task-title">Global task / work order module with bulk complete <span class="tag t-new">New module</span></div>
+      <div class="task-sub">Sabse complex task. Task banao, sites assign karo, WebMyWay bulk-done, .NET/AEM one-by-one. Internal Jira replacement.</div>
+      <div class="task-dep">T-04, T-07, T-08 ke baad karo — sabse end mein</div>
+    </div>
+  </div>
+</div>
+
+<div class="tp-phase">
+  <div class="ph-label">Phase 4 — Reports (sab modules ready hone ke baad)</div>
+  <div class="task-row">
+    <div class="task-num">T-10</div>
+    <div class="task-body">
+      <div class="task-title">Consolidated reporting module <span class="tag t-new">New module</span></div>
+      <div class="task-sub">Financial report (live/closed/AMC/exemption by date range). Visitor delta report. Migration history report. CSV export sab pe.</div>
+      <div class="task-dep">T-04, T-05, T-06 ke baad karo</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+
+
+<body>
+=====================================
+
+
+<br />
+<h2 class="sr-only">T-01 — Security Fixes</h2>
+<br />PROJECT: DevVault Pro v2.5 (PHP + SQLite internal LAN tool)
+<br />TASK: T-01 — Security fixes (3 issues)
+<br />Existing codebase structure:
+<br />- config.php — DB connection, encryption functions, schema, ENCRYPT_KEY hardcoded here
+<br />- auth.php — session/login handling
+<br />- login.php — login form
+<br />- admin.php — user management
+<br />- api.php — AJAX endpoints
+<br />
+<br />Fix these 3 issues:
+<br />
+<br />FIX 1 — Move ENCRYPT_KEY to .env file
+<br />- Create a .env file in project root: ENCRYPT_KEY=DevVaultPro_S3cur3_K3y_2025_Ch4ng3Me!
+<br />- In config.php, read it using: $lines = file('.env'); parse manually (no external library)
+<br />- .env should be listed in README as "do not share / do not commit"
+<br />- All existing encrypted data must still decrypt correctly (same key, just different source)
+<br />
+<br />FIX 2 — File upload MIME type validation
+<br />- Current code in config.php safe_upload() only checks pathinfo extension
+<br />- Add finfo_file() check to verify actual MIME type matches allowed list
+<br />- Allowed map: pdf→application/pdf, jpg/jpeg→image/jpeg, png→image/png,
+<br />  doc→application/msword, docx→application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+<br />  xls→application/vnd.ms-excel, xlsx→application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+<br />  zip→application/zip, txt→text/plain, csv→text/csv
+<br />- If MIME mismatch: reject with clear error message
+<br />
+<br />FIX 3 — Force password change on first login for default admin
+<br />- Add column: password_changed INTEGER DEFAULT 0 in users table (migration safe)
+<br />- Default seeded admin (username=admin) should have password_changed=0
+<br />- After successful login, if password_changed=0 → redirect to change_password.php
+<br />- change_password.php on success → set password_changed=1
+<br />- Block all other pages if password_changed=0 (check in auth.php require_login)
+<br />
+<br />Provide: updated config.php (relevant sections), updated auth.php, updated safe_upload(), 
+<br />.env file content, and migration SQL if needed. Keep all existing functionality intact.
+<br />
+
+
+
+
+
+<br /><h2 class="sr-only">T-02 — IP Whitelist</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-02: IP Whitelist access control
+<br />(Assumes T-01 done — config.php already refactored)
+<br />
+<br />CONTEXT: System runs on LAN only. Max 20-25 users. Only specific office machines 
+<br />should access it. No mobile access needed.
+<br />
+<br />REQUIREMENT:
+<br />- New DB table: ip_whitelist (id, ip_address TEXT UNIQUE, label TEXT, added_by INTEGER, 
+<br />  added_at DATETIME, is_active INTEGER DEFAULT 1)
+<br />- On EVERY request (in auth.php, before anything else): check if $_SERVER['REMOTE_ADDR'] 
+<br />  is in active ip_whitelist. If not → show a simple blocked.php page (no redirect to login)
+<br />- If whitelist table is EMPTY → allow all (so fresh install works without lockout)
+<br />- Localhost (127.0.0.1, ::1) always allowed regardless
+<br />- Admin panel (admin.php) → new "IP Whitelist" tab:
+<br />  - List current allowed IPs with label and status
+<br />  - Add new IP (with label e.g. "Cabin 3 PC")
+<br />  - Enable/Disable toggle (soft delete, not hard delete)
+<br />  - Remove IP button
+<br />  - Show current visitor's IP at top so admin can easily add it
+<br />
+<br />Provide: updated auth.php (IP check logic), ip_whitelist table schema, 
+<br />admin.php additions (IP management section), blocked.php page.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-03 — Session Timeout</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-03: Session timeout with countdown timer
+<br />
+<br />REQUIREMENT:
+<br />- Idle timeout: 5 minutes (300 seconds)
+<br />- Any user activity (mousemove, keypress, click, scroll) resets timer to 300s
+<br />- At T=60s remaining: show a modal/alert — "Session expire hone wala hai. 1 minute bacha hai."
+<br />  with a live countdown and an "Extend Session" button
+<br />- If user clicks Extend: AJAX call to session_keep_alive endpoint → timer resets to 300s
+<br />- If user does NOT click within 60s: auto-redirect to logout.php
+<br />- Timer display: small unobtrusive element on topbar (e.g. "Session: 4:32") always visible
+<br />- Timer turns amber color at 2 min remaining, red at 1 min
+<br />
+<br />IMPLEMENTATION:
+<br />- Pure vanilla JS (no libraries)
+<br />- Session keep-alive: add action 'keepalive' in api.php — just touches the session and 
+<br />  returns {ok:true}
+<br />- Timer JS should be in a separate file: session_timer.js, included in all pages via 
+<br />  a common header include
+<br />- On server side: PHP session gc_maxlifetime should match (set in config.php: 
+<br />  ini_set('session.gc_maxlifetime', 360) — 1 min buffer)
+<br />
+<br />Provide: session_timer.js (complete), api.php keepalive action addition, 
+<br />config.php session settings, and HTML snippet to include timer display in topbar.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-04 — Tech Sub-type + AMC Fields</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-04: Technology sub-type + AMC fields
+<br />
+<br />PART A — Tech sub-type field:
+<br />- Add column to projects: tech_subtype TEXT
+<br />- Values depend on main technology:
+<br />  .NET options: Classic ASP / ASP.NET WebForms / ASP.NET MVC / ASP.NET Core / Static / Dynamic
+<br />  WebMyWay options: Standard / Custom
+<br />  AEM options: AEM 6.x / AEM Cloud
+<br />  Other technologies: just "Static" / "Dynamic" / "Other"
+<br />- In project_form.php: tech_subtype dropdown should change options based on selected technology 
+<br />  (JS-driven dynamic dropdown)
+<br />- Show tech_subtype in project list as a small badge next to technology name
+<br />
+<br />PART B — AMC fields:
+<br />- Add columns to projects: 
+<br />  amc_amount REAL DEFAULT 0
+<br />  amc_type TEXT DEFAULT '' (values: Paid / Exemption / Free / NA)
+<br />  amc_start_date TEXT
+<br />  amc_end_date TEXT
+<br />  amc_remarks TEXT
+<br />- In project_form.php: new "Financial / AMC" section with these fields
+<br />- In project list: show AMC type badge and expiry (highlight red if expired, amber if 
+<br />  expiring in 30 days)
+<br />
+<br />Provide: migration SQL (ALTER TABLE safe for existing DBs), updated project_form.php 
+<br />(relevant sections), updated index.php list view (relevant sections), JS for dynamic subtype.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-05 — Visitor Count History</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-05: Visitor count time-series history
+<br />
+<br />CURRENT STATE: projects table has total_visitor_counter TEXT and last_update_date TEXT 
+<br />— only latest value stored.
+<br />
+<br />TARGET: Every manual entry becomes a log row. Old fields kept for backward compatibility.
+<br />
+<br />SCHEMA CHANGE:
+<br />CREATE TABLE project_visitor_log (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  project_id INTEGER NOT NULL,
+<br />  entry_date DATE NOT NULL,
+<br />  visitor_count INTEGER NOT NULL,
+<br />  site_last_update_date DATE,
+<br />  entered_by INTEGER,
+<br />  entered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  remarks TEXT,
+<br />  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+<br />);
+<br />
+<br />DATA MIGRATION:
+<br />- For each project that has existing total_visitor_counter: insert one row into 
+<br />  project_visitor_log with entry_date = date('now'), visitor_count = existing value,
+<br />  site_last_update_date = existing last_update_date
+<br />- Keep original columns in projects table (don't drop them) but auto-sync on new entries
+<br />
+<br />UI CHANGES:
+<br />- Project form: replace single visitor count field with "Add Visitor Log Entry" section:
+<br />  entry_date (date picker, default today, cannot be future), visitor_count (number), 
+<br />  site_last_update_date (date), remarks
+<br />- Show last 5 entries in a small table on project detail
+<br />- Button to view full log history
+<br />
+<br />REPORT (in report.php or new visitor_report.php):
+<br />- Select project (or all projects)
+<br />- Select date range: from_date to to_date (to_date cannot be future)
+<br />- Logic: 
+<br />  baseline = latest entry WHERE entry_date <= from_date (if none, use first entry ever)
+<br />  final = latest entry WHERE entry_date <= to_date
+<br />  net_gain = final.visitor_count - baseline.visitor_count
+<br />  updates_count = COUNT(DISTINCT site_last_update_date) WHERE entry_date > baseline.entry_date 
+<br />                  AND entry_date <= to_date AND site_last_update_date != baseline.site_last_update_date
+<br />- Output table: Project Name | Baseline Count | Baseline Date | Final Count | Final Date | 
+<br />  Net Gain | Site Updates in Period
+<br />- CSV export
+<br />
+<br />Provide: new table SQL, migration script, updated project_form.php section, 
+<br />visitor log history view, and complete report query logic with PHP.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-06 — Technology Migration History</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-06: Technology change/migration history
+<br />
+<br />SCHEMA:
+<br />CREATE TABLE technology_change_log (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  project_id INTEGER NOT NULL,
+<br />  from_technology TEXT,
+<br />  from_subtype TEXT,
+<br />  to_technology TEXT NOT NULL,
+<br />  to_subtype TEXT,
+<br />  change_date DATE NOT NULL,
+<br />  reason TEXT,
+<br />  changed_by INTEGER,
+<br />  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+<br />);
+<br />
+<br />TRIGGER LOGIC (in PHP, not SQL trigger):
+<br />- When project_form.php saves an edit, compare old technology+tech_subtype with new values
+<br />- If changed: automatically insert a row into technology_change_log
+<br />- Do not ask user separately — auto-detect and log
+<br />
+<br />UI:
+<br />- Project detail view: "Technology History" section showing chronological log table
+<br />  (Date | From | To | Reason | Changed By)
+<br />- reason field: editable inline or as a popup prompt when save is clicked and 
+<br />  technology change is detected ("Technology change detected. Reason? (optional)")
+<br />
+<br />REPORT (add to report.php):
+<br />- Filter by: from_technology, to_technology, date range
+<br />- Output: Project Name | From Tech | To Tech | Date | Reason
+<br />- Count summary: "X sites moved from AEM, Y sites moved to WebMyWay" etc.
+<br />- CSV export
+<br />
+<br />Provide: table schema, PHP detection logic in project_form.php save section, 
+<br />project detail history view, and report query.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-07 — SR Tracking Module</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-07: Service Request (SR) tracking module
+<br />
+<br />SCHEMA:
+<br />CREATE TABLE service_requests (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  project_id INTEGER NOT NULL,
+<br />  sr_number TEXT NOT NULL,
+<br />  sr_date DATE NOT NULL,
+<br />  purpose TEXT NOT NULL,
+<br />  raised_by TEXT,
+<br />  current_status TEXT DEFAULT 'Open',
+<br />  -- status values: Open / In Progress / Resolved / Closed
+<br />  resolution_date DATE,
+<br />  remarks TEXT,
+<br />  created_by INTEGER,
+<br />  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+<br />);
+<br />
+<br />UI REQUIREMENTS:
+<br />- New file: sr.php — handles add/edit/list for SRs
+<br />- On project detail/edit page: "Service Requests" section showing SR list for that project
+<br />  with quick "Add SR" inline form
+<br />- SR list shows: SR No. | Date | Purpose | Status badge | Resolution Date | Actions
+<br />- Status badge colors: Open=amber, In Progress=blue, Resolved=green, Closed=gray
+<br />- Edit SR: inline or modal (no separate page needed)
+<br />- Delete SR: admin only
+<br />
+<br />FILTERS (on sr.php list page):
+<br />- Filter by: Project, Status, Date range (sr_date from-to)
+<br />- Show all SRs across projects in one view (not just per-project)
+<br />
+<br />Provide: table schema, sr.php (complete file), project_form.php SR section snippet, 
+<br />and admin.php delete action addition.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-08 — Audit Findings Module</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-08: Audit findings & punch list (internal issue tracker)
+<br />
+<br />SCHEMA:
+<br />CREATE TABLE audit_findings (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  project_id INTEGER NOT NULL,
+<br />  finding_description TEXT NOT NULL,
+<br />  severity TEXT DEFAULT 'Minor',
+<br />  -- severity: Critical / Major / Minor
+<br />  found_by TEXT,
+<br />  found_date DATE NOT NULL,
+<br />  assigned_to TEXT,
+<br />  target_date DATE,
+<br />  current_status TEXT DEFAULT 'Open',
+<br />  -- status: Open / In Progress / Closed
+<br />  closure_date DATE,
+<br />  closure_remarks TEXT,
+<br />  created_by INTEGER,
+<br />  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+<br />);
+<br />
+<br />UI REQUIREMENTS:
+<br />- New file: findings.php — full findings management
+<br />- Project detail page: "Audit Findings" section with finding count (open/total) and quick add
+<br />- findings.php: all findings across all projects, filterable by project/severity/status/date
+<br />- Finding row shows: Project | Description (truncated) | Severity badge | Found Date | 
+<br />  Assigned To | Target Date | Status | Days Overdue (if target_date passed and still Open/In Progress)
+<br />- Severity badge: Critical=red, Major=amber, Minor=blue
+<br />- Bulk status update: select multiple findings → mark as Closed
+<br />
+<br />DASHBOARD ADDITIONS (index.php):
+<br />- Add to existing stats chips: "Open Findings" count (link to findings.php?status=Open)
+<br />- "Overdue Findings" count in red (findings where target_date < today and status != Closed)
+<br />
+<br />Provide: table schema, findings.php (complete), project detail section snippet, 
+<br />dashboard stat additions, and bulk close action in api.php.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-09 — Global Task / Work Order Module</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-09: Global task / work order module
+<br />(Assumes T-04 done — tech_subtype available. T-07, T-08 done for reference on module pattern.)
+<br />
+<br />THIS IS THE MOST COMPLEX MODULE — build carefully.
+<br />
+<br />SCHEMA:
+<br />CREATE TABLE work_orders (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  title TEXT NOT NULL,
+<br />  description TEXT,
+<br />  instruction_source TEXT,   -- e.g. verbal, written, order number
+<br />  applicable_tech TEXT,      -- JSON array: ["NET","AEM","WebMyWay"] or ["ALL"]
+<br />  scope TEXT DEFAULT 'all',  -- 'all' = all sites of selected tech, 'specific' = selected list
+<br />  priority TEXT DEFAULT 'Normal', -- High / Normal / Low
+<br />  deadline DATE,
+<br />  assigned_to TEXT,
+<br />  created_by INTEGER,
+<br />  status TEXT DEFAULT 'Active', -- Active / Completed / Cancelled
+<br />  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+<br />);
+<br />
+<br />CREATE TABLE work_order_sites (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  work_order_id INTEGER NOT NULL,
+<br />  project_id INTEGER NOT NULL,
+<br />  site_status TEXT DEFAULT 'Pending', -- Pending / Done
+<br />  done_by INTEGER,
+<br />  done_at DATETIME,
+<br />  remarks TEXT,
+<br />  UNIQUE(work_order_id, project_id),
+<br />  FOREIGN KEY(work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE,
+<br />  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+<br />);
+<br />
+<br />CREATE TABLE work_order_history (
+<br />  id INTEGER PRIMARY KEY AUTOINCREMENT,
+<br />  work_order_id INTEGER NOT NULL,
+<br />  project_id INTEGER,   -- NULL if overall order status changed
+<br />  action TEXT,
+<br />  changed_by INTEGER,
+<br />  changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+<br />  detail TEXT
+<br />);
+<br />
+<br />LOGIC — when work order is created:
+<br />- If applicable_tech = ["ALL"] and scope = "all": auto-populate work_order_sites with 
+<br />  ALL active projects
+<br />- If applicable_tech = ["WebMyWay"] and scope = "all": auto-populate with all WebMyWay projects
+<br />- If scope = "specific": admin manually selects which projects from a checklist
+<br />
+<br />BULK COMPLETE LOGIC:
+<br />- On work order detail page: show progress bar (X of Y sites done)
+<br />- Per technology group, show "Mark All [WebMyWay] Done" button
+<br />- This one button marks ALL Pending sites of that tech as Done in one DB operation
+<br />- For .NET / AEM: each site has individual "Mark Done" button only (no bulk for these)
+<br />- Log every bulk action in work_order_history
+<br />
+<br />UI — workorders.php:
+<br />- List all work orders with: Title | Tech Scope | Priority | Deadline | Progress (X/Y) | Status
+<br />- Work order detail: 
+<br />  Top: overview + bulk complete buttons per tech
+<br />  Below: site-by-site table with individual done/undo buttons
+<br />  Bottom: activity history log
+<br />- Add work order form: title, description, source, tech multi-select, scope radio, 
+<br />  priority, deadline, assign to
+<br />
+<br />Provide: complete schema, workorders.php (full file), api.php bulk_complete action, 
+<br />and progress calculation query.
+<br />
+<br />
+<br />
+<br />
+<br />
+<br /><h2 class="sr-only">T-10 — Reports Module</h2>
+<br />PROJECT: DevVault Pro v2.5 — T-10: Consolidated reporting module
+<br />(Assumes T-04, T-05, T-06 all done)
+<br />
+<br />Add to existing report.php OR create a new reports.php with tabbed sections:
+<br />
+<br />REPORT 1 — Financial / Status date-range report:
+<br />- Inputs: from_date, to_date (future date not allowed)
+<br />- Query: projects where live_date BETWEEN from_date AND to_date (went Live in period)
+<br />         projects where (status changed to 'closed' in period — need closed_date field 
+<br />         added to projects in T-04 if not already)
+<br />- Output columns: Project Name | Department | Technology | Went Live | AMC Type | 
+<br />  AMC Amount | AMC Period | Status
+<br />- Summary row: Total projects live in period, total AMC value (Paid only), 
+<br />  count Exemption, count Free
+<br />- CSV export
+<br />
+<br />REPORT 2 — Visitor count delta report:
+<br />(Already designed in T-05 — integrate here as a tab)
+<br />
+<br />REPORT 3 — Technology migration summary:
+<br />(Already designed in T-06 — integrate here as a tab)
+<br />
+<br />REPORT 4 — Work order completion report:
+<br />- Inputs: date range, technology filter
+<br />- Output: Work Order Title | Created Date | Deadline | Total Sites | Completed | Pending | 
+<br />  % Done | Status
+<br />- Useful for showing management what tasks were done in a period
+<br />
+<br />GENERAL REQUIREMENTS:
+<br />- All reports: CSV export button
+<br />- All date inputs: max = today (no future date selectable via HTML max attribute)
+<br />- All reports: "No data found" message with helpful text if date range has no results
+<br />- Print-friendly view option for each report (CSS @media print)
+<br />
+<br />Provide: complete reports.php with all 4 report tabs, all query logic, CSV export 
+<br />for each, and any schema additions needed (e.g. closed_date on projects).
+<br />
+<br />
+</body>

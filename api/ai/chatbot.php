@@ -1,241 +1,175 @@
 <?php
 /**
- * WealthDash — t381: AI Chat Assistant
- * Portfolio ke baare mein natural language chat using Claude API
- * Actions: ai_chat_send | ai_chat_history | ai_chat_clear
+ * WealthDash — t330: AI Chatbot — Ask About Investments
+ * File: api/ai/chatbot.php
+ * Actions: ai_chat_send, ai_chat_history, ai_chat_clear, ai_chat_sessions
+ *
+ * Builds on existing chatbot.php pattern from project.
+ * Uses Claude API with portfolio context. Falls back to rule-based.
  */
 defined('WEALTHDASH') or die('Direct access not allowed.');
 
-$currentUser = require_auth();
-$userId      = (int)$currentUser['id'];
-$action      = $_POST['action'] ?? $_GET['action'] ?? 'ai_chat_send';
+$action = clean($_POST['action'] ?? $_GET['action'] ?? '');
+$userId = (int)$_SESSION['user_id'];
+$portfolioId = get_user_portfolio_id($userId);
 
-// Ensure chat history table
-try {
-    DB::conn()->exec("
-        CREATE TABLE IF NOT EXISTS ai_chat_history (
-            id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            user_id    INT UNSIGNED NOT NULL,
-            role       ENUM('user','assistant') NOT NULL,
-            message    TEXT NOT NULL,
-            context_id VARCHAR(36) DEFAULT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_user_ctx (user_id, context_id),
-            INDEX idx_created (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    ");
-} catch (Exception $e) {}
+// System prompt
+$SYSTEM_PROMPT = "Tum WealthDash ke AI Financial Assistant ho. Ek friendly, knowledgeable Indian financial advisor ki tarah baat karo.
 
-RateLimit::check('ai_chat', $userId);
+RULES:
+1. Hinglish mein respond karo (Hindi + English mix) — simple aur clear
+2. Indian context: SEBI, RBI, BSE/NSE, Indian tax laws, FY April-March
+3. Numbers: ₹ sign, Indian format (lakhs/crores)
+4. Concise: 3-5 sentences max unless detail maanga ho
+5. Disclaimer add karo: 'Main SEBI registered advisor nahi hoon'
+6. Portfolio data ke baare mein specific answers do
+7. Agar data nahi hai to honestly batao
 
-// ── Get user's portfolio summary for AI context ────────────────
-function getPortfolioContext(int $userId): string {
-    try {
-        // MF Holdings
-        $mf = DB::fetchAll(
-            "SELECT f.fund_name, mh.units, mh.current_nav, mh.current_value, mh.invested_amount,
-                    ROUND((mh.current_value - mh.invested_amount) / mh.invested_amount * 100, 2) AS gain_pct
-             FROM mf_holdings mh
-             JOIN funds f ON f.id = mh.fund_id
-             JOIN portfolios p ON p.id = mh.portfolio_id
-             WHERE p.user_id = ? AND mh.is_active = 1
-             ORDER BY mh.current_value DESC LIMIT 15",
-            [$userId]
-        );
+PORTFOLIO CONTEXT:
+__PORTFOLIO__
 
-        // FDs
-        $fds = DB::fetchAll(
-            "SELECT bank_name, principal_amount, interest_rate, maturity_date, maturity_amount
-             FROM fd_investments WHERE user_id = ? AND status = 'active' LIMIT 10",
-            [$userId]
-        );
+Agar user koi aise cheez pooche jo portfolio data mein nahi hai, honestly batao.";
 
-        // NPS
-        $nps = DB::fetchAll(
-            "SELECT pfm_name, tier, current_value, invested_amount FROM nps_accounts WHERE user_id = ? AND is_active = 1",
-            [$userId]
-        );
-
-        // Net worth summary
-        $mfTotal  = array_sum(array_column($mf, 'current_value'));
-        $fdTotal  = array_sum(array_column($fds, 'principal_amount'));
-        $npsTotal = array_sum(array_column($nps, 'current_value'));
-
-        $lines = [];
-        $lines[] = "=== WealthDash Portfolio Summary (User #{$userId}) ===";
-        $lines[] = "Net Worth (approx): ₹" . number_format($mfTotal + $fdTotal + $npsTotal, 0);
-        $lines[] = "";
-
-        if ($mf) {
-            $lines[] = "MUTUAL FUNDS (Top " . count($mf) . "):";
-            foreach ($mf as $f) {
-                $sign = $f['gain_pct'] >= 0 ? '+' : '';
-                $lines[] = "  • {$f['fund_name']}: ₹" . number_format($f['current_value'], 0)
-                         . " invested ₹" . number_format($f['invested_amount'], 0)
-                         . " ({$sign}{$f['gain_pct']}%)";
-            }
-            $lines[] = "  Total MF: ₹" . number_format($mfTotal, 0);
-            $lines[] = "";
-        }
-
-        if ($fds) {
-            $lines[] = "FIXED DEPOSITS:";
-            foreach ($fds as $f) {
-                $lines[] = "  • {$f['bank_name']}: ₹" . number_format($f['principal_amount'], 0)
-                         . " @ {$f['interest_rate']}% matures " . date('d M Y', strtotime($f['maturity_date']));
-            }
-            $lines[] = "  Total FD: ₹" . number_format($fdTotal, 0);
-            $lines[] = "";
-        }
-
-        if ($nps) {
-            $lines[] = "NPS:";
-            foreach ($nps as $n) {
-                $lines[] = "  • {$n['pfm_name']} Tier-{$n['tier']}: ₹" . number_format($n['current_value'], 0);
-            }
-            $lines[] = "  Total NPS: ₹" . number_format($npsTotal, 0);
-        }
-
-        return implode("\n", $lines);
-
-    } catch (Exception $e) {
-        return "Portfolio data fetch karne mein error aaya: " . $e->getMessage();
-    }
-}
-
-$SYSTEM_PROMPT = <<<PROMPT
-Tum WealthDash ke AI Financial Assistant ho. Tum ek knowledgeable, helpful, aur honest Indian financial advisor ki tarah behave karo.
-
-KEY RULES:
-1. ALWAYS respond in Hinglish (Hindi + English mix) jaise is user ke saath baat ho rahi hai — friendly aur simple
-2. Indian tax laws, SEBI rules, aur Indian market context use karo
-3. Specific numbers provide karo jab available ho (portfolio data neeche diya hai)
-4. Disclaimer: "Main SEBI registered advisor nahi hoon — major decisions se pehle professional se milein"
-5. Concise raho — 3-5 paragraphs maximum unless user detail maange
-6. Numbers Indian format mein (₹ sign, lakhs/crores preferred)
-7. Tax FY April-March follow karo
-
-PORTFOLIO DATA:
-{PORTFOLIO_CONTEXT}
-
-Agar koi cheez portfolio data mein nahi hai to honestly batao. Assumptions mat banao.
-PROMPT;
-
-// ══════════════════════════════════════════════════════════════
 switch ($action) {
 
-    // ── SEND MESSAGE ───────────────────────────────────────────
-    case 'ai_chat_send':
+    case 'ai_chat_send': {
         csrf_verify();
+        RateLimit::check('ai_chat', $userId);
+
         $message   = trim($_POST['message'] ?? '');
         $contextId = clean($_POST['context_id'] ?? bin2hex(random_bytes(8)));
 
-        if (!$message) json_response(false, 'Message empty hai.');
+        if (!$message)             json_response(false, 'Message empty hai.');
         if (mb_strlen($message) > 2000) json_response(false, 'Message bahut lamba hai (max 2000 chars).');
 
-        // Get recent history (last 8 messages for context)
+        // Portfolio context
+        $holdings = DB::fetchAll(
+            "SELECT h.fund_name, h.units * COALESCE(n.nav, h.avg_cost_per_unit) AS value,
+                    (h.units * COALESCE(n.nav, h.avg_cost_per_unit)) - (h.units * h.avg_cost_per_unit) AS gain
+             FROM mf_holdings h
+             LEFT JOIN mf_nav_latest n ON n.mf_id = h.mf_id
+             WHERE h.user_id=? AND h.portfolio_id=? AND h.units>0
+             ORDER BY value DESC LIMIT 10",
+            [$userId, $portfolioId]
+        );
+        $totalValue = array_sum(array_column($holdings, 'value'));
+        $totalGain  = array_sum(array_column($holdings, 'gain'));
+        $gainPct    = ($totalValue - $totalGain) > 0 ? round($totalGain / ($totalValue - $totalGain) * 100, 2) : 0;
+
+        $activeSIPs = (int)(DB::fetchVal("SELECT COUNT(*) FROM mf_sips WHERE user_id=? AND portfolio_id=? AND status='active'", [$userId, $portfolioId]) ?? 0);
+        $sipTotal   = (float)(DB::fetchVal("SELECT COALESCE(SUM(sip_amount),0) FROM mf_sips WHERE user_id=? AND portfolio_id=? AND status='active'", [$userId, $portfolioId]) ?? 0);
+
+        $portfolioCtx = "Portfolio Value: ₹" . number_format($totalValue, 0) .
+                        "\nTotal Gain: ₹" . number_format($totalGain, 0) . " ({$gainPct}%)" .
+                        "\nActive SIPs: {$activeSIPs} (₹" . number_format($sipTotal, 0) . "/month)" .
+                        "\nTop Holdings:\n" . implode("\n", array_map(
+                            fn($h) => "- {$h['fund_name']}: ₹" . number_format((float)$h['value'], 0),
+                            array_slice($holdings, 0, 5)
+                        ));
+
+        $systemPrompt = str_replace('__PORTFOLIO__', $portfolioCtx, $SYSTEM_PROMPT);
+
+        // Get recent history
         $history = DB::fetchAll(
             "SELECT role, message FROM ai_chat_history
-             WHERE user_id = ? AND context_id = ?
-             ORDER BY created_at DESC LIMIT 8",
+             WHERE user_id=? AND context_id=?
+             ORDER BY created_at DESC LIMIT 10",
             [$userId, $contextId]
         );
         $history = array_reverse($history);
 
-        // Build messages array for Claude
-        $messages = [];
-        foreach ($history as $h) {
-            $messages[] = ['role' => $h['role'], 'content' => $h['message']];
-        }
-        $messages[] = ['role' => 'user', 'content' => $message];
-
-        // Get portfolio context
-        $portfolioCtx = getPortfolioContext($userId);
-        $systemPrompt = str_replace('{PORTFOLIO_CONTEXT}', $portfolioCtx, $SYSTEM_PROMPT);
-
         // Save user message
-        DB::run(
-            "INSERT INTO ai_chat_history (user_id, role, message, context_id) VALUES (?, 'user', ?, ?)",
-            [$userId, $message, $contextId]
+        DB::execute(
+            "INSERT INTO ai_chat_history(user_id, role, message, context_id, created_at) VALUES(?,?,?,?,NOW())",
+            [$userId, 'user', $message, $contextId]
         );
 
-        // Call Claude API
-        $apiKey = $_ENV['ANTHROPIC_API_KEY'] ?? getenv('ANTHROPIC_API_KEY') ?? '';
+        $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : ($_ENV['ANTHROPIC_API_KEY'] ?? '');
+
         if (!$apiKey) {
-            json_response(false, 'AI service configure nahi hai. Admin se contact karo.');
+            // Rule-based fallback
+            $reply = _chatbot_fallback($message, $totalValue, $gainPct, $activeSIPs, $sipTotal, $holdings);
+            DB::execute("INSERT INTO ai_chat_history(user_id,role,message,context_id,created_at) VALUES(?,?,?,?,NOW())", [$userId,'assistant',$reply,$contextId]);
+            json_response(true,'ok',['reply'=>$reply,'context_id'=>$contextId,'mode'=>'rule_based']);
         }
 
-        $payload = json_encode([
-            'model'      => 'claude-sonnet-4-20250514',
-            'max_tokens' => 1024,
-            'system'     => $systemPrompt,
-            'messages'   => $messages,
-        ]);
+        $messages = array_map(fn($h) => ['role'=>$h['role'],'content'=>$h['message']], $history);
+        $messages[] = ['role'=>'user','content'=>$message];
 
-        $ch = curl_init('https://api.anthropic.com/v1/messages');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'x-api-key: ' . $apiKey,
-                'anthropic-version: 2023-06-01',
-            ],
-        ]);
+        $resp = @file_get_contents('https://api.anthropic.com/v1/messages', false,
+            stream_context_create(['http'=>[
+                'method'  => 'POST',
+                'header'  => "Content-Type: application/json\r\nX-API-Key: {$apiKey}\r\nanthropic-version: 2023-06-01\r\n",
+                'content' => json_encode(['model'=>'claude-sonnet-4-20250514','max_tokens'=>600,'system'=>$systemPrompt,'messages'=>$messages]),
+                'timeout' => 25,
+            ]]));
 
-        $resp    = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        if (!$resp) json_response(false, 'AI service se response nahi aaya. Thodi der baad try karo.');
 
-        if ($httpCode !== 200 || !$resp) {
-            json_response(false, 'AI service se response nahi aaya. Thodi der baad try karo.');
-        }
-
-        $data = json_decode($resp, true);
+        $data  = json_decode($resp, true);
         $reply = $data['content'][0]['text'] ?? '';
+        if (!$reply) json_response(false, 'AI response empty tha.');
 
-        if (!$reply) {
-            json_response(false, 'AI ka response empty tha. Dobara try karo.');
-        }
+        DB::execute("INSERT INTO ai_chat_history(user_id,role,message,context_id,created_at) VALUES(?,?,?,?,NOW())", [$userId,'assistant',$reply,$contextId]);
 
-        // Save assistant reply
-        DB::run(
-            "INSERT INTO ai_chat_history (user_id, role, message, context_id) VALUES (?, 'assistant', ?, ?)",
-            [$userId, $reply, $contextId]
-        );
-
-        json_response(true, '', [
-            'reply'      => $reply,
-            'context_id' => $contextId,
-            'tokens_used'=> $data['usage']['output_tokens'] ?? 0,
+        json_response(true,'ok',[
+            'reply'       => $reply,
+            'context_id'  => $contextId,
+            'mode'        => 'ai',
+            'tokens_used' => $data['usage']['output_tokens'] ?? 0,
         ]);
+        break;
+    }
 
-    // ── GET HISTORY ────────────────────────────────────────────
-    case 'ai_chat_history':
-        $contextId = clean($_GET['context_id'] ?? '');
-        $limit     = min((int) ($_GET['limit'] ?? 50), 100);
+    case 'ai_chat_history': {
+        $contextId = clean($_GET['context_id'] ?? $_POST['context_id'] ?? '');
+        $limit     = min((int)($_GET['limit'] ?? 50), 100);
+        if ($contextId) {
+            $msgs = DB::fetchAll("SELECT role,message,created_at FROM ai_chat_history WHERE user_id=? AND context_id=? ORDER BY created_at ASC LIMIT ?", [$userId,$contextId,$limit]);
+        } else {
+            $msgs = DB::fetchAll("SELECT role,message,context_id,created_at FROM ai_chat_history WHERE user_id=? ORDER BY created_at DESC LIMIT ?", [$userId,$limit]);
+        }
+        json_response(true,'ok',['messages'=>$msgs]);
+        break;
+    }
 
-        $query  = $contextId
-            ? "SELECT role, message, context_id, created_at FROM ai_chat_history WHERE user_id = ? AND context_id = ? ORDER BY created_at ASC LIMIT ?"
-            : "SELECT role, message, context_id, created_at FROM ai_chat_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ?";
-        $params = $contextId ? [$userId, $contextId, $limit] : [$userId, $limit];
+    case 'ai_chat_sessions': {
+        $sessions = DB::fetchAll(
+            "SELECT context_id, MIN(created_at) AS started_at, COUNT(*) AS msg_count,
+                    MAX(created_at) AS last_msg
+             FROM ai_chat_history WHERE user_id=? GROUP BY context_id ORDER BY last_msg DESC LIMIT 10",
+            [$userId]
+        );
+        json_response(true,'ok',['sessions'=>$sessions]);
+        break;
+    }
 
-        $messages = DB::fetchAll($query, $params);
-        json_response(true, '', ['messages' => $messages]);
-
-    // ── CLEAR HISTORY ──────────────────────────────────────────
-    case 'ai_chat_clear':
+    case 'ai_chat_clear': {
         csrf_verify();
         $contextId = clean($_POST['context_id'] ?? '');
-        if ($contextId) {
-            DB::run("DELETE FROM ai_chat_history WHERE user_id = ? AND context_id = ?", [$userId, $contextId]);
-        } else {
-            DB::run("DELETE FROM ai_chat_history WHERE user_id = ?", [$userId]);
-        }
-        json_response(true, 'Chat history clear ho gayi.');
+        if ($contextId) DB::execute("DELETE FROM ai_chat_history WHERE user_id=? AND context_id=?", [$userId,$contextId]);
+        else            DB::execute("DELETE FROM ai_chat_history WHERE user_id=?", [$userId]);
+        json_response(true,'Chat clear ho gayi.');
+        break;
+    }
 
-    default:
-        json_response(false, 'Unknown AI chat action.', [], 400);
+    default: json_response(false,'Unknown action.',[],400);
+}
+
+// Rule-based fallback responses
+function _chatbot_fallback(string $msg, float $totalValue, float $gainPct, int $sips, float $sipTotal, array $holdings): string {
+    $msg = strtolower($msg);
+    if (str_contains($msg, 'portfolio') || str_contains($msg, 'value')) {
+        return "Aapka portfolio abhi ₹" . number_format($totalValue, 0) . " ka hai, total return " . ($gainPct >= 0 ? '+' : '') . "{$gainPct}% hai. {$sips} active SIP chal raha hai ₹" . number_format($sipTotal, 0) . "/month ke saath. (Note: AI service configure nahi hai — ANTHROPIC_API_KEY set karo for full AI chat.)";
+    }
+    if (str_contains($msg, 'sip')) {
+        return "Aapke paas {$sips} active SIP hain, total ₹" . number_format($sipTotal, 0) . "/month. SIP mein consistency sabse important hai — market ups and downs mein bhi invest karte rehna chahiye.";
+    }
+    if (str_contains($msg, 'tax') || str_contains($msg, 'ltcg') || str_contains($msg, 'stcg')) {
+        return "Equity mutual funds mein 1 saal se zyada hold karne par LTCG @12.5% (₹1.25L tak exempt), 1 saal se kam par STCG @20% lagta hai. Debt funds par income tax slab ke hisaab se tax lagta hai. Specific advice ke liye CA se milein.";
+    }
+    if (str_contains($msg, 'market') || str_contains($msg, 'nifty') || str_contains($msg, 'sensex')) {
+        return "Main real-time market data nahi de sakta, lekin Indian equity markets long term mein 12-15% CAGR dete aaye hain. SIP ke zariye market timing ki chinta nahi karni chahiye — rupee cost averaging automatically kaam karta hai.";
+    }
+    return "Main AI chat ke liye ready hoon, lekin abhi AI key configure nahi hai. Aap ANTHROPIC_API_KEY .env mein set karo. Tab main aapke portfolio ke baare mein detail mein baat kar sakta hoon. Koi bhi investment related sawaal pooch sakte hain!";
 }

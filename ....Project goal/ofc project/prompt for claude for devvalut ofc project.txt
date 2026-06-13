@@ -1,0 +1,129 @@
+PROJECT CONTEXT:
+You are helping develop DevVault Pro — an internal PHP + SQLite web application used by a 
+government IT department (NIC/PSU style) to manage all IT projects, server infrastructure, 
+credentials, compliance, documents, and site monitoring. The system runs exclusively on 
+LAN (no public internet access). Max ~20-25 users. Single office use only.
+
+Current version is v2.5. We are planning/discussing v3.0 features. No code to be written 
+unless explicitly asked — discussion and design phase only unless stated otherwise.
+
+Tech stack: PHP 7.4+, SQLite (WAL mode), vanilla JS, no frameworks.
+
+---
+
+CONFIRMED REQUIREMENTS FOR v3.0 (do not suggest alternatives unless asked):
+
+1. IP WHITELIST ACCESS CONTROL
+   - System should only be accessible from a pre-defined list of IP addresses
+   - Admin can add/remove allowed IPs from admin panel
+   - All other IPs get blocked at application level (not server level)
+   - No mobile responsive needed — desktop/laptop only, office LAN use
+
+2. SESSION TIMEOUT WITH COUNTDOWN TIMER
+   - Max idle time: 5 minutes
+   - At 5 minutes: alert/modal appears showing "Session expiring in 1 minute — Extend?"
+   - If user clicks Extend within 1 minute: timer resets to 5 minutes
+   - Any page activity (click, keypress, scroll) resets timer to 5 minutes
+   - If no action within that 1 minute: auto logout, redirect to login page
+   - Timer shows live countdown (decreasing) visible somewhere on screen
+
+3. GLOBAL TASK / WORK ORDER MODULE (Internal — replaces need for Jira)
+   - Create a "task" or "work order" for any instruction received (e.g. Model Code of Conduct 
+     applied — remove CM/Minister photos from all sites)
+   - Task fields: Title, Description, Instruction Source (verbal/written/order no.), 
+     Applicable Technology (multi-select: .NET / AEM / WebMyWay / All / Custom list), 
+     Scope (All sites of selected tech / Specific sites only), Priority, Deadline, 
+     Assigned To, Status (Pending/In Progress/Done)
+   - Each project/site linked to this task shows individual completion status
+   - BULK COMPLETE: For WebMyWay (800+ sites) — single "Mark All Done" button 
+     per task marks all WebMyWay sites as complete in one click. For .NET/AEM — 
+     individual site-by-site completion required (one by one)
+   - Task history/audit: who changed what status and when
+
+4. SR (SERVICE REQUEST) TRACKING
+   - Each project can have multiple SR entries
+   - SR fields: SR Number, SR Date, Purpose/Description, Raised By, Current Status 
+     (Open/In Progress/Resolved/Closed), Resolution Date, Remarks
+   - SR history per project, filterable by date range or status
+
+5. AUDIT FINDINGS & PUNCH LIST (Internal Issue Tracker)
+   - After each site audit/check, log findings (issues/deficiencies found)
+   - Finding fields: Project, Finding Description, Severity (Critical/Major/Minor), 
+     Found By, Found Date, Assigned To (for resolution), Target Date, 
+     Status (Open/In Progress/Closed), Closure Date, Closure Remarks
+   - Dashboard shows: total open findings, overdue findings, findings by severity
+   - Strictly internal — no vendor access, no external sharing
+
+6. VISITOR COUNT & LAST UPDATE — TIME-SERIES HISTORY
+   - Currently only last value is saved. Change to: every manual entry creates a new 
+     row with (project_id, entry_date, visitor_count, site_last_update_date)
+   - Report: select date range (from_date to to_date, future date not allowed)
+   - System finds: the entry just before or on from_date (baseline), and the latest 
+     entry on or before to_date (final value)
+   - Output: net visitor gain = final_count - baseline_count, 
+     number of site updates in that period = count of distinct site_last_update_date 
+     changes between baseline and final entries
+   - Example: entries on 25-Dec (525 visitors), 14-Jan (629), 28-Feb (711, update on 
+     01-Feb). Range selected: 01-Jan to 13-Jun. 
+     Result: gain = 711 - 525 = 186, updates = 1
+
+7. TECHNOLOGY MIGRATION / CHANGE HISTORY
+   - When a project's technology changes (e.g. AEM → .NET, .NET → WebMyWay), log it:
+     from_technology, to_technology, change_date, reason/remarks, changed_by
+   - Technology change history tab on project detail page
+   - Report: filter by from_tech or to_tech, date range — shows migration trends
+
+8. TECHNOLOGY SUB-TYPE CLASSIFICATION
+   - Add "tech_subtype" field to projects, especially for .NET sites:
+     Options: Classic ASP / ASP.NET WebForms / ASP.NET MVC / ASP.NET Core / 
+     Static / Dynamic / Other
+   - Applicable to all technologies (WebMyWay, AEM, etc. can also have subtypes)
+   - Visible in project list, filterable in reports
+
+9. FINANCIAL / STATUS DATE-RANGE REPORT
+   - Report for a given date range: how many sites went Live, how many Closed, 
+     total AMC value of live sites, how many sites got cost Exemption vs paid AMC
+   - Fields needed on project: AMC Amount, AMC Type (Paid / Exemption / Free), 
+     AMC validity dates
+   - CSV export of this report
+
+---
+
+EXISTING FEATURES TO RETAIN (v2.5):
+- AES-256 encrypted password storage
+- Role-based access: Admin / Member / Viewer
+- CSRF protection on all POST actions
+- Activity log (password view, edits, deletes)
+- Dark/Light theme per user with custom accent color
+- Document upload per project
+- Compliance checklist per project
+- Import/Export (JSON/CSV)
+- Dashboard with live stats (auto-refresh)
+- Environment management (Local/Staging/Production/Audit/Other)
+- Multiple contacts per project
+
+---
+
+KNOWN ISSUES TO FIX IN v3.0:
+- Move ENCRYPT_KEY from config.php to .env file (currently hardcoded — security risk)
+- File upload: add actual MIME type validation, not just extension check
+- Force password change on first login for default admin account
+- Break index.php and project_form.php into smaller includes (both are 41KB+ single files)
+
+---
+
+CONSTRAINTS:
+- PHP + SQLite only (no MySQL migration planned yet)
+- No external libraries/frameworks unless lightweight and self-hostable
+- LAN only — no internet dependency at runtime
+- Max 20-25 concurrent users
+- No mobile responsive needed
+- All data stays internal — no third-party integrations
+
+---
+
+DISCUSSION APPROACH:
+When I ask about a specific feature, discuss: (a) database schema changes needed, 
+(b) UI/UX flow, (c) edge cases, (d) implementation approach in PHP/SQLite.
+When I say "build this" or "code karo", then write actual code.
+Otherwise stay in discussion/design mode.
