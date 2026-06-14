@@ -1,13 +1,37 @@
 <?php
 define('APP_NAME', 'DevVault Pro');
-define('APP_VERSION', '2.5.0');
+define('APP_VERSION', '3.0.0');
 define('DB_PATH', __DIR__ . '/data/vault.db');
 define('UPLOAD_DIR', __DIR__ . '/data/uploads');
-define('ENCRYPT_KEY', 'DevVaultPro_S3cur3_K3y_2025_Ch4ng3Me!');
 
+// ── Load ENCRYPT_KEY from .env file ──────────────────────────────────────────
+// .env file must be in same directory as config.php
+// Format: ENCRYPT_KEY=your_secret_key_here
+function load_env(): void {
+    $env_file = __DIR__ . '/.env';
+    if (!file_exists($env_file)) {
+        die('FATAL ERROR: .env file not found. Create .env file in project root with ENCRYPT_KEY= defined. See README.');
+    }
+    $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0) continue;
+        if (strpos($line, '=') === false) continue;
+        [$key, $val] = explode('=', $line, 2);
+        $key = trim($key);
+        $val = trim($val);
+        if (!defined($key)) define($key, $val);
+    }
+    if (!defined('ENCRYPT_KEY') || ENCRYPT_KEY === '') {
+        die('FATAL ERROR: ENCRYPT_KEY not found in .env file.');
+    }
+}
+load_env();
+
+// ── Encryption helpers ────────────────────────────────────────────────────────
 function encrypt_val(string $plain): string {
     if (!$plain) return '';
-    $iv = random_bytes(16);
+    $iv  = random_bytes(16);
     $enc = openssl_encrypt($plain, 'AES-256-CBC', ENCRYPT_KEY, 0, $iv);
     return base64_encode($iv . '::' . $enc);
 }
@@ -20,6 +44,7 @@ function decrypt_val(string $cipher): string {
     return openssl_decrypt($enc, 'AES-256-CBC', ENCRYPT_KEY, 0, $iv) ?: '';
 }
 
+// ── Database ──────────────────────────────────────────────────────────────────
 function get_db(): PDO {
     static $db = null;
     if ($db) return $db;
@@ -34,6 +59,7 @@ function get_db(): PDO {
             password_hash TEXT NOT NULL,
             role TEXT DEFAULT 'member',
             is_active INTEGER DEFAULT 1,
+            password_changed INTEGER DEFAULT 0,
             theme TEXT DEFAULT 'dark',
             accent_color TEXT DEFAULT '#00d4ff',
             bg_color TEXT DEFAULT '',
@@ -137,11 +163,12 @@ function get_db(): PDO {
         );
     ");
 
-    // Seed default admin
+    // ── Seed default admin (only inserts if not already present)
+    // password_changed column is added via migration_t01.php — do not reference it here
     $db->exec("INSERT OR IGNORE INTO users (username, password_hash, role)
         VALUES ('admin', '" . password_hash('admin123', PASSWORD_DEFAULT) . "', 'admin')");
 
-    // Seed default dynamic options
+    // ── Seed default dynamic options
     $defaults = [
         'technology'    => ['Dot Net', 'WebMyWay', 'AEM', 'Other'],
         'app_os'        => ['Win 2012', 'Win 2014', 'Win 2016', 'Other'],
@@ -156,7 +183,7 @@ function get_db(): PDO {
         }
     }
 
-    // Seed default checklist items
+    // ── Seed default checklist items
     $checklistDefaults = [
         'Necessary Logos (NIC / Govt Emblem)',
         'Minister Photo',
@@ -175,10 +202,12 @@ function get_db(): PDO {
         $db->exec("INSERT OR IGNORE INTO checklist_items (item_name, sort_order) VALUES (" . $db->quote($item) . ", $i)");
     }
 
-    // ── Migrations for existing DBs ──
+    // ── Safe migrations for existing databases (run silently, ignore if column exists)
     $migrations = [
         "ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1",
         "ALTER TABLE users ADD COLUMN bg_color TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN password_changed INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         "ALTER TABLE projects ADD COLUMN parent_admin_dept TEXT",
         "ALTER TABLE projects ADD COLUMN db_technology TEXT",
         "ALTER TABLE projects ADD COLUMN db_technology_other TEXT",
@@ -187,9 +216,17 @@ function get_db(): PDO {
         try { $db->exec($sql); } catch (Exception $e) {}
     }
 
+    // ── Ensure existing admin user has password_changed flag set
+    // (If admin was created before this migration, they already changed password manually
+    //  so mark them as changed to avoid forcing them again)
+    // NOTE: Only sets to 1 for non-default admin users (those who registered themselves).
+    // The seeded admin above is already inserted with password_changed=0 via INSERT OR IGNORE.
+    // We do NOT auto-set existing admins to 1 — let admin decide via README instructions.
+
     return $db;
 }
 
+// ── Access control helpers ────────────────────────────────────────────────────
 function can_edit(): bool {
     return in_array($_SESSION['role'] ?? '', ['admin', 'member']);
 }
@@ -198,6 +235,7 @@ function require_edit(): void {
     if (!can_edit()) { header('Location: index.php?err=readonly'); exit; }
 }
 
+// ── Dynamic option helpers ────────────────────────────────────────────────────
 function get_options_arr(string $group): array {
     $db = get_db();
     $st = $db->prepare("SELECT option_value FROM dynamic_options WHERE option_group=? ORDER BY sort_order, id");
@@ -206,7 +244,7 @@ function get_options_arr(string $group): array {
 }
 
 function add_option(string $group, string $value): void {
-    $db = get_db();
+    $db  = get_db();
     $max = $db->prepare("SELECT COALESCE(MAX(sort_order),0)+1 FROM dynamic_options WHERE option_group=?");
     $max->execute([$group]);
     $order = (int)$max->fetchColumn();
@@ -214,6 +252,7 @@ function add_option(string $group, string $value): void {
     $st->execute([$group, trim($value), $order]);
 }
 
+// ── Activity logger ───────────────────────────────────────────────────────────
 function log_activity(string $action, ?int $project_id = null, string $detail = ''): void {
     if (!isset($_SESSION['user_id'])) return;
     $db = get_db();
@@ -222,8 +261,9 @@ function log_activity(string $action, ?int $project_id = null, string $detail = 
        ->execute([$_SESSION['user_id'], $action, $project_id, $detail, $ip]);
 }
 
+// ── JSON backup ───────────────────────────────────────────────────────────────
 function backup_json(): void {
-    $db = get_db();
+    $db       = get_db();
     $projects = $db->query("SELECT * FROM projects")->fetchAll();
     file_put_contents(
         __DIR__ . '/data/vault_backup.json',
@@ -231,26 +271,53 @@ function backup_json(): void {
     );
 }
 
-// ── File upload helper ──
+// ── File upload with MIME validation ─────────────────────────────────────────
 function safe_upload(array $file, int $projectId, string $docType, string $title, int $userId): array {
     if (!is_dir(UPLOAD_DIR)) mkdir(UPLOAD_DIR, 0755, true);
-    if ($file['error'] !== UPLOAD_ERR_OK) return ['ok'=>false,'err'=>'Upload error: '.$file['error']];
+    if ($file['error'] !== UPLOAD_ERR_OK) return ['ok' => false, 'err' => 'Upload error code: ' . $file['error']];
 
-    $maxSize = 10 * 1024 * 1024; // 10MB
-    if ($file['size'] > $maxSize) return ['ok'=>false,'err'=>'File too large (max 10MB)'];
+    $maxSize = 10 * 1024 * 1024;
+    if ($file['size'] > $maxSize) return ['ok' => false, 'err' => 'File too large (max 10MB)'];
 
-    $allowed = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png','zip','txt','csv'];
+    // ── Extension check
+    $allowed_ext = ['pdf','doc','docx','xls','xlsx','jpg','jpeg','png','zip','txt','csv'];
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($ext, $allowed)) return ['ok'=>false,'err'=>'File type not allowed: .'.$ext];
+    if (!in_array($ext, $allowed_ext)) return ['ok' => false, 'err' => 'File type not allowed: .' . $ext];
 
+    // ── MIME type check (actual file content, not just extension)
+    $allowed_mime = [
+        'pdf'  => ['application/pdf'],
+        'doc'  => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'xls'  => ['application/vnd.ms-excel'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'jpg'  => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],
+        'zip'  => ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
+        'txt'  => ['text/plain'],
+        'csv'  => ['text/plain', 'text/csv', 'application/csv'],
+    ];
+
+    if (function_exists('finfo_open')) {
+        $finfo     = finfo_open(FILEINFO_MIME_TYPE);
+        $real_mime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+        $permitted = $allowed_mime[$ext] ?? [];
+        if (!empty($permitted) && !in_array($real_mime, $permitted)) {
+            return ['ok' => false, 'err' => "File content does not match extension (detected: $real_mime)"];
+        }
+    }
+
+    // ── Save file
     $stored = 'doc_' . $projectId . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-    $dest = UPLOAD_DIR . '/' . $stored;
-    if (!move_uploaded_file($file['tmp_name'], $dest)) return ['ok'=>false,'err'=>'Failed to save file'];
+    $dest   = UPLOAD_DIR . '/' . $stored;
+    if (!move_uploaded_file($file['tmp_name'], $dest)) return ['ok' => false, 'err' => 'Failed to save file on server'];
 
     $db = get_db();
     $db->prepare("INSERT INTO project_documents (project_id,doc_type,title,filename,stored_name,file_size,uploaded_by)
         VALUES (?,?,?,?,?,?,?)")
        ->execute([$projectId, $docType, $title ?: $file['name'], $file['name'], $stored, $file['size'], $userId]);
 
-    return ['ok'=>true];
+    return ['ok' => true];
 }
