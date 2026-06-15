@@ -167,59 +167,85 @@ $all_techs    = $db->query("SELECT DISTINCT technology FROM projects WHERE techn
 <head>
 <meta charset="UTF-8">
 <title>Reports — DevVault Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#070b14;--surface:#0d1526;--surface2:#111c30;--border:#1e2d45;--text:#e8edf5;--muted:#7a8fa8;--accent:<?=$accent?>;}
-[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#f5f7fa;--border:#d0dae8;--text:#1a2535;--muted:#5a7394;}
-body{background:var(--bg);color:var(--text);font-family:'<?=$font?>',sans-serif;font-size:<?=$fs?>px;min-height:100vh;}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;gap:16px;}
-.topbar a{color:var(--muted);text-decoration:none;font-size:13px;}.topbar a:hover{color:var(--accent);}
-.logo{font-weight:700;font-size:16px;color:var(--accent);margin-right:8px;}
-.wrap{max-width:1400px;margin:0 auto;padding:24px 20px;}
-h1{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:20px;}
-.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px;}
-.tab{padding:10px 18px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;text-decoration:none;display:inline-block;}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
-.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px;}
-.filter-row select,.filter-row input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;}
-.filter-row label{font-size:11px;color:var(--muted);font-weight:500;display:block;margin-bottom:3px;}
-.filter-row .fg{display:flex;flex-direction:column;}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;text-decoration:none;}
-.btn-primary{background:var(--accent);color:#000;}.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
-.btn-export{background:#10b98122;border:1px solid #10b981;color:#10b981;}
-.btn-sm{padding:4px 10px;font-size:12px;}
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border);}
-td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);}
-tr:hover td{background:rgba(255,255,255,0.02);}
-tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--border);}
-.summary-chips{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
-.schip{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 16px;}
-.schip .num{font-size:20px;font-weight:700;color:var(--accent);}
-.schip .lbl{font-size:11px;color:var(--muted);margin-top:2px;}
-.no-data{text-align:center;color:var(--muted);padding:40px;font-size:14px;}
-.amc-expired{color:#ef4444;font-size:11px;font-weight:600;}
-.amc-expiring{color:#f59e0b;font-size:11px;font-weight:600;}
-@media print{.topbar,.tabs,.filter-row,.btn,.no-print{display:none!important;}.wrap{padding:0;}.card{border:none;box-shadow:none;}body{background:#fff;color:#000;}}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
+  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;}
+[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
+html{font-size:var(--fs)}
+body{font-family:'<?=$font?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+[data-theme="light"] body::before{opacity:.3}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
+[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
+.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;
+  padding:5px 10px;border-radius:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+.tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
+  font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
+.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
+.btn-export{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.3)}.btn-export:hover{background:rgba(0,230,118,.22)}
+.btn-sm{padding:4px 9px;font-size:11px}
+.wrap{max-width:1400px;margin:0 auto;padding:20px;position:relative;z-index:1}
+.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:16px;flex-wrap:wrap}
+.tab{flex:1;text-align:center;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;
+  font-family:'Rajdhani',sans-serif;border:none;background:none;color:var(--muted);transition:all .15s;min-width:80px;text-decoration:none;display:inline-block}
+.tab.active{background:var(--accent);color:#000}
+.tab:hover:not(.active){background:var(--surface2);color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.card-pad{padding:16px}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:14px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+input,select{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;
+  color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Share Tech Mono',monospace}
+th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
+tfoot td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border)}
+.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Share Tech Mono',monospace}
+.stat-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.schip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:130px}
+.schip .num{font-size:22px;font-weight:700;font-family:'Orbitron',monospace;color:var(--accent)}
+.schip .lbl{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Share Tech Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Share Tech Mono',monospace;font-size:11px}
+.amc-expired{color:var(--danger);font-size:10px;font-weight:700;font-family:'Share Tech Mono',monospace}
+.amc-expiring{color:var(--amber);font-size:10px;font-weight:700;font-family:'Share Tech Mono',monospace}
+.migration-summary{background:var(--surface2);border-radius:8px;padding:12px 16px;font-size:11px;font-family:'Share Tech Mono',monospace;margin-bottom:12px;line-height:2}
+.progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:4px;height:6px;width:100%}
+.progress-bar{height:6px;border-radius:4px;background:var(--accent);transition:.3s}
+@media print{.topbar,.tabs,.filter-bar,.btn,.no-print{display:none!important;}.wrap{padding:0;}body{background:#fff;color:#000;}}
 </style>
 </head>
 <body>
 <div class="topbar">
-  <span class="logo">🔐 DevVault Pro</span>
-  <a href="index.php">🏠 Dashboard</a>
-  <a href="sr.php">📋 SRs</a>
-  <a href="findings.php">🔍 Findings</a>
-  <a href="workorders.php">📝 Work Orders</a>
-  <a href="report.php" style="color:var(--accent)">📊 Reports</a>
-  <div style="margin-left:auto;display:flex;gap:12px;align-items:center;">
-    <span id="session-timer" style="font-size:12px;color:var(--muted)"></span>
-    <a href="logout.php" class="btn btn-ghost btn-sm">Logout</a>
+  <span class="logo-txt">DEVVAULT</span>
+  <span style="color:var(--border);font-size:18px">|</span>
+  <div class="tnav">
+    <a href="index.php">🏠 Dashboard</a>
+    <a href="sr.php">📋 Service Requests</a>
+    <a href="findings.php">🔍 Findings</a>
+    <a href="workorders.php">📝 Work Orders</a>
+    <a href="reports.php" class="cur">📊 Reports</a>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
+    <a href="logout.php" class="btn btn-ghost btn-sm">⏏ Logout</a>
   </div>
 </div>
 
 <div class="wrap">
-  <h1>📊 Reports</h1>
+  <div class="page-title">📊 REPORTS</div>
 
   <div class="tabs">
     <a href="?tab=financial" class="tab <?=$tab==='financial'?'active':''?>">💰 Financial / Status</a>
@@ -233,7 +259,7 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
 <div class="card">
   <form method="get">
     <input type="hidden" name="tab" value="financial">
-    <div class="filter-row">
+    <div class="filter-bar">
       <div class="fg"><label>From Date</label><input type="date" name="r1_from" value="<?=htmlspecialchars($r1_from)?>" max="<?=$today?>"></div>
       <div class="fg"><label>To Date</label><input type="date" name="r1_to" value="<?=htmlspecialchars($r1_to)?>" max="<?=$today?>"></div>
       <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run Report</button>
@@ -277,7 +303,9 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
         <td style="font-size:12px;"><?=ucfirst(str_replace('_',' ',$row['current_status']??''))?></td>
         <td>
           <?php $at=$row['amc_type']??''; if($at): ?>
-          <span style="background:<?=['Paid'=>'#10b981','Exemption'=>'#3b82f6','Free'=>'#6b7280','NA'=>'#374151'][$at]??'#374151'>22;color:<?=['Paid'=>'#10b981','Exemption'=>'#3b82f6','Free'=>'#6b7280','NA'=>'#9ca3af'][$at]??'#9ca3af'?>;font-size:10px;padding:2px 8px;border-radius:4px;"><?=$at?></span>
+          <?php $amc_colors=['Paid'=>'#00e676','Exemption'=>'#40c4ff','Free'=>'#5a7a9a','NA'=>'#5a7a9a'];
+          $amc_c=$amc_colors[$at]??'#5a7a9a'; ?>
+          <span style="background:<?=$amc_c?>22;color:<?=$amc_c?>;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;border:1px solid <?=$amc_c?>40;font-family:'Share Tech Mono',monospace"><?=$at?></span>
           <?php endif; ?>
         </td>
         <td style="text-align:right;"><?=$row['amc_amount']>0?'₹'.number_format((float)$row['amc_amount'],0):'-'?></td>
@@ -312,7 +340,7 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
 <div class="card">
   <form method="get">
     <input type="hidden" name="tab" value="visitors">
-    <div class="filter-row">
+    <div class="filter-bar">
       <div class="fg">
         <label>Project (optional)</label>
         <select name="r2_project" style="min-width:200px;">
@@ -382,7 +410,7 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
 <div class="card">
   <form method="get">
     <input type="hidden" name="tab" value="migration">
-    <div class="filter-row">
+    <div class="filter-bar">
       <div class="fg">
         <label>From Technology</label>
         <select name="r3_from_tech">
@@ -462,7 +490,7 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
 <div class="card">
   <form method="get">
     <input type="hidden" name="tab" value="workorders">
-    <div class="filter-row">
+    <div class="filter-bar">
       <div class="fg">
         <label>Technology Filter</label>
         <select name="r4_tech">
@@ -508,8 +536,8 @@ tfoot td{background:var(--surface2);font-weight:600;border-top:2px solid var(--b
         <td style="text-align:center;color:<?=$wo['total_sites']-$wo['done_sites']>0?'#f59e0b':'#6b7280'?>;"><?=$wo['total_sites']-$wo['done_sites']?></td>
         <td style="text-align:center;font-weight:600;"><?=$pct?>%</td>
         <td>
-          <?php $sc=['Active'=>'#10b981','Completed'=>'#3b82f6','Cancelled'=>'#6b7280']; $c=$sc[$wo['status']]??'#6b7280'; ?>
-          <span style="background:{$c}22;color:<?=$c?>;font-size:10px;padding:2px 8px;border-radius:4px;"><?=$wo['status']?></span>
+          <?php $sc2=['Active'=>'#00e676','Completed'=>'#40c4ff','Cancelled'=>'#5a7a9a']; $c2=$sc2[$wo['status']]??'#5a7a9a'; ?>
+          <span style="background:<?=$c2?>22;color:<?=$c2?>;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;border:1px solid <?=$c2?>40;font-family:'Share Tech Mono',monospace"><?=$wo['status']?></span>
         </td>
       </tr>
       <?php endforeach; ?>
