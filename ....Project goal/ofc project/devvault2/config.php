@@ -161,6 +161,105 @@ function get_db(): PDO {
             ip_address TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS project_visitor_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            entry_date DATE NOT NULL,
+            visitor_count INTEGER NOT NULL,
+            site_last_update_date DATE,
+            entered_by INTEGER,
+            entered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            remarks TEXT,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS technology_change_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            from_technology TEXT,
+            from_subtype TEXT,
+            to_technology TEXT NOT NULL,
+            to_subtype TEXT,
+            change_date DATE NOT NULL,
+            reason TEXT,
+            changed_by INTEGER,
+            changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS service_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            sr_number TEXT NOT NULL,
+            sr_date DATE NOT NULL,
+            purpose TEXT NOT NULL,
+            raised_by TEXT,
+            current_status TEXT DEFAULT 'Open',
+            resolution_date DATE,
+            remarks TEXT,
+            created_by INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            finding_description TEXT NOT NULL,
+            severity TEXT DEFAULT 'Minor',
+            found_by TEXT,
+            found_date DATE NOT NULL,
+            assigned_to TEXT,
+            target_date DATE,
+            current_status TEXT DEFAULT 'Open',
+            closure_date DATE,
+            closure_remarks TEXT,
+            created_by INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS work_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            instruction_source TEXT,
+            applicable_tech TEXT,
+            scope TEXT DEFAULT 'all',
+            priority TEXT DEFAULT 'Normal',
+            deadline DATE,
+            assigned_to TEXT,
+            created_by INTEGER,
+            status TEXT DEFAULT 'Active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS work_order_sites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
+            site_status TEXT DEFAULT 'Pending',
+            done_by INTEGER,
+            done_at DATETIME,
+            remarks TEXT,
+            UNIQUE(work_order_id, project_id),
+            FOREIGN KEY(work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE,
+            FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS work_order_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            work_order_id INTEGER NOT NULL,
+            project_id INTEGER,
+            action TEXT,
+            changed_by INTEGER,
+            changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            detail TEXT
+        );
     ");
 
     // ── Seed default admin (only inserts if not already present)
@@ -211,6 +310,13 @@ function get_db(): PDO {
         "ALTER TABLE projects ADD COLUMN parent_admin_dept TEXT",
         "ALTER TABLE projects ADD COLUMN db_technology TEXT",
         "ALTER TABLE projects ADD COLUMN db_technology_other TEXT",
+        "ALTER TABLE projects ADD COLUMN tech_subtype TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN amc_amount REAL DEFAULT 0",
+        "ALTER TABLE projects ADD COLUMN amc_type TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN amc_start_date TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN amc_end_date TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN amc_remarks TEXT DEFAULT ''",
+        "ALTER TABLE projects ADD COLUMN closed_date TEXT DEFAULT ''",
     ];
     foreach ($migrations as $sql) {
         try { $db->exec($sql); } catch (Exception $e) {}

@@ -30,7 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'app_ip','app_lb_ip','app_os','app_os_other','app_core','app_ram',
         'app_primary_storage','app_secondary_storage','app_hosting_type','app_infra_remark',
         'db_ip','db_name','db_technology','db_technology_other','db_version','db_version_other','db_os','db_os_other',
-        'db_hosting_type','db_remark','general_remark'];
+        'db_hosting_type','db_remark','general_remark',
+        'tech_subtype','amc_amount','amc_type','amc_start_date','amc_end_date','amc_remarks','closed_date'];
 
     $data = [];
     foreach ($fields as $f) $data[$f] = trim($_POST[$f] ?? '');
@@ -39,12 +40,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data[$key] = $raw !== '' ? encrypt_val($raw) : ($p[$key] ?? '');
     }
 
+    // T-06: Capture old technology before save (for change detection)
+    $old_tech = ''; $old_subtype = '';
+    if ($id) {
+        $old_row = $db->prepare("SELECT technology, tech_subtype FROM projects WHERE id=?");
+        $old_row->execute([$id]);
+        $old_data = $old_row->fetch();
+        $old_tech    = $old_data['technology'] ?? '';
+        $old_subtype = $old_data['tech_subtype'] ?? '';
+    }
+
     if (!$data['project_name']) { $error = 'Project name is required.'; }
     else {
         if ($id) {
             $sets = implode(',', array_map(fn($f)=>"`$f`=?", array_keys($data))).', updated_at=CURRENT_TIMESTAMP';
             $db->prepare("UPDATE projects SET $sets WHERE id=?")->execute([...array_values($data),$id]);
             log_activity('edit_project',$id,$data['project_name']);
+
+            // T-06: Log technology change if technology or subtype changed
+            $new_tech    = $data['technology'] ?? '';
+            $new_subtype = $data['tech_subtype'] ?? '';
+            if ($old_tech !== '' && ($old_tech !== $new_tech || $old_subtype !== $new_subtype)) {
+                $tech_reason = trim($_POST['tech_change_reason'] ?? '');
+                $db->prepare("INSERT INTO technology_change_log
+                    (project_id, from_technology, from_subtype, to_technology, to_subtype, change_date, reason, changed_by)
+                    VALUES (?,?,?,?,?,date('now'),?,?)")
+                   ->execute([$id, $old_tech, $old_subtype, $new_tech, $new_subtype, $tech_reason, $_SESSION['user_id']]);
+                log_activity('tech_change', $id, "$old_tech -> $new_tech");
+            }
         } else {
             $cols = implode(',', array_map(fn($f)=>"`$f`", array_keys($data)));
             $phs  = implode(',', array_fill(0,count($data),'?'));
@@ -64,6 +87,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$cn) continue;
             $db->prepare("INSERT INTO project_contacts (project_id,name,designation,contact,email,sort_order) VALUES (?,?,?,?,?,?)")
                ->execute([$id, $cn, trim($cDesigs[$i]??''), trim($cContacts[$i]??''), trim($cEmails[$i]??''), $i]);
+        }
+
+        // T-05: Save visitor log entry if provided
+        $vl_count = trim($_POST['vl_visitor_count'] ?? '');
+        $vl_date  = trim($_POST['vl_entry_date'] ?? '');
+        if ($vl_count !== '' && $vl_date !== '' && $vl_date <= date('Y-m-d')) {
+            $vl_site_upd = trim($_POST['vl_site_last_update_date'] ?? '') ?: null;
+            $vl_remarks  = trim($_POST['vl_remarks'] ?? '');
+            $db->prepare("INSERT INTO project_visitor_log
+                (project_id, entry_date, visitor_count, site_last_update_date, entered_by, remarks)
+                VALUES (?,?,?,?,?,?)")
+               ->execute([$id, $vl_date, (int)$vl_count, $vl_site_upd, $_SESSION['user_id'], $vl_remarks]);
+            // Sync back to main projects table for backward compatibility
+            $db->prepare("UPDATE projects SET total_visitor_counter=?, last_update_date=? WHERE id=?")
+               ->execute([$vl_count, $vl_site_upd ?? $data['last_update_date'], $id]);
+            log_activity('visitor_log_entry', $id, "Count: $vl_count on $vl_date");
         }
 
         // Save checklist responses
@@ -321,7 +360,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
     <div class="row">
       <div class="f w15">
         <label>Technology <span class="req">*</span></label>
-        <select name="technology" onchange="showCond(this,'tech-oth')">
+        <select name="technology" id="technology_sel" onchange="showCond(this,'tech-oth');updateSubtype(this.value)">
           <option value="">— Select Technology —</option>
           <?php foreach($techOpts as $t):?>
           <option value="<?=htmlspecialchars($t)?>" <?=$sel('technology',$t)?>><?=htmlspecialchars($t)?></option>
@@ -332,6 +371,13 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <label>Specify Technology</label>
         <input type="text" name="technology_other" placeholder="Enter tech name" value="<?=$v('technology_other')?>">
         <span class="hint">Auto-saved to dropdown</span>
+      </div>
+      <div class="f w15" id="tech-subtype-wrap">
+        <label>Technology Sub-Type</label>
+        <select name="tech_subtype" id="tech_subtype">
+          <option value="">— Select Sub-Type —</option>
+        </select>
+        <span class="hint">Auto-updates based on Technology selected</span>
       </div>
       <div class="f w15">
         <label>Website / Application</label>
@@ -375,13 +421,60 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <label>Live Date</label>
         <input type="date" name="live_date" value="<?=$v('live_date')?>">
       </div>
-      <div class="f" id="visitor-f" style="<?=($p['current_status']??'live')!=='live'?'display:none':''?>">
-        <label>Total Visitors</label>
-        <input type="text" name="total_visitor_counter" placeholder="e.g. 1,50,000" value="<?=$v('total_visitor_counter')?>">
+      <div class="f" id="closed-date-f" style="<?=($p['current_status']??'')!=='closed'?'display:none':''?>">
+        <label>Closed Date</label>
+        <input type="date" name="closed_date" value="<?=$v('closed_date')?>">
       </div>
-      <div class="f" id="lastupd-f" style="<?=($p['current_status']??'live')!=='live'?'display:none':''?>">
-        <label>Last Update Date</label>
-        <input type="date" name="last_update_date" value="<?=$v('last_update_date')?>">
+    </div>
+    <?php
+    // T-05: Load last 5 visitor log entries for this project
+    $vl_entries = [];
+    if ($id) {
+        $st_vl = $db->prepare("SELECT * FROM project_visitor_log WHERE project_id=? ORDER BY entry_date DESC, entered_at DESC LIMIT 5");
+        $st_vl->execute([$id]);
+        $vl_entries = $st_vl->fetchAll();
+    }
+    ?>
+    <!-- T-05: Visitor Log Entry Section -->
+    <div id="visitor-log-section" style="<?=($p['current_status']??'live')!=='live'?'display:none':''?>; margin-top:12px;">
+      <div style="background:rgba(0,180,120,0.06);border:1px solid rgba(0,180,120,0.2);border-radius:8px;padding:14px 16px;">
+        <div style="font-size:13px;font-weight:600;color:var(--c-accent);margin-bottom:10px;">📊 Add Visitor Log Entry</div>
+        <div class="row">
+          <div class="f">
+            <label>Entry Date <span style="color:#f55">*</span></label>
+            <input type="date" name="vl_entry_date" id="vl_entry_date" max="<?=date('Y-m-d')?>" value="<?=date('Y-m-d')?>">
+          </div>
+          <div class="f">
+            <label>Visitor Count <span style="color:#f55">*</span></label>
+            <input type="number" name="vl_visitor_count" min="0" placeholder="e.g. 125000">
+          </div>
+          <div class="f">
+            <label>Site Last Update Date</label>
+            <input type="date" name="vl_site_last_update_date" max="<?=date('Y-m-d')?>">
+          </div>
+          <div class="f w2">
+            <label>Remarks</label>
+            <input type="text" name="vl_remarks" placeholder="Optional note">
+          </div>
+        </div>
+        <span class="hint">Leave blank to skip adding a new log entry (existing data retained)</span>
+        <?php if ($vl_entries): ?>
+        <div style="margin-top:10px;font-size:12px;color:var(--c-muted);">Recent entries:</div>
+        <table style="width:100%;font-size:12px;margin-top:6px;border-collapse:collapse;">
+          <tr style="color:var(--c-muted);text-align:left;">
+            <th style="padding:3px 6px">Date</th><th style="padding:3px 6px">Visitors</th>
+            <th style="padding:3px 6px">Site Updated</th><th style="padding:3px 6px">Remarks</th>
+          </tr>
+          <?php foreach ($vl_entries as $ve): ?>
+          <tr style="border-top:1px solid rgba(255,255,255,0.07)">
+            <td style="padding:3px 6px"><?=htmlspecialchars($ve['entry_date'])?></td>
+            <td style="padding:3px 6px"><?=number_format((int)$ve['visitor_count'])?></td>
+            <td style="padding:3px 6px"><?=htmlspecialchars($ve['site_last_update_date']??'-')?></td>
+            <td style="padding:3px 6px"><?=htmlspecialchars($ve['remarks']??'')?></td>
+          </tr>
+          <?php endforeach; ?>
+        </table>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -707,6 +800,46 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 ════════════════════════════════════════════════════════════ -->
 <div class="sec" style="background:<?=$sc['rem']['bg']?>;border:1px solid <?=$sc['rem']['bdr']?>">
   <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" onclick="tog(this)">
+    <h2>💰 AMC / Financial Details</h2><span class="chev">▾</span>
+  </div>
+  <div class="sec-bd">
+    <div class="row">
+      <div class="f w15">
+        <label>AMC Type</label>
+        <select name="amc_type">
+          <option value="">— Select —</option>
+          <?php foreach(['Paid','Exemption','Free','NA'] as $at):?>
+          <option value="<?=$at?>" <?=$sel('amc_type',$at)?>><?=$at?></option>
+          <?php endforeach;?>
+        </select>
+      </div>
+      <div class="f w15">
+        <label>AMC Amount (₹)</label>
+        <input type="number" name="amc_amount" step="0.01" min="0"
+          placeholder="e.g. 150000" value="<?=$v('amc_amount')?>">
+      </div>
+      <div class="f w15">
+        <label>AMC Start Date</label>
+        <input type="date" name="amc_start_date" value="<?=$v('amc_start_date')?>">
+      </div>
+      <div class="f w15">
+        <label>AMC End Date</label>
+        <input type="date" name="amc_end_date" value="<?=$v('amc_end_date')?>">
+      </div>
+    </div>
+    <div class="row">
+      <div class="f">
+        <label>AMC Remarks</label>
+        <input type="text" name="amc_remarks"
+          placeholder="e.g. Renewed via GFR, Vendor NIC, PO No. 123"
+          value="<?=$v('amc_remarks')?>">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec" style="background:<?=$sc['rem']['bg']?>;border:1px solid <?=$sc['rem']['bdr']?>">
+  <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" onclick="tog(this)">
     <h2>📝 General Remarks</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -719,6 +852,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   </div>
 </div>
 
+<input type="hidden" name="tech_change_reason" id="tech_change_reason_input" value="">
 </form>
 </div><!-- /wrap -->
 
@@ -735,10 +869,31 @@ function showCond(sel,id){
   if(sel.value==='Other'){el.classList.add('on')}else{el.classList.remove('on')}}
 function tpw(id){const f=document.getElementById(id);if(f)f.type=f.type==='password'?'text':'password'}
 function handleStatus(v){
-  const show=v==='live';
-  ['live-date-f','visitor-f','lastupd-f'].forEach(id=>{
-    const el=document.getElementById(id);if(el)el.style.display=show?'':'none'})}
+  const isLive=v==='live';
+  const isClosed=v==='closed';
+  const el=id=>document.getElementById(id);
+  ['live-date-f','visitor-log-section'].forEach(id=>{const e=el(id);if(e)e.style.display=isLive?'':'none';});
+  const cdf=el('closed-date-f');if(cdf)cdf.style.display=isClosed?'':'none';
+  // Detect tech change - show reason prompt
+}
 document.addEventListener('DOMContentLoaded',()=>handleStatus(document.getElementById('ssel').value))
+
+// T-06: Tech change reason modal
+var _origTech='', _origSubtype='';
+document.addEventListener('DOMContentLoaded',function(){
+  var ts=document.getElementById('technology');var ss=document.getElementById('tech_subtype');
+  if(ts){_origTech=ts.value;}if(ss){_origSubtype=ss.value;}
+});
+document.getElementById('pf')&&document.getElementById('pf').addEventListener('submit',function(e){
+  var ts=document.getElementById('technology');var ss=document.getElementById('tech_subtype');
+  if(!ts||!_origTech)return;
+  if(ts.value!==_origTech||(ss&&ss.value!==_origSubtype)){
+    var reason=prompt('⚠ Technology change detected ('+_origTech+' → '+ts.value+'). Reason? (optional, press Cancel to skip)','');
+    if(reason===null)reason='';
+    var inp=document.getElementById('tech_change_reason_input');
+    if(inp)inp.value=reason;
+  }
+});
 
 // ── Dynamic contact persons ──
 function addContactRow(){
@@ -786,6 +941,38 @@ function delDoc(id,csrf){
     body:`action=delete_document&id=${id}&csrf=${csrf}`})
     .then(r=>r.json()).then(d=>{if(d.ok)location.reload();else alert('Failed: '+(d.error||''))});
 }
+
+// ── Tech sub-type dynamic dropdown ─────────────────────────────────────────
+var TECH_SUBTYPES = {
+  'Dot Net':    ['Classic ASP','ASP.NET WebForms','ASP.NET MVC','ASP.NET Core','Static','Dynamic','Other'],
+  'WebMyWay':  ['Standard','Custom','Static','Dynamic','Other'],
+  'AEM':        ['AEM 6.x','AEM Cloud','Other'],
+  'WordPress':  ['Standard','Custom Theme','Multisite','Other'],
+  'Other':      ['Static','Dynamic','CMS Based','Other'],
+};
+var SAVED_SUBTYPE = <?= json_encode($v('tech_subtype')) ?>;
+
+function updateSubtype(tech) {
+  var sel   = document.getElementById('tech_subtype');
+  var wrap  = document.getElementById('tech-subtype-wrap');
+  var opts  = TECH_SUBTYPES[tech] || ['Static','Dynamic','Other'];
+  sel.innerHTML = '<option value="">— Select Sub-Type —</option>';
+  opts.forEach(function(o) {
+    var opt = document.createElement('option');
+    opt.value = o; opt.textContent = o;
+    if (o === SAVED_SUBTYPE) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  wrap.style.display = tech ? '' : 'none';
+}
+
+// Init on page load with saved technology
+(function(){
+  var techSel = document.getElementById('technology_sel');
+  if (techSel && techSel.value) updateSubtype(techSel.value);
+  else document.getElementById('tech-subtype-wrap').style.display = 'none';
+})();
+
 </script>
 </body>
 </html>

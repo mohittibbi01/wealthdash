@@ -20,6 +20,25 @@ $techRows=$db->query("SELECT COALESCE(NULLIF(technology_other,''),technology) as
 $techTable=[];
 foreach($techRows as $r) $techTable[$r['tech']][$r['current_status']]=(int)$r['cnt'];
 
+// T-08: Findings dashboard stats (safe — table may not exist yet)
+$openFindings = 0; $overdueFindings = 0;
+try {
+    $openFindings    = (int)$db->query("SELECT COUNT(*) FROM audit_findings WHERE current_status != 'Closed'")->fetchColumn();
+    $overdueFindings = (int)$db->query("SELECT COUNT(*) FROM audit_findings WHERE current_status != 'Closed' AND target_date < date('now')")->fetchColumn();
+} catch (Exception $e) {}
+
+// T-07: Open SRs count
+$openSRs = 0;
+try {
+    $openSRs = (int)$db->query("SELECT COUNT(*) FROM service_requests WHERE current_status NOT IN ('Resolved','Closed')")->fetchColumn();
+} catch (Exception $e) {}
+
+// T-09: Active work orders count
+$activeWOs = 0;
+try {
+    $activeWOs = (int)$db->query("SELECT COUNT(*) FROM work_orders WHERE status='Active'")->fetchColumn();
+} catch (Exception $e) {}
+
 $q=trim($_GET['q']??''); $status=$_GET['status']??''; $tech=$_GET['tech']??'';
 $where=['1=1'];$params=[];
 if($q){$where[]='(project_name LIKE ? OR department_name LIKE ? OR description LIKE ? OR app_ip LIKE ? OR nodal_officer_name LIKE ? OR db_ip LIKE ?)';$l="%$q%";$params=array_merge($params,[$l,$l,$l,$l,$l,$l]);}
@@ -253,7 +272,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <?php if(can_edit()):?>
     <a href="project_form.php" class="btn btn-acc">＋ Add Project</a>
     <?php endif;?>
-    <a href="report.php" class="btn btn-ghost btn-icon" title="One-Page Report">📋</a>
+    <a href="sr.php" class="btn btn-ghost btn-icon" title="Service Requests">📋</a>
+    <a href="findings.php" class="btn btn-ghost btn-icon" title="Audit Findings">🔍</a>
+    <a href="workorders.php" class="btn btn-ghost btn-icon" title="Work Orders">📝</a>
+    <a href="reports.php" class="btn btn-ghost btn-icon" title="Reports">📊</a>
     <?php if(can_edit()):?>
     <a href="import.php" class="btn btn-ghost btn-icon" title="Import Projects">📥</a>
     <?php endif;?>
@@ -332,6 +354,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         <button class="btn btn-acc" style="width:100%;justify-content:center;margin-top:4px" onclick="savePrefs()">💾 Save Preferences</button>
       </div>
     </div>
+    <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
     <a href="logout.php" class="btn btn-ghost btn-icon" title="Logout — <?=htmlspecialchars($_SESSION['username'])?>">⏏</a>
   </div>
 </div>
@@ -403,6 +426,27 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <div class="chip-left">
       <span class="chip-num" id="stat-dbsrv" style="color:#ea80fc"><?=$uniqueDbServers?></span>
       <span class="chip-lbl">Unique DB Servers</span>
+    </div>
+  </a>
+  <a class="chip" href="findings.php?status=Open" style="border-left:3px solid <?=$openFindings>0?'#ef4444':'#10b981'?>">
+    <span class="chip-dot" style="background:<?=$openFindings>0?'#ef4444':'#10b981'?>"></span>
+    <div class="chip-left">
+      <span class="chip-num" style="color:<?=$openFindings>0?'#ef4444':'#10b981'?>"><?=$openFindings?></span>
+      <span class="chip-lbl">Open Findings<?=$overdueFindings>0?" ($overdueFindings overdue)":'';?></span>
+    </div>
+  </a>
+  <a class="chip" href="sr.php" style="border-left:3px solid #f59e0b">
+    <span class="chip-dot" style="background:#f59e0b"></span>
+    <div class="chip-left">
+      <span class="chip-num" style="color:#f59e0b"><?=$openSRs?></span>
+      <span class="chip-lbl">Open SRs</span>
+    </div>
+  </a>
+  <a class="chip" href="workorders.php?status=Active" style="border-left:3px solid #8c9eff">
+    <span class="chip-dot" style="background:#8c9eff"></span>
+    <div class="chip-left">
+      <span class="chip-num" style="color:#8c9eff"><?=$activeWOs?></span>
+      <span class="chip-lbl">Active Work Orders</span>
     </div>
   </a>
 </div>
@@ -566,7 +610,31 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <div>
       <div style="display:flex;flex-direction:column;gap:4px">
         <span class="badge" style="color:<?=$sclr?>;border-color:<?=$sclr?>30;align-self:start"><?=$SL[$p['current_status']]??$p['current_status']?></span>
-        <?php if($tl):?><span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--mt)"><?=htmlspecialchars($tl)?></span><?php endif;?>
+        <?php if($tl):?>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--mt)">
+          <?=htmlspecialchars($tl)?>
+          <?php if(!empty($p['tech_subtype'])):?>
+          <span style="color:var(--bdr);font-size:9px"> / <?=htmlspecialchars($p['tech_subtype'])?></span>
+          <?php endif;?>
+        </span>
+        <?php endif;?>
+        <?php
+          // AMC badge
+          $amc_t = $p['amc_type'] ?? '';
+          $amc_clr = ['Paid'=>'#00e676','Exemption'=>'#ffd740','Free'=>'#40c4ff','NA'=>'#5a7a9a'];
+          $amc_exp = !empty($p['amc_end_date']);
+          $days_left = $amc_exp ? (int)((strtotime($p['amc_end_date']) - time()) / 86400) : 999;
+        ?>
+        <?php if($amc_t && $amc_t !== 'NA'):?>
+        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;
+          color:<?=$amc_clr[$amc_t]??'#5a7a9a'?>;
+          border:1px solid <?=$amc_clr[$amc_t]??'#5a7a9a'?>30;
+          padding:1px 5px;border-radius:3px;display:inline-block"
+          title="AMC: <?=$amc_t?><?=$amc_exp?' | Expires: '.$p['amc_end_date'].($days_left<0?' (EXPIRED)':($days_left<=30?' ('.($days_left).'d left)':'')):'';?>">
+          ₹ <?=$amc_t?>
+          <?php if($days_left < 0):?> ⚠️<?php elseif($days_left <= 30):?> ⏰<?php endif;?>
+        </span>
+        <?php endif;?>
         <?php if($p['live_date']):?><span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--bdr)">Live: <?=$p['live_date']?></span><?php endif;?>
         <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--bdr)"><?=date('d M Y',strtotime($p['updated_at']))?></span>
         <?php if($p['chk_total']>0):
@@ -740,5 +808,12 @@ setInterval(refreshStats,30000);
 // First refresh after 5s
 setTimeout(refreshStats,5000);
 </script>
+
+<script>
+// DevVault Pro — Session Timer config
+window.DEVVAULT_CSRF    = '<?= csrf_token() ?>';
+window.DEVVAULT_LOGOUT  = 'logout.php';
+</script>
+<script src="session_timer.js"></script>
 </body>
 </html>

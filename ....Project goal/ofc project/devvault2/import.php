@@ -195,5 +195,10 @@ input:focus,select:focus{border-color:var(--acc)}
   </div>
 </div>
 </div>
+<script>
+window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
+window.DEVVAULT_LOGOUT = 'logout.php';
+</script>
+<script src="session_timer.js"></script>
 </body>
 </html>

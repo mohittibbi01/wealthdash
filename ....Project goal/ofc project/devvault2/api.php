@@ -5,6 +5,17 @@ header('Content-Type: application/json');
 
 $action = $_REQUEST['action'] ?? '';
 
+
+// ── POST: session keepalive (session timer extend) ───────────────────────
+// Called by session_timer.js when user clicks "Extend Session"
+if ($action === 'keepalive' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf()) { echo json_encode(['ok' => false, 'error' => 'CSRF']); exit; }
+    // Touching $_SESSION resets PHP session gc timer
+    $_SESSION['last_activity'] = time();
+    echo json_encode(['ok' => true, 'ts' => time()]);
+    exit;
+}
+
 // ── GET: live stats for dashboard refresh ────────────────────────────────
 if ($action === 'stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $db = get_db();

@@ -1,0 +1,49 @@
+/**
+ * WealthDash — t449: Loading Skeletons — Supplementary CSS
+ * File: public/css/skeletons.css
+ *
+ * Most styles are injected by skeletons.js at runtime (so they work
+ * without a separate stylesheet). This file is OPTIONAL — include it
+ * in layout.php <head> if you prefer static CSS over runtime injection,
+ * or to override shimmer colors/speed globally.
+ *
+ * To use: add this line in layout.php after app.css:
+ *   <link rel="stylesheet" href="<?= APP_URL ?>/public/css/skeletons.css">
+ */
+
+.wd-skel {
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--border) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: wd-skel-shimmer 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@keyframes wd-skel-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.wd-skel-line  { height: 14px; margin-bottom: 8px; }
+.wd-skel-title { height: 20px; width: 50%; margin-bottom: 14px; }
+.wd-skel-circle{ border-radius: 50%; }
+.wd-skel-card  { padding: 16px; }
+.wd-skel-stat-val { height: 28px; width: 70%; margin: 8px 0; }
+
+.wd-skel-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Reduce motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .wd-skel { animation: none; opacity: .6; }
+}
+
+/* Dark theme: shimmer slightly brighter for visibility */
+[data-theme="dark"] .wd-skel {
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, rgba(255,255,255,.08) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+}

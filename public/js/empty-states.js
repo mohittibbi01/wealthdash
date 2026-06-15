@@ -1,168 +1,194 @@
 /**
- * WealthDash — t452: Empty States
+ * WealthDash — t452: Empty States — Zero-State Screens
+ * File: public/js/empty-states.js
  *
- * Returns ready-to-inject HTML for empty state blocks.
- * Each asset type has a contextual illustration + action button.
+ * Already referenced in layout.php: <script src="<?= wd_js_url('empty-states.js') ?>"></script>
  *
- * API:
- *   WdEmpty.html(type, opts?)  → HTML string (inject with innerHTML)
- *   WdEmpty.table(tbodyId, type, colspan?, opts?)  → inject as table row
- *   WdEmpty.div(containerId, type, opts?)           → inject into div
+ * Usage:
+ *   WDEmpty.render('#myTable', 'mf_holdings');
+ *   WDEmpty.render('#myTable', 'goals', { actionUrl: '...' });
+ *   WDEmpty.renderCustom('#el', '🎯', 'No goals yet', 'Add Goal', '?page=goals_tracker');
  *
- * Types:
- *   'mf'       — Mutual Fund holdings empty
- *   'stocks'   — Stocks empty
- *   'fd'       — Fixed Deposits empty
- *   'crypto'   — Crypto empty
- *   'nps'      — NPS empty
- *   'realestate'— Real estate empty
- *   'goals'    — Goals empty
- *   'watchlist'— Watchlist empty
- *   'activity' — No recent activity
- *   'alerts'   — No alerts
- *   'search'   — No search results
- *   'generic'  — Fallback
- *
- * opts:
- *   { title, message, actionLabel, actionFn, actionUrl, icon }
- *   All optional — defaults come from the type.
+ * Pre-built presets for common WealthDash empty states.
  */
+'use strict';
 
-(function (global) {
-  'use strict';
+window.WDEmpty = (function () {
 
-  const DEFAULTS = {
-    mf: {
+  // ── Preset configs per context ───────────────────────────────
+  const PRESETS = {
+    mf_holdings: {
       icon: '📈',
-      title: 'No mutual fund holdings yet',
-      message: 'Start your SIP journey — add your first fund to track NAV, XIRR, and returns.',
-      actionLabel: '+ Add Fund',
-      actionAttr: 'onclick="if(typeof openAddModal===\'function\')openAddModal();"',
+      title: 'No investments yet',
+      desc: 'Add your first mutual fund holding to start tracking your portfolio.',
+      cta: '+ Add Holding',
+      action: '?page=mf_holdings&action=add',
     },
-    stocks: {
-      icon: '🏦',
-      title: 'No stocks in portfolio',
-      message: 'Track your equity investments — add a buy transaction to get started.',
-      actionLabel: '+ Add Stock',
-      actionAttr: 'onclick="if(typeof STOCKS?.openAddModal===\'function\')STOCKS.openAddModal();"',
+    mf_transactions: {
+      icon: '📜',
+      title: 'No transactions recorded',
+      desc: 'Your investment transactions will appear here once added.',
+      cta: '+ Add Transaction',
+      action: '?page=mf_transactions&action=add',
     },
-    fd: {
-      icon: '🏛️',
-      title: 'No fixed deposits tracked',
-      message: 'Add your FDs to monitor maturity dates, interest earned, and TDS.',
-      actionLabel: '+ Add FD',
-      actionAttr: 'onclick="if(typeof openAddFDModal===\'function\')openAddFDModal();"',
-    },
-    crypto: {
-      icon: '₿',
-      title: 'No crypto holdings',
-      message: 'Track Bitcoin, Ethereum and other VDAs with live CoinGecko prices and VDA tax (30%).',
-      actionLabel: '+ Add Crypto',
-      actionAttr: 'onclick="if(typeof openCryptoAddModal===\'function\')openCryptoAddModal();"',
-    },
-    nps: {
-      icon: '🏛️',
-      title: 'No NPS account linked',
-      message: 'Link your National Pension System account to track tier-wise corpus and returns.',
-      actionLabel: '+ Add NPS Account',
-      actionAttr: '',
-    },
-    realestate: {
-      icon: '🏠',
-      title: 'No real estate tracked',
-      message: 'Add properties to monitor current value, rental yield, and LTCG impact.',
-      actionLabel: '+ Add Property',
-      actionAttr: '',
+    mf_sips: {
+      icon: '🔁',
+      title: 'No active SIPs',
+      desc: 'Start a SIP to build wealth consistently through disciplined investing.',
+      cta: '+ Start a SIP',
+      action: '?page=mf_holdings&action=sip',
     },
     goals: {
       icon: '🎯',
       title: 'No financial goals set',
-      message: 'Define your goals — retirement, home, education — and track progress automatically.',
-      actionLabel: '+ Add Goal',
-      actionAttr: 'onclick="if(typeof openGoalModal===\'function\')openGoalModal();"',
+      desc: 'Set a goal — retirement, home, education — and track your progress.',
+      cta: '+ Add Goal',
+      action: '?page=goals_tracker&action=add',
     },
-    watchlist: {
-      icon: '👀',
-      title: 'Watchlist is empty',
-      message: 'Add funds or stocks to your watchlist to get price alerts and quick access.',
-      actionLabel: '+ Add to Watchlist',
-      actionAttr: '',
+    insurance: {
+      icon: '🛡',
+      title: 'No insurance policies',
+      desc: 'Add your term, health, or ULIP policies to track coverage and premiums.',
+      cta: '+ Add Policy',
+      action: '?page=insurance&action=add',
     },
-    activity: {
-      icon: '📋',
-      title: 'No recent activity',
-      message: 'Your transactions and portfolio changes will appear here.',
-      actionLabel: null,
+    loans: {
+      icon: '🏦',
+      title: 'No loans tracked',
+      desc: 'Add a loan to monitor EMIs, interest, and repayment progress.',
+      cta: '+ Add Loan',
+      action: '?page=loans&action=add',
+    },
+    life_events: {
+      icon: '🗓',
+      title: 'No life events recorded',
+      desc: 'Track financial milestones — marriage, home purchase, career changes.',
+      cta: '+ Add Event',
+      action: '?page=life_events&action=add',
+    },
+    notifications: {
+      icon: '🔔',
+      title: "You're all caught up!",
+      desc: 'No new notifications right now.',
+      cta: null,
+      action: null,
+    },
+    chat_history: {
+      icon: '💬',
+      title: 'Start a conversation',
+      desc: 'Ask the AI assistant anything about your investments.',
+      cta: null,
+      action: null,
+    },
+    search_results: {
+      icon: '🔍',
+      title: 'No results found',
+      desc: 'Try a different search term or check your spelling.',
+      cta: null,
+      action: null,
+    },
+    anomalies: {
+      icon: '✅',
+      title: 'All clear!',
+      desc: 'No anomalies detected in your recent transactions.',
+      cta: null,
+      action: null,
     },
     alerts: {
       icon: '🔔',
-      title: 'All clear — no alerts',
-      message: 'WealthDash will notify you about NAV drops, goal progress, and tax opportunities.',
-      actionLabel: null,
-    },
-    search: {
-      icon: '🔍',
-      title: 'No results found',
-      message: 'Try a different search term or adjust the filters.',
-      actionLabel: null,
+      title: 'No alerts',
+      desc: 'Click "Check Now" to scan for SIP due dates, EMI reminders, and more.',
+      cta: null,
+      action: null,
     },
     generic: {
-      icon: '📂',
+      icon: '📭',
       title: 'Nothing here yet',
-      message: 'Add data to get started.',
-      actionLabel: null,
+      desc: 'Data will appear here once available.',
+      cta: null,
+      action: null,
+    },
+    error: {
+      icon: '⚠️',
+      title: 'Something went wrong',
+      desc: 'Please try again, or contact support if the issue persists.',
+      cta: '🔄 Retry',
+      action: null, // handled via onRetry callback
+    },
+    offline: {
+      icon: '📡',
+      title: 'No connection',
+      desc: 'Check your internet connection and try again.',
+      cta: '🔄 Retry',
+      action: null,
     },
   };
 
-  function _buildHtml(type, opts = {}) {
-    const def  = DEFAULTS[type] || DEFAULTS.generic;
-    const icon = opts.icon        || def.icon;
-    const title= opts.title       || def.title;
-    const msg  = opts.message     || def.message;
-    const lbl  = opts.actionLabel !== undefined ? opts.actionLabel : def.actionLabel;
-    const attr = opts.actionAttr  || def.actionAttr || '';
-    const url  = opts.actionUrl   || '';
-
-    const btn = lbl
-      ? (url
-        ? `<a href="${url}" class="btn btn-primary btn-sm" style="margin-top:12px;">${lbl}</a>`
-        : `<button class="btn btn-primary btn-sm" style="margin-top:12px;" ${attr}>${lbl}</button>`)
-      : '';
-
-    return `
-<div class="wd-empty-state">
-  <div class="wd-empty-icon">${icon}</div>
-  <div class="wd-empty-title">${title}</div>
-  <div class="wd-empty-msg">${msg}</div>
-  ${btn}
-</div>`.trim();
+  function _injectStyles() {
+    if (document.getElementById('wd-empty-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'wd-empty-styles';
+    style.textContent = `
+      .wd-empty { text-align: center; padding: 48px 20px; }
+      .wd-empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: .8; }
+      .wd-empty-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+      .wd-empty-desc { font-size: 13px; color: var(--text-muted); max-width: 340px; margin: 0 auto 16px; line-height: 1.6; }
+    `;
+    document.head.appendChild(style);
   }
 
-  const WdEmpty = {
+  // ── Render a preset empty state into an element ────────────────
+  function render(selector, presetKey, opts = {}) {
+    _injectStyles();
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!el) return;
 
-    html(type, opts = {}) {
-      return _buildHtml(type, opts);
-    },
+    const preset = PRESETS[presetKey] || PRESETS.generic;
+    const cta    = opts.ctaLabel || preset.cta;
+    const action = opts.actionUrl || preset.action;
 
-    /** Inject as a single <tr> spanning all columns in a <tbody>. */
-    table(tbodyId, type, colspan = 10, opts = {}) {
-      const el = typeof tbodyId === 'string'
-        ? document.getElementById(tbodyId) : tbodyId;
-      if (!el) return;
-      el.innerHTML = `<tr><td colspan="${colspan}" style="padding:0;border:none;">
-        ${_buildHtml(type, opts)}
-      </td></tr>`;
-    },
+    let html = `<div class="wd-empty">
+      <div class="wd-empty-icon">${opts.icon || preset.icon}</div>
+      <div class="wd-empty-title">${_esc(opts.title || preset.title)}</div>
+      <div class="wd-empty-desc">${_esc(opts.desc || preset.desc)}</div>`;
 
-    /** Inject into any container div. */
-    div(containerId, type, opts = {}) {
-      const el = typeof containerId === 'string'
-        ? document.getElementById(containerId) : containerId;
-      if (!el) return;
-      el.innerHTML = _buildHtml(type, opts);
-    },
-  };
+    if (cta) {
+      if (opts.onRetry) {
+        html += `<button class="btn btn-primary btn-sm" id="wd-empty-retry">${_esc(cta)}</button>`;
+      } else if (action) {
+        const fullUrl = action.startsWith('?') ? (window.WD?.appUrl || '') + action : action;
+        html += `<a href="${fullUrl}" class="btn btn-primary btn-sm">${_esc(cta)}</a>`;
+      }
+    }
+    html += '</div>';
 
-  global.WdEmpty = WdEmpty;
+    el.innerHTML = html;
 
-})(window);
+    if (opts.onRetry) {
+      const btn = el.querySelector('#wd-empty-retry');
+      if (btn) btn.addEventListener('click', opts.onRetry);
+    }
+  }
+
+  // ── Fully custom empty state ────────────────────────────────────
+  function renderCustom(selector, icon, title, ctaLabel = null, actionUrl = null, desc = '') {
+    render(selector, 'generic', { icon, title, desc, ctaLabel, actionUrl });
+  }
+
+  // ── Render only if data array is empty; returns true if rendered ──
+  function renderIfEmpty(selector, data, presetKey, opts = {}) {
+    if (Array.isArray(data) ? data.length === 0 : !data) {
+      render(selector, presetKey, opts);
+      return true;
+    }
+    return false;
+  }
+
+  function _esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  return { render, renderCustom, renderIfEmpty, PRESETS };
+
+})();

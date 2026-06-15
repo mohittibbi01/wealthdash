@@ -275,5 +275,10 @@ function exportCSV(){
   a.click();
 }
 </script>
+<script>
+window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
+window.DEVVAULT_LOGOUT = 'logout.php';
+</script>
+<script src="session_timer.js"></script>
 </body>
 </html>

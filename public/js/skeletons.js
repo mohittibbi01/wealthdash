@@ -1,189 +1,158 @@
 /**
- * WealthDash — t449: Loading Skeletons
+ * WealthDash — t449: Loading Skeletons — Smooth Loading States
+ * File: public/js/skeletons.js
  *
- * API:
- *   WdSkel.table(containerId, rows?, cols?)
- *     Inject a skeleton table (spinner rows) into a <tbody> or container.
+ * Already referenced in layout.php: <script src="<?= wd_js_url('skeletons.js') ?>"></script>
  *
- *   WdSkel.cards(containerId, count?, height?)
- *     Inject skeleton card blocks.
+ * Usage:
+ *   WDSkeleton.show('#myCard', 'card');       // shows skeleton
+ *   WDSkeleton.show('#myTable', 'table', 5);  // 5 rows
+ *   WDSkeleton.hide('#myCard');               // removes skeleton, restores content
+ *   WDSkeleton.wrap('#myCard', 'text', fetchPromise, renderFn); // auto show/hide
  *
- *   WdSkel.stat(containerId)
- *     Inject a skeleton stat value (for summary cards).
- *
- *   WdSkel.chart(containerId)
- *     Inject a skeleton chart placeholder.
- *
- *   WdSkel.list(containerId, rows?)
- *     Inject skeleton text rows (for activity/alert lists).
- *
- *   WdSkel.clear(containerId)
- *     Fade-out and remove any skeletons inside the container.
- *
- *   WdSkel.clearAll()
- *     Clear every active skeleton on the page.
- *
- * Skeletons auto-clear when their container's content changes
- * if you call WdSkel.clear(id) after rendering real data.
+ * Types: 'card', 'table', 'text', 'chart', 'list', 'stat'
  */
+'use strict';
 
-(function (global) {
-  'use strict';
+window.WDSkeleton = (function () {
 
-  const _active = new Set();  // track containers with active skeletons
+  const _stored = new WeakMap(); // element -> original innerHTML
 
-  /* ── Helpers ─────────────────────────────────────────────────────────── */
-
-  function _el(id) {
-    return typeof id === 'string' ? document.getElementById(id) : id;
+  // ── CSS injection (once) ──────────────────────────────────────
+  function _injectStyles() {
+    if (document.getElementById('wd-skeleton-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'wd-skeleton-styles';
+    style.textContent = `
+      .wd-skel { background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--border) 50%, var(--bg-secondary) 75%); background-size: 200% 100%; animation: wd-skel-shimmer 1.5s ease-in-out infinite; border-radius: 6px; }
+      @keyframes wd-skel-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+      .wd-skel-line { height: 14px; margin-bottom: 8px; }
+      .wd-skel-title { height: 20px; width: 50%; margin-bottom: 14px; }
+      .wd-skel-circle { border-radius: 50%; }
+      .wd-skel-card { padding: 16px; }
+      .wd-skel-row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+      .wd-skel-stat-val { height: 28px; width: 70%; margin: 8px 0; }
+    `;
+    document.head.appendChild(style);
   }
 
-  function _skel(cls, style = '') {
-    return `<div class="skel ${cls}"${style ? ` style="${style}"` : ''}></div>`;
-  }
+  // ── Templates per type ────────────────────────────────────────
+  function _template(type, opts = {}) {
+    _injectStyles();
+    const rows = opts.rows || 4;
 
-  function _tag(id, html) {
-    const el = _el(id);
-    if (!el) return;
-    el.innerHTML = html;
-    el.dataset.wdSkel = '1';
-    _active.add(id);
-  }
+    switch (type) {
+      case 'card':
+        return `<div class="wd-skel-card">
+          <div class="wd-skel wd-skel-title"></div>
+          <div class="wd-skel wd-skel-line" style="width:90%"></div>
+          <div class="wd-skel wd-skel-line" style="width:75%"></div>
+          <div class="wd-skel wd-skel-line" style="width:60%"></div>
+        </div>`;
 
-  /* ── Public API ──────────────────────────────────────────────────────── */
+      case 'stat':
+        return `<div class="wd-skel-card">
+          <div class="wd-skel wd-skel-line" style="width:50%;height:11px;"></div>
+          <div class="wd-skel wd-skel-stat-val"></div>
+          <div class="wd-skel wd-skel-line" style="width:40%;height:11px;"></div>
+        </div>`;
 
-  const WdSkel = {
-
-    /**
-     * Skeleton table rows — inject into a <tbody> or wrapper div.
-     * @param {string|Element} id  — target element id or element
-     * @param {number} rows       — number of skeleton rows (default 6)
-     * @param {number} cols       — number of columns per row (default 5)
-     */
-    table(id, rows = 6, cols = 5) {
-      const el = _el(id);
-      if (!el) return;
-      const tag = el.tagName.toLowerCase();
-      const colWidth = Math.floor(100 / cols);
-      const cells = Array(cols).fill(0).map((_, i) =>
-        `<td style="padding:10px 8px;">${_skel('skel-text', `width:${i === 0 ? 70 : colWidth}%;margin:0;`)}</td>`
-      ).join('');
-      const rowHtml = `<tr>${cells}</tr>`;
-      if (tag === 'tbody' || tag === 'table') {
-        el.innerHTML = Array(rows).fill(rowHtml).join('');
-      } else {
-        // Non-table container: use div rows
-        el.innerHTML = Array(rows).fill(_skel('skel-row')).join('');
+      case 'table': {
+        let html = '<div style="padding:8px 16px;">';
+        for (let i = 0; i < rows; i++) {
+          html += `<div class="wd-skel-row">
+            <div class="wd-skel wd-skel-circle" style="width:32px;height:32px;flex-shrink:0;"></div>
+            <div style="flex:1;"><div class="wd-skel wd-skel-line" style="width:60%"></div><div class="wd-skel wd-skel-line" style="width:40%;height:10px;"></div></div>
+            <div class="wd-skel" style="width:70px;height:14px;"></div>
+          </div>`;
+        }
+        return html + '</div>';
       }
-      el.dataset.wdSkel = '1';
-      _active.add(typeof id === 'string' ? id : id.id);
-    },
 
-    /**
-     * Skeleton stat value — for summary / hero numbers.
-     */
-    stat(id, wide = false) {
-      _tag(id, `
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          ${_skel('skel-value' + (wide ? '' : '-sm'))}
-          ${_skel('skel-text-sm', 'width:55%;')}
-        </div>`);
-    },
+      case 'list': {
+        let html = '';
+        for (let i = 0; i < rows; i++) {
+          html += `<div class="wd-skel-row"><div class="wd-skel" style="flex:1;height:14px;"></div></div>`;
+        }
+        return html;
+      }
 
-    /**
-     * Skeleton cards grid.
-     */
-    cards(id, count = 4, height = 110) {
-      const cards = Array(count).fill(0).map(() =>
-        _skel('skel-card', `height:${height}px;`)
-      ).join('');
-      const grid = Math.min(count, 4);
-      _tag(id, `<div class="skel-grid skel-grid-${grid}" style="padding:4px 0;">${cards}</div>`);
-    },
+      case 'chart':
+        return `<div style="padding:16px;display:flex;align-items:flex-end;gap:8px;height:${opts.height || 200}px;">
+          ${Array.from({length: 8}).map(() => `<div class="wd-skel" style="flex:1;height:${Math.floor(Math.random()*60+30)}%;"></div>`).join('')}
+        </div>`;
 
-    /**
-     * Skeleton chart area.
-     */
-    chart(id, height = 180) {
-      _tag(id, `
-        <div style="display:flex;flex-direction:column;gap:12px;padding:8px 0;">
-          ${_skel('skel-text-sm', 'width:40%;')}
-          ${_skel('skel-chart', `height:${height}px;`)}
-        </div>`);
-    },
+      case 'text':
+      default: {
+        let html = '';
+        for (let i = 0; i < rows; i++) {
+          html += `<div class="wd-skel wd-skel-line" style="width:${100 - i*8}%;"></div>`;
+        }
+        return html;
+      }
+    }
+  }
 
-    /**
-     * Skeleton donut chart.
-     */
-    donut(id) {
-      _tag(id, `<div style="display:flex;align-items:center;gap:20px;padding:8px;">
-        ${_skel('skel-donut skel-circle')}
-        <div style="flex:1;display:flex;flex-direction:column;gap:10px;">
-          ${[0,1,2,3].map(() => _skel('skel-text', 'width:80%;margin:0;')).join('')}
-        </div>
-      </div>`);
-    },
+  // ── Show skeleton in element (saves original content) ─────────
+  function show(selector, type = 'card', opts = {}) {
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!el) return;
+    if (typeof opts === 'number') opts = { rows: opts };
+    if (!_stored.has(el)) _stored.set(el, el.innerHTML);
+    el.innerHTML = _template(type, opts);
+    el.classList.add('wd-skeleton-active');
+  }
 
-    /**
-     * Skeleton activity/alert list.
-     */
-    list(id, rows = 5) {
-      const items = Array(rows).fill(0).map(() => `
-        <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-color);">
-          ${_skel('skel-circle skel-circle-sm skel-inline', 'flex-shrink:0;')}
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
-            ${_skel('skel-text', 'width:60%;margin:0;')}
-            ${_skel('skel-text-sm', 'width:35%;margin:0;')}
-          </div>
-          ${_skel('skel-value-sm skel-inline', 'flex-shrink:0;width:70px;')}
-        </div>`).join('');
-      _tag(id, items);
-    },
+  // ── Hide skeleton, restore original content (or set new) ───────
+  function hide(selector, newHtml = null) {
+    const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!el) return;
+    if (newHtml !== null) {
+      el.innerHTML = newHtml;
+    } else if (_stored.has(el)) {
+      el.innerHTML = _stored.get(el);
+    }
+    el.classList.remove('wd-skeleton-active');
+    _stored.delete(el);
+  }
 
-    /**
-     * Skeleton summary cards row (for dashboard asset cards).
-     */
-    summaryCards(id, count = 4) {
-      const cards = Array(count).fill(0).map(() => `
-        <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            ${_skel('skel-text', 'width:45%;margin:0;')}
-            ${_skel('skel-circle skel-circle-sm skel-inline')}
-          </div>
-          ${_skel('skel-value')}
-          ${_skel('skel-text-sm', 'width:55%;margin:0;')}
-        </div>`).join('');
-      _tag(id, `<div class="skel-grid skel-grid-${Math.min(count, 4)}">${cards}</div>`);
-    },
-
-    /**
-     * Clear skeletons from a container and show a fade-out.
-     */
-    clear(id) {
-      const el = _el(id);
-      if (!el || !el.dataset.wdSkel) return;
-      // Mark skeletons for fade-out
-      el.querySelectorAll('.skel').forEach(s => {
-        s.classList.add('skel-fade-out');
-        setTimeout(() => s.remove(), 260);
+  // ── Wrap an async operation: show skeleton, await promise, render result ──
+  function wrap(selector, type, promise, renderFn, opts = {}) {
+    show(selector, type, opts);
+    return promise
+      .then(data => {
+        const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+        if (!el) return data;
+        if (renderFn) {
+          el.innerHTML = renderFn(data);
+        } else {
+          hide(selector);
+        }
+        el.classList.remove('wd-skeleton-active');
+        _stored.delete(el);
+        return data;
+      })
+      .catch(err => {
+        const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+        if (el) {
+          el.innerHTML = `<div class="empty-state" style="padding:20px;"><div style="color:var(--text-muted);">⚠️ Failed to load</div></div>`;
+          el.classList.remove('wd-skeleton-active');
+        }
+        throw err;
       });
-      delete el.dataset.wdSkel;
-      _active.delete(typeof id === 'string' ? id : id.id);
-    },
+  }
 
-    /**
-     * Clear ALL active skeletons on the page.
-     */
-    clearAll() {
-      for (const id of [..._active]) this.clear(id);
-      // Also catch any orphaned skeletons
-      document.querySelectorAll('[data-wd-skel]').forEach(el => {
-        delete el.dataset.wdSkel;
-        el.querySelectorAll('.skel').forEach(s => s.remove());
-      });
-    },
-  };
+  // ── Auto-skeleton: apply to all [data-skeleton] elements on load ────
+  function autoInit() {
+    document.querySelectorAll('[data-skeleton]').forEach(el => {
+      const type = el.dataset.skeleton || 'card';
+      const rows = parseInt(el.dataset.skeletonRows || '4', 10);
+      show(el, type, { rows });
+    });
+  }
 
-  global.WdSkel = WdSkel;
+  document.addEventListener('DOMContentLoaded', autoInit);
 
-})(window);
+  return { show, hide, wrap, autoInit };
+
+})();

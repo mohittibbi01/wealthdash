@@ -1,0 +1,59 @@
+/**
+ * WealthDash — t452: Empty States — Supplementary CSS
+ * File: public/css/empty-states.css
+ *
+ * Most styles are injected by empty-states.js at runtime. This file is
+ * OPTIONAL — include for static CSS or to extend/override the
+ * `.empty-state` class already used across existing pages (insurance,
+ * loans, ULIP, etc. all use class="empty-state").
+ *
+ * To use: add this line in layout.php after app.css:
+ *   <link rel="stylesheet" href="<?= APP_URL ?>/public/css/empty-states.css">
+ */
+
+/* Existing .empty-state class (used throughout the app) — enhanced */
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+}
+
+.empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: .8;
+  display: block;
+}
+
+.empty-state-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.empty-state-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 340px;
+  margin: 0 auto 16px;
+  line-height: 1.6;
+}
+
+/* Subtle fade-in for empty states */
+.empty-state, .wd-empty {
+  animation: wd-empty-fadein .3s ease;
+}
+
+@keyframes wd-empty-fadein {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Compact variant for small widgets/cards */
+.empty-state.compact, .wd-empty.compact {
+  padding: 20px 12px;
+}
+.empty-state.compact .empty-icon, .wd-empty.compact .wd-empty-icon {
+  font-size: 1.8rem;
+  margin-bottom: 6px;
+}
