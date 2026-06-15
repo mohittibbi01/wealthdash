@@ -86,132 +86,69 @@ if ($format === 'report') {
     $statusColors = ['live'=>'#00e676','under_development'=>'#ffd740','redevelopment'=>'#40c4ff','closed'=>'#ff3d5a'];
     ?>
 <!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>DevVault Report — <?=date('d M Y')?></title>
-<style>
-body{font-family:Arial,sans-serif;font-size:12px;color:#000;margin:0;padding:20px;background:#fff}
-h1{font-size:20px;margin-bottom:4px}
-.meta{font-size:11px;color:#666;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin-bottom:24px;font-size:11px}
-th{background:#1a1a2e;color:#fff;padding:7px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
-td{padding:6px 8px;border-bottom:1px solid #e0e0e0;vertical-align:top}
-tr:nth-child(even) td{background:#f8f9fa}
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;border:1px solid currentColor}
-h2{font-size:14px;border-bottom:2px solid #1a1a2e;padding-bottom:4px;margin:20px 0 10px}
-@media print{
-  .no-print{display:none}
-  body{padding:0}
-}
-</style>
-</head>
-<body>
-<div class="no-print" style="margin-bottom:16px">
-  <button onclick="window.print()" style="padding:8px 16px;background:#1a1a2e;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:8px">🖨 Print</button>
-  <a href="export.php" style="color:#1a1a2e;font-size:12px">← Back</a>
-</div>
-
-<h1>DevVault Pro — Project Report</h1>
-<div class="meta">Generated: <?=date('d M Y, H:i:s')?> | By: <?=htmlspecialchars($_SESSION['username'])?> | Total: <?=count($allProjects)?> projects</div>
-
-<h2>Status Summary</h2>
-<table>
-  <tr><th>Status</th><th>Count</th></tr>
-  <?php
-  $sc=[];
-  foreach($allProjects as $p) $sc[$p['current_status']]=($sc[$p['current_status']]??0)+1;
-  foreach($statusLabels as $k=>$l):?>
-  <tr>
-    <td><span class="badge" style="color:<?=$statusColors[$k]?>"><?=$l?></span></td>
-    <td><?=$sc[$k]??0?></td>
-  </tr>
-  <?php endforeach;?>
-</table>
-
-<h2>All Projects</h2>
-<table>
-  <tr>
-    <th>#</th><th>Project</th><th>Department</th><th>Technology</th>
-    <th>Status</th><th>Nodal Officer</th><th>App IP</th><th>DB IP</th>
-    <th>Production URL</th><th>Live Date</th>
-  </tr>
-  <?php foreach($allProjects as $i=>$p):
-    $tech=$p['technology']==='Other'?$p['technology_other']:$p['technology'];?>
-  <tr>
-    <td><?=$i+1?></td>
-    <td><strong><?=htmlspecialchars($p['project_name'])?></strong></td>
-    <td><?=htmlspecialchars($p['department_name']??'')?></td>
-    <td><?=htmlspecialchars($tech??'')?></td>
-    <td><span class="badge" style="color:<?=$statusColors[$p['current_status']]??'#666'?>"><?=$statusLabels[$p['current_status']]??$p['current_status']?></span></td>
-    <td><?=htmlspecialchars($p['nodal_officer_name']??'')?><br><small><?=htmlspecialchars($p['nodal_contact']??'')?></small></td>
-    <td><?=htmlspecialchars($p['app_ip']??'')?></td>
-    <td><?=htmlspecialchars($p['db_ip']??'')?></td>
-    <td style="word-break:break-all"><?=htmlspecialchars($p['env_production_url']??'')?></td>
-    <td><?=htmlspecialchars($p['live_date']??'')?></td>
-  </tr>
-  <?php endforeach;?>
-</table>
-</body>
-</html>
-<?php exit; }
-
-// ── Export UI ─────────────────────────────────────────────────────────────
-$total = count($allProjects);
-$lastBackup = file_exists(__DIR__.'/data/vault_backup.json') ? date('d M Y, H:i',filemtime(__DIR__.'/data/vault_backup.json')) : 'Never';
-?>
-<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?=$theme?>">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DevVault Pro — Export</title>
+<title>DevVault Pro — Export & Backup</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--acc:<?=$accent?>;
-  --user-bg:<?=$bg?$bg:'var(--bg)'?>;
-  --bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--border:#1e2d4a;
-  --text:#e8edf5;--muted:#5a7a9a;--accent:#00d4ff;--success:#00e676;--amber:#ffd740}
-body{font-family:'Rajdhani',sans-serif;background:var(--user-bg);color:var(--text);
-  min-height:100vh;padding:24px}
-.wrap{max-width:680px;margin:0 auto}
-.page-header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;
-  font-size:14px;font-weight:600;font-family:'Rajdhani',sans-serif;cursor:pointer;
-  border:none;text-decoration:none;transition:all .15s}
-.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
-.btn-ghost:hover{color:var(--text)}
-h1{font-family:'Orbitron',monospace;font-size:18px;color:var(--accent)}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px}
-.card h2{font-family:'Share Tech Mono',monospace;font-size:11px;text-transform:uppercase;
-  letter-spacing:1.5px;color:var(--muted);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-.info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(30,45,74,.5);font-size:13px}
+:root{--accent:<?=$accent?>;--fs:<?=$fsize?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
+  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;}
+[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
+html{font-size:var(--fs)}
+body{font-family:'<?=$ffamily?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+[data-theme="light"] body::before{opacity:.3}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
+[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
+.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
+  font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
+.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
+.btn-sm{padding:4px 9px;font-size:11px}
+.wrap{max-width:700px;margin:0 auto;padding:20px;position:relative;z-index:1}
+.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.card h2{font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.info-row{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(30,45,74,.4);font-size:13px}
 .info-row:last-child{border-bottom:none}
-.info-row .k{color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:12px}
+.info-row .k{color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px}
 .info-row .v{font-family:'Share Tech Mono',monospace;font-weight:600}
-.exp-opt{display:flex;align-items:center;gap:16px;padding:14px;background:var(--surface2);
-  border:1px solid var(--border);border-radius:10px;margin-bottom:10px;
-  text-decoration:none;color:var(--text);transition:all .2s}
-.exp-opt:hover{border-color:var(--accent);transform:translateX(4px)}
-.exp-opt:last-child{margin-bottom:0}
-.exp-icon{font-size:30px}
-.exp-info h3{font-size:15px;font-weight:700;margin-bottom:2px}
+.exp-opt{display:flex;align-items:center;gap:16px;padding:14px 16px;background:var(--surface2);
+  border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);transition:all .2s}
+.exp-opt:last-child{border-bottom:none}
+.exp-opt:hover{background:var(--surface3);padding-left:20px}
+.exp-icon{font-size:28px;flex-shrink:0}
+.exp-info h3{font-size:14px;font-weight:700;margin-bottom:3px}
 .exp-info p{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted)}
-.badge{margin-left:auto;font-size:10px;font-family:'Share Tech Mono',monospace;
-  padding:3px 9px;border-radius:20px;flex-shrink:0}
-.badge-g{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.25)}
-.badge-a{background:rgba(255,215,64,.12);color:var(--amber);border:1px solid rgba(255,215,64,.25)}
-.badge-b{background:rgba(0,212,255,.12);color:var(--accent);border:1px solid rgba(0,212,255,.25)}
-.portable-steps{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);line-height:2}
+.badge{margin-left:auto;font-size:9px;font-family:'Share Tech Mono',monospace;padding:3px 9px;border-radius:20px;font-weight:700;flex-shrink:0;border:1px solid currentColor}
+.badge-g{background:rgba(0,230,118,.10);color:var(--success)}
+.badge-a{background:rgba(255,215,64,.10);color:var(--amber)}
+.badge-b{background:rgba(0,212,255,.10);color:var(--accent)}
+.portable-steps{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);line-height:2;padding:14px 16px}
 .portable-steps strong{color:var(--text)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="page-header">
-    <a href="index.php" class="btn btn-ghost">← Back</a>
-    <h1>📤 EXPORT & BACKUP</h1>
+<div class="topbar">
+  <span class="logo-txt">DEVVAULT</span>
+  <span style="color:var(--border);font-size:18px">|</span>
+  <span style="font-size:14px;font-weight:700;font-family:'Rajdhani',sans-serif">📤 Export & Backup</span>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a>
+    <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
+    <a href="logout.php" class="btn btn-ghost btn-sm">⏏ Logout</a>
   </div>
+</div>
+<div class="wrap">
+  <div class="page-title">📤 EXPORT & BACKUP</div>
 
   <div class="card">
     <h2>Current Data</h2>
@@ -272,5 +209,6 @@ h1{font-family:'Orbitron',monospace;font-size:18px;color:var(--accent)}
     </div>
   </div>
 </div>
+<script src="session_timer.js"></script>
 </body>
 </html>

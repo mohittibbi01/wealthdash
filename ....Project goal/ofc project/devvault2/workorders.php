@@ -200,50 +200,77 @@ function wo_badge(string $s): string {
 <head>
 <meta charset="UTF-8">
 <title>Work Orders — DevVault Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#070b14;--surface:#0d1526;--surface2:#111c30;--border:#1e2d45;--text:#e8edf5;--muted:#7a8fa8;--accent:<?=$accent?>;}
-[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#f5f7fa;--border:#d0dae8;--text:#1a2535;--muted:#5a7394;}
-body{background:var(--bg);color:var(--text);font-family:'<?=$font?>',sans-serif;font-size:<?=$fs?>px;min-height:100vh;}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;gap:16px;}
-.topbar a{color:var(--muted);text-decoration:none;font-size:13px;}.topbar a:hover{color:var(--accent);}
-.logo{font-weight:700;font-size:16px;color:var(--accent);margin-right:8px;}
-.wrap{max-width:1400px;margin:0 auto;padding:24px 20px;}
-h1{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:20px;}
-h2{font-size:16px;font-weight:600;margin-bottom:12px;}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;text-decoration:none;}
-.btn-primary{background:var(--accent);color:#000;}.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
-.btn-danger{background:#ef444422;border:1px solid #ef4444;color:#ef4444;}.btn-success{background:#10b98122;border:1px solid #10b981;color:#10b981;}
-.btn-warn{background:#f59e0b22;border:1px solid #f59e0b;color:#f59e0b;}
-.btn-sm{padding:4px 10px;font-size:12px;}
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;border-bottom:1px solid var(--border);}
-td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,0.04);}
-tr:hover td{background:rgba(255,255,255,0.02);}
-.progress-bar-wrap{background:rgba(255,255,255,0.08);border-radius:4px;height:8px;width:100%;margin-top:4px;}
-.progress-bar{background:var(--accent);height:8px;border-radius:4px;transition:.3s;}
-.f{display:flex;flex-direction:column;gap:4px;flex:1;}
-.f label{font-size:11px;color:var(--muted);font-weight:500;}
-.f input,.f select,.f textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:13px;font-family:inherit;}
-.row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;}.w2{flex:2;}.w3{flex:3;}
-.flash{padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:13px;}
-.flash.success{background:#10b98122;border:1px solid #10b981;color:#10b981;}
-.flash.error{background:#ef444422;border:1px solid #ef4444;color:#ef4444;}
-.tech-group-hd{background:var(--surface2);border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;margin:8px 0 4px;display:flex;justify-content:space-between;align-items:center;}
-.checkboxes{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
-.checkboxes label{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;}
-.checkboxes label:has(input:checked){border-color:var(--accent);color:var(--accent);}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center;}
-.modal-backdrop.open{display:flex;}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:720px;max-width:95vw;max-height:90vh;overflow-y:auto;}
-.modal h3{font-size:16px;font-weight:600;margin-bottom:16px;color:var(--accent);}
-.pct-badge{font-size:22px;font-weight:700;color:var(--accent);}
-.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:20px;}
-.meta-item{font-size:12px;}.meta-item .lbl{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;}
-.history-item{font-size:12px;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline;}
-.history-item .ts{white-space:nowrap;font-size:11px;min-width:130px;}
-.history-item .act{color:var(--text);}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
+  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;--purple:#ea80fc;}
+[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
+html{font-size:var(--fs)}
+body{font-family:'<?=$font?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+[data-theme="light"] body::before{opacity:.3}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
+[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
+.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;
+  padding:5px 10px;border-radius:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+.tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
+  font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
+.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
+.btn-danger{background:rgba(255,61,90,.12);color:var(--danger);border:1px solid rgba(255,61,90,.3)}.btn-danger:hover{background:rgba(255,61,90,.22)}
+.btn-warn{background:rgba(255,215,64,.12);color:var(--amber);border:1px solid rgba(255,215,64,.3)}.btn-warn:hover{background:rgba(255,215,64,.22)}
+.btn-success{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.3)}.btn-success:hover{background:rgba(0,230,118,.22)}
+.btn-sm{padding:4px 9px;font-size:11px}
+.wrap{max-width:1400px;margin:0 auto;padding:20px;position:relative;z-index:1}
+.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.card-pad{padding:16px}
+.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Share Tech Mono',monospace}
+.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
+.flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
+table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Share Tech Mono',monospace}
+th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
+tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
+.f{display:flex;flex-direction:column;gap:4px;flex:1}
+.f label{font-family:'Share Tech Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;
+  color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+.row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}.w2{flex:2}.w3{flex:3}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.fg{display:flex;flex-direction:column;gap:3px;min-width:120px}
+.fg label{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:720px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h3{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
+.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Share Tech Mono',monospace;color:var(--muted);border-top:1px solid var(--border)}
+.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Share Tech Mono',monospace;font-size:11px}
+.progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:4px;height:7px;width:100%}
+.progress-bar{height:7px;border-radius:4px;background:var(--accent);transition:.3s}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.meta-item{font-size:12px;font-family:'Share Tech Mono',monospace}
+.meta-item .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+.history-item{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline}
+.history-item:last-child{border-bottom:none}
+.history-item .ts{white-space:nowrap;font-size:10px;min-width:130px}
+.history-item .act{color:var(--text)}
+.tech-hd{background:var(--surface2);padding:10px 14px;font-size:11px;font-weight:700;font-family:'Share Tech Mono',monospace;
+  display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.checkboxes{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.checkboxes label{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;
+  cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+.checkboxes label:hover{border-color:var(--muted)}
+.pct-num{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:var(--accent)}
 </style>
 </head>
 <body>
@@ -273,7 +300,8 @@ tr:hover td{background:rgba(255,255,255,0.02);}
   <a href="workorders.php" class="btn btn-ghost btn-sm">← All Work Orders</a>
   <h1 style="margin:0;flex:1;">📝 <?=htmlspecialchars($wo['title'])?></h1>
   <?=wo_badge($wo['status'])?>
-  <span style="background:<?=$priority_map[$wo['priority']]??'#3b82f6'>22;color:<?=$priority_map[$wo['priority']]??'#3b82f6'?>;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;"><?=$wo['priority']?></span>
+  <?php $pc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
+  <span style="background:<?=$pc?>22;color:<?=$pc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pc?>40;font-family:'Share Tech Mono',monospace"><?=$wo['priority']?></span>
 </div>
 
 <!-- Meta info -->
@@ -446,7 +474,7 @@ tr:hover td{background:rgba(255,255,255,0.02);}
      LIST VIEW
 ══════════════════════════════════════════════ -->
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-  <h1 style="margin:0;flex:1;">📝 Work Orders</h1>
+  <span class="page-title" style="margin:0;flex:1">📝 WORK ORDERS</span>
   <?php if (can_edit()): ?>
   <button class="btn btn-primary" onclick="document.getElementById('create-modal').classList.add('open')">＋ New Work Order</button>
   <?php endif; ?>
@@ -479,7 +507,8 @@ tr:hover td{background:rgba(255,255,255,0.02);}
       <tr>
         <td><a href="workorders.php?view=<?=$wo['id']?>" style="color:var(--accent);text-decoration:none;font-weight:600;"><?=htmlspecialchars($wo['title'])?></a></td>
         <td style="font-size:12px;"><?=implode(', ', $techs)?></td>
-        <td><span style="background:<?=$priority_map[$wo['priority']]??'#3b82f6'>22;color:<?=$priority_map[$wo['priority']]??'#3b82f6'?>;font-size:10px;padding:2px 8px;border-radius:4px;"><?=$wo['priority']?></span></td>
+        <?php $pwc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
+        <td><span style="background:<?=$pwc?>22;color:<?=$pwc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pwc?>40;font-family:'Share Tech Mono',monospace"><?=$wo['priority']?></span></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['deadline']??'-')?></td>
         <td style="min-width:120px;">
           <div style="font-size:12px;color:var(--muted);margin-bottom:4px;"><?=$wo['done_sites']?>/<?=$wo['total_sites']?> (<?=$pct?>%)</div>
