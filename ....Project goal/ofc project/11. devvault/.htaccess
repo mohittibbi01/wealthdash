@@ -1,0 +1,53 @@
+# ============================================================
+# DevVault Pro — Apache Security Configuration
+# ============================================================
+# Place this file in the project root (same folder as index.php)
+# ============================================================
+
+# ── Block direct access to .env file ────────────────────────
+<Files ".env">
+    Require all denied
+</Files>
+
+# ── Block README (contains default credentials + structure) ─
+<Files "README.md">
+    Require all denied
+</Files>
+
+# ── Block migration scripts ──────────────────────────────────
+<Files "migration_t01.php">
+    Require all denied
+</Files>
+<Files "migration_t04.php">
+    Require all denied
+</Files>
+<Files "migration_t05_t10.php">
+    Require all denied
+</Files>
+
+# ── Block entire data/ directory ─────────────────────────────
+# This protects vault.db, vault_backup.json, and all uploads
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^data/ - [F,L]
+</IfModule>
+
+# Fallback for servers without mod_rewrite
+<IfModule !mod_rewrite.c>
+    RedirectMatch 403 ^/data/
+</IfModule>
+
+# ── Disable PHP errors in output (log to file instead) ───────
+php_flag display_errors off
+php_flag log_errors on
+
+# ── Disable directory listing ─────────────────────────────────
+Options -Indexes
+
+# ── Security headers (fallback if not set in PHP) ────────────
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options "DENY"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "same-origin"
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
