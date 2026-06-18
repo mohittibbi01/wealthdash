@@ -21,12 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
         $u    = trim($_POST['username'] ?? '');
         $pw   = $_POST['password'] ?? '';
         $role = in_array($_POST['role'] ?? '', ['admin', 'member', 'viewer']) ? $_POST['role'] : 'member';
-        if ($u && $pw) try {
+        if ($u && strlen($pw) >= 8) try {
             $db->prepare("INSERT INTO users(username,password_hash,role,is_active,password_changed) VALUES(?,?,?,1,1)")
                ->execute([$u, password_hash($pw, PASSWORD_DEFAULT), $role]);
             $_SESSION['flash'] = ['type' => 'success', 'msg' => "✅ User \"$u\" added."];
         } catch (Exception $e) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => '⚠ Username already exists.'];
+        } elseif ($u && strlen($pw) < 8) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => '⚠ Password minimum 8 characters ka hona chahiye.'];
         }
     }
 
@@ -59,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     if ($action === 'reset_pw') {
         $uid = intval($_POST['uid'] ?? 0);
         $np  = $_POST['new_pw'] ?? '';
-        if ($np && strlen($np) >= 4) {
+        if ($np && strlen($np) >= 8) {
             $db->prepare("UPDATE users SET password_hash=?, password_changed=1 WHERE id=?")
                ->execute([password_hash($np, PASSWORD_DEFAULT), $uid]);
             $_SESSION['flash'] = ['type' => 'success', 'msg' => '🔑 Password reset.'];
@@ -156,7 +158,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
 
 // ── Data fetch ────────────────────────────────────────────────────────────────
 $users          = $db->query("SELECT *,(SELECT COUNT(*) FROM projects WHERE created_by=users.id) as pc FROM users ORDER BY role DESC,username")->fetchAll();
-$logs           = $db->query("SELECT l.*,u.username FROM activity_log l LEFT JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 150")->fetchAll();
+// ── Activity log pagination ───────────────────────────────────────────────────
+$log_per_page   = 50;
+$log_page       = max(1, intval($_GET['log_page'] ?? 1));
+$log_offset     = ($log_page - 1) * $log_per_page;
+$log_total      = (int)$db->query("SELECT COUNT(*) FROM activity_log")->fetchColumn();
+$log_pages      = max(1, (int)ceil($log_total / $log_per_page));
+if ($log_page > $log_pages) $log_page = $log_pages;
+$logs           = $db->query("SELECT l.*,u.username FROM activity_log l LEFT JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT {$log_per_page} OFFSET {$log_offset}")->fetchAll();
 $dynOpts        = $db->query("SELECT * FROM dynamic_options ORDER BY option_group,sort_order")->fetchAll();
 $checklistItems = $db->query("SELECT * FROM checklist_items ORDER BY sort_order, id")->fetchAll();
 $ipList         = $db->query("SELECT w.*, u.username as added_by_name FROM ip_whitelist w LEFT JOIN users u ON w.added_by=u.id ORDER BY w.added_at DESC")->fetchAll();
@@ -338,6 +347,20 @@ select option{background:var(--surface2)}
   margin-top:12px;line-height:1.8}
 .ri{display:flex;align-items:center;gap:6px;margin-bottom:4px}
 .ri:last-child{margin-bottom:0}
+
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+.pagination-bar{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;padding:12px 0;margin-top:4px}
+.pag-info{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.pag-btns{display:flex;gap:5px;flex-wrap:wrap}
+.pag-btn{display:inline-flex;align-items:center;justify-content:center;
+  min-width:34px;height:30px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;
+  font-family:'Rajdhani',sans-serif;text-decoration:none;
+  background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+  transition:all .15s;cursor:pointer}
+.pag-btn:hover:not(.disabled):not(.active){background:var(--surface3);color:var(--text)}
+.pag-btn.active{background:var(--accent);color:#000;border-color:var(--accent);cursor:default}
+.pag-btn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 </style>
 </head>
 <body>
@@ -454,7 +477,7 @@ select option{background:var(--surface2)}
             <input type="text" name="username" placeholder="e.g. john_dev" required>
           </div>
           <div class="field"><label>Password</label>
-            <input type="password" name="password" placeholder="Min 6 chars" required>
+            <input type="password" name="password" placeholder="Min 8 chars" required>
           </div>
         </div>
         <div class="field"><label>Role</label>
@@ -729,7 +752,7 @@ select option{background:var(--surface2)}
 <!-- ═══ LOGS TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'logs' ? 'active' : '' ?>" id="tab-logs">
   <div class="panel">
-    <h2>Activity Log — Last 150 Actions</h2>
+    <h2>Activity Log — <?= intval($log_total) ?> Total &nbsp;·&nbsp; Page <?= intval($log_page) ?>/<?= intval($log_pages) ?></h2>
     <?php
     $icons = ['login'=>'🟢','logout'=>'🔴','add_project'=>'➕','edit_project'=>'✏',
               'delete_project'=>'🗑','view_password'=>'👁','export_csv'=>'📊',
@@ -749,6 +772,33 @@ select option{background:var(--surface2)}
     <?php endforeach; ?>
     <?php if (!$logs): ?>
     <p style="color:var(--muted);font-size:11px;font-family:'Share Tech Mono',monospace">No activity yet.</p>
+    <?php endif; ?>
+
+    <?php if($log_pages > 1): ?>
+    <div class="pagination-bar" style="margin-top:14px">
+      <div class="pag-info"><?= intval($log_total) ?> entries &nbsp;·&nbsp; Showing <?= intval($log_offset+1) ?>–<?= intval(min($log_offset+$log_per_page,$log_total)) ?></div>
+      <div class="pag-btns">
+        <?php if($log_page > 1): ?>
+          <a href="?tab=logs&log_page=1" class="pag-btn" title="First">«</a>
+          <a href="?tab=logs&log_page=<?= $log_page-1 ?>" class="pag-btn">‹ Prev</a>
+        <?php else: ?>
+          <span class="pag-btn disabled">«</span>
+          <span class="pag-btn disabled">‹ Prev</span>
+        <?php endif; ?>
+        <?php
+        $ls = max(1, $log_page-2); $le = min($log_pages, $log_page+2);
+        for($lp=$ls;$lp<=$le;$lp++): ?>
+          <a href="?tab=logs&log_page=<?= $lp ?>" class="pag-btn<?= $lp===$log_page?' active':'' ?>"><?= $lp ?></a>
+        <?php endfor; ?>
+        <?php if($log_page < $log_pages): ?>
+          <a href="?tab=logs&log_page=<?= $log_page+1 ?>" class="pag-btn">Next ›</a>
+          <a href="?tab=logs&log_page=<?= $log_pages ?>" class="pag-btn" title="Last">»</a>
+        <?php else: ?>
+          <span class="pag-btn disabled">Next ›</span>
+          <span class="pag-btn disabled">»</span>
+        <?php endif; ?>
+      </div>
+    </div>
     <?php endif; ?>
   </div>
 </div>
@@ -790,8 +840,8 @@ function changeRole(uid, role) {
 document.querySelectorAll('.role-sel').forEach(s => s.dataset.orig = s.value);
 
 function resetPw(uid, name) {
-  const pw = prompt(`New password for "${name}" (min 4 chars):`);
-  if (!pw || pw.length < 4) { if (pw !== null) alert('Password too short!'); return; }
+  const pw = prompt(`New password for "${name}" (min 8 chars):`);
+  if (!pw || pw.length < 8) { if (pw !== null) alert('Password minimum 8 characters hona chahiye!'); return; }
   document.getElementById('rpf-uid').value = uid;
   document.getElementById('rpf-pw').value = pw;
   document.getElementById('reset-form').submit();

@@ -256,20 +256,20 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
             $stc = $sta_cfg[$f['current_status']] ?? '#5a7a9a';
           ?>
           <tr>
-            <td><input type="checkbox" name="finding_ids[]" class="f-chk" value="<?=$f['id']?>" <?=$f['current_status']==='Closed'?'disabled':''?>></td>
+            <td><input type="checkbox" name="finding_ids[]" class="f-chk" value="<?=intval($f['id'])?>" <?=$f['current_status']==='Closed'?'disabled':''?>></td>
             <td><a href="project_form.php?id=<?=$f['project_id']?>" style="color:var(--blue);text-decoration:none;font-size:11px"><?=htmlspecialchars($f['project_name']??'?')?></a></td>
             <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?=htmlspecialchars($f['finding_description'])?>"><?=htmlspecialchars($f['finding_description'])?></td>
-            <td><span class="badge" style="color:<?=$sc?>;border-color:<?=$sc?>40"><?=$f['severity']?></span></td>
+            <td><span class="badge" style="color:<?=$sc?>;border-color:<?=$sc?>40"><=htmlspecialchars($f['severity'])?></span></td>
             <td><?=htmlspecialchars($f['found_date'])?></td>
             <td style="color:var(--muted)"><?=htmlspecialchars($f['found_by']??'')?></td>
             <td><?=htmlspecialchars($f['assigned_to']??'')?></td>
             <td>
               <?php if ($f['target_date']): ?>
                 <?=htmlspecialchars($f['target_date'])?>
-                <?php if ($f['days_overdue']>0): ?><br><span class="overdue">⚠ <?=$f['days_overdue']?>d overdue</span><?php endif; ?>
+                <?php if ($f['days_overdue']>0): ?><br><span class="overdue">⚠ <=intval($f['days_overdue'])?>d overdue</span><?php endif; ?>
               <?php else: ?>-<?php endif; ?>
             </td>
-            <td><span class="badge" style="color:<?=$stc?>;border-color:<?=$stc?>40"><?=$f['current_status']?></span></td>
+            <td><span class="badge" style="color:<?=$stc?>;border-color:<?=$stc?>40"><=htmlspecialchars($f['current_status'])?></span></td>
             <td style="white-space:nowrap">
               <?php if (can_edit()): ?>
               <button class="btn btn-ghost btn-sm" onclick='editFinding(<?=json_encode($f)?>)'>✏</button>
@@ -278,7 +278,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
               <form method="post" style="display:inline" onsubmit="return confirm('Delete?')">
                 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
                 <input type="hidden" name="_action" value="delete_finding">
-                <input type="hidden" name="finding_id" value="<?=$f['id']?>">
+                <input type="hidden" name="finding_id" value="<?=intval($f['id'])?>">
                 <button type="submit" class="btn btn-danger btn-sm">🗑</button>
               </form>
               <?php endif; ?>

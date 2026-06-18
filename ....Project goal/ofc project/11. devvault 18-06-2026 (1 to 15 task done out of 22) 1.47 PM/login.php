@@ -16,6 +16,12 @@ $error   = '';
 $locked  = false;
 $lockout_remaining = 0;
 
+// ── URL error messages ────────────────────────────────────────────────────────
+$url_err = $_GET['err'] ?? '';
+if ($url_err === 'session_expired') {
+    $error = 'Aapka session expire ho gaya hai (8 ghante poore ho gaye). Please dobara login karein.';
+}
+
 $db         = get_db();
 $client_ip  = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 

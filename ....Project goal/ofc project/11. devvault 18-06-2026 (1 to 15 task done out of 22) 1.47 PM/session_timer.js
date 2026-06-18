@@ -332,6 +332,9 @@
           remaining = TOTAL;
           hideModal();
           updateChip();
+        } else if (res.error === 'session_expired') {
+          // Absolute 8-hour timeout hit on server side
+          window.location.href = (window.DEVVAULT_LOGOUT || 'logout.php') + '?err=expired';
         } else {
           window.location.href = window.DEVVAULT_LOGOUT || 'logout.php';
         }

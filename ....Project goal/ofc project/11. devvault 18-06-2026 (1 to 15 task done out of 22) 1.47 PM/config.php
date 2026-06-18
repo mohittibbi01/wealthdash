@@ -268,6 +268,24 @@ function get_db(): PDO {
         );
     ");
 
+    // ── Performance indexes on high-frequency FK columns ─────────────────────
+    $db->exec("
+        CREATE INDEX IF NOT EXISTS idx_contacts_pid   ON project_contacts(project_id);
+        CREATE INDEX IF NOT EXISTS idx_docs_pid       ON project_documents(project_id);
+        CREATE INDEX IF NOT EXISTS idx_chk_pid        ON checklist_responses(project_id);
+        CREATE INDEX IF NOT EXISTS idx_chk_item       ON checklist_responses(item_id);
+        CREATE INDEX IF NOT EXISTS idx_log_pid        ON activity_log(project_id);
+        CREATE INDEX IF NOT EXISTS idx_log_uid        ON activity_log(user_id);
+        CREATE INDEX IF NOT EXISTS idx_log_at         ON activity_log(created_at);
+        CREATE INDEX IF NOT EXISTS idx_wos_woid       ON work_order_sites(work_order_id);
+        CREATE INDEX IF NOT EXISTS idx_wos_pid        ON work_order_sites(project_id);
+        CREATE INDEX IF NOT EXISTS idx_findings_pid   ON audit_findings(project_id);
+        CREATE INDEX IF NOT EXISTS idx_vlog_pid       ON project_visitor_log(project_id);
+        CREATE INDEX IF NOT EXISTS idx_vlog_date      ON project_visitor_log(entry_date);
+        CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(current_status);
+        CREATE INDEX IF NOT EXISTS idx_projects_upd    ON projects(updated_at);
+    ");
+
     // ── Seed default admin (only inserts if not already present)
     // password_changed column is added via migration_t01.php — do not reference it here
     $db->exec("INSERT OR IGNORE INTO users (username, password_hash, role)

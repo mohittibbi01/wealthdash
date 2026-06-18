@@ -44,12 +44,26 @@ $where=['1=1'];$params=[];
 if($q){$where[]='(project_name LIKE ? OR department_name LIKE ? OR description LIKE ? OR app_ip LIKE ? OR nodal_officer_name LIKE ? OR db_ip LIKE ?)';$l="%$q%";$params=array_merge($params,[$l,$l,$l,$l,$l,$l]);}
 if($status){$where[]='current_status=?';$params[]=$status;}
 if($tech){$where[]='(technology=? OR technology_other=?)';$params=array_merge($params,[$tech,$tech]);}
+// ── Pagination setup ─────────────────────────────────────────────────────────
+$per_page     = 25;
+$current_page = max(1, intval($_GET['page'] ?? 1));
+$offset       = ($current_page - 1) * $per_page;
+
+// Count total filtered results for pagination
+$count_st = $db->prepare("SELECT COUNT(*) FROM projects p WHERE " . implode(' AND ', $where));
+$count_st->execute($params);
+$total_filtered = (int)$count_st->fetchColumn();
+$total_pages    = max(1, (int)ceil($total_filtered / $per_page));
+if ($current_page > $total_pages) $current_page = $total_pages;
+
 $st=$db->prepare("SELECT p.*,u.username as creator,
     (SELECT COUNT(*) FROM project_contacts WHERE project_id=p.id) as contact_count,
     (SELECT COUNT(*) FROM project_documents WHERE project_id=p.id) as doc_count,
     (SELECT COUNT(*) FROM checklist_responses WHERE project_id=p.id AND checked=1) as chk_done,
     (SELECT COUNT(*) FROM checklist_items) as chk_total
-    FROM projects p LEFT JOIN users u ON p.created_by=u.id WHERE ".implode(' AND ',$where)." ORDER BY p.updated_at DESC");
+    FROM projects p LEFT JOIN users u ON p.created_by=u.id WHERE ".implode(' AND ',$where)." ORDER BY p.updated_at DESC LIMIT ? OFFSET ?");
+$params[] = $per_page;
+$params[] = $offset;
 $st->execute($params);$projects=$st->fetchAll();
 
 // Preload extra contacts for nodal drawer
@@ -264,6 +278,20 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   .proj-hdr,.proj-row{grid-template-columns:6px 1fr 80px}
   .proj-hdr span:nth-child(n+3):not(:last-child),.proj-row>*:nth-child(n+3):not(:last-child){display:none}
 }
+
+/* ── Pagination ─────────────────────────────────────────────────────────── */
+.pagination-bar{display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;padding:14px 0;margin-top:8px}
+.pag-info{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.pag-btns{display:flex;gap:5px;flex-wrap:wrap}
+.pag-btn{display:inline-flex;align-items:center;justify-content:center;
+  min-width:34px;height:30px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;
+  font-family:'Rajdhani',sans-serif;text-decoration:none;
+  background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+  transition:all .15s;cursor:pointer}
+.pag-btn:hover:not(.disabled):not(.active){background:var(--surface3);color:var(--text)}
+.pag-btn.active{background:var(--accent);color:#000;border-color:var(--accent);cursor:default}
+.pag-btn.disabled{opacity:.35;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -521,7 +549,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   <?php if($q||$status||$tech):?>
   <a href="index.php" class="btn btn-ghost btn-sm">✕ Clear</a>
   <?php endif;?>
-  <span class="result-count" id="proj-count"><?=count($projects)?> project<?=count($projects)!==1?'s':''?></span>
+  <span class="result-count" id="proj-count"><?=intval($total_filtered)?> project<?=$total_filtered!==1?'s':''?> &nbsp;·&nbsp; Page <?=intval($current_page)?>/<?=intval($total_pages)?></span>
 </div>
 
 <!-- PROJECT LIST -->
@@ -701,6 +729,49 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   </div>
   <?php endif;?>
   <?php endforeach;?>
+</div>
+<?php endif;?>
+
+<?php if($total_pages > 1): ?>
+<div class="pagination-bar">
+  <?php
+  // Build current URL preserving all filters
+  $purl = $_SERVER['PHP_SELF'] . '?';
+  $pargs = [];
+  if(!empty($q))      $pargs[] = 'q=' . urlencode($q);
+  if(!empty($status)) $pargs[] = 'status=' . urlencode($status);
+  if(!empty($tech))   $pargs[] = 'tech=' . urlencode($tech);
+  $base_url = $purl . implode('&', $pargs);
+  $sep = $pargs ? '&' : '';
+  ?>
+  <div class="pag-info"><?=intval($total_filtered)?> results &nbsp;·&nbsp; Showing <?=intval($offset+1)?>–<?=intval(min($offset+$per_page,$total_filtered))?></div>
+  <div class="pag-btns">
+    <?php if($current_page > 1): ?>
+      <a href="<?=$base_url.$sep?>page=1" class="pag-btn" title="First">«</a>
+      <a href="<?=$base_url.$sep?>page=<?=$current_page-1?>" class="pag-btn">‹ Prev</a>
+    <?php else: ?>
+      <span class="pag-btn disabled">«</span>
+      <span class="pag-btn disabled">‹ Prev</span>
+    <?php endif; ?>
+
+    <?php
+    // Show up to 5 page numbers around current page
+    $start = max(1, $current_page - 2);
+    $end   = min($total_pages, $current_page + 2);
+    for($pg = $start; $pg <= $end; $pg++):
+    ?>
+      <a href="<?=$base_url.$sep?>page=<?=$pg?>"
+         class="pag-btn<?=$pg===$current_page?' active':''?>"><?=$pg?></a>
+    <?php endfor; ?>
+
+    <?php if($current_page < $total_pages): ?>
+      <a href="<?=$base_url.$sep?>page=<?=$current_page+1?>" class="pag-btn">Next ›</a>
+      <a href="<?=$base_url.$sep?>page=<?=$total_pages?>" class="pag-btn" title="Last">»</a>
+    <?php else: ?>
+      <span class="pag-btn disabled">Next ›</span>
+      <span class="pag-btn disabled">»</span>
+    <?php endif; ?>
+  </div>
 </div>
 <?php endif;?>
 </div>

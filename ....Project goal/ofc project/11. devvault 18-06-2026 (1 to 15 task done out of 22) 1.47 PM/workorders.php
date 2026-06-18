@@ -307,7 +307,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
   <h1 style="margin:0;flex:1;">📝 <?=htmlspecialchars($wo['title'])?></h1>
   <?=wo_badge($wo['status'])?>
   <?php $pc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
-  <span style="background:<?=$pc?>22;color:<?=$pc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pc?>40;font-family:'Share Tech Mono',monospace"><?=$wo['priority']?></span>
+  <span style="background:<?=$pc?>22;color:<?=$pc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pc?>40;font-family:'Share Tech Mono',monospace"><=htmlspecialchars($wo['priority'])?></span>
 </div>
 
 <!-- Meta info -->
@@ -332,11 +332,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 <div class="card">
   <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
     <div>
-      <span class="pct-badge"><?=$pct?>%</span>
+      <span class="pct-badge"><=intval($pct)?>%</span>
       <span style="font-size:13px;color:var(--muted);margin-left:8px;"><?=$done_sites?>/<?=$total_sites?> sites done</span>
     </div>
     <div style="flex:1;">
-      <div class="progress-bar-wrap"><div class="progress-bar" style="width:<?=$pct?>%"></div></div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:<=intval($pct)?>%"></div></div>
     </div>
     <?php if (can_edit()): ?>
     <form method="post" style="display:flex;gap:8px;align-items:center;">
@@ -345,7 +345,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
       <input type="hidden" name="wo_id" value="<?=$view_id?>">
       <select name="wo_status" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;">
         <?php foreach (['Active','Completed','Cancelled'] as $s): ?>
-        <option value="<?=$s?>" <?=$wo['status']===$s?'selected':''?>><?=$s?></option>
+        <option value="<?=htmlspecialchars($s)?>" <?=$wo['status']===$s?'selected':''?>><?=htmlspecialchars($s)?></option>
         <?php endforeach; ?>
       </select>
       <button type="submit" class="btn btn-ghost btn-sm">Update Status</button>
@@ -514,11 +514,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
         <td><a href="workorders.php?view=<?=$wo['id']?>" style="color:var(--accent);text-decoration:none;font-weight:600;"><?=htmlspecialchars($wo['title'])?></a></td>
         <td style="font-size:12px;"><?=implode(', ', $techs)?></td>
         <?php $pwc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
-        <td><span style="background:<?=$pwc?>22;color:<?=$pwc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pwc?>40;font-family:'Share Tech Mono',monospace"><?=$wo['priority']?></span></td>
+        <td><span style="background:<?=$pwc?>22;color:<?=$pwc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pwc?>40;font-family:'Share Tech Mono',monospace"><=htmlspecialchars($wo['priority'])?></span></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['deadline']??'-')?></td>
         <td style="min-width:120px;">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;"><?=$wo['done_sites']?>/<?=$wo['total_sites']?> (<?=$pct?>%)</div>
-          <div class="progress-bar-wrap"><div class="progress-bar" style="width:<?=$pct?>%"></div></div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;"><=intval($wo['done_sites'])?>/<=intval($wo['total_sites'])?> (<=intval($pct)?>%)</div>
+          <div class="progress-bar-wrap"><div class="progress-bar" style="width:<=intval($pct)?>%"></div></div>
         </td>
         <td><?=wo_badge($wo['status'])?></td>
         <td style="font-size:11px;color:var(--muted);"><?=substr($wo['created_at'],0,10)?></td>
