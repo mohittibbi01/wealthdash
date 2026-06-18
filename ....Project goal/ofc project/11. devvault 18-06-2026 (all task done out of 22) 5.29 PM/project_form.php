@@ -50,7 +50,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $old_subtype = $old_data['tech_subtype'] ?? '';
     }
 
-    if (!$data['project_name']) { $error = 'Project name is required.'; }
+    // ── Server-side input validation ────────────────────────────────────────────
+    $val_errors = [];
+
+    // Email fields
+    foreach (['dept_email'] as $ef) {
+        if (!empty($data[$ef]) && !filter_var($data[$ef], FILTER_VALIDATE_EMAIL)) {
+            $val_errors[] = "Invalid email format: {$ef}";
+        }
+    }
+
+    // Phone: 7–15 digits, spaces, +, -, () allowed
+    if (!empty($data['nodal_contact'])) {
+        $phone_clean = preg_replace('/[\s\-\(\)\+]/', '', $data['nodal_contact']);
+        if (!preg_match('/^\d{7,15}$/', $phone_clean)) {
+            $val_errors[] = 'Nodal contact: valid phone number daalo (7-15 digits)';
+        }
+    }
+
+    // IP address fields
+    foreach (['app_ip', 'app_lb_ip', 'db_ip'] as $ipf) {
+        if (!empty($data[$ipf])) {
+            // Allow comma-separated IPs or CIDR
+            $ips = array_map('trim', explode(',', $data[$ipf]));
+            foreach ($ips as $ip) {
+                $ip_clean = preg_replace('/\/\d+$/', '', $ip); // strip CIDR
+                if (!filter_var($ip_clean, FILTER_VALIDATE_IP)) {
+                    $val_errors[] = "Invalid IP address in {$ipf}: " . htmlspecialchars($ip);
+                }
+            }
+        }
+    }
+
+    // Date fields
+    foreach (['live_date', 'last_audit_date', 'amc_start_date', 'amc_end_date', 'closed_date'] as $df) {
+        if (!empty($data[$df])) {
+            $d = DateTime::createFromFormat('Y-m-d', $data[$df]);
+            if (!$d || $d->format('Y-m-d') !== $data[$df]) {
+                $val_errors[] = "Invalid date in {$df}: use YYYY-MM-DD format";
+            }
+        }
+    }
+
+    // URL fields — must start with http/https if not empty
+    foreach (['env_local_url','env_local_admin_url','env_staging_url','env_staging_admin_url',
+              'env_production_url','env_production_admin_url','env_audit_url','env_audit_admin_url',
+              'env_other_url','env_other_admin_url','website_app'] as $uf) {
+        if (!empty($data[$uf]) && !filter_var($data[$uf], FILTER_VALIDATE_URL)) {
+            $val_errors[] = "Invalid URL in {$uf}: http:// ya https:// se shuru hona chahiye";
+        }
+    }
+
+    // AMC amount — numeric
+    if (!empty($data['amc_amount']) && !is_numeric($data['amc_amount'])) {
+        $val_errors[] = 'AMC amount sirf number hona chahiye';
+    }
+
+    if ($val_errors) {
+        $error = implode('<br>', $val_errors);
+    }
+
+    if (!$data['project_name']) { $error = ($error ? $error . '<br>' : '') . 'Project name is required.'; }
+    elseif ($error) { /* validation failed — fall through to show error */ }
     else {
         if ($id) {
             $sets = implode(',', array_map(fn($f)=>"`$f`=?", array_keys($data))).', updated_at=CURRENT_TIMESTAMP';
@@ -343,7 +404,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 </div>
 
 <div class="wrap">
-<?php if($error):?><div class="err">⚠ <?=htmlspecialchars($error)?></div><?php endif;?>
+<?php if($error):?><div class="err">⚠ <?= nl2br(htmlspecialchars($error)) ?></div><?php endif;?>
 
 <form method="POST" id="pf" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">

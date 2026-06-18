@@ -71,7 +71,7 @@ if ($action === 'delete_project' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($row) {
         $db->prepare("DELETE FROM projects WHERE id=?")->execute([$id]);
         log_activity('delete_project', $id, $row['project_name']);
-        backup_json();
+        // NOTE: Auto-backup removed (T17 security fix) — use Export page for manual JSON backup
         $_SESSION['flash'] = ['type' => 'success', 'msg' => "🗑 Project \"{$row['project_name']}\" deleted."];
     }
     header('Location: index.php'); exit;

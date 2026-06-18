@@ -1,6 +1,6 @@
 <?php
 define('APP_NAME', 'DevVault Pro');
-define('APP_VERSION', '3.0.0');
+define('APP_VERSION', '3.0.0'); // Single source — reference this everywhere
 define('DB_PATH', __DIR__ . '/data/vault.db');
 define('UPLOAD_DIR', __DIR__ . '/data/uploads');
 
@@ -25,23 +25,54 @@ function load_env(): void {
     if (!defined('ENCRYPT_KEY') || ENCRYPT_KEY === '') {
         die('FATAL ERROR: ENCRYPT_KEY not found in .env file.');
     }
+    // ENCRYPT_SALT is optional — falls back to legacy mode if missing
+    if (!defined('ENCRYPT_SALT')) define('ENCRYPT_SALT', '');
 }
 load_env();
 
-// ── Encryption helpers ────────────────────────────────────────────────────────
+// ── Encryption helpers (PBKDF2-hardened) ─────────────────────────────────────
+// Uses PBKDF2-SHA256 (100,000 iterations) to derive a proper 256-bit AES key.
+// Legacy format (base64 of "$iv::$enc") is auto-detected and transparently
+// decrypted using the old method, then re-encrypted on next save.
+//
+// New format: base64( "v2:" . $iv_hex . ":" . $enc_b64 )
+
+function _derive_key(): string {
+    $salt = ENCRYPT_SALT ?: 'DevVaultPro_default_salt_v1'; // fallback salt
+    return hash_pbkdf2('sha256', ENCRYPT_KEY, $salt, 100000, 32, true);
+}
+
 function encrypt_val(string $plain): string {
-    if (!$plain) return '';
+    if ($plain === '') return '';
     $iv  = random_bytes(16);
-    $enc = openssl_encrypt($plain, 'AES-256-CBC', ENCRYPT_KEY, 0, $iv);
-    return base64_encode($iv . '::' . $enc);
+    $key = _derive_key();
+    $enc = openssl_encrypt($plain, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+    return base64_encode('v2:' . bin2hex($iv) . ':' . base64_encode($enc));
 }
 
 function decrypt_val(string $cipher): string {
-    if (!$cipher) return '';
-    $dec = base64_decode($cipher);
-    if (!str_contains($dec, '::')) return '';
-    [$iv, $enc] = explode('::', $dec, 2);
-    return openssl_decrypt($enc, 'AES-256-CBC', ENCRYPT_KEY, 0, $iv) ?: '';
+    if ($cipher === '') return '';
+    $raw = base64_decode($cipher);
+    if ($raw === false) return '';
+
+    // ── New v2 format ─────────────────────────────────────────────────────────
+    if (str_starts_with($raw, 'v2:')) {
+        $parts = explode(':', $raw, 3);
+        if (count($parts) !== 3) return '';
+        [, $iv_hex, $enc_b64] = $parts;
+        $iv  = hex2bin($iv_hex);
+        $enc = base64_decode($enc_b64);
+        $key = _derive_key();
+        return openssl_decrypt($enc, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv) ?: '';
+    }
+
+    // ── Legacy format: base64( "$iv::$enc" ) ─────────────────────────────────
+    if (str_contains($raw, '::')) {
+        [$iv, $enc] = explode('::', $raw, 2);
+        return openssl_decrypt($enc, 'AES-256-CBC', ENCRYPT_KEY, 0, $iv) ?: '';
+    }
+
+    return '';
 }
 
 // ── Database ──────────────────────────────────────────────────────────────────
@@ -286,6 +317,22 @@ function get_db(): PDO {
         CREATE INDEX IF NOT EXISTS idx_projects_upd    ON projects(updated_at);
     ");
 
+    // ── Migrate existing login_attempts table if it's missing columns ─────────
+    // This handles the case where the table was created by an older version
+    // without the 'attempts' and 'last_attempt_at' columns.
+    $existing_cols = array_column(
+        $db->query("PRAGMA table_info(login_attempts)")->fetchAll(), 'name'
+    );
+    if (!empty($existing_cols) && !in_array('attempts', $existing_cols)) {
+        // Table exists but is outdated — drop and recreate cleanly
+        $db->exec("DROP TABLE login_attempts");
+        $db->exec("CREATE TABLE login_attempts (
+            ip_address TEXT PRIMARY KEY,
+            attempts   INTEGER DEFAULT 1,
+            last_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )");
+    }
+
     // ── Seed default admin (only inserts if not already present)
     // password_changed column is added via migration_t01.php — do not reference it here
     $db->exec("INSERT OR IGNORE INTO users (username, password_hash, role)
@@ -393,12 +440,18 @@ function log_activity(string $action, ?int $project_id = null, string $detail = 
 
 // ── JSON backup ───────────────────────────────────────────────────────────────
 function backup_json(): void {
-    $db       = get_db();
-    $projects = $db->query("SELECT * FROM projects")->fetchAll();
-    file_put_contents(
-        __DIR__ . '/data/vault_backup.json',
-        json_encode(['exported_at' => date('Y-m-d H:i:s'), 'projects' => $projects], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-    );
+    // T17 SECURITY FIX: Auto-backup disabled — vault_backup.json was web-accessible.
+    // Use Export page (export.php) for manual admin-only JSON export.
+    // This function is kept as a stub to avoid breaking any existing calls.
+    return;
+
+    // ── DISABLED CODE BELOW ───────────────────────────────────────────────────
+    // $db       = get_db();
+    // $projects = $db->query("SELECT * FROM projects")->fetchAll();
+    // file_put_contents(
+    //     __DIR__ . '/data/vault_backup.json',
+    //     json_encode(['exported_at' => date('Y-m-d H:i:s'), 'projects' => $projects], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+    // );
 }
 
 // ── File upload with MIME validation ─────────────────────────────────────────

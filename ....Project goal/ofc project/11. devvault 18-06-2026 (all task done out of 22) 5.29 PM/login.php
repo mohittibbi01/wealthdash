@@ -25,6 +25,19 @@ if ($url_err === 'session_expired') {
 $db         = get_db();
 $client_ip  = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
+// ── Fix login_attempts table if missing columns (one-time self-heal) ──────────
+try {
+    $_lc = array_column($db->query("PRAGMA table_info(login_attempts)")->fetchAll(), 'name');
+    if (!empty($_lc) && !in_array('attempts', $_lc)) {
+        $db->exec("DROP TABLE IF EXISTS login_attempts");
+    }
+    $db->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+        ip_address      TEXT PRIMARY KEY,
+        attempts        INTEGER DEFAULT 1,
+        last_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )");
+} catch (Exception $_e) {}
+
 // ── Check current lockout status ──────────────────────────────────────────────
 function get_attempt_info(PDO $db, string $ip): array {
     try {
@@ -230,7 +243,7 @@ body::after{
   <div class="logo">
     <div class="logo-box">🔐</div>
     <h1>DEVVAULT PRO</h1>
-    <p>// CREDENTIAL & PROJECT MANAGER v3.0</p>
+    <p>// CREDENTIAL & PROJECT MANAGER v<?= defined('APP_VERSION') ? APP_VERSION : '3.0.0' ?></p>
   </div>
   <div class="card">
     <?php if ($locked): ?>
