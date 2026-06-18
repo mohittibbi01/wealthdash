@@ -103,8 +103,8 @@ if ($format === 'report') {
         exit('403 — CSRF validation failed. Use the export page buttons.');
     }
     log_activity('export_report');
-    $statusLabels = ['live'=>'Live','under_development'=>'Under Dev','redevelopment'=>'Redevelopment','closed'=>'Closed'];
-    $statusColors = ['live'=>'#00e676','under_development'=>'#ffd740','redevelopment'=>'#40c4ff','closed'=>'#ff3d5a'];
+    $statusLabels = ['request_received'=>'Request Received','live'=>'Live','under_development'=>'Under Dev','redevelopment'=>'Redevelopment','hold_by_department'=>'Hold by Dept','content_updation'=>'Content Updation','closed'=>'Closed'];
+    $statusColors = ['request_received'=>'#90caf9','live'=>'#00e676','under_development'=>'#ffd740','redevelopment'=>'#40c4ff','hold_by_department'=>'#ff6e40','content_updation'=>'#bc8cff','closed'=>'#ff3d5a'];
     ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="<?= htmlspecialchars($theme) ?>">

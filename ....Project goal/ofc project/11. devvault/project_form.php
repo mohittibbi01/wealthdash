@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'env_production_url','env_production_admin_url','env_production_id','env_production_remark',
         'env_audit_url','env_audit_admin_url','env_audit_id','env_audit_remark',
         'env_other_url','env_other_admin_url','env_other_id','env_other_remark',
+        'parent_sectoral_portal',
         'app_ip','app_lb_ip','app_os','app_os_other','app_core','app_ram',
         'app_primary_storage','app_secondary_storage','app_hosting_type','app_infra_remark',
         'db_ip','db_name','db_technology','db_technology_other','db_version','db_version_other','db_os','db_os_other',
@@ -400,7 +401,11 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   <span class="logo">DEVVAULT</span>
   <span style="color:var(--bdr);font-size:18px">|</span>
   <span style="font-size:14px;font-weight:700"><?=$p?'✏ Edit':'＋ Add'?> Project</span>
-  <div class="bar-r"><a href="index.php" class="btn btn-ghost">← Back</a></div>
+  <div class="bar-r">
+    <a href="index.php" class="btn btn-ghost">← Back</a>
+    <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
+    <a href="logout.php" class="btn btn-ghost">⏏ Logout</a>
+  </div>
 </div>
 
 <div class="wrap">
@@ -442,12 +447,20 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
       </div>
       <div class="f w15">
         <label>Website / Application</label>
-        <select name="website_app">
+        <select name="website_app" id="website_app_sel" onchange="handleWebsiteApp(this.value)">
           <option value="">— Select Type —</option>
-          <?php foreach(['Website','Application','Both','Mobile App','Portal','API','Other'] as $wa):?>
+          <?php foreach(['Website','Application','Both','Mobile App','Portal','API','Microsite','Other'] as $wa):?>
           <option value="<?=$wa?>" <?=$sel('website_app',$wa)?>><?=$wa?></option>
           <?php endforeach;?>
         </select>
+      </div>
+      <!-- Microsite: Parent Portal field (shown only when Microsite selected) -->
+      <div class="f" id="parent-portal-f" style="<?= ($p['website_app']??'')==='Microsite' ? '' : 'display:none' ?>">
+        <label>Parent Department / Sectoral Portal</label>
+        <input type="text" name="parent_sectoral_portal"
+               placeholder="e.g. NIC Portal, State IT Portal"
+               value="<?= htmlspecialchars($p['parent_sectoral_portal'] ?? '') ?>">
+        <span class="hint">Microsite kis portal ke under hai?</span>
       </div>
       <div class="f w3">
         <label>Project Name <span class="req">*</span></label>
@@ -466,6 +479,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
       <div class="f w15">
         <label>Current Status</label>
         <select name="current_status" id="ssel" onchange="handleStatus(this.value)">
+          <option value="request_received" <?=$sel('current_status','request_received')?>>📨 Request Received</option>
           <option value="live" <?=$sel('current_status','live')?>>🟢 Live</option>
           <option value="under_development" <?=$sel('current_status','under_development')?>>🟡 Under Development</option>
           <option value="redevelopment" <?=$sel('current_status','redevelopment')?>>🔵 Redevelopment</option>
@@ -939,6 +953,15 @@ function handleStatus(v){
 }
 document.addEventListener('DOMContentLoaded',()=>handleStatus(document.getElementById('ssel').value))
 
+function handleWebsiteApp(v){
+  var f=document.getElementById('parent-portal-f');
+  if(f) f.style.display=(v==='Microsite')?'':'none';
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var s=document.getElementById('website_app_sel');
+  if(s) handleWebsiteApp(s.value);
+});
+
 // T-06: Tech change reason modal
 var _origTech='', _origSubtype='';
 document.addEventListener('DOMContentLoaded',function(){
@@ -1035,5 +1058,10 @@ function updateSubtype(tech) {
 })();
 
 </script>
+<script>
+window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
+window.DEVVAULT_LOGOUT = 'logout.php';
+</script>
+<script src="session_timer.js"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@ foreach(['local','staging','production','audit','other'] as $e){
 $uniqueAppServers = (int)$db->query("SELECT COUNT(DISTINCT app_ip) FROM projects WHERE app_ip!='' AND app_ip IS NOT NULL")->fetchColumn();
 $uniqueDbServers  = (int)$db->query("SELECT COUNT(DISTINCT db_ip) FROM projects WHERE db_ip!='' AND db_ip IS NOT NULL")->fetchColumn();
 $statusCounts=[];
-foreach(['live','under_development','redevelopment','hold_by_department','content_updation','closed'] as $s){
+foreach(['request_received','live','under_development','redevelopment','hold_by_department','content_updation','closed'] as $s){
     $st=$db->prepare("SELECT COUNT(*) FROM projects WHERE current_status=?");$st->execute([$s]);
     $statusCounts[$s]=(int)$st->fetchColumn();
 }
@@ -93,8 +93,8 @@ $theme   = in_array($theme, ['dark', 'light']) ? $theme : 'dark';
 $fsize   = max(11, min(18, (int)$fsize));
 $ffamily = in_array($ffamily, ['Rajdhani', 'Share Tech Mono', 'Orbitron']) ? $ffamily : 'Rajdhani';
 
-$SL=['live'=>'Live','under_development'=>'Under Dev','redevelopment'=>'Redevelopment','hold_by_department'=>'Hold by Dept','content_updation'=>'Content Updation','closed'=>'Closed'];
-$SC=['live'=>'#00e676','under_development'=>'#ffd740','redevelopment'=>'#40c4ff','hold_by_department'=>'#ff6e40','content_updation'=>'#bc8cff','closed'=>'#ff3d5a'];
+$SL=['request_received'=>'Request Received','live'=>'Live','under_development'=>'Under Dev','redevelopment'=>'Redevelopment','hold_by_department'=>'Hold by Dept','content_updation'=>'Content Updation','closed'=>'Closed'];
+$SC=['request_received'=>'#90caf9','live'=>'#00e676','under_development'=>'#ffd740','redevelopment'=>'#40c4ff','hold_by_department'=>'#ff6e40','content_updation'=>'#bc8cff','closed'=>'#ff3d5a'];
 $EC=['local'=>'#40c4ff','staging'=>'#ffd740','production'=>'#00e676','audit'=>'#ea80fc','other'=>'#8c9eff'];
 ?>
 <!DOCTYPE html>
@@ -873,7 +873,7 @@ async function refreshStats(){
     animateNum(document.getElementById('stat-appsrv'),s.appsrv||0);
     animateNum(document.getElementById('stat-dbsrv'),s.dbsrv||0);
     // Update summary table nums — all rows including total, production, staging
-    ['live','under_development','redevelopment','hold_by_department','content_updation','closed'].forEach(k=>{
+    ['request_received','live','under_development','redevelopment','hold_by_department','content_updation','closed'].forEach(k=>{
       const el=document.getElementById('tbl-'+k);if(el)animateNum(el,s[k]||0)});
     const totEl=document.getElementById('tbl-total');if(totEl)animateNum(totEl,s.total||0);
     const prEl=document.getElementById('tbl-production');if(prEl)animateNum(prEl,s.production||0);

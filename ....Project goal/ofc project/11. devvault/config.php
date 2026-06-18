@@ -83,6 +83,15 @@ function get_db(): PDO {
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $db->exec('PRAGMA journal_mode=WAL');
+    $db->exec('PRAGMA busy_timeout = 5000');
+
+    // ── Add new columns to existing DBs (safe: IF NOT EXISTS via try/catch) ──
+    $new_cols = [
+        "ALTER TABLE projects ADD COLUMN parent_sectoral_portal TEXT DEFAULT ''",
+    ];
+    foreach ($new_cols as $_sql) {
+        try { $db->exec($_sql); } catch (Exception $_e) {}
+    }
     $db->exec("
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
