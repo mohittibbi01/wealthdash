@@ -34,6 +34,12 @@ if (file_exists(DB_EARLY_PATH)) {
 }
 
 require_once __DIR__ . '/config.php';
+// ── Security: Admin-only access ───────────────────────────────────────────────
+require_once __DIR__ . '/auth.php';
+require_login();
+require_admin();
+// ─────────────────────────────────────────────────────────────────────────────
+
 $db = get_db();
 
 $steps = [];

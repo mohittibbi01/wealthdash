@@ -21,12 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
         $u    = trim($_POST['username'] ?? '');
         $pw   = $_POST['password'] ?? '';
         $role = in_array($_POST['role'] ?? '', ['admin', 'member', 'viewer']) ? $_POST['role'] : 'member';
-        if ($u && $pw) try {
+        if ($u && strlen($pw) >= 8) try {
             $db->prepare("INSERT INTO users(username,password_hash,role,is_active,password_changed) VALUES(?,?,?,1,1)")
                ->execute([$u, password_hash($pw, PASSWORD_DEFAULT), $role]);
             $_SESSION['flash'] = ['type' => 'success', 'msg' => "✅ User \"$u\" added."];
         } catch (Exception $e) {
             $_SESSION['flash'] = ['type' => 'error', 'msg' => '⚠ Username already exists.'];
+        } elseif ($u && strlen($pw) < 8) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => '⚠ Password minimum 8 characters ka hona chahiye.'];
         }
     }
 
@@ -59,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     if ($action === 'reset_pw') {
         $uid = intval($_POST['uid'] ?? 0);
         $np  = $_POST['new_pw'] ?? '';
-        if ($np && strlen($np) >= 4) {
+        if ($np && strlen($np) >= 8) {
             $db->prepare("UPDATE users SET password_hash=?, password_changed=1 WHERE id=?")
                ->execute([password_hash($np, PASSWORD_DEFAULT), $uid]);
             $_SESSION['flash'] = ['type' => 'success', 'msg' => '🔑 Password reset.'];
@@ -454,7 +456,7 @@ select option{background:var(--surface2)}
             <input type="text" name="username" placeholder="e.g. john_dev" required>
           </div>
           <div class="field"><label>Password</label>
-            <input type="password" name="password" placeholder="Min 6 chars" required>
+            <input type="password" name="password" placeholder="Min 8 chars" required>
           </div>
         </div>
         <div class="field"><label>Role</label>
@@ -790,8 +792,8 @@ function changeRole(uid, role) {
 document.querySelectorAll('.role-sel').forEach(s => s.dataset.orig = s.value);
 
 function resetPw(uid, name) {
-  const pw = prompt(`New password for "${name}" (min 4 chars):`);
-  if (!pw || pw.length < 4) { if (pw !== null) alert('Password too short!'); return; }
+  const pw = prompt(`New password for "${name}" (min 8 chars):`);
+  if (!pw || pw.length < 8) { if (pw !== null) alert('Password minimum 8 characters hona chahiye!'); return; }
   document.getElementById('rpf-uid').value = uid;
   document.getElementById('rpf-pw').value = pw;
   document.getElementById('reset-form').submit();

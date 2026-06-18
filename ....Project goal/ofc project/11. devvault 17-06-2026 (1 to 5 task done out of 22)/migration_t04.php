@@ -5,6 +5,14 @@
  * Run ONCE, then DELETE this file.
  */
 
+// ── Security: Admin-only access ───────────────────────────────────────────────
+session_start();
+if (!isset($_SESSION['user_id'], $_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    http_response_code(403);
+    die('<!DOCTYPE html><html><head><title>Access Denied</title></head><body style="font-family:monospace;background:#070b14;color:#ff3d5a;padding:40px;"><h2>⛔ 403 — Admin access required.</h2><p><a href="login.php" style="color:#00d4ff">← Login</a></p></body></html>');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Add columns directly before loading config (safe for existing DBs)
 define('DB_T04_PATH', __DIR__ . '/data/vault.db');
 $steps = [];
