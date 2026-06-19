@@ -102,7 +102,6 @@ $EC=['local'=>'#40c4ff','staging'=>'#ffd740','production'=>'#00e676','audit'=>'#
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -129,12 +128,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:color-mix(in srgb,var(--user-bg) 92%,transparent);
   border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);
   display:flex;align-items:center;padding:0 20px;gap:12px}
-.logo{font-family:'Orbitron',monospace;font-size:15px;font-weight:900;
+.logo{font-family:'Courier New',Consolas,monospace;font-size:15px;font-weight:900;
   color:var(--acc);letter-spacing:2px;text-shadow:0 0 16px var(--acc)}
 .bar-search{flex:1;max-width:420px;position:relative}
 .bar-search input{width:100%;background:var(--sur2);border:1px solid var(--bdr);
   border-radius:8px;padding:7px 12px 7px 34px;color:var(--tx);font-size:13px;
-  font-family:'Share Tech Mono',monospace;outline:none;
+  font-family:'Courier New',Consolas,monospace;outline:none;
   transition:border-color .18s,box-shadow .18s}
 .bar-search input:focus{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 10%,transparent)}
 .si{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--mt);font-size:13px;pointer-events:none}
@@ -171,9 +170,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:color-mix(in srgb,var(--acc) 10%,var(--sur));
   box-shadow:0 0 0 1px var(--acc)}
 .chip-left{display:flex;flex-direction:column;align-items:center}
-.chip-num{font-family:'Orbitron',monospace;font-weight:900;font-size:20px;line-height:1;
+.chip-num{font-family:'Courier New',Consolas,monospace;font-weight:900;font-size:20px;line-height:1;
   transition:all .4s ease}
-.chip-lbl{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;
+.chip-lbl{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;
   letter-spacing:1px;color:var(--mt);margin-top:2px;white-space:nowrap}
 .chip-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
 
@@ -181,23 +180,23 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 .panel{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;overflow:hidden}
 .panel-hd{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--bdr);background:var(--sur2)}
-.panel-hd h2{font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:var(--mt);flex:1}
+.panel-hd h2{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:var(--mt);flex:1}
 .sum-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.sum-tbl th{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--mt);padding:7px 14px;text-align:left;border-bottom:1px solid var(--bdr)}
-.sum-tbl td{padding:8px 14px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 50%,transparent);font-family:'Share Tech Mono',monospace;font-size:11px;transition:all .3s ease}
+.sum-tbl th{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--mt);padding:7px 14px;text-align:left;border-bottom:1px solid var(--bdr)}
+.sum-tbl td{padding:8px 14px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 50%,transparent);font-family:'Courier New',Consolas,monospace;font-size:11px;transition:all .3s ease}
 .sum-tbl tr:last-child td{border-bottom:none}
 .sum-tbl tr:hover td{background:color-mix(in srgb,var(--acc) 4%,transparent)}
-.num-c{font-family:'Orbitron',monospace;font-weight:700;text-align:center;transition:all .4s ease}
+.num-c{font-family:'Courier New',Consolas,monospace;font-weight:700;text-align:center;transition:all .4s ease}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border:1px solid currentColor}
 
 /* TOOLBAR */
 .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.fsel{background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:6px 10px;color:var(--tx);font-size:12px;font-family:'Share Tech Mono',monospace;outline:none;cursor:pointer}
+.fsel{background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:6px 10px;color:var(--tx);font-size:12px;font-family:'Courier New',Consolas,monospace;outline:none;cursor:pointer}
 .fsel:focus{border-color:var(--acc)}
-.result-count{margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--mt)}
+.result-count{margin-left:auto;font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--mt)}
 
 /* LIVE INDICATOR */
-.live-dot{display:inline-flex;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--ok)}
+.live-dot{display:inline-flex;align-items:center;gap:5px;font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--ok)}
 .live-dot::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--ok);
   animation:blink 1.4s ease-in-out infinite}
 @keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
@@ -206,7 +205,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .proj-list{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;overflow:hidden}
 .proj-hdr{display:grid;grid-template-columns:6px 2fr 1.1fr .9fr 1.1fr 1fr 120px;
   gap:0;padding:7px 14px 7px 20px;border-bottom:1px solid var(--bdr);background:var(--sur2)}
-.proj-hdr span{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt)}
+.proj-hdr span{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt)}
 .proj-row{display:grid;grid-template-columns:6px 2fr 1.1fr .9fr 1.1fr 1fr 120px;
   gap:0;padding:10px 14px 10px 20px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 55%,transparent);
   align-items:center;transition:background .12s;position:relative}
@@ -214,53 +213,53 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .proj-row:hover{background:color-mix(in srgb,var(--acc) 4%,var(--sur))}
 .status-bar{width:4px;height:38px;border-radius:3px;position:absolute;left:12px;top:50%;transform:translateY(-50%)}
 .pname{font-size:14px;font-weight:700;line-height:1.2;margin-bottom:2px}
-.pdept{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--mt)}
+.pdept{font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--mt)}
 .env-pills{display:flex;flex-wrap:wrap;gap:4px}
-.epill{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:12px;font-size:9px;font-family:'Share Tech Mono',monospace;font-weight:700;text-transform:uppercase;border:1px solid currentColor;cursor:pointer;text-decoration:none;transition:opacity .15s}
+.epill{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:12px;font-size:9px;font-family:'Courier New',Consolas,monospace;font-weight:700;text-transform:uppercase;border:1px solid currentColor;cursor:pointer;text-decoration:none;transition:opacity .15s}
 .epill:hover{opacity:.7}
 .edot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .infra-kv{display:flex;flex-direction:column;gap:2px}
-.kv{display:flex;gap:5px;align-items:center;font-size:11px;font-family:'Share Tech Mono',monospace}
+.kv{display:flex;gap:5px;align-items:center;font-size:11px;font-family:'Courier New',Consolas,monospace}
 .kv .k{color:var(--mt);font-size:9px;min-width:26px}
 .kv .v{color:var(--tx);font-weight:600}
 .copy-btn{background:none;border:none;cursor:pointer;color:var(--mt);font-size:10px;padding:1px 3px;transition:color .15s;line-height:1}
 .copy-btn:hover{color:var(--acc)}
 .creds{display:flex;flex-direction:column;gap:3px}
-.cred-env{font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1px}
-.pw-row{display:flex;align-items:center;gap:4px;font-family:'Share Tech Mono',monospace;font-size:11px}
+.cred-env{font-family:'Courier New',Consolas,monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:1px}
+.pw-row{display:flex;align-items:center;gap:4px;font-family:'Courier New',Consolas,monospace;font-size:11px}
 .pw-mask{color:var(--mt);letter-spacing:2px}
 .pw-btn{background:none;border:none;cursor:pointer;color:var(--mt);font-size:10px;padding:1px 3px;transition:color .15s;line-height:1}
 .pw-btn:hover{color:var(--acc)}
 .acts{display:flex;gap:5px;align-items:center;justify-content:flex-end}
-.notes-drawer{display:none;padding:10px 16px 12px 26px;background:var(--sur2);border-top:1px solid var(--bdr);font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--mt)}
+.notes-drawer{display:none;padding:10px 16px 12px 26px;background:var(--sur2);border-top:1px solid var(--bdr);font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--mt)}
 .notes-drawer.open{display:block}
 .notes-sec .nt{color:var(--tx);white-space:pre-wrap;margin-top:3px;line-height:1.6}
-.nodal-drawer{display:none;padding:8px 16px 10px 26px;background:var(--sur3);border-top:1px solid var(--bdr);gap:20px;flex-wrap:wrap;font-family:'Share Tech Mono',monospace;font-size:11px}
+.nodal-drawer{display:none;padding:8px 16px 10px 26px;background:var(--sur3);border-top:1px solid var(--bdr);gap:20px;flex-wrap:wrap;font-family:'Courier New',Consolas,monospace;font-size:11px}
 .nodal-drawer.open{display:flex}
 .nodal-kv .nk{font-size:9px;color:var(--mt);text-transform:uppercase;letter-spacing:.8px}
 .nodal-kv .nv{font-size:12px;font-weight:700;color:var(--tx);margin-top:2px}
 
 /* FLASH */
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .flash-success{background:color-mix(in srgb,var(--ok) 8%,transparent);border:1px solid color-mix(in srgb,var(--ok) 25%,transparent);color:var(--ok)}
 .flash-error{background:color-mix(in srgb,var(--err) 8%,transparent);border:1px solid color-mix(in srgb,var(--err) 25%,transparent);color:var(--err)}
 .empty{text-align:center;padding:52px;color:var(--mt)}
 .empty .ei{font-size:44px;margin-bottom:10px}
 .empty h3{font-size:17px;font-weight:700;color:var(--tx);margin-bottom:6px}
-.empty p{font-size:12px;font-family:'Share Tech Mono',monospace}
-.toast{position:fixed;bottom:20px;right:20px;background:var(--sur);border:1px solid var(--bdr);border-radius:10px;padding:10px 16px;font-size:12px;font-family:'Share Tech Mono',monospace;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:999;display:none;align-items:center;gap:8px;animation:sup .22s ease}
+.empty p{font-size:12px;font-family:'Courier New',Consolas,monospace}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--sur);border:1px solid var(--bdr);border-radius:10px;padding:10px 16px;font-size:12px;font-family:'Courier New',Consolas,monospace;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:999;display:none;align-items:center;gap:8px;animation:sup .22s ease}
 @keyframes sup{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
 
 /* THEME PANEL */
 .tpanel{display:none;position:absolute;right:0;top:46px;background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:16px;width:270px;z-index:300;box-shadow:0 8px 32px rgba(0,0,0,.4)}
 .tpanel.open{display:block}
-.tp-lbl{font-family:'Share Tech Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt);margin-bottom:6px;margin-top:10px}
+.tp-lbl{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt);margin-bottom:6px;margin-top:10px}
 .tp-lbl:first-child{margin-top:0}
 .swatches{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px}
 .sw{width:22px;height:22px;border-radius:5px;border:2px solid transparent;cursor:pointer;transition:transform .12s}
 .sw:hover,.sw.on{transform:scale(1.22);border-color:#fff}
 .tp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
-.tp-row select,.tp-row input[type=color]{background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:5px 8px;color:var(--tx);font-size:12px;font-family:'Share Tech Mono',monospace;outline:none}
+.tp-row select,.tp-row input[type=color]{background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:5px 8px;color:var(--tx);font-size:12px;font-family:'Courier New',Consolas,monospace;outline:none}
 .tp-row input[type=range]{flex:1;cursor:pointer;accent-color:var(--acc)}
 .tp-row input[type=color]{width:36px;height:30px;padding:2px;cursor:pointer;border-radius:6px}
 .tp-divider{height:1px;background:var(--bdr);margin:10px 0}
@@ -282,11 +281,11 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 /* ── Pagination ─────────────────────────────────────────────────────────── */
 .pagination-bar{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;padding:14px 0;margin-top:8px}
-.pag-info{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.pag-info{font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)}
 .pag-btns{display:flex;gap:5px;flex-wrap:wrap}
 .pag-btn{display:inline-flex;align-items:center;justify-content:center;
   min-width:34px;height:30px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;
-  font-family:'Rajdhani',sans-serif;text-decoration:none;
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;text-decoration:none;
   background:var(--surface2);border:1px solid var(--border);color:var(--muted);
   transition:all .15s;cursor:pointer}
 .pag-btn:hover:not(.disabled):not(.active){background:var(--surface3);color:var(--text)}
@@ -332,7 +331,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         </div>
         <div class="tp-row">
           <input type="color" id="acc-custom" value="<?=$accent?>" oninput="setAcc(this.value)" title="Custom accent">
-          <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--mt)" id="acc-hex"><?=$accent?></span>
+          <span style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--mt)" id="acc-hex"><?=$accent?></span>
         </div>
 
         <div class="tp-divider"></div>
@@ -359,7 +358,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         </div>
         <div class="tp-row">
           <input type="color" id="bg-custom" value="<?=$bg?:'#070b14'?>" oninput="setBg(this.value)" title="Custom background">
-          <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--mt)">Custom BG</span>
+          <span style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--mt)">Custom BG</span>
           <button onclick="setBg('')" class="btn btn-ghost" style="padding:3px 8px;font-size:11px">Reset</button>
         </div>
 
@@ -509,7 +508,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     </table>
   </div>
   <div class="panel">
-    <div class="panel-hd"><h2>🛠 Technology Breakdown</h2><span id="last-refresh" style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--mt)"></span></div>
+    <div class="panel-hd"><h2>🛠 Technology Breakdown</h2><span id="last-refresh" style="font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--mt)"></span></div>
     <table class="sum-tbl" id="tech-tbl">
       <tr>
         <th>Technology</th>
@@ -589,7 +588,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <div class="pdept" style="opacity:.65">↳ <?=htmlspecialchars($p['parent_admin_dept'])?></div>
       <?php endif;?>
       <?php if($p['description']):?>
-      <div style="font-size:10px;color:var(--mt);font-family:'Share Tech Mono',monospace;margin-top:2px;
+      <div style="font-size:10px;color:var(--mt);font-family:'Courier New',Consolas,monospace;margin-top:2px;
         overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;max-width:200px">
         <?=htmlspecialchars($p['description'])?>
       </div>
@@ -602,7 +601,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           <span class="edot"></span><?=$env?>
         </a>
         <?php endforeach;?>
-        <?php if(empty($activeEnvs)):?><span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
+        <?php if(empty($activeEnvs)):?><span style="font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
       </div>
     </div>
     <div class="infra-kv">
@@ -620,7 +619,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <?php $dbTechVal=$p['db_technology']==='Other'?$p['db_technology_other']:$p['db_technology'];if($dbTechVal):?>
       <div class="kv"><span class="k">dbt</span><span class="v" style="color:var(--mt)"><?=htmlspecialchars($dbTechVal)?></span></div>
       <?php endif;?>
-      <?php if(!$p['app_ip']&&!$p['db_ip']):?><span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
+      <?php if(!$p['app_ip']&&!$p['db_ip']):?><span style="font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
     </div>
     <div class="creds">
       <?php foreach(['production','staging','local','audit','other'] as $env):
@@ -642,13 +641,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
         <?php endif;?>
       </div>
       <?php endforeach;?>
-      <?php if(empty($activeCreds)):?><span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
+      <?php if(empty($activeCreds)):?><span style="font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--bdr)">—</span><?php endif;?>
     </div>
     <div>
       <div style="display:flex;flex-direction:column;gap:4px">
         <span class="badge" style="color:<?=$sclr?>;border-color:<?=$sclr?>30;align-self:start"><?=$SL[$p['current_status']]??$p['current_status']?></span>
         <?php if($tl):?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--mt)">
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:10px;color:var(--mt)">
           <?=htmlspecialchars($tl)?>
           <?php if(!empty($p['tech_subtype'])):?>
           <span style="color:var(--bdr);font-size:9px"> / <?=htmlspecialchars($p['tech_subtype'])?></span>
@@ -663,7 +662,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           $days_left = $amc_exp ? (int)((strtotime($p['amc_end_date']) - time()) / 86400) : 999;
         ?>
         <?php if($amc_t && $amc_t !== 'NA'):?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:9px;
           color:<?=$amc_clr[$amc_t]??'#5a7a9a'?>;
           border:1px solid <?=$amc_clr[$amc_t]??'#5a7a9a'?>30;
           padding:1px 5px;border-radius:3px;display:inline-block"
@@ -672,16 +671,16 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           <?php if($days_left < 0):?> ⚠️<?php elseif($days_left <= 30):?> ⏰<?php endif;?>
         </span>
         <?php endif;?>
-        <?php if($p['live_date']):?><span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--bdr)">Live: <?=$p['live_date']?></span><?php endif;?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--bdr)"><?=date('d M Y',strtotime($p['updated_at']))?></span>
+        <?php if($p['live_date']):?><span style="font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--bdr)">Live: <?=$p['live_date']?></span><?php endif;?>
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--bdr)"><?=date('d M Y',strtotime($p['updated_at']))?></span>
         <?php if($p['chk_total']>0):
           $chkPct = round($p['chk_done']/$p['chk_total']*100);?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--mt)" title="Checklist progress">
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--mt)" title="Checklist progress">
           ✅ <?=$p['chk_done']?>/<?=$p['chk_total']?> (<?=$chkPct?>%)
         </span>
         <?php endif;?>
         <?php if($p['doc_count']>0):?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--mt)" title="Documents attached">📎 <?=$p['doc_count']?> doc<?=$p['doc_count']!=1?'s':''?></span>
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--mt)" title="Documents attached">📎 <?=$p['doc_count']?> doc<?=$p['doc_count']!=1?'s':''?></span>
         <?php endif;?>
       </div>
     </div>
@@ -722,8 +721,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     <div class="nodal-kv" style="border-left:2px solid var(--bdr);padding-left:8px">
       <div class="nk">👤 <?=htmlspecialchars($ec['designation']?:'Contact')?></div>
       <div class="nv"><?=htmlspecialchars($ec['name'])?></div>
-      <?php if($ec['contact']):?><div style="font-size:10px;color:var(--mt);font-family:'Share Tech Mono',monospace"><?=htmlspecialchars($ec['contact'])?></div><?php endif;?>
-      <?php if($ec['email']):?><div style="font-size:10px;color:var(--mt);font-family:'Share Tech Mono',monospace"><?=htmlspecialchars($ec['email'])?></div><?php endif;?>
+      <?php if($ec['contact']):?><div style="font-size:10px;color:var(--mt);font-family:'Courier New',Consolas,monospace"><?=htmlspecialchars($ec['contact'])?></div><?php endif;?>
+      <?php if($ec['email']):?><div style="font-size:10px;color:var(--mt);font-family:'Courier New',Consolas,monospace"><?=htmlspecialchars($ec['email'])?></div><?php endif;?>
     </div>
     <?php endforeach;?>
   </div>

@@ -101,7 +101,6 @@ $sta_cfg = ['Open'=>'#ff3d5a','In Progress'=>'#ffd740','Closed'=>'#00e676'];
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Audit Findings — DevVault Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
@@ -116,10 +115,10 @@ body::before{content:'';position:fixed;inset:0;
 .topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
   backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
 [data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
-.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
 .tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
 .btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
 .btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
@@ -127,35 +126,35 @@ body::before{content:'';position:fixed;inset:0;
 .btn-warn{background:rgba(255,215,64,.12);color:var(--amber);border:1px solid rgba(255,215,64,.3)}
 .btn-sm{padding:4px 9px;font-size:11px}
 .wrap{max-width:1500px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:14px}
+.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:14px}
 .stat-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .schip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:130px}
-.schip .num{font-size:24px;font-weight:700;font-family:'Orbitron',monospace;color:var(--accent)}
-.schip .lbl{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Share Tech Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+.schip .num{font-size:24px;font-weight:700;font-family:'Courier New',Consolas,monospace;color:var(--accent)}
+.schip .lbl{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Courier New',Consolas,monospace;text-transform:uppercase;letter-spacing:1px}
 .schip.danger .num{color:var(--danger)}.schip.warn .num{color:var(--amber)}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
 .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
 .filter-bar .fg{display:flex;flex-direction:column;gap:3px}
-.filter-bar .fg label{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.filter-bar .fg label{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
-table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Share Tech Mono',monospace}
+table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace}
 th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
 td{padding:8px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
 tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
 .badge{display:inline-block;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px}
-.overdue{color:var(--danger);font-size:9px;font-weight:700;font-family:'Share Tech Mono',monospace}
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.overdue{color:var(--danger);font-size:9px;font-weight:700;font-family:'Courier New',Consolas,monospace}
+.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
 .flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal-backdrop.open{display:flex}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:680px;max-width:95vw;max-height:90vh;overflow-y:auto}
-.modal h3{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
+.modal h3{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
 .f{display:flex;flex-direction:column;gap:4px;flex:1}
-.f label{font-family:'Share Tech Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.f label{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}.w2{flex:2}.w3{flex:3}
-.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Share Tech Mono',monospace;color:var(--muted);border-top:1px solid var(--border)}
+.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Courier New',Consolas,monospace;color:var(--muted);border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -235,7 +234,7 @@ tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <input type="hidden" name="_action" value="bulk_close">
       <div style="padding:8px 14px;background:var(--surface3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-family:'Courier New',Consolas,monospace;color:var(--muted);cursor:pointer">
           <input type="checkbox" id="sel-all" onchange="toggleAll(this)"> SELECT ALL
         </label>
         <button type="submit" class="btn btn-warn btn-sm" onclick="return confirm('Close selected findings?')">✓ Bulk Close Selected</button>

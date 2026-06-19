@@ -14,6 +14,18 @@ $db->exec("CREATE TABLE IF NOT EXISTS ip_whitelist (
 )");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
+
+    // ── Unlock locked IP ──────────────────────────────────────────────────────
+    if ($action === 'unlock_ip') {
+        $ip = $_POST['ip'] ?? '';
+        if ($ip) {
+            $db->prepare("DELETE FROM login_attempts WHERE ip_address=?")->execute([$ip]);
+            log_activity('admin_unlock_account', null, "Unlocked IP: " . $ip);
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => "✅ IP {$ip} unlocked successfully."];
+        }
+        header('Location: admin.php?tab=users'); exit;
+    }
+
     $action = $_POST['action'] ?? '';
 
     // ── User actions ──────────────────────────────────────────────────────────
@@ -158,6 +170,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
 
 // ── Data fetch ────────────────────────────────────────────────────────────────
 $users          = $db->query("SELECT *,(SELECT COUNT(*) FROM projects WHERE created_by=users.id) as pc FROM users ORDER BY role DESC,username")->fetchAll();
+
+// ── Locked accounts ────────────────────────────────────────────────────────────
+$locked_accounts = [];
+try {
+    $locked_accounts = $db->query(
+        "SELECT ip_address, attempts, last_attempt_at FROM login_attempts
+         WHERE attempts >= 5
+         AND (strftime('%s','now') - strftime('%s', last_attempt_at)) < 900
+         ORDER BY last_attempt_at DESC"
+    )->fetchAll();
+} catch (Exception $e) {}
 // ── Activity log pagination ───────────────────────────────────────────────────
 $log_per_page   = 50;
 $log_page       = max(1, intval($_GET['log_page'] ?? 1));
@@ -204,7 +227,6 @@ $active_tab     = $_GET['tab'] ?? 'users';
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — Admin</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -231,11 +253,11 @@ body::before{content:'';position:fixed;inset:0;
   border-bottom:1px solid var(--border);backdrop-filter:blur(12px);
   padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
 [data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;
+.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;
   letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
 
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;
-  font-size:12px;font-weight:600;font-family:'Rajdhani',sans-serif;letter-spacing:.4px;
+  font-size:12px;font-weight:600;font-family:'Segoe UI',Tahoma,Arial,sans-serif;letter-spacing:.4px;
   cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
 .btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
@@ -258,7 +280,7 @@ body::before{content:'';position:fixed;inset:0;
 .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);
   border-radius:10px;padding:4px;margin-bottom:14px;flex-wrap:wrap}
 .tab{flex:1;text-align:center;padding:8px 10px;border-radius:7px;cursor:pointer;
-  font-size:13px;font-weight:700;font-family:'Rajdhani',sans-serif;border:none;
+  font-size:13px;font-weight:700;font-family:'Segoe UI',Tahoma,Arial,sans-serif;border:none;
   background:none;color:var(--muted);transition:all .15s;min-width:80px}
 .tab.active{background:var(--accent);color:#000}
 .tab:hover:not(.active){background:var(--surface2);color:var(--text)}
@@ -267,24 +289,24 @@ body::before{content:'';position:fixed;inset:0;
 
 /* ── FLASH ── */
 .flash{padding:10px 14px;border-radius:8px;font-size:12px;
-  font-family:'Share Tech Mono',monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
 .flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
 
 /* ── LAYOUT ── */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
-.panel h2{font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;
+.panel h2{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;
   letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;
   border-bottom:1px solid var(--border)}
 
 /* ── TABLES ── */
 .user-table{width:100%;border-collapse:collapse;font-size:12px}
-.user-table th{text-align:left;padding:7px 10px;font-family:'Share Tech Mono',monospace;
+.user-table th{text-align:left;padding:7px 10px;font-family:'Courier New',Consolas,monospace;
   font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
   border-bottom:1px solid var(--border)}
 .user-table td{padding:8px 10px;border-bottom:1px solid rgba(30,45,74,.4);
-  font-family:'Share Tech Mono',monospace;font-size:11px;vertical-align:middle}
+  font-family:'Courier New',Consolas,monospace;font-size:11px;vertical-align:middle}
 .user-table tr:last-child td{border-bottom:none}
 .user-table tr:hover td{background:rgba(0,212,255,.02)}
 
@@ -297,17 +319,17 @@ body::before{content:'';position:fixed;inset:0;
 .fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.field label{font-family:'Share Tech Mono',monospace;font-size:9.5px;text-transform:uppercase;
+.field label{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;
   letter-spacing:1.2px;color:var(--muted)}
 input,select{background:var(--surface2);border:1px solid var(--border);border-radius:7px;
-  padding:8px 10px;color:var(--text);font-size:13px;font-family:'Share Tech Mono',monospace;
+  padding:8px 10px;color:var(--text);font-size:13px;font-family:'Courier New',Consolas,monospace;
   outline:none;transition:border-color .2s;width:100%}
 input:focus,select:focus{border-color:var(--accent)}
 select option{background:var(--surface2)}
 
 /* ── LOG ROWS ── */
 .log-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(30,45,74,.35);
-  font-size:11px;font-family:'Share Tech Mono',monospace;align-items:flex-start}
+  font-size:11px;font-family:'Courier New',Consolas,monospace;align-items:flex-start}
 .log-row:last-child{border-bottom:none}
 .log-time{color:var(--muted);min-width:110px;flex-shrink:0;font-size:10px}
 .log-user{color:var(--accent);min-width:80px;flex-shrink:0}
@@ -316,34 +338,34 @@ select option{background:var(--surface2)}
 
 /* ── OPTS ── */
 .opt-group{margin-bottom:14px}
-.opt-group h3{font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;
+.opt-group h3{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;
   letter-spacing:1px;color:var(--accent);margin-bottom:7px}
 .opt-pills{display:flex;flex-wrap:wrap;gap:5px}
 .opt-pill{display:inline-flex;align-items:center;gap:5px;background:var(--surface2);
   border:1px solid var(--border);border-radius:20px;padding:3px 9px;
-  font-size:11px;font-family:'Share Tech Mono',monospace}
+  font-size:11px;font-family:'Courier New',Consolas,monospace}
 .opt-pill .rm{background:none;border:none;cursor:pointer;color:var(--danger);
   font-size:11px;padding:0;line-height:1;transition:opacity .15s}
 .opt-pill .rm:hover{opacity:.7}
 
 /* ── IP WHITELIST SPECIFIC ── */
 .ip-status-banner{border-radius:10px;padding:14px 16px;margin-bottom:14px;
-  font-family:'Share Tech Mono',monospace;font-size:12px;line-height:1.7}
+  font-family:'Courier New',Consolas,monospace;font-size:12px;line-height:1.7}
 .ip-on{background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
 .ip-off{background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.2);color:var(--success)}
 .ip-mine{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);
   border-radius:8px;padding:10px 14px;margin-bottom:14px;
-  font-family:'Share Tech Mono',monospace;font-size:12px}
+  font-family:'Courier New',Consolas,monospace;font-size:12px}
 .ip-mine strong{color:var(--accent);font-size:14px}
 .ip-stat-row{display:flex;gap:10px;margin-bottom:14px}
 .ip-stat{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;text-align:center;font-family:'Share Tech Mono',monospace}
+  padding:10px 12px;text-align:center;font-family:'Courier New',Consolas,monospace}
 .ip-stat .val{font-size:22px;font-weight:700;display:block}
 .ip-stat .lbl{font-size:10px;color:var(--muted);display:block;margin-top:2px}
 
 /* ── ROLE INFO ── */
 .role-info{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;
+  padding:10px 12px;font-family:'Courier New',Consolas,monospace;font-size:11px;
   margin-top:12px;line-height:1.8}
 .ri{display:flex;align-items:center;gap:6px;margin-bottom:4px}
 .ri:last-child{margin-bottom:0}
@@ -351,11 +373,11 @@ select option{background:var(--surface2)}
 /* ── Pagination ──────────────────────────────────────────────────────────── */
 .pagination-bar{display:flex;align-items:center;justify-content:space-between;
   flex-wrap:wrap;gap:10px;padding:12px 0;margin-top:4px}
-.pag-info{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)}
+.pag-info{font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)}
 .pag-btns{display:flex;gap:5px;flex-wrap:wrap}
 .pag-btn{display:inline-flex;align-items:center;justify-content:center;
   min-width:34px;height:30px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;
-  font-family:'Rajdhani',sans-serif;text-decoration:none;
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;text-decoration:none;
   background:var(--surface2);border:1px solid var(--border);color:var(--muted);
   transition:all .15s;cursor:pointer}
 .pag-btn:hover:not(.disabled):not(.active){background:var(--surface3);color:var(--text)}
@@ -394,12 +416,47 @@ select option{background:var(--surface2)}
 
 <!-- ═══ USERS TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'users' ? 'active' : '' ?>" id="tab-users">
+
+  <?php if (!empty($locked_accounts)): ?>
+  <div style="background:#200808;border:1px solid #4a1010;border-radius:10px;padding:16px 20px;margin-bottom:18px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:18px">🔒</span>
+      <h3 style="color:#fca5a5;font-size:14px;font-weight:700">Locked Accounts — <?= count($locked_accounts) ?> IP(s) Currently Locked</h3>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr style="color:#5a7a9a;font-family:'Courier New',Consolas,monospace;font-size:11px">
+        <th style="text-align:left;padding:6px 10px">IP Address</th>
+        <th style="text-align:left;padding:6px 10px">Failed Attempts</th>
+        <th style="text-align:left;padding:6px 10px">Last Attempt</th>
+        <th style="text-align:left;padding:6px 10px">Action</th>
+      </tr>
+      <?php foreach ($locked_accounts as $la): ?>
+      <tr style="border-top:1px solid rgba(74,16,16,.5)">
+        <td style="padding:8px 10px;color:#fca5a5;font-family:'Courier New',Consolas,monospace"><?= htmlspecialchars($la['ip_address']) ?></td>
+        <td style="padding:8px 10px;color:#ff3d5a;font-weight:700"><?= intval($la['attempts']) ?></td>
+        <td style="padding:8px 10px;color:#5a7a9a;font-family:'Courier New',Consolas,monospace;font-size:11px"><?= htmlspecialchars($la['last_attempt_at']) ?></td>
+        <td style="padding:8px 10px">
+          <form method="POST" style="display:inline">
+            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="unlock_ip">
+            <input type="hidden" name="ip" value="<?= htmlspecialchars($la['ip_address']) ?>">
+            <button type="submit" class="btn btn-ghost btn-sm" style="color:#00e676;border-color:#00e676"
+              onclick="return confirm('IP <?= htmlspecialchars($la['ip_address']) ?> ko unlock karo?')">
+              🔓 Unlock
+            </button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </table>
+  </div>
+  <?php endif; ?>
   <div class="panel">
     <h2>Team Members</h2>
     <table class="user-table">
       <tr>
         <th>#</th><th>Status</th><th>Username</th><th>Role</th>
-        <th>Projects</th><th>Joined</th><th>Actions</th>
+        <th>Projects</th><th>Joined</th><th>PW Age</th><th>Actions</th>
       </tr>
       <?php foreach ($users as $u):
         $isActive = (int)($u['is_active'] ?? 1);
@@ -424,7 +481,7 @@ select option{background:var(--surface2)}
           <div class="actions-cell">
             <select class="role-sel" data-uid="<?= $u['id'] ?>"
               style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                padding:3px 6px;color:var(--text);font-size:10px;font-family:'Share Tech Mono',monospace;
+                padding:3px 6px;color:var(--text);font-size:10px;font-family:'Courier New',Consolas,monospace;
                 outline:none;cursor:pointer;width:auto"
               onchange="changeRole(<?= $u['id'] ?>,this.value)">
               <option value="admin"  <?= $u['role'] === 'admin'  ? 'selected' : '' ?>>Admin</option>
@@ -439,6 +496,18 @@ select option{background:var(--surface2)}
                 <?= $isActive ? '⛔ Deactivate' : '✅ Activate' ?>
               </button>
             </form>
+            </td>
+            <td style="font-family:'Courier New',Consolas,monospace;font-size:11px">
+                <?php
+                  $pw_date = $u['password_changed_at'] ?? null;
+                  if ($pw_date) {
+                      $age_days = (int)round((time() - strtotime($pw_date)) / 86400);
+                      $age_col  = $age_days >= PASSWORD_EXPIRY_DAYS ? '#ff3d5a' : ($age_days >= 80 ? '#ffd740' : '#7ee787');
+                      echo "<span style='color:{$age_col};font-weight:700'>{$age_days}d</span>";
+                  } else { echo '<span style="color:#5a7a9a">N/A</span>'; }
+                ?>
+            </td>
+            <td>
             <button class="btn btn-ghost" onclick="resetPw(<?= $u['id'] ?>,'<?= htmlspecialchars($u['username']) ?>')"
               style="padding:4px 7px">🔑</button>
             <form method="POST" style="display:inline">
@@ -450,7 +519,7 @@ select option{background:var(--surface2)}
             </form>
           </div>
           <?php else: ?>
-          <span style="font-size:10px;color:var(--muted);font-family:'Share Tech Mono',monospace">(you)</span>
+          <span style="font-size:10px;color:var(--muted);font-family:'Courier New',Consolas,monospace">(you)</span>
           <?php endif; ?>
         </td>
       </tr>
@@ -492,7 +561,7 @@ select option{background:var(--surface2)}
     </div>
     <div class="panel">
       <h2>Role Permissions</h2>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'Share Tech Mono',monospace">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace">
         <tr style="border-bottom:1px solid var(--border)">
           <th style="text-align:left;padding:6px 8px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1px">Permission</th>
           <th style="padding:6px 8px;color:<?= $roleColors['viewer'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Viewer</th>
@@ -631,7 +700,7 @@ select option{background:var(--surface2)}
         <?php endforeach; ?>
       </table>
       <?php else: ?>
-      <p style="color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:12px;padding:12px 0">
+      <p style="color:var(--muted);font-family:'Courier New',Consolas,monospace;font-size:12px;padding:12px 0">
         No IPs added yet. Add your own IP first using the quick-add above.
       </p>
       <?php endif; ?>
@@ -660,7 +729,7 @@ select option{background:var(--surface2)}
     <!-- Instructions -->
     <div class="panel">
       <h2>How IP Whitelist Works</h2>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);line-height:1.9">
+      <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);line-height:1.9">
         <p style="margin-bottom:8px">📌 <strong style="color:var(--text)">When list is EMPTY</strong> — All IPs allowed (safe default for fresh setup)</p>
         <p style="margin-bottom:8px">🔴 <strong style="color:var(--text)">When list has entries</strong> — ONLY listed active IPs can access. Others see blocked page.</p>
         <p style="margin-bottom:8px">⚠️ <strong style="color:var(--amber)">Important:</strong> Always add your own IP before adding others. If you accidentally lock yourself out, delete/rename the ip_whitelist table in vault.db directly.</p>
@@ -690,14 +759,14 @@ select option{background:var(--surface2)}
         </span>
         <?php endforeach; ?>
         <?php if (empty($optsByGroup[$grp])): ?>
-        <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted)">No options yet</span>
+        <span style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)">No options yet</span>
         <?php endif; ?>
       </div>
     </div>
     <?php endforeach; ?>
     <div class="panel" style="grid-column:1/-1">
       <h2>How Options Work</h2>
-      <p style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);line-height:1.8">
+      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);line-height:1.8">
         💡 Project form mein "Other" select karo aur value type karo — wo automatically yahan save ho jaegi.<br>
         Agle baar wo dropdown mein dikhegi. Yahan se unwanted options remove kar sakte ho.
       </p>
@@ -718,7 +787,7 @@ select option{background:var(--surface2)}
         </div>
         <button type="submit" class="btn btn-accent" style="width:100%;justify-content:center;padding:9px">➕ Add Item</button>
       </form>
-      <p style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.8">
+      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.8">
         💡 Yeh items har project ke "Website Compliance Checklist" mein dikhenge — jaise logos, photos, accessibility, etc.
       </p>
     </div>
@@ -771,7 +840,7 @@ select option{background:var(--surface2)}
     </div>
     <?php endforeach; ?>
     <?php if (!$logs): ?>
-    <p style="color:var(--muted);font-size:11px;font-family:'Share Tech Mono',monospace">No activity yet.</p>
+    <p style="color:var(--muted);font-size:11px;font-family:'Courier New',Consolas,monospace">No activity yet.</p>
     <?php endif; ?>
 
     <?php if($log_pages > 1): ?>

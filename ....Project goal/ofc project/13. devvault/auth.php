@@ -24,8 +24,8 @@ if (!headers_sent()) {
     // CSP: inline styles/scripts needed for current app architecture
     // Tighten this when JS/CSS is moved to external files
     header("Content-Security-Policy: default-src 'self'; " .
-           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " .
-           "font-src 'self' https://fonts.gstatic.com; " .
+           "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " .
+           "font-src 'self'; " .
            "script-src 'self' 'unsafe-inline'; " .
            "img-src 'self' data:; " .
            "connect-src 'self';");
@@ -88,6 +88,23 @@ function require_login(): void {
         if (isset($_SESSION['password_changed']) && $_SESSION['password_changed'] == 0) {
             header('Location: change_password.php?force=1');
             exit;
+        }
+
+        // ── 90-day password expiry check ──────────────────────────────────────
+        if (!isset($_SESSION['pw_expiry_checked'])) {
+            $db = get_db();
+            $pw_row = $db->prepare("SELECT password_changed_at FROM users WHERE id=?");
+            $pw_row->execute([$_SESSION['user_id']]);
+            $pw_data = $pw_row->fetch();
+            if ($pw_data && !empty($pw_data['password_changed_at'])) {
+                $days_old = (time() - strtotime($pw_data['password_changed_at'])) / 86400;
+                if ($days_old >= PASSWORD_EXPIRY_DAYS) {
+                    $_SESSION['force_pw_change'] = 'expired';
+                    header('Location: change_password.php?reason=expired');
+                    exit;
+                }
+            }
+            $_SESSION['pw_expiry_checked'] = true;
         }
     }
 }

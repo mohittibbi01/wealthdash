@@ -1,6 +1,7 @@
 <?php
 define('APP_NAME', 'DevVault Pro');
 define('APP_VERSION', '3.0.0'); // Single source — reference this everywhere
+define('PASSWORD_EXPIRY_DAYS', 90); // Force password change after 90 days
 define('DB_PATH', __DIR__ . '/data/vault.db');
 define('UPLOAD_DIR', __DIR__ . '/data/uploads');
 
@@ -88,6 +89,8 @@ function get_db(): PDO {
     // ── Add new columns to existing DBs (safe: IF NOT EXISTS via try/catch) ──
     $new_cols = [
         "ALTER TABLE projects ADD COLUMN parent_sectoral_portal TEXT DEFAULT ''",
+        "ALTER TABLE users ADD COLUMN password_changed_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE login_attempts ADD COLUMN admin_unlocked_at DATETIME DEFAULT NULL",
     ];
     foreach ($new_cols as $_sql) {
         try { $db->exec($_sql); } catch (Exception $_e) {}
@@ -510,6 +513,9 @@ function safe_upload(array $file, int $projectId, string $docType, string $title
     $db->prepare("INSERT INTO project_documents (project_id,doc_type,title,filename,stored_name,file_size,uploaded_by)
         VALUES (?,?,?,?,?,?,?)")
        ->execute([$projectId, $docType, $title ?: $file['name'], $file['name'], $stored, $file['size'], $userId]);
+
+    // Log the upload event
+    log_activity('upload_document', $projectId, $file['name'] . ' (' . round($file['size']/1024,1) . ' KB)');
 
     return ['ok' => true];
 }

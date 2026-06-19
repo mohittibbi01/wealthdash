@@ -6,6 +6,7 @@ $db      = get_db();
 $error   = '';
 $ok      = false;
 $force   = isset($_GET['force']) && $_GET['force'] == '1'; // forced change on first login
+$expired = isset($_GET['reason']) && $_GET['reason'] === 'expired'; // 90-day expiry
 
 $accent  = user_pref('accent', '#00d4ff');
 $bg      = user_pref('bg_color', '');
@@ -46,9 +47,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     } elseif ($new === $cur) {
         $error = 'New password must be different from current password.';
     } else {
-        $db->prepare("UPDATE users SET password_hash=?, password_changed=1 WHERE id=?")
+        $db->prepare("UPDATE users SET password_hash=?, password_changed=1, password_changed_at=CURRENT_TIMESTAMP WHERE id=?")
            ->execute([password_hash($new, PASSWORD_DEFAULT), $_SESSION['user_id']]);
         $_SESSION['password_changed'] = 1;
+        unset($_SESSION['force_pw_change'], $_SESSION['pw_expiry_checked']);
         log_activity('change_password', null, $force ? 'forced_first_login' : 'voluntary');
         $ok = true;
     }
@@ -60,7 +62,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — <?= $force ? 'Set New Password' : 'Change Password' ?></title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -70,39 +71,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
   --text:#e8edf5;--muted:#5a7a9a;--accent:#00d4ff;--success:#00e676;
   --danger:#ff3d5a;--warning:#ffb300;
 }
-body{font-family:'Rajdhani',sans-serif;background:var(--user-bg);color:var(--text);
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--user-bg);color:var(--text);
   min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .wrap{width:100%;max-width:460px}
 .force-banner{
   background:rgba(255,179,0,.08);border:1px solid rgba(255,179,0,.3);
   color:var(--warning);border-radius:10px;padding:14px 16px;margin-bottom:20px;
-  font-family:'Share Tech Mono',monospace;font-size:13px;line-height:1.6}
+  font-family:'Courier New',Consolas,monospace;font-size:13px;line-height:1.6}
 .force-banner strong{display:block;font-size:14px;margin-bottom:4px}
 .back{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;
   font-size:13px;font-weight:600;cursor:pointer;border:none;text-decoration:none;
   background:var(--surface2);color:var(--muted);border:1px solid var(--border);
   transition:all .15s;margin-bottom:20px}
 .back:hover{color:var(--text)}
-h1{font-family:'Orbitron',monospace;font-size:16px;color:var(--accent);margin-bottom:20px}
+h1{font-family:'Courier New',Consolas,monospace;font-size:16px;color:var(--accent);margin-bottom:20px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px}
-.msg{padding:10px 14px;border-radius:8px;font-size:13px;font-family:'Share Tech Mono',monospace;margin-bottom:14px}
+.msg{padding:10px 14px;border-radius:8px;font-size:13px;font-family:'Courier New',Consolas,monospace;margin-bottom:14px}
 .msg-s{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
 .msg-e{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
 .field{margin-bottom:14px}
-.field label{display:block;font-family:'Share Tech Mono',monospace;font-size:10px;
+.field label{display:block;font-family:'Courier New',Consolas,monospace;font-size:10px;
   text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px}
 input[type=password]{width:100%;background:var(--surface2);border:1px solid var(--border);
   border-radius:8px;padding:10px 13px;color:var(--text);font-size:14px;
-  font-family:'Rajdhani',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s}
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;outline:none;transition:border-color .2s,box-shadow .2s}
 input[type=password]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.08)}
-.hint-text{font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:5px}
+.hint-text{font-size:11px;color:var(--muted);font-family:'Courier New',Consolas,monospace;margin-top:5px}
 .btn{width:100%;background:var(--accent);color:#000;border:none;border-radius:8px;
-  padding:12px;font-size:15px;font-weight:700;font-family:'Rajdhani',sans-serif;
+  padding:12px;font-size:15px;font-weight:700;font-family:'Segoe UI',Tahoma,Arial,sans-serif;
   cursor:pointer;letter-spacing:.5px;transition:opacity .2s;margin-top:4px}
 .btn:hover{opacity:.85}
 .success-actions{margin-top:14px;display:flex;gap:10px}
 .btn-secondary{flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--border);
-  border-radius:8px;padding:10px;font-size:14px;font-weight:600;font-family:'Rajdhani',sans-serif;
+  border-radius:8px;padding:10px;font-size:14px;font-weight:600;font-family:'Segoe UI',Tahoma,Arial,sans-serif;
   cursor:pointer;text-align:center;text-decoration:none;transition:border-color .2s}
 .btn-secondary:hover{border-color:var(--accent)}
 </style>

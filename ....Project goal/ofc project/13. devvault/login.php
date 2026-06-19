@@ -95,7 +95,7 @@ if (is_locked_out($attempt_info)) {
     $locked            = true;
     $lockout_remaining = seconds_remaining($attempt_info);
     $mins              = ceil($lockout_remaining / 60);
-    $error = "Bahut zyada failed attempts. {$mins} minute baad dobara try karein.";
+    $error = "Bahut zyada failed attempts ({$attempt_info['attempts']}). {$mins} minute baad dobara try karein ya Admin se unlock karwayein.";
 }
 
 // ── Process login form ────────────────────────────────────────────────────────
@@ -143,12 +143,15 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // ── Failure: record attempt ───────────────────────────────────
                 record_failed_attempt($db, $client_ip);
+                // Log failed login attempt for audit trail
+                $attempted_user = htmlspecialchars(substr($u, 0, 50));
+                log_activity('failed_login', null, "IP: {$client_ip} | Username: {$attempted_user}");
                 $attempt_info = get_attempt_info($db, $client_ip);
                 $remaining    = MAX_LOGIN_ATTEMPTS - (int)$attempt_info['attempts'];
 
                 if (is_locked_out($attempt_info)) {
                     $locked = true;
-                    $error  = "Bahut zyada failed attempts. 15 minute baad dobara try karein.";
+                    $error  = "Bahut zyada failed attempts. 15 minute baad dobara try karein ya Admin se unlock karwayein.";
                 } elseif ($remaining > 0) {
                     $error = "Invalid username or password. ({$remaining} attempts remaining)";
                 } else {
@@ -167,7 +170,6 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -175,7 +177,7 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
   --text:#e8edf5;--muted:#5a7a9a;--accent:#00d4ff;--accent2:#0066ff;
   --success:#00e676;--danger:#ff3d5a;
 }
-body{font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);
   min-height:100vh;display:flex;align-items:center;justify-content:center;
   overflow:hidden;position:relative}
 body::before{
@@ -203,7 +205,7 @@ body::after{
 .logo h1{font-size:30px;font-weight:700;letter-spacing:2px;
   background:linear-gradient(135deg,var(--accent),#fff);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.logo p{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);
+.logo p{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--muted);
   margin-top:4px;letter-spacing:1px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
   padding:28px;position:relative;overflow:hidden}
@@ -211,30 +213,30 @@ body::after{
   background:linear-gradient(90deg,transparent,var(--accent),transparent)}
 .error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);
   color:var(--danger);padding:10px 14px;border-radius:8px;font-size:13px;
-  margin-bottom:18px;font-family:'Share Tech Mono',monospace;display:flex;align-items:center;gap:8px}
+  margin-bottom:18px;font-family:'Courier New',Consolas,monospace;display:flex;align-items:center;gap:8px}
 .locked-box{background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.3);
   border-radius:10px;padding:16px;margin-bottom:18px;text-align:center}
 .locked-box .lock-icon{font-size:32px;margin-bottom:8px}
-.locked-box p{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--danger);line-height:1.8}
+.locked-box p{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--danger);line-height:1.8}
 .locked-box .countdown{font-size:18px;font-weight:700;color:var(--danger);margin-top:6px}
 .field{margin-bottom:16px}
 .field label{display:block;font-size:12px;font-weight:600;text-transform:uppercase;
-  letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;font-family:'Share Tech Mono',monospace}
+  letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;font-family:'Courier New',Consolas,monospace}
 .field input{width:100%;background:var(--surface2);border:1px solid var(--border);
   border-radius:8px;padding:11px 14px;color:var(--text);font-size:15px;
-  font-family:'Rajdhani',sans-serif;font-weight:500;outline:none;
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-weight:500;outline:none;
   transition:border-color .2s,box-shadow .2s}
 .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
 .field input::placeholder{color:var(--muted)}
 .field input:disabled{opacity:.5;cursor:not-allowed}
 .btn-login{width:100%;background:linear-gradient(135deg,var(--accent2),var(--accent));
   color:#000;border:none;border-radius:8px;padding:13px;font-size:16px;font-weight:700;
-  font-family:'Rajdhani',sans-serif;cursor:pointer;letter-spacing:1px;
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;letter-spacing:1px;
   transition:opacity .2s,transform .15s;margin-top:6px;text-transform:uppercase}
 .btn-login:hover:not(:disabled){opacity:.88;transform:translateY(-1px)}
 .btn-login:active:not(:disabled){transform:translateY(0)}
 .btn-login:disabled{opacity:.4;cursor:not-allowed;background:#333}
-.hint{text-align:center;margin-top:16px;font-family:'Share Tech Mono',monospace;
+.hint{text-align:center;margin-top:16px;font-family:'Courier New',Consolas,monospace;
   font-size:11px;color:var(--muted)}
 </style>
 </head>

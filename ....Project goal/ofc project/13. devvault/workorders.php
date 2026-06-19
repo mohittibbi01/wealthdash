@@ -206,7 +206,6 @@ function wo_badge(string $s): string {
 <head>
 <meta charset="UTF-8">
 <title>Work Orders — DevVault Pro</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
@@ -221,12 +220,12 @@ body::before{content:'';position:fixed;inset:0;
 .topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
   backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
 [data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
 .tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;
-  padding:5px 10px;border-radius:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+  padding:5px 10px;border-radius:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
 .tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
-  font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
 .btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
 .btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
@@ -235,48 +234,48 @@ body::before{content:'';position:fixed;inset:0;
 .btn-success{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.3)}.btn-success:hover{background:rgba(0,230,118,.22)}
 .btn-sm{padding:4px 9px;font-size:11px}
 .wrap{max-width:1400px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
+.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
 .card-pad{padding:16px}
-.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Share Tech Mono',monospace}
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Courier New',Consolas,monospace}
+.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
 .flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
-table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Share Tech Mono',monospace}
+table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace}
 th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
 td{padding:9px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
 tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
 .f{display:flex;flex-direction:column;gap:4px;flex:1}
-.f label{font-family:'Share Tech Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.f label{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;
   color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 .row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}.w2{flex:2}.w3{flex:3}
 .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
 .fg{display:flex;flex-direction:column;gap:3px;min-width:120px}
-.fg label{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.fg label{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
 .modal-backdrop.open{display:flex}
 .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:720px;max-width:95vw;max-height:90vh;overflow-y:auto}
-.modal h3{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
-.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Share Tech Mono',monospace;color:var(--muted);border-top:1px solid var(--border)}
-.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Share Tech Mono',monospace;font-size:11px}
+.modal h3{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
+.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Courier New',Consolas,monospace;color:var(--muted);border-top:1px solid var(--border)}
+.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Courier New',Consolas,monospace;font-size:11px}
 .progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:4px;height:7px;width:100%}
 .progress-bar{height:7px;border-radius:4px;background:var(--accent);transition:.3s}
 .meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
-.meta-item{font-size:12px;font-family:'Share Tech Mono',monospace}
+.meta-item{font-size:12px;font-family:'Courier New',Consolas,monospace}
 .meta-item .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
-.history-item{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline}
+.history-item{font-size:11px;font-family:'Courier New',Consolas,monospace;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline}
 .history-item:last-child{border-bottom:none}
 .history-item .ts{white-space:nowrap;font-size:10px;min-width:130px}
 .history-item .act{color:var(--text)}
-.tech-hd{background:var(--surface2);padding:10px 14px;font-size:11px;font-weight:700;font-family:'Share Tech Mono',monospace;
+.tech-hd{background:var(--surface2);padding:10px 14px;font-size:11px;font-weight:700;font-family:'Courier New',Consolas,monospace;
   display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
 .checkboxes{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .checkboxes label{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;
-  cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;font-family:'Rajdhani',sans-serif;transition:all .15s}
+  cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
 .checkboxes label:hover{border-color:var(--muted)}
-.pct-num{font-family:'Orbitron',monospace;font-size:26px;font-weight:700;color:var(--accent)}
+.pct-num{font-family:'Courier New',Consolas,monospace;font-size:26px;font-weight:700;color:var(--accent)}
 </style>
 </head>
 <body>
@@ -307,7 +306,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
   <h1 style="margin:0;flex:1;">📝 <?=htmlspecialchars($wo['title'])?></h1>
   <?=wo_badge($wo['status'])?>
   <?php $pc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
-  <span style="background:<?=$pc?>22;color:<?=$pc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pc?>40;font-family:'Share Tech Mono',monospace"><=htmlspecialchars($wo['priority'])?></span>
+  <span style="background:<?=$pc?>22;color:<?=$pc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pc?>40;font-family:'Courier New',Consolas,monospace"><=htmlspecialchars($wo['priority'])?></span>
 </div>
 
 <!-- Meta info -->
@@ -514,7 +513,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
         <td><a href="workorders.php?view=<?=$wo['id']?>" style="color:var(--accent);text-decoration:none;font-weight:600;"><?=htmlspecialchars($wo['title'])?></a></td>
         <td style="font-size:12px;"><?=implode(', ', $techs)?></td>
         <?php $pwc=$priority_map[$wo['priority']]??'#3b82f6'; ?>
-        <td><span style="background:<?=$pwc?>22;color:<?=$pwc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pwc?>40;font-family:'Share Tech Mono',monospace"><=htmlspecialchars($wo['priority'])?></span></td>
+        <td><span style="background:<?=$pwc?>22;color:<?=$pwc?>;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid <?=$pwc?>40;font-family:'Courier New',Consolas,monospace"><=htmlspecialchars($wo['priority'])?></span></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['deadline']??'-')?></td>
         <td style="min-width:120px;">
           <div style="font-size:12px;color:var(--muted);margin-bottom:4px;"><=intval($wo['done_sites'])?>/<=intval($wo['total_sites'])?> (<=intval($pct)?>%)</div>

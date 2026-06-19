@@ -267,7 +267,6 @@ $sc = $theme === 'light' ? $secColorsLight : $secColors;
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault — <?=$p?'Edit':'Add'?> Project</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -292,7 +291,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:color-mix(in srgb,var(--bg) 92%,transparent);
   border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);
   display:flex;align-items:center;padding:0 18px;gap:12px}
-.logo{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;
+.logo{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;
   color:var(--acc);letter-spacing:2px;text-shadow:0 0 14px var(--acc)}
 .bar-r{margin-left:auto;display:flex;gap:8px}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;
@@ -313,7 +312,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sec{border-radius:12px;overflow:hidden;margin-bottom:14px;transition:box-shadow .2s}
 .sec:focus-within{box-shadow:0 0 0 2px var(--acc)30}
 .sec-hd{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;user-select:none}
-.sec-hd h2{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;
+.sec-hd h2{font-family:'Courier New',Consolas,monospace;font-size:11px;font-weight:700;
   color:var(--acc);letter-spacing:1.8px;text-transform:uppercase;flex:1}
 .chev{color:var(--mt);font-size:11px;transition:transform .2s}
 .sec-hd.closed .chev{transform:rotate(-90deg)}
@@ -329,12 +328,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .f.w3{flex:3}
 
 /* FIELDS */
-label,.lbl{display:block;font-family:'Share Tech Mono',monospace;font-size:9.5px;
+label,.lbl{display:block;font-family:'Courier New',Consolas,monospace;font-size:9.5px;
   text-transform:uppercase;letter-spacing:1.3px;color:var(--mt)}
 .req{color:var(--err)}
 input,select,textarea{
   background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;
-  padding:7px 10px;color:var(--tx);font-size:13px;font-family:'Rajdhani',sans-serif;
+  padding:7px 10px;color:var(--tx);font-size:13px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;
   font-weight:500;outline:none;width:100%;transition:border-color .18s,box-shadow .18s}
 input:focus,select:focus,textarea:focus{
   border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 12%,transparent)}
@@ -344,23 +343,23 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 
 /* PASSWORD */
 .pw{position:relative}
-.pw input{padding-right:34px;font-family:'Share Tech Mono',monospace;letter-spacing:.5px}
+.pw input{padding-right:34px;font-family:'Courier New',Consolas,monospace;letter-spacing:.5px}
 .pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);
   background:none;border:none;cursor:pointer;color:var(--mt);font-size:13px;padding:2px;line-height:1}
 .pw-eye:hover{color:var(--acc)}
 
-.hint{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--mt);margin-top:2px}
+.hint{font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--mt);margin-top:2px}
 .cond{display:none!important}
 .cond.on{display:flex!important;flex-direction:column;gap:4px}
 
 /* ENV TABLE */
 .etbl{width:100%;border-collapse:collapse;min-width:660px}
-.etbl th{font-family:'Share Tech Mono',monospace;font-size:9px;text-transform:uppercase;
+.etbl th{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;
   letter-spacing:1px;color:var(--mt);padding:5px 7px 8px;text-align:left;border-bottom:1px solid var(--bdr)}
 .etbl td{padding:4px 5px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 60%,transparent);vertical-align:middle}
 .etbl tr:last-child td{border-bottom:none}
 .etbl input{padding:6px 8px;font-size:12px}
-.env-nm{font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;
+.env-nm{font-family:'Courier New',Consolas,monospace;font-size:11px;font-weight:700;
   display:flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
@@ -374,7 +373,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .err{background:color-mix(in srgb,var(--err) 8%,transparent);
   border:1px solid color-mix(in srgb,var(--err) 30%,transparent);
   color:var(--err);padding:9px 14px;border-radius:8px;
-  font-size:12px;font-family:'Share Tech Mono',monospace;margin:10px 0}
+  font-size:12px;font-family:'Courier New',Consolas,monospace;margin:10px 0}
 
 @media(max-width:600px){.row{flex-direction:column}.f,.f.w15,.f.w2,.f.w3{min-width:0;flex:1}}
 
@@ -382,7 +381,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 .badge-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;
   font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   background:var(--sur2);border:1px solid var(--bdr);color:var(--mt);
-  font-family:'Share Tech Mono',monospace}
+  font-family:'Courier New',Consolas,monospace}
 .btn-xs{padding:4px 10px;font-size:11px;border-radius:6px}
 .contact-row{padding-top:4px}
 .checklist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px 14px}
@@ -818,8 +817,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
               📄 <?=htmlspecialchars($d['title']?:$d['filename'])?>
             </a>
           </td>
-          <td style="font-family:'Share Tech Mono',monospace;font-size:11px"><?=round($d['file_size']/1024,1)?> KB</td>
-          <td style="font-family:'Share Tech Mono',monospace;font-size:11px"><?=date('d M Y',strtotime($d['uploaded_at']))?></td>
+          <td style="font-family:'Courier New',Consolas,monospace;font-size:11px"><?=round($d['file_size']/1024,1)?> KB</td>
+          <td style="font-family:'Courier New',Consolas,monospace;font-size:11px"><?=date('d M Y',strtotime($d['uploaded_at']))?></td>
           <td>
             <button type="button" class="btn btn-danger btn-xs" onclick="delDoc(<?=$d['id']?>,'<?=csrf_token()?>')">🗑</button>
           </td>

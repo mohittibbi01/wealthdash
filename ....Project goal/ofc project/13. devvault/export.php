@@ -111,7 +111,6 @@ if ($format === 'report') {
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — Export & Backup</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:<?= $accent ?>;--fs:<?= $fsize ?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
@@ -123,11 +122,11 @@ body{font-family:'<?= htmlspecialchars($ffamily) ?>',sans-serif;background:var(-
 .wrap{max-width:900px;margin:0 auto;padding:20px}
 h1{font-size:20px;margin-bottom:20px;color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px}
-th{background:var(--surface2);padding:8px;text-align:left;border:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:10px}
+th{background:var(--surface2);padding:8px;text-align:left;border:1px solid var(--border);font-family:'Courier New',Consolas,monospace;font-size:10px}
 td{padding:7px 8px;border:1px solid var(--border);vertical-align:top}
 tr:nth-child(even){background:rgba(255,255,255,.02)}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border-radius:7px;font-size:13px;
-  font-weight:600;font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s}
+  font-weight:600;font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s}
 .btn-accent{background:var(--accent);color:#000}
 .no-print{margin-bottom:16px}
 </style>
@@ -159,7 +158,7 @@ tr:nth-child(even){background:rgba(255,255,255,.02)}
     </tr>
     <?php endforeach; ?>
   </table>
-  <p style="font-size:11px;color:var(--muted);font-family:'Share Tech Mono',monospace">
+  <p style="font-size:11px;color:var(--muted);font-family:'Courier New',Consolas,monospace">
     Generated: <?= date('Y-m-d H:i:s') ?> by <?= htmlspecialchars($_SESSION['username']) ?> · Total: <?= count($allProjects) ?> projects
   </p>
 </div>
@@ -190,7 +189,6 @@ $err = $_GET['err'] ?? '';
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — Export & Backup</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--accent:<?= $accent ?>;--fs:<?= $fsize ?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
@@ -205,44 +203,44 @@ body::before{content:'';position:fixed;inset:0;
 .topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
   backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
 [data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
+.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
-  font-family:'Rajdhani',sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
+  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
 .btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
 .btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
 .btn-sm{padding:4px 9px;font-size:11px}
 .wrap{max-width:700px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Orbitron',monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
+.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
-.card h2{font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;
+.card h2{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;
   color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
 .info-row{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(30,45,74,.4);font-size:13px}
 .info-row:last-child{border-bottom:none}
-.info-row .k{color:var(--muted);font-family:'Share Tech Mono',monospace;font-size:11px}
-.info-row .v{font-family:'Share Tech Mono',monospace;font-weight:600}
+.info-row .k{color:var(--muted);font-family:'Courier New',Consolas,monospace;font-size:11px}
+.info-row .v{font-family:'Courier New',Consolas,monospace;font-weight:600}
 .exp-opt{display:flex;align-items:center;gap:16px;padding:14px 16px;background:var(--surface2);
   border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);transition:all .2s}
 .exp-opt:last-child{border-bottom:none}
 .exp-opt:hover{background:var(--surface3);padding-left:20px}
 .exp-icon{font-size:28px;flex-shrink:0}
 .exp-info h3{font-size:14px;font-weight:700;margin-bottom:3px}
-.exp-info p{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--muted)}
-.badge{margin-left:auto;font-size:9px;font-family:'Share Tech Mono',monospace;padding:3px 9px;border-radius:20px;font-weight:700;flex-shrink:0;border:1px solid currentColor}
+.exp-info p{font-size:11px;font-family:'Courier New',Consolas,monospace;color:var(--muted)}
+.badge{margin-left:auto;font-size:9px;font-family:'Courier New',Consolas,monospace;padding:3px 9px;border-radius:20px;font-weight:700;flex-shrink:0;border:1px solid currentColor}
 .badge-g{background:rgba(0,230,118,.10);color:var(--success)}
 .badge-a{background:rgba(255,215,64,.10);color:var(--amber)}
 .badge-b{background:rgba(0,212,255,.10);color:var(--accent)}
-.portable-steps{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--muted);line-height:2;padding:14px 16px}
+.portable-steps{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--muted);line-height:2;padding:14px 16px}
 .portable-steps strong{color:var(--text)}
 .err-bar{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger);
-  padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;font-family:'Share Tech Mono',monospace}
+  padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;font-family:'Courier New',Consolas,monospace}
 </style>
 </head>
 <body>
 <div class="topbar">
   <span class="logo-txt">DEVVAULT</span>
   <span style="color:var(--border);font-size:18px">|</span>
-  <span style="font-size:14px;font-weight:700;font-family:'Rajdhani',sans-serif">📤 Export & Backup</span>
+  <span style="font-size:14px;font-weight:700;font-family:'Segoe UI',Tahoma,Arial,sans-serif">📤 Export & Backup</span>
   <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
     <a href="index.php" class="btn btn-ghost btn-sm">← Dashboard</a>
     <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
@@ -292,7 +290,7 @@ body::before{content:'';position:fixed;inset:0;
       <span class="badge badge-b">Printable</span>
     </a>
     <?php if (!is_admin()): ?>
-    <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--amber);
+    <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--amber);
       margin-top:10px;padding:10px;background:rgba(255,215,64,.05);border-radius:6px;
       border:1px solid rgba(255,215,64,.15)">
       ⚠ Non-admin: passwords exports mein hidden honge
@@ -300,7 +298,7 @@ body::before{content:'';position:fixed;inset:0;
     <?php endif; ?>
     <?php else: ?>
     <div style="background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger);
-      padding:10px;border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:11px">
+      padding:10px;border-radius:8px;font-family:'Courier New',Consolas,monospace;font-size:11px">
       ⛔ Viewer role: Export access denied. Contact admin.
     </div>
     <?php endif; ?>
