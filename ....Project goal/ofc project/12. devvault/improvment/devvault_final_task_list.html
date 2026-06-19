@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevVault Pro — Final Task Master</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #22263a;
+  --border: #2e3250;
+  --text: #e0e4f0;
+  --muted: #7b82a8;
+  --done: #16a34a;
+  --done-bg: #0d2818;
+  --done-border: #1a4a2a;
+  --pending: #d97706;
+  --pending-bg: #1f1500;
+  --pending-border: #4a3200;
+  --new: #7c3aed;
+  --new-bg: #1a0f35;
+  --new-border: #3d1f80;
+  --critical: #dc2626;
+  --critical-bg: #200808;
+  --critical-border: #4a1010;
+  --high: #ea580c;
+  --medium: #ca8a04;
+  --low: #4b9dd6;
+  --accent: #3b82f6;
+  --code-bg: #0a0c14;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans Devanagari', sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.header {
+  background: linear-gradient(135deg, #0f1117 0%, #1a1d27 50%, #0f1117 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 32px 40px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 22px;
+  color: #60a5fa;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.header .subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.stat-chip.green { border-color: var(--done); color: #4ade80; }
+.stat-chip.orange { border-color: var(--pending); color: #fb923c; }
+.stat-chip.purple { border-color: var(--new); color: #a78bfa; }
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 40px;
+}
+
+/* PHASE SECTIONS */
+.phase {
+  margin-bottom: 48px;
+}
+
+.phase-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border);
+}
+
+.phase-badge {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+.phase-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #c7d0f0;
+}
+
+/* TASK CARDS */
+.task-card {
+  border-radius: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.task-card.status-done {
+  background: var(--done-bg);
+  border-color: var(--done-border);
+}
+
+.task-card.status-pending {
+  background: var(--pending-bg);
+  border-color: var(--pending-border);
+}
+
+.task-card.status-new {
+  background: var(--new-bg);
+  border-color: var(--new-border);
+}
+
+.task-card.status-partial {
+  background: #1a1200;
+  border-color: #4a3800;
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.task-head:hover { filter: brightness(1.1); }
+
+.task-id {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 50px;
+}
+
+.status-icon {
+  font-size: 18px;
+  min-width: 24px;
+}
+
+.task-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status-done .task-name { color: #86efac; }
+.status-pending .task-name { color: #fbbf24; }
+.status-new .task-name { color: #c4b5fd; }
+.status-partial .task-name { color: #fcd34d; }
+
+.priority-tag {
+  font-size: 10px;
+  font-family: 'Share Tech Mono', monospace;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+
+.priority-critical { background: #4a1010; color: #fca5a5; }
+.priority-high { background: #2a1505; color: #fdba74; }
+.priority-medium { background: #2a1f00; color: #fde68a; }
+.priority-low { background: #0a1a2a; color: #93c5fd; }
+.priority-new { background: #1a0f35; color: #c4b5fd; }
+
+.chevron {
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.task-body {
+  display: none;
+  padding: 16px 18px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.task-body.open { display: block; }
+
+.task-body p {
+  color: var(--muted);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.task-body strong { color: var(--text); }
+
+/* PROMPT BOX */
+.prompt-box {
+  background: var(--code-bg);
+  border: 1px solid #2e3250;
+  border-radius: 8px;
+  margin-top: 14px;
+}
+
+.prompt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid #2e3250;
+}
+
+.prompt-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: #60a5fa;
+  letter-spacing: 1px;
+}
+
+.copy-btn {
+  background: #1e3a6e;
+  color: #93c5fd;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  padding: 3px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.copy-btn:hover { background: #2563eb; color: #fff; }
+
+.prompt-text {
+  padding: 14px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: #c7d7f0;
+  white-space: pre-wrap;
+  line-height: 1.8;
+}
+
+/* FILES TO GIVE */
+.files-needed {
+  background: #0d1520;
+  border: 1px solid #1e3a6e;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+
+.files-needed .files-label {
+  font-size: 11px;
+  color: #60a5fa;
+  font-family: 'Share Tech Mono', monospace;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+
+.files-needed .file-item {
+  display: inline-block;
+  background: #1e3a6e44;
+  border: 1px solid #2563eb55;
+  border-radius: 4px;
+  padding: 2px 10px;
+  margin: 3px 4px 3px 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.done-note {
+  background: #0d2818;
+  border: 1px solid #1a4a2a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #86efac;
+}
+
+.partial-note {
+  background: #1a1200;
+  border: 1px solid #4a3800;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #fcd34d;
+}
+
+/* TOC */
+.toc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 36px;
+}
+
+.toc h3 {
+  font-size: 13px;
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+}
+
+.toc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+
+.toc-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  padding: 3px 0;
+  color: var(--muted);
+}
+
+.toc-item .toc-icon { font-size: 13px; }
+
+.context-box {
+  background: #0a0f1f;
+  border: 1px solid #1e2a50;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 32px;
+  font-size: 13px;
+  color: #a0aec0;
+  line-height: 1.9;
+}
+
+.context-box strong { color: #60a5fa; }
+
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ DEVVAULT PRO — MASTER TASK FILE</h1>
+  <div class="subtitle">ZIP Analysis + Fix Guide + v3 Task Plan + Improvement List — सब एक जगह</div>
+  <div class="stats-bar">
+    <span class="stat-chip green">✅ 27 पूरे हो गए</span>
+    <span class="stat-chip orange">⏳ 2 आधे हैं</span>
+    <span class="stat-chip purple">🔵 13 बाकी हैं</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="context-box">
+    <strong>यह file किसलिए है?</strong><br>
+    आपके ZIP (<code>devvault_18062026_2143.zip</code>), Fix Guide HTML, v3 Task Plan HTML, और Improvement.txt — सभी को Claude ने पूरा analyse किया। 
+    जो काम ZIP में already हो गया है वो <span style="color:#4ade80">✅ DONE</span> mark है। 
+    जो अभी बाकी है उसके साथ <strong>copy-paste prompt</strong> दिया है। 
+    Claude को <strong>ZIP file + prompt</strong> दो, काम हो जाएगा।<br><br>
+    <strong>Stack:</strong> PHP 7.4+ | SQLite (WAL) | Vanilla JS | No frameworks | LAN only
+  </div>
+
+  <!-- ═══════════════════════════════════════════
+       TABLE OF CONTENTS
+  ════════════════════════════════════════════ -->
+  <div class="toc">
+    <h3>// SECTION INDEX</h3>
+    <div class="toc-grid">
+      <div class="toc-item"><span class="toc-icon">🔴</span> Phase A — Fix Guide: Critical (T01–T03)</div>
+      <div class="toc-item"><span class="toc-icon">🟠</span> Phase B — Fix Guide: High Priority (T04–T10)</div>
+      <div class="toc-item"><span class="toc-icon">🟡</span> Phase C — Fix Guide: Medium (T11–T20)</div>
+      <div class="toc-item"><span class="toc-icon">🟢</span> Phase D — v3 Features: सब complete (T01–T10)</div>
+      <div class="toc-item"><span class="toc-icon">🔵</span> Phase E — Improvements: बाकी काम</div>
+      <div class="toc-item"><span class="toc-icon">🟣</span> Phase F — Dashboard Redesign (PDF से)</div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════
+       PHASE A — CRITICAL FIXES
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge priority-critical">PHASE A</span>
+      <span class="phase-title">🔴 Fix Guide — Critical Issues</span>
+    </div>
+
+    <!-- FA-01 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FA-01</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">.htaccess — .env और data/ folder web से block</span>
+        <span class="priority-tag priority-critical">CRITICAL</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। .htaccess file exist करती है जो .env, data/vault.db, vault_backup.json, migration scripts सब block करती है। कोई काम नहीं करना।</div>
+      </div>
+    </div>
+
+    <!-- FA-02 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FA-02</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Login Brute-Force Protection</span>
+        <span class="priority-tag priority-critical">CRITICAL</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। <code>login_attempts</code> table exist करती है। MAX_LOGIN_ATTEMPTS=5 define है। 5 failed attempts के बाद 15 मिनट lockout implement है। IP-based DB tracking है।</div>
+      </div>
+    </div>
+
+    <!-- FA-03 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FA-03</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Encryption Key — PBKDF2 Key Derivation</span>
+        <span class="priority-tag priority-critical">CRITICAL</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। config.php में <code>derive_key()</code> function है जो <code>hash_pbkdf2('sha256', ...)</code> use करता है (100,000 iterations)। .env में ENCRYPT_SALT भी add हो गया है। migrate_reencrypt.php भी बनी है।</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PHASE B — HIGH PRIORITY FIXES
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge priority-high">PHASE B</span>
+      <span class="phase-title">🟠 Fix Guide — High Priority Issues</span>
+    </div>
+
+    <!-- FB-04 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-04</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Export CSRF Protection</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। export.php में GET parameter के ज़रिए CSRF token validate होता है। export links में token append होता है।</div>
+      </div>
+    </div>
+
+    <!-- FB-05 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-05</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Theme CSS Injection Fix — Accent/Color Sanitization</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। $accent, $fsize, $ffamily, $theme — सब sanitize हो रहे हैं। index.php और admin.php में preg_replace और in_array checks मौजूद हैं।</div>
+      </div>
+    </div>
+
+    <!-- FB-06 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-06</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">IDOR Fix — Document Download/Delete Ownership Check</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। api.php में <code>download_doc</code> और <code>delete_document</code> दोनों में project ownership verify होती है। Comment में "IDOR fixed" लिखा है।</div>
+      </div>
+    </div>
+
+    <!-- FB-07 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-07</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">HTTP Security Headers</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। auth.php में X-Frame-Options, X-Content-Type-Options, Content-Security-Policy, Referrer-Policy सब add हैं।</div>
+      </div>
+    </div>
+
+    <!-- FB-08 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-08</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Admin Password Reset — Min Length 8</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। admin.php में तीनों जगह (PHP check, HTML placeholder, JS prompt) 8 chars minimum हो गया है। change_password.php से consistent है।</div>
+      </div>
+    </div>
+
+    <!-- FB-09 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-09</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Session Cookie — Secure + SameSite Flag</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। auth.php में <code>cookie_samesite = Strict</code> और Secure flag set है।</div>
+      </div>
+    </div>
+
+    <!-- FB-10 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FB-10</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Migration Scripts — Auth-Gate / Delete</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ ZIP में DONE है। migration_t01.php में require_login() guard है। .htaccess भी इन्हें block करती है।</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PHASE C — MEDIUM / LOW FIXES
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge priority-medium">PHASE C</span>
+      <span class="phase-title">🟡 Fix Guide — Medium / Low Priority</span>
+    </div>
+
+    <!-- FC-11 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-11</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Database Indexes Add करो (FK Columns)</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। सभी जरूरी indexes मौजूद हैं: idx_log_at, idx_log_pid, idx_log_uid, idx_projects_status, idx_docs_pid, idx_findings_pid, idx_vlog_date आदि।</div>
+      </div>
+    </div>
+
+    <!-- FC-12 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-12</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Absolute Session Timeout Add करो</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>समस्या:</strong> अभी सिर्फ idle timeout है (session_timer.js से)। लेकिन अगर कोई user बार-बार activity करता रहे, तो session कभी expire नहीं होगी — दिनों तक। Absolute max session lifetime (जैसे 8 घंटे) नहीं है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">auth.php</span>
+          <span class="file-item">config.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FC-12</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ka auth.php aur config.php de raha hoon.
+
+Kaam karna hai — Absolute Session Timeout implement karo:
+
+1. config.php mein define karo: `define('SESSION_MAX_HOURS', 8);`
+2. auth.php mein require_login() ke andar yeh logic add karo:
+   - Login ke waqt `$_SESSION['session_started_at'] = time()` store karo
+   - Har request par check karo: agar (time() - session_started_at) > (SESSION_MAX_HOURS * 3600) ho to session_destroy() aur login redirect karo
+   - Redirect se pehle `$_SESSION['expired_msg'] = 'Session expired (max 8 hours). Please login again.'` set karo
+3. login.php mein agar 'expired_msg' session hai to usse display karo aur clear karo
+
+IMPORTANT:
+- Ye existing idle timeout (session_timer.js) ko touch mat karo — dono parallel chalenge
+- Sirf auth.php aur config.php change karo
+- Final complete files do jo main directly replace kar sakun</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FC-13 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-13</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Password Policy Uniform (8 chars min — everywhere)</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। admin.php, change_password.php — सभी जगह 8 chars minimum consistent है।</div>
+      </div>
+    </div>
+
+    <!-- FC-14 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-14</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">findings.php + workorders.php — XSS Fix</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। findings.php में 14 और workorders.php में 23 htmlspecialchars() calls हैं। XSS protection लागू है।</div>
+      </div>
+    </div>
+
+    <!-- FC-15 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-15</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Pagination — Project List + Activity Log</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। index.php में LIMIT/OFFSET और पेजिनेशन controls implement हैं।</div>
+      </div>
+    </div>
+
+    <!-- FC-16 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-16</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Server-Side Input Validation (project_form.php)</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। project_form.php में filter_var (email, URL, IP), preg_match (phone) — validation मौजूद है।</div>
+      </div>
+    </div>
+
+    <!-- FC-17 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-17</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">vault_backup.json — Web Accessible Fix</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। .htaccess data/ folder block करती है। config.php में auto-backup disable किया गया है (comment में "T17 SECURITY FIX" लिखा है)।</div>
+      </div>
+    </div>
+
+    <!-- FC-18 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-18</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Login Page — Default Credentials Hint Remove</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। login.php में कोई default username/password hint नहीं है। सिर्फ "Authorized users only" दिखता है।</div>
+      </div>
+    </div>
+
+    <!-- FC-19 -->
+    <div class="task-card status-partial">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-19</span>
+        <span class="status-icon">⚠️</span>
+        <span class="task-name">APP_VERSION Fix + Google Fonts Self-Host</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="partial-note">⚠️ आधा DONE: APP_VERSION = '3.0.0' config.php में define हो गया। लेकिन Google Fonts अभी भी external CDN से आ रहे हैं (index.php में fonts.googleapis.com link है, auth.php CSP में भी allow है)। LAN-only app में internet पर depend नहीं करना चाहिए।</div>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">index.php</span>
+          <span class="file-item">admin.php</span>
+          <span class="file-item">project_form.php</span>
+          <span class="file-item">auth.php</span>
+          <span class="file-item">findings.php</span>
+          <span class="file-item">workorders.php</span>
+          <span class="file-item">reports.php</span>
+          <span class="file-item">export.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FC-19</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: index.php, admin.php, project_form.php, auth.php, findings.php, workorders.php, reports.php, export.php
+
+Yeh ek LAN-only app hai — internet access nahi hai. Problem hai ki Google Fonts (fonts.googleapis.com) external CDN se aa rahi hain jo LAN par kaam nahi karegi.
+
+Kaam karna hai:
+
+1. Teen fonts download karo (main ye instructions ke sath deta hoon — ya tum system-safe fallback use karo):
+   - Rajdhani → fallback: 'Segoe UI', Arial, sans-serif
+   - Orbitron → fallback: 'Courier New', monospace
+   - Share Tech Mono → fallback: 'Courier New', monospace
+
+2. Sab files mein se Google Fonts ka `<link href="https://fonts.googleapis.com/...">` tag REMOVE karo
+
+3. Fonts ko CSS variable ya fallback stack se replace karo:
+   - Jahan 'Rajdhani' use ho: `font-family: 'Segoe UI', Tahoma, Arial, sans-serif;`
+   - Jahan 'Orbitron' use ho: `font-family: 'Courier New', monospace;` (ya `@font-face` agar local fonts available ho)
+   - Jahan 'Share Tech Mono' use ho: `font-family: 'Courier New', monospace;`
+
+4. auth.php ke Content-Security-Policy mein se `https://fonts.googleapis.com` aur `https://fonts.gstatic.com` hata do (CSP mein font sources nahi chahiye agar self-hosted hain)
+
+5. Agar README.md hai to ek note add karo ki fonts now system fallbacks use karte hain
+
+IMPORTANT:
+- Sirf font-related changes karo — baaki koi bhi logic touch mat karo
+- Har file clearly label karke complete de do jo main directly replace kar sakun
+- APP_VERSION already '3.0.0' hai config.php mein — use dobara define mat karo</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FC-20 -->
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FC-20</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">PHPUnit Tests — Encrypt/Decrypt + Auth</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE है। tests/ folder में 3 files हैं: AuthTest.php, EncryptionTest.php, ValidationTest.php — कुल 34 test functions।</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PHASE D — v3 FEATURES (ALL DONE)
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge" style="background:#0d2818;color:#4ade80;border:1px solid #1a4a2a">PHASE D</span>
+      <span class="phase-title">🟢 v3 Task Plan — सभी 10 Features Complete</span>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-01</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Security Fixes — .env Key + MIME Validation + Force Password Change</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। ENCRYPT_KEY .env से आता है। finfo_open() से actual MIME check होती है (config.php line 494+)। First login पर change_password.php force होता है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-02</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">IP Whitelist Access Control</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। ip_whitelist DB table, check_ip_whitelist() function auth.php में, blocked.php redirect — सब implement है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-03</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Session Timeout with Countdown Timer</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। session_timer.js (391 lines) — 5 min idle, 1 min extend window, live countdown, activity reset — सब है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-04</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Technology Sub-Type + AMC Fields</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। projects table में tech_subtype, amc_amount, amc_type, amc_start_date, amc_end_date, amc_remarks columns हैं।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-05</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Visitor Count Time-Series History</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। project_visitor_log table (project_id, entry_date, visitor_count, site_last_update_date, entered_by) — proper multi-entry log है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-06</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Technology Migration / Change History</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। technology_change_log table (from_technology, from_subtype, to_technology, to_subtype, change_date, reason, changed_by) implement है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-07</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">SR (Service Request) Tracking Module</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। service_requests table है। sr.php (326 lines) — SR number, date, status, remarks, filterable history — सब है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-08</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Audit Findings & Punch List Module</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। audit_findings table (severity, found_by, assigned_to, target_date, closure_date) है। findings.php (381 lines) — open/overdue dashboard counts सहित।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-09</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Global Task / Work Order Module with Bulk Complete</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। work_orders + work_order_sites tables, workorders.php (621 lines)। WebMyWay Bulk Done button (एक click — सब complete), .NET/AEM one-by-one — सब implement है।</div>
+      </div>
+    </div>
+
+    <div class="task-card status-done">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FD-10</span>
+        <span class="status-icon">✅</span>
+        <span class="task-name">Consolidated Reporting Module</span>
+        <span class="priority-tag priority-new">v3</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <div class="done-note">✅ DONE। reports.php (570 lines) में तीन tabs: Financial/Status Report (AMC, live/closed by date range), Visitor Delta Report, Migration History Report — CSV export सब पर।</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════
+       PHASE E — IMPROVEMENT LIST (PENDING)
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge priority-new">PHASE E</span>
+      <span class="phase-title">🔵 Improvement List — बाकी काम</span>
+    </div>
+
+    <!-- FE-01 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-01</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Detailed Logging — File Upload + Failed Login Events</span>
+        <span class="priority-tag priority-high">HIGH</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> अभी <code>log_activity('failed_login')</code> कहीं नहीं है। File upload भी log नहीं होता। Record create/update/delete log होता है, लेकिन File Upload/Delete missing है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">login.php</span>
+          <span class="file-item">api.php</span>
+          <span class="file-item">project_form.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-01</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: login.php, api.php, project_form.php
+
+Kaam karna hai — missing log events add karo:
+
+1. login.php mein — failed login ke baad log_activity('failed_login', null, "IP: $ip Username: $username_entered") call karo
+   - Yeh LOCKOUT se pehle bhi log karo (sirf failed attempt, lockout alag event hai)
+
+2. api.php mein — jahan bhi document upload hota hai wahan log_activity('upload_document', $project_id, $filename) add karo
+
+3. project_form.php mein — jahan DELETE action hota hai wahan check karo ki log_activity('delete_project') already hai ya nahi. Agar nahi hai to add karo.
+
+4. activity_log table mein ye events clearly identifiable hone chahiye:
+   - 'failed_login' — action field mein
+   - 'upload_document' — action field mein
+
+IMPORTANT:
+- log_activity() function pehle se config.php mein hai — wohi use karo, naya mat banao
+- Existing koi bhi logic break nahi hona chahiye
+- Final complete files do jo main replace kar sakun</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-02 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-02</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Soft Delete — deleted_at + deleted_by Fields</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> Project delete होने पर data permanently हट जाता है। deleted_at और deleted_by fields DB में नहीं हैं। Recovery possible नहीं है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">config.php (schema)</span>
+          <span class="file-item">index.php</span>
+          <span class="file-item">api.php</span>
+          <span class="file-item">admin.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-02</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: config.php, index.php, api.php, admin.php
+
+Kaam karna hai — Soft Delete implement karo projects ke liye:
+
+1. config.php mein projects table ke ALTER statement add karo:
+   - `deleted_at DATETIME DEFAULT NULL`
+   - `deleted_by INTEGER DEFAULT NULL`
+   - Ek migration SQL block banao jo existing DB par safe run ho sake
+
+2. Jahan bhi project DELETE hota hai (DELETE FROM projects WHERE id=?) — wahan hard delete ko soft delete mein convert karo:
+   - `UPDATE projects SET deleted_at = CURRENT_TIMESTAMP, deleted_by = :user_id WHERE id = :id`
+
+3. index.php mein project list query mein: `WHERE deleted_at IS NULL` condition add karo taaki deleted projects na dikhen
+
+4. admin.php mein ek "Deleted Projects" section add karo (Admin only) jahan soft-deleted projects dikh sakein. Ek "Restore" button bhi ho jo `deleted_at = NULL, deleted_by = NULL` set kare.
+
+5. Hard delete option bhi raho sirf Admin ke liye — lekin confirm dialog ke saath
+
+IMPORTANT:
+- Existing project data ka koi data loss nahi hona chahiye
+- service_requests, audit_findings, documents — inhe ON DELETE CASCADE hi rahne do (sirf project level par soft delete)
+- Final complete files do clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-03 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-03</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Search System Upgrade — Department / Technology / Status Filters</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> अभी project list में basic search है। Department, Technology, Status, Hosting Type, Audit Date के filters नहीं हैं। Projects बढ़ने पर खोजना मुश्किल होगा।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">index.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-03</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ka index.php de raha hoon.
+
+Kaam karna hai — Project list mein Advanced Filter panel add karo:
+
+1. Existing search bar ke neeche ek collapsible "Advanced Filters" section add karo (vanilla JS se toggle)
+
+2. Filters add karo (sab optional, URL GET params mein store hon):
+   - Department (text input ya select — dynamic_options table se populate karo agar hai)
+   - Technology (select: .NET / WebMyWay / AEM / Static / ALL)
+   - Status (select: Live / Closed / Under Development / ALL)
+   - Hosting Type (text search)
+   - Last Audit Date range (from_date to_date)
+
+3. PHP mein SQL query dynamically build karo based on which filters are set (use prepared statements, bindValue)
+
+4. "Apply Filters" aur "Clear" buttons add karo
+
+5. Active filters ka count badge dikho search bar ke paas (e.g. "2 filters active")
+
+6. Pagination ko filters ke saath compatible karo (filter params URL mein preserve hon page change par)
+
+IMPORTANT:
+- Existing project list display, sorting, pagination touch mat karo — sirf filter layer upar add karo
+- Stack: PHP + SQLite + Vanilla JS only
+- Final complete index.php do</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-04 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-04</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Password Expiry Policy — 90 Days</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> Users का password कभी expire नहीं होता। 90 दिन बाद mandatory change का कोई mechanism नहीं है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">config.php</span>
+          <span class="file-item">auth.php</span>
+          <span class="file-item">change_password.php</span>
+          <span class="file-item">admin.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-04</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: config.php, auth.php, change_password.php, admin.php
+
+Kaam karna hai — 90-day Password Expiry Policy implement karo:
+
+1. users table mein column add karo: `password_changed_at DATETIME DEFAULT CURRENT_TIMESTAMP`
+   - config.php mein safe ALTER statement add karo
+
+2. config.php mein define karo: `define('PASSWORD_EXPIRY_DAYS', 90);`
+
+3. auth.php mein require_login() ke baad check karo:
+   - SELECT password_changed_at FROM users WHERE id = session_user_id
+   - Agar (CURRENT_DATETIME - password_changed_at) > 90 days ho to:
+     - $_SESSION['force_pw_change'] = 'expired' set karo
+     - change_password.php par redirect karo (sirf yahi page accessible rahe)
+
+4. change_password.php mein — jab password successfully change ho to `password_changed_at = CURRENT_TIMESTAMP` update karo
+
+5. admin.php mein users list mein ek column add karo: "Password Age" (kitne din purana hai) — 80+ days hone par orange color, expired hone par red
+
+6. Admin bypass: Admin apna password expire hone par bhi change kar sake (locked out na ho)
+
+IMPORTANT:
+- First login force change (jo pehle se hai) aur 90-day expiry — dono simultaneously kaam karein
+- Final complete files do clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-05 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-05</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Account Unlock Workflow — Admin Approval</span>
+        <span class="priority-tag priority-medium">MEDIUM</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> अभी lockout 15 मिनट बाद auto-expire होती है। Admin को पता नहीं चलता, और Admin approval से unlock का कोई workflow नहीं है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">login.php</span>
+          <span class="file-item">admin.php</span>
+          <span class="file-item">config.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-05</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: login.php, admin.php, config.php
+
+Kaam karna hai — Locked Account Admin Unlock Workflow:
+
+1. login_attempts table mein column add karo: `admin_unlocked_at DATETIME DEFAULT NULL`
+
+2. login.php mein — lockout ke baad message change karo:
+   - "5 failed attempts. Your account is locked. Please contact Admin to unlock."
+   - Auto-expire (15 min) wala system hatao ya Admin unlock ke saath parallel rakhna ho to dono rakh sakte ho
+
+3. admin.php mein ek "Locked Accounts" section add karo (Admin only, prominent):
+   - List of currently locked IPs with: IP address, Last failed attempt time, Attempts count
+   - Har entry ke sath "Unlock" button — click karne par us IP ke login_attempts record ko delete/reset karo
+   - "Unlock kiya" ka log_activity('admin_unlock_account', null, "IP: $ip") call karo
+
+4. Dashboard stat card mein: agar koi locked account hai to red badge dikho "⚠ X Accounts Locked"
+
+IMPORTANT:
+- LAN-only app hai, email notification nahi chahiye — sirf admin panel mein dikhao
+- Existing lockout logic break nahi honi chahiye
+- Final complete files do clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-06 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-06</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Document Versioning — Multiple Versions per Project</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> एक project के एक document का सिर्फ एक version रहता है। UAT_v1, UAT_v2, UAT_v3 जैसा version maintain करने का system नहीं है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">config.php</span>
+          <span class="file-item">project_form.php</span>
+          <span class="file-item">api.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-06</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki yeh files de raha hoon: config.php, project_form.php, api.php
+
+Kaam karna hai — Document Versioning implement karo:
+
+1. project_documents table mein columns add karo:
+   - `doc_group TEXT DEFAULT NULL` — same document ke versions ko group karne ke liye (e.g. "UAT_Report")
+   - `version INTEGER DEFAULT 1` — version number
+   - `is_latest INTEGER DEFAULT 1` — 1 = latest version, 0 = old version
+
+2. project_form.php mein document upload section update karo:
+   - Upload karte waqt optional field: "Document Name / Group" (e.g. "UAT Report")
+   - Agar same doc_group already exist karta hai us project mein:
+     - New version upload karo (version + 1, is_latest = 1)
+     - Previous version ka is_latest = 0 karo
+   - Agar naya document hai: version = 1, doc_group = filename (ya entered name)
+
+3. Project detail mein documents tab update karo:
+   - Grouped view: "UAT Report (v3 — latest)" dikh e, neeche collapse karke purane versions bhi dekh sakein
+   - Latest version prominent, old versions muted/grey mein
+
+4. api.php mein download_doc action: versions bhi download ho sakein (is_latest check optional — sabke access chahiye)
+
+5. api.php mein delete_document: sirf Admin latest version delete kar sake; agar latest delete ho to previous version automatically latest ban jaye
+
+IMPORTANT:
+- Existing uploaded documents ka data loss nahi hona chahiye (existing records version=1, is_latest=1 ho jayein)
+- SQLite safe migration SQL add karo config.php mein
+- Final complete files do clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-07 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-07</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Automatic Database Backup Scheduler</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> Manual export तो है, लेकिन automatic scheduled backup नहीं है। LAN server पर रोज़ रात का backup होना चाहिए।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">config.php</span>
+          <span class="file-item">export.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-07</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ka config.php aur export.php de raha hoon.
+
+Yeh Windows/XAMPP par run karta hai (LAN server). External cron nahi — PHP-based solution chahiye.
+
+Kaam karna hai — Lightweight Auto-Backup System:
+
+1. config.php mein define karo:
+   - `define('BACKUP_ENABLED', true);`
+   - `define('BACKUP_INTERVAL_HOURS', 24);` — daily backup
+   - `define('BACKUP_KEEP_DAYS', 7);` — 7 din ke backup rakho, purane delete karo
+   - `define('BACKUP_DIR', __DIR__ . '/data/backups/');` — data/ folder ke andar backups/ subfolder
+   
+2. config.php mein `maybe_auto_backup()` function banao:
+   - `data/backups/` folder exist nahi karta to create karo
+   - `data/backups/last_backup.txt` mein last backup time store karo
+   - Agar last_backup 24 hours se purani hai ya file nahi hai to backup karo
+   - Backup: `data/vault.db` ko `data/backups/vault_YYYY-MM-DD_HH-ii.db` par copy karo (PHP copy())
+   - 7 din purani backup files delete karo
+   - last_backup.txt update karo
+   
+3. auth.php ya config.php ke end mein `maybe_auto_backup()` call karo (har request par check — cheap hai)
+
+4. .htaccess mein `data/backups/` folder ko block karo (already data/ block hai — verify karo)
+
+5. admin.php mein ek "Backup Status" section add karo:
+   - Last backup time
+   - Backup files list (naam aur size)
+   - "Manual Backup Now" button
+   - Storage used by backups
+
+IMPORTANT:
+- vault_backup.json wala purana system touch mat karo
+- .htaccess se backup folder web accessible na ho
+- Windows file paths (backslash) compatible rakho
+- Final complete files do clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FE-08 (CSP Nonce) -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FE-08</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">CSP Hardening — unsafe-inline हटाओ, Nonce-Based CSP लगाओ</span>
+        <span class="priority-tag priority-low">LOW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> अभी Content-Security-Policy में <code>'unsafe-inline'</code> allow है जो XSS attacks की संभावना बढ़ाता है। Nonce-based CSP ज़्यादा secure है।</p>
+        <p><strong>नोट:</strong> यह काम complex है। सभी inline JS/CSS को nonce देना होगा। यह सबसे last में करो — बाकी सारे काम पहले complete करो।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">auth.php</span>
+          <span class="file-item">index.php</span>
+          <span class="file-item">admin.php</span>
+          <span class="file-item">project_form.php</span>
+          <span class="file-item">findings.php</span>
+          <span class="file-item">workorders.php</span>
+          <span class="file-item">reports.php</span>
+          <span class="file-item">export.php</span>
+          <span class="file-item">sr.php</span>
+          <span class="file-item">change_password.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FE-08</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki sab files de raha hoon: auth.php, index.php, admin.php, project_form.php, findings.php, workorders.php, reports.php, export.php, sr.php, change_password.php
+
+Kaam karna hai — Nonce-based Content Security Policy implement karo (unsafe-inline remove karo):
+
+1. auth.php mein:
+   - Har request ke liye ek unique nonce generate karo: `$csp_nonce = base64_encode(random_bytes(16));`
+   - Session mein store karo: `$_SESSION['csp_nonce'] = $csp_nonce;`
+   - CSP header update karo:
+     `script-src 'self' 'nonce-{$csp_nonce}'`
+     `style-src 'self' 'nonce-{$csp_nonce}'` (fonts.googleapis.com agar self-hosted na ho to include karo)
+   - 'unsafe-inline' DONO jagah se remove karo
+
+2. Har PHP file mein:
+   - `$nonce = $_SESSION['csp_nonce'] ?? '';` se nonce fetch karo
+   - Sab `<script>` tags mein: `<script nonce="<?= htmlspecialchars($nonce) ?>">`
+   - Sab `<style>` tags mein: `<style nonce="<?= htmlspecialchars($nonce) ?>">`
+   - Inline event handlers (onclick="...", onchange="...") ko external JS mein move karo ya addEventListener use karo
+
+3. session_timer.js ko nonce nahi chahiye (external .js file hai) — but uska `<script src="...">` tag nonce lega
+
+IMPORTANT:
+- Ek ek file test karo — nonce mismatch hone par page ka JS kaam karna band ho jata hai
+- Console errors check karo: "Refused to execute inline script because it violates CSP"
+- Sab files complete do clearly labeled
+- Ye sabse last mein karna — ek bug se pura app break ho sakta hai</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       PHASE F — DASHBOARD REDESIGN (PDF)
+  ══════════════════════════════════════════ -->
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge" style="background:#1a0f35;color:#c4b5fd;border:1px solid #3d1f80">PHASE F</span>
+      <span class="phase-title">🟣 Dashboard Redesign — PDF Analysis से</span>
+    </div>
+
+    <!-- FF-01 -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FF-01</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Dashboard Redesign — Actionable 7-Row Layout</span>
+        <span class="priority-tag priority-new">NEW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> PDF में detailed dashboard redesign recommendation है। अभी index.php का dashboard basic stats दिखाता है — Server Health, Active Users, Smart Alerts, Migration Status, SSL Expiry कार्ड्स नहीं हैं।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">index.php</span>
+          <span class="file-item">api.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FF-01</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ka index.php aur api.php de raha hoon.
+
+Dashboard ko Actionable Monitoring Center mein convert karna hai. Abhi sirf basic stats hain — isko upgrade karo.
+
+7-Row Dashboard Layout implement karo:
+
+ROW 1 — Full Width: 4 Summary Cards (grid, auto-fit)
+  [Projects Total] [Servers Total] [Active Users] [Open Alerts]
+
+ROW 2 — Full Width: Critical Alerts (Red background #200808, border #4a1010)
+  - Audit Certificate Expiring (X days mein)
+  - Audit Not Conducted (X din se pending)
+  - SSL Expiring in <30 days
+  Agar koi alert nahi: "✓ No Critical Alerts" dikho
+
+ROW 3 — 50% + 50%: Server Health Card + Active Users Card
+  Server Health: CPU Usage, RAM Usage, Disk Usage, DB Status, Last Backup Status
+    (PHP se: disk_free_space(), memory_get_usage(), SQLite connection check)
+    Colors: Green=healthy(>40% free), Orange=warning(20-40%), Red=critical(<20%)
+  Active Users: $_SESSION-based nahi — activity_log se last 15 min mein active users dikhao
+
+ROW 4 — Full Width: Audit Status (Orange background #1f1500)
+  - Audits due in 30 days: list with project names
+  - Audits overdue: list with days pending
+
+ROW 5 — Full Width: Migration Tracker (Purple background #1a0f35)
+  - technology_change_log se: pending migrations (where change_date > today)
+  - Recent migrations (last 30 days completed)
+
+ROW 6 — 50% + 50%: SSL Status + Backup Status
+  SSL: projects table mein ssl_expiry_date field se (agar hai) count karo
+  Backup: data/backups/ folder se last backup info (agar FE-07 ho gaya ho — warna N/A)
+
+ROW 7 — Full Width: Recent Activities (Grey background #111318)
+  - activity_log se last 20 entries
+  - Login/Logout/Edit/Delete — colored badges
+
+CSS Design Rules (PDF se):
+- Section-wise color coding: Summary=Blue, Alerts=Red, Audit=Orange, Migration=Purple, Server=Green, Users=Cyan, Activity=Grey
+- Cards: border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08);
+- Grid: display:grid; grid-template-columns:repeat(auto-fit,minmax(350px,1fr)); gap:15px;
+- Navbar: Left=Dashboard,Projects,Credentials,Audit,Reports,Users,Settings; Right=Search,Notification Bell,Theme Toggle,User Profile
+
+IMPORTANT:
+- Vanilla JS only, no frameworks
+- PHP + SQLite only
+- Desktop only (no mobile responsive needed — office LAN use)
+- Existing project list (rows below dashboard) preserve karo
+- Final complete index.php aur api.php do</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FF-02 Navbar -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FF-02</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Navbar Standardize — सभी Pages पर Uniform Navigation</span>
+        <span class="priority-tag priority-new">NEW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> PDF में consistent navbar structure recommend की गई है जो सभी pages पर एक जैसी हो। अभी अलग-अलग pages पर अलग navigation है।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">index.php</span>
+          <span class="file-item">admin.php</span>
+          <span class="file-item">project_form.php</span>
+          <span class="file-item">findings.php</span>
+          <span class="file-item">workorders.php</span>
+          <span class="file-item">reports.php</span>
+          <span class="file-item">sr.php</span>
+          <span class="file-item">export.php</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FF-02</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ki sab main files de raha hoon: index.php, admin.php, project_form.php, findings.php, workorders.php, reports.php, sr.php, export.php
+
+Kaam karna hai — Sab pages par ek uniform Navbar implement karo:
+
+LEFT SIDE (in order):
+  Dashboard (index.php)
+  Projects (index.php?tab=projects)
+  Credentials (index.php?tab=credentials)
+  Work Orders (workorders.php)
+  SR Tracking (sr.php)
+  Audit Findings (findings.php)
+  Reports (reports.php)
+
+RIGHT SIDE:
+  🔔 Notification Bell — badge count (open audit findings + expiring audits)
+  🌙/☀ Dark/Light Theme Toggle (existing)
+  👤 Current User Name + Role + Logout
+
+Active Page Highlight: jo page currently open ho uska link highlighted ho (CSS active class)
+
+Design:
+- Height: 52px
+- Background: rgba dark theme ke liye dark, light theme ke liye white
+- Current page: accent color underline ya background highlight
+- No multi-level dropdowns — flat navigation only
+
+IMPORTANT:
+- Navbar HTML ek include file mein nikalo: `includes/navbar.php`
+  Ya agar includes folder nahi hai to har file mein ek function `render_navbar()` banao jo common hai
+- Role-based: Admin tab (admin.php) sirf Admin users ko dikhe
+- Vanilla JS, no frameworks
+- Final sab files do with updated navbar — clearly labeled</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FF-03 Session Timer Display -->
+    <div class="task-card status-pending">
+      <div class="task-head" onclick="toggle(this)">
+        <span class="task-id">FF-03</span>
+        <span class="status-icon">⏳</span>
+        <span class="task-name">Session Timer Color Coding — Navbar में Visible Countdown</span>
+        <span class="priority-tag priority-new">NEW</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="task-body">
+        <p><strong>क्या नहीं है:</strong> session_timer.js है लेकिन timer का visual display consistent नहीं है। PDF में color-coded timer states recommend किए गए हैं।</p>
+
+        <div class="files-needed">
+          <div class="files-label">// FILES CLAUDE को देनी हैं</div>
+          <span class="file-item">session_timer.js</span>
+          <span class="file-item">index.php (or navbar include)</span>
+        </div>
+
+        <div class="prompt-box">
+          <div class="prompt-header">
+            <span class="prompt-label">// CLAUDE PROMPT — FF-03</span>
+            <button class="copy-btn" onclick="copyPrompt(this)">COPY</button>
+          </div>
+          <div class="prompt-text">Main DevVault Pro ka session_timer.js aur index.php de raha hoon.
+
+Kaam karna hai — Session Timer visual display improve karo:
+
+1. Navbar mein ek timer widget add karo (top-right area, user name ke paas):
+   `<div id="session-timer-display" class="timer-chip">⏱ 5:00</div>`
+
+2. session_timer.js mein timer display update karo:
+   - Normal (>2 min remaining): class="timer-normal" background:#E8F4FD color:#1e40af
+   - Warning (1-2 min remaining): class="timer-warning" background:#FFF4E5 color:#92400e
+   - Danger (<1 min remaining): class="timer-danger" background:#FDECEC color:#991b1b — pulse animation
+
+3. CSS classes add karo:
+   .timer-normal { background:#1e3a6e; color:#93c5fd; border-radius:16px; padding:4px 12px; font-size:12px; }
+   .timer-warning { background:#3a2000; color:#fbbf24; border-radius:16px; padding:4px 12px; font-size:12px; }
+   .timer-danger { background:#3a0000; color:#fca5a5; border-radius:16px; padding:4px 12px; font-size:12px; animation: pulse 1s infinite; }
+   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+4. Modal (jo extend option deta hai) ko style karo — centered overlay, blur backdrop
+
+IMPORTANT:
+- Existing timer logic (5 min idle, extend, logout) bilkul touch mat karo — sirf display improve karo
+- Final complete session_timer.js aur relevant CSS changes do</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SEQUENCE GUIDE -->
+  <div style="background:#0a0f1f;border:1px solid #1e2a50;border-left:4px solid #7c3aed;border-radius:8px;padding:20px 24px;margin-top:8px;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:#a78bfa;margin-bottom:12px;letter-spacing:1px">// RECOMMENDED SEQUENCE — इस ORDER में करो</div>
+    <div style="color:#c7d0f0;font-size:13px;line-height:2.2;">
+      <span style="color:#4ade80">✅ Phase A, B, C (ज़्यादातर):</span> Already DONE — skip karo<br>
+      <span style="color:#fbbf24">1️⃣ FC-12:</span> Absolute Session Timeout (quick fix — 30 min)<br>
+      <span style="color:#fbbf24">2️⃣ FC-19:</span> Google Fonts Self-host (LAN critical — 1 hr)<br>
+      <span style="color:#fbbf24">3️⃣ FE-01:</span> Logging improve — failed login + file upload (45 min)<br>
+      <span style="color:#fbbf24">4️⃣ FE-04:</span> Password Expiry 90 days (1.5 hr)<br>
+      <span style="color:#fbbf24">5️⃣ FE-05:</span> Account Unlock Workflow (1 hr)<br>
+      <span style="color:#fbbf24">6️⃣ FE-02:</span> Soft Delete (2 hr)<br>
+      <span style="color:#fbbf24">7️⃣ FE-03:</span> Search Filters (2 hr)<br>
+      <span style="color:#fbbf24">8️⃣ FF-02:</span> Navbar Standardize (2 hr)<br>
+      <span style="color:#fbbf24">9️⃣ FF-01:</span> Dashboard Redesign (3-4 hr — बाकी modules ready होने के बाद)<br>
+      <span style="color:#fbbf24">🔟 FF-03:</span> Timer Display (30 min)<br>
+      <span style="color:#fbbf24">1️⃣1️⃣ FE-07:</span> Auto Backup Scheduler (1.5 hr)<br>
+      <span style="color:#fbbf24">1️⃣2️⃣ FE-06:</span> Document Versioning (2 hr)<br>
+      <span style="color:#94a3b8">🔚 FE-08:</span> CSP Nonce (सबसे last — सावधानी से)
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggle(head) {
+  const body = head.nextElementSibling;
+  const chev = head.querySelector('.chevron');
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    chev.style.transform = '';
+  } else {
+    body.classList.add('open');
+    chev.style.transform = 'rotate(180deg)';
+  }
+}
+
+function copyPrompt(btn) {
+  const box = btn.closest('.prompt-box');
+  const text = box.querySelector('.prompt-text').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'COPIED!';
+    btn.style.background = '#16a34a';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#16a34a';
+    setTimeout(() => {
+      btn.textContent = 'COPY';
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }, 2000);
+  });
+}
+</script>
+</body>
+</html>
