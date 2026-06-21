@@ -1,0 +1,117 @@
+========================================================
+COMBINED HANDOFF SUMMARY — Mixed Session
+Workers: ID-W2 (mohitjain.doit1@gmail.com) + ID-W5 (mohittibbi01@gmail.com)
+Tasks: 9 total
+========================================================
+
+── ID-W2 ────────────────────────────────────────────────
+
+✅ t42 — Crypto Tax 30% Flat Calculator
+   Files:
+     api/crypto/tax_calculator.php       ← NEW
+     pages/crypto/tax_calculator.php     ← NEW
+     database/migrations/t42_migration.sql
+   DB: crypto_tax_reports (id, user_id, fy, label, trades JSON, summary JSON)
+   Notes:
+     - Section 115BBH: 30% flat + 4% cess. Losses NOT set-offable.
+     - 1% TDS under Section 194S computed per trade
+     - CSV import (coin,buy_date,sell_date,qty,buy_price,sell_price,fees)
+     - Save / Load / Delete named reports
+     - Per-trade breakdown table + doughnut chart
+
+✅ tc006 — Cold Wallet Tracker
+   Files:
+     api/crypto/cold_wallet.php          ← NEW
+     pages/crypto/cold_wallet.php        ← NEW
+     database/migrations/tc006_migration.sql
+   DB: cold_wallets + cold_wallet_holdings (2 tables)
+   Notes:
+     - Types: hardware, paper, mobile, air_gapped
+     - Per-wallet holdings: coin, quantity, buy_price, current_value_inr
+     - Unrealised P&L computed on frontend
+     - Upsert by wallet_id + coin (update if same coin re-added)
+     - Summary card: grand total, total cost, unrealised P&L
+
+── ID-W5 ────────────────────────────────────────────────
+
+✅ t474 — SIP vs EMI Monthly Load Analysis
+   Files:
+     api/tools/sip_emi_balance.php       ← (from S2, included)
+     pages/tools/sip_emi_balance.php     ← (from S2, included)
+   DB: No migration — reads mf_sips + loans
+
+✅ t498 / th003 — Investment Calendar
+   Files:
+     api/tools/investment_calendar.php   ← (from S2, included)
+     pages/tools/investment_calendar.php ← (from S2, included)
+   DB: No migration — reads goals, mf_sips, loans, fixed_deposits, insurance_policies
+   Note: th003 = same as t498 — one file serves both tasks
+
+✅ th002 — SIP Discipline Score
+   Files:
+     api/tools/sip_discipline.php        ← NEW (in th002/api/)
+     pages/tools/sip_discipline.php      ← NEW (in th002/pages/)
+   DB: No migration — reads mf_sips + mf_transactions
+   Notes:
+     - Score = 60% consistency + 20% streak ratio + 20% no recent miss
+     - Grades: A+ (95+), A, B+, B, C, D, F
+     - Canvas arc score ring (no extra lib)
+     - Missed months shown on hover in table
+     - Lookback window: 6/12/24/36 months selectable
+
+✅ ti001 — Personal Finance Profile
+   Files:
+     api/profile/finance_profile.php     ← NEW (in ti001/api/)
+     pages/profile/finance_profile.php   ← NEW (in ti001/pages/)
+     database/migrations/ti001_migration.sql
+   DB: finance_profiles (1 row per user, upsert)
+   Notes:
+     - Fields: age, employment_type, annual_income, tax_slab,
+       risk_profile, investment_horizon, monthly_expenses,
+       monthly_savings, emergency_fund_months, dependents,
+       has_life_insurance, has_health_insurance, goals JSON,
+       income_sources JSON, notes
+     - Risk profile: 4 buttons (conservative → aggressive)
+     - Goals: dynamic add/remove rows
+
+✅ ti004 — Personal Finance Score (0-100)
+   Files:
+     api/profile/finance_score.php       ← NEW (in ti004/api/)
+     pages/profile/finance_score.php     ← NEW (in ti004/pages/)
+   DB: No migration — reads finance_profiles (ti001), mf_sips,
+       mf_transactions, loans, cold_wallets, portfolio_holdings,
+       fixed_deposits
+   Scoring (100 pts total):
+     Emergency Fund    15 pts
+     Insurance         15 pts
+     Savings Rate      20 pts
+     Investment Diversity 20 pts
+     SIP Discipline    15 pts
+     Debt Management   15 pts
+   ⚠️ DEPENDENCY: run ti001_migration.sql first
+
+✅ tj005 — Annual Financial Review Wizard
+   Files:
+     api/tools/annual_review.php         ← NEW (in tj005/api/)
+     pages/tools/annual_review.php       ← NEW (in tj005/pages/)
+     database/migrations/tj005_migration.sql
+   DB: annual_reviews (user_id, review_year, checked_items JSON, notes, completed_at)
+   Notes:
+     - 6 sections: Tax Planning, Portfolio Review, Insurance,
+       Goals & Loans, Estate & Admin, Financial Admin
+     - 35 checklist items total
+     - Auto-detects some checks from DB (active SIPs, insurance)
+     - Autosave on checkbox toggle (1.5s debounce)
+     - Year selector (last 4 years)
+     - Mark Complete stamps completed_at timestamp
+
+========================================================
+MIGRATION ORDER:
+  1. t42_migration.sql
+  2. tc006_migration.sql
+  3. ti001_migration.sql     ← MUST before ti004
+  4. tj005_migration.sql
+  (t474, t498, th002, th003, ti004 — no migrations)
+========================================================
+ALL FILES: NEW — no existing files overwritten.
+========================================================

@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthDash — Coordinator v7</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--radius:10px;--radius-sm:6px;--radius-xs:4px;}
+[data-theme="dark"]{--bg:#0d0f18;--surface:#161922;--surface2:#1e2235;--surface3:#252a42;--border:#2a2f4a;--border2:#343b5c;--text:#e2e5f5;--muted:#7b84a8;--accent:#7c6fcd;--accent2:#4fc3a1;--warn:#e6a817;--danger:#e05c5c;--done:#4fc3a1;--inprog:#7c6fcd;--lock:#f0b429;--p0:#ff4757;--p1:#ff6b81;--p2:#ffa502;--p3:#747d8c;--hbg:#0d0f18dd;--shadow:0 4px 16px rgba(0,0,0,.5);--glow:0 0 0 3px rgba(124,111,205,.2);}
+[data-theme="white"]{--bg:#f0f2fa;--surface:#ffffff;--surface2:#eceef8;--surface3:#e4e6f5;--border:#d0d4e8;--border2:#bcc1d8;--text:#1a1d35;--muted:#6b7299;--accent:#5046e5;--accent2:#0ea882;--warn:#d97706;--danger:#dc2626;--done:#0ea882;--inprog:#5046e5;--lock:#d97706;--p0:#dc2626;--p1:#e05c5c;--p2:#d97706;--p3:#6b7299;--hbg:#f0f2faee;--shadow:0 2px 12px rgba(80,80,140,.12);--glow:0 0 0 3px rgba(80,70,229,.2);}
+[data-theme="blue"]{--bg:#060e1f;--surface:#0c1a36;--surface2:#112248;--surface3:#172c5a;--border:#1c3568;--border2:#24437e;--text:#cce0ff;--muted:#5c80b8;--accent:#4c9fff;--accent2:#38d9c0;--warn:#fbbf24;--danger:#ff6b6b;--done:#38d9c0;--inprog:#4c9fff;--lock:#fbbf24;--p0:#ff4757;--p1:#ff6b81;--p2:#fbbf24;--p3:#5c80b8;--hbg:#060e1fee;--shadow:0 4px 16px rgba(0,5,20,.6);--glow:0 0 0 3px rgba(76,159,255,.2);}
+[data-theme="green"]{--bg:#050e08;--surface:#0a1a0e;--surface2:#0f2216;--surface3:#152a1c;--border:#1c3d22;--border2:#244e2c;--text:#ccf8dc;--muted:#4daa68;--accent:#3dd87a;--accent2:#80f0a0;--warn:#d8c040;--danger:#e06060;--done:#80f0a0;--inprog:#3dd87a;--lock:#d8c040;--p0:#e06060;--p1:#ff8080;--p2:#d8c040;--p3:#4daa68;--hbg:#050e08ee;--shadow:0 4px 16px rgba(0,10,4,.6);--glow:0 0 0 3px rgba(61,216,122,.2);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;gap:14px;padding:10px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--hbg);backdrop-filter:blur(18px);z-index:60;}
+.logo{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.logo span{color:var(--accent2);}
+.vtag{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;display:block;margin-top:2px;}
+.hdr-mid{flex:1;display:flex;align-items:center;justify-content:center;gap:20px;}
+.hstats-item{text-align:center;}
+.hstats-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;line-height:1;}
+.hstats-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.tpicker{display:flex;align-items:center;gap:4px;}
+.tdot{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.15s;}
+.tdot:hover{transform:scale(1.3);}
+.tdot.active{border-color:var(--text);}
+.td-dark{background:radial-gradient(circle at 40% 40%,#7c6fcd,#0d0f18);}
+.td-white{background:radial-gradient(circle at 40% 40%,#e8eaf6,#a0a8d0);}
+.td-blue{background:radial-gradient(circle at 40% 40%,#4c9fff,#060e1f);}
+.td-green{background:radial-gradient(circle at 40% 40%,#3dd87a,#050e08);}
+.lock-pill{font-size:11px;color:var(--lock);cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:600;display:none;padding:3px 9px;background:color-mix(in srgb,var(--lock) 14%,transparent);border-radius:20px;border:1px solid color-mix(in srgb,var(--lock) 30%,var(--border));transition:.15s;}
+.lock-pill:hover{background:color-mix(in srgb,var(--lock) 22%,transparent);}
+
+/* WRAP */
+.wrap{padding:0 20px 40px;}
+
+/* PROGRESS BAR */
+.prog-bar-outer{height:3px;background:var(--surface2);margin-bottom:0;}
+.prog-bar-inner{height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .8s cubic-bezier(.4,0,.2,1);}
+
+/* ACTIVE SESSIONS BAR */
+.sessions-bar{background:color-mix(in srgb,var(--lock) 8%,var(--surface));border-bottom:1px solid color-mix(in srgb,var(--lock) 22%,var(--border));padding:8px 20px;display:none;}
+.sessions-bar.has{display:block;}
+.sb-title{font-size:10px;font-weight:600;color:var(--lock);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
+.lcards{display:flex;gap:8px;flex-wrap:wrap;}
+.lcard{background:var(--surface);border:1px solid color-mix(in srgb,var(--lock) 28%,var(--border));border-radius:8px;padding:9px 12px;min-width:190px;}
+.lcard-id{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:var(--lock);}
+.lcard-task{font-size:11px;font-weight:600;margin:3px 0 2px;line-height:1.4;}
+.lcard-btns{display:flex;gap:4px;margin-top:6px;}
+
+/* ID CARDS */
+.id-section{padding:14px 0 0;}
+.id-section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.id-section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.id-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px;}
+.idc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 11px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .15s;}
+.idc:hover{border-color:var(--accent);box-shadow:var(--glow);transform:translateY(-1px);}
+.idc.master{border-color:color-mix(in srgb,var(--accent) 50%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--surface));}
+.idc-badge{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:5px;}
+.bm{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent);}
+.bw{background:color-mix(in srgb,var(--accent2) 18%,transparent);color:var(--accent2);}
+.idc-name{font-size:11px;font-weight:700;margin-bottom:1px;}
+.idc-mod{font-size:9px;color:var(--muted);margin-bottom:6px;line-height:1.4;}
+.tc{display:inline-flex;align-items:center;font-family:'JetBrains Mono',monospace;font-size:8px;padding:1px 5px;border-radius:3px;margin-right:2px;}
+.tc-d{background:color-mix(in srgb,var(--done) 16%,transparent);color:var(--done);}
+.tc-p{background:color-mix(in srgb,var(--inprog) 16%,transparent);color:var(--inprog);}
+.tc-n{background:var(--surface2);color:var(--muted);}
+.tc-lk{background:color-mix(in srgb,var(--lock) 18%,transparent);color:var(--lock);}
+
+/* TABS */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);overflow-x:auto;margin-bottom:0;background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;margin-top:14px;}
+.tab{padding:10px 16px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;white-space:nowrap;user-select:none;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-content{display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:16px;}
+.tab-content.active{display:block;}
+
+/* TASK BOARD */
+.frow{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;align-items:center;}
+#tsearch{flex:1;min-width:170px;max-width:260px;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;transition:.2s;}
+#tsearch:focus{outline:none;border-color:var(--accent);background:var(--surface);}
+.fsep{width:1px;height:20px;background:var(--border);margin:0 2px;}
+.fbtn{font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:.15s;font-weight:500;}
+.fbtn:hover,.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.fbtn.p0a.active{background:var(--p0);border-color:var(--p0);}
+.fbtn.p1a.active{background:var(--p1);border-color:var(--p1);}
+.fbtn.p2a.active{background:var(--p2);border-color:var(--p2);}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;max-height:58vh;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{text-align:left;padding:7px 10px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface2);z-index:10;}
+td{padding:7px 10px;border-bottom:1px solid color-mix(in srgb,var(--border) 60%,transparent);vertical-align:middle;}
+tr:hover td{background:var(--surface3);}
+tr.row-done td{opacity:.38;}
+tr.row-done:hover td{opacity:.55;}
+tr.row-locked td{background:color-mix(in srgb,var(--lock) 5%,var(--surface));}
+tr.row-blocked{opacity:.5;}
+tr.row-blocked td{cursor:not-allowed!important;}
+.tid{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);font-weight:700;cursor:pointer;}
+.tid:hover{text-decoration:underline;}
+.sbadge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-block;white-space:nowrap;}
+.s-v53{background:color-mix(in srgb,var(--done) 14%,transparent);color:color-mix(in srgb,var(--done) 70%,var(--muted));}
+.s-done{background:color-mix(in srgb,var(--done) 20%,transparent);color:var(--done);}
+.s-inp{background:color-mix(in srgb,var(--inprog) 20%,transparent);color:var(--inprog);}
+.s-pen{background:var(--surface2);color:var(--muted);}
+.s-lk{background:color-mix(in srgb,var(--lock) 18%,transparent);color:var(--lock);}
+.s-wait{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn);}
+.s-blocked{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger);}
+.pdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle;}
+.p0d{background:var(--p0);box-shadow:0 0 6px var(--p0);}
+.p1d{background:var(--p1);}
+.p2d{background:var(--p2);}
+.p3d{background:var(--p3);}
+.etag{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.dep-warn{font-size:9px;color:var(--warn);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+.dep-block{font-size:9px;color:var(--danger);margin-top:2px;font-family:'JetBrains Mono',monospace;}
+.abtn{font-size:10px;padding:3px 8px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;transition:.15s;font-family:'DM Sans',sans-serif;font-weight:500;}
+.abtn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+.abtn.db:hover{background:var(--done);border-color:var(--done);color:#000;}
+.abtn.rb:hover{background:var(--danger);border-color:var(--danger);color:#fff;}
+.abtn.lb:hover{background:var(--lock);border-color:var(--lock);color:#000;}
+.abtn.gb:hover{background:var(--accent2);border-color:var(--accent2);color:#000;}
+.abtn:disabled,.abtn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none;}
+.legend{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:10px;color:var(--muted);flex-wrap:wrap;}
+
+/* DETAIL PANEL */
+.detail-panel{background:var(--surface2);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:var(--radius);padding:16px;margin-bottom:14px;display:none;}
+.detail-panel.open{display:block;animation:slideDown .2s ease;}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.dp-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
+.dp-tid{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);}
+.dp-title{font-size:15px;font-weight:700;margin-bottom:3px;}
+.dp-meta{font-size:11px;color:var(--muted);}
+.dp-close{margin-left:auto;cursor:pointer;font-size:15px;color:var(--muted);padding:3px 9px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);line-height:1;}
+.dp-close:hover{color:var(--danger);border-color:var(--danger);}
+.dp-blocked{background:color-mix(in srgb,var(--danger) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--danger) 24%,var(--border));border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;}
+.dp-sections{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.dp-section{background:var(--surface);border-radius:var(--radius-sm);padding:12px;}
+.dp-sec-title{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;}
+.pbox{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.75;color:var(--text);white-space:pre-wrap;word-break:break-word;max-height:220px;overflow-y:auto;margin-bottom:8px;user-select:all;cursor:text;}
+.dp-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.dp-files{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.9;}
+.f-always{color:var(--done);}
+.f-opt{color:var(--warn);}
+.f-skip{color:var(--danger);opacity:.5;text-decoration:line-through;}
+
+/* SESSIONS */
+.hibox{background:color-mix(in srgb,var(--accent2) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--accent2) 22%,var(--border));border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:12px;line-height:1.6;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.card-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:9px;}
+.step-list{list-style:none;counter-reset:step;}
+.step-list li{counter-increment:step;font-size:11px;padding:5px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;line-height:1.5;}
+.step-list li:last-child{border:none;}
+.step-list li::before{content:counter(step);min-width:18px;height:18px;background:var(--accent);color:#fff;border-radius:50%;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.wflow{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-top:8px;}
+.wfs{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;text-align:center;}
+.wfn{font-size:16px;margin-bottom:3px;}
+.wft{font-size:10px;font-weight:700;color:var(--accent);margin-bottom:2px;}
+.wfd{font-size:9px;color:var(--muted);line-height:1.4;}
+
+/* PROMPTS */
+.cbtn{background:var(--accent);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:.2s;}
+.cbtn:hover{opacity:.85;}
+.xbtn{background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:7px 14px;border-radius:var(--radius-sm);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+select.isel{background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:11px;border-radius:var(--radius-sm);padding:4px 8px;font-family:'DM Sans',sans-serif;cursor:pointer;}
+
+/* FILE GUIDE */
+.mod-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.mtab{font-size:12px;padding:5px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-family:'JetBrains Mono',monospace;transition:.15s;font-weight:700;line-height:1.4;text-align:center;}
+.mtab:hover,.mtab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.fg-card{background:var(--surface2);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:5px;}
+.fg-fn{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent2);font-weight:700;}
+.fg-desc{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.5;}
+.fg-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:7px;font-family:'JetBrains Mono',monospace;}
+.fb-a{background:color-mix(in srgb,var(--done) 20%,transparent);color:var(--done);}
+.fb-o{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn);}
+.fb-n{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger);}
+.mu-box{background:color-mix(in srgb,var(--accent) 6%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.mu-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.5;}
+.mu-row:last-child{border:none;}
+.mu-icon{font-size:15px;flex-shrink:0;margin-top:1px;}
+
+/* RULES */
+.rrow{padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6;}
+.rrow:last-child{border:none;}
+
+/* MODALS */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:700px;max-width:95vw;max-height:90vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow);}
+.modal.lk{border-color:color-mix(in srgb,var(--lock) 40%,var(--border));}
+.modal.res{border-color:color-mix(in srgb,var(--accent2) 40%,var(--border));}
+.modal.wrn{border-color:color-mix(in srgb,var(--warn) 40%,var(--border));}
+.modal.del{border-color:color-mix(in srgb,var(--danger) 40%,var(--border));}
+.mtitle{font-size:16px;font-weight:700;margin-bottom:3px;}
+.msub{font-size:11px;color:var(--muted);margin-bottom:14px;}
+.mfield{margin-bottom:12px;}
+.mfield label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;}
+.mfield textarea,.mfield input,.mfield select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:12px;border-radius:var(--radius-sm);padding:7px 10px;font-family:'JetBrains Mono',monospace;resize:vertical;transition:.2s;}
+.mfield textarea:focus,.mfield input:focus{outline:none;border-color:var(--accent);}
+.mfield select{font-family:'DM Sans',sans-serif;}
+.mbtn-row{display:flex;gap:8px;margin-top:8px;align-items:center;}
+.confirm-input-wrap{background:color-mix(in srgb,var(--danger) 7%,var(--surface2));border:1px solid color-mix(in srgb,var(--danger) 25%,var(--border));border-radius:var(--radius-sm);padding:12px;margin-top:10px;}
+.confirm-input-wrap p{font-size:12px;color:var(--muted);margin-bottom:8px;}
+.confirm-input-wrap strong{color:var(--danger);}
+.confirm-tid{font-family:'JetBrains Mono',monospace;background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger);padding:1px 6px;border-radius:3px;}
+#del-confirm-input{border-color:color-mix(in srgb,var(--danger) 35%,var(--border))!important;}
+#del-confirm-input:focus{border-color:var(--danger)!important;}
+.del-btn-confirm{background:var(--danger);color:#fff;border:none;padding:7px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;opacity:.4;transition:.2s;pointer-events:none;}
+.del-btn-confirm.active{opacity:1;pointer-events:all;}
+.del-btn-confirm.active:hover{background:color-mix(in srgb,var(--danger) 80%,#000);}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--done);color:#000;font-weight:700;font-size:12px;padding:10px 18px;border-radius:8px;opacity:0;transform:translateY(10px);transition:all .3s;z-index:999;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.err{background:var(--danger);color:#fff;}
+
+/* MISC */
+.stitle{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.stitle::after{content:'';flex:1;height:1px;background:var(--border);}
+.badge-count{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;padding:0 4px;margin-left:4px;font-family:'JetBrains Mono',monospace;}
+.cat-divider td{background:var(--surface3);font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;padding:4px 10px;}
+
+@media(max-width:1100px){.id-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:700px){.dp-sections{grid-template-columns:1fr;}.grid2{grid-template-columns:1fr;}.wflow{grid-template-columns:repeat(3,1fr);}}
+</style>
+</head>
+<body data-theme="dark">
+
+<div class="prog-bar-outer"><div class="prog-bar-inner" id="pb" style="width:0%"></div></div>
+
+<div class="hdr">
+  <div>
+    <span class="logo">Wealth<span>Dash</span></span>
+    <span class="vtag">Coordinator v7 · v53 synced · <span id="cur-date"></span></span>
+  </div>
+  <div class="hdr-mid">
+    <div class="hstats-item"><div class="hstats-val" id="st">—</div><div class="hstats-lbl">Total</div></div>
+    <div class="hstats-item"><div class="hstats-val" style="color:var(--done)" id="sd">0</div><div class="hstats-lbl">Done</div></div>
+    <div class="hstats-item"><div class="hstats-val" style="color:var(--warn)" id="si">0</div><div class="hstats-lbl">Active</div></div>
+    <div class="hstats-item"><div class="hstats-val" style="color:var(--muted)" id="sp">0</div><div class="hstats-lbl">Pending</div></div>
+  </div>
+  <div class="hdr-right">
+    <div class="lock-pill" id="lock-pill" onclick="sw('sessions')">🔒 <span id="lock-cnt">0</span> Locked</div>
+    <button onclick="document.getElementById('router-overlay').classList.add('open')" style="font-size:11px;color:var(--accent2);cursor:pointer;padding:4px 10px;background:color-mix(in srgb,var(--accent2) 12%,transparent);border-radius:20px;border:1px solid color-mix(in srgb,var(--accent2) 28%,var(--border));font-weight:600;font-family:'DM Sans',sans-serif">📌 Router Notes</button>
+    <div class="tpicker">
+      <div class="tdot td-dark active" title="dark"  onclick="setTheme('dark',this)"></div>
+      <div class="tdot td-white"       title="white" onclick="setTheme('white',this)"></div>
+      <div class="tdot td-blue"        title="blue"  onclick="setTheme('blue',this)"></div>
+      <div class="tdot td-green"       title="green" onclick="setTheme('green',this)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACTIVE SESSIONS BAR -->
+<div class="sessions-bar" id="sessions-bar">
+  <div class="sb-title">🔒 Active Sessions — In tasks ko koi touch nahi karega</div>
+  <div class="lcards" id="lock-cards"></div>
+</div>
+
+<div class="wrap">
+
+<!-- ID GRID -->
+<div class="id-section">
+  <div class="id-section-title">Claude IDs <span style="font-weight:400;font-size:9px">— click to filter</span></div>
+  <div class="id-grid" id="id-grid"></div>
+</div>
+
+<!-- TABS -->
+<div class="tab-bar">
+  <div class="tab active" onclick="sw('tasks')">📋 Tasks</div>
+  <div class="tab" onclick="sw('sessions')">🔒 Sessions</div>
+  <div class="tab" onclick="sw('prompts')">💬 Prompts</div>
+  <div class="tab" onclick="sw('files')">📁 Files</div>
+  <div class="tab" onclick="sw('rules')">📌 Rules</div>
+</div>
+
+<!-- ══ TASK BOARD ══ -->
+<div class="tab-content active" id="tab-tasks">
+
+  <!-- Multi-Select Combined Prompt Bar -->
+  <div id="multi-bar" style="display:none;background:color-mix(in srgb,var(--accent) 8%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border));border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:none;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:700;color:var(--accent)">📋 <span id="multi-count">0</span> tasks selected</span>
+    <span style="font-size:11px;color:var(--muted)" id="multi-ids-preview"></span>
+    <button class="cbtn" style="font-size:11px;padding:5px 14px;" onclick="openMultiPrompt()">📋 Combined Prompt Banao</button>
+    <button class="xbtn" style="font-size:11px;padding:5px 10px;" onclick="clearMultiSelect()">✕ Clear</button>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="dp-head">
+      <div style="flex:1">
+        <div class="dp-tid" id="dp-tid"></div>
+        <div class="dp-title" id="dp-title"></div>
+        <div class="dp-meta" id="dp-meta"></div>
+      </div>
+      <div class="dp-close" onclick="closeDetail()">✕</div>
+    </div>
+    <div id="dp-blocked-wrap"></div>
+    <div class="dp-sections">
+      <div class="dp-section">
+        <div class="dp-sec-title">💬 Task Prompt — Copy → Claude mein paste karo + ZIP attach karo</div>
+        <div class="pbox" id="dp-prompt"></div>
+        <button class="cbtn" onclick="cp('dp-prompt')">📋 Prompt Copy Karo</button>
+      </div>
+      <div class="dp-section">
+        <div class="dp-sec-title">📁 Is Task Ke Liye Files</div>
+        <div id="dp-files" class="dp-files"></div>
+      </div>
+    </div>
+    <div class="dp-actions" id="dp-actions"></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="frow">
+    <input id="tsearch" type="text" placeholder="🔍 Search ID ya title..." oninput="rt()">
+    <div class="fsep"></div>
+    <button class="fbtn active" onclick="ft('all',this)">Sab</button>
+    <button class="fbtn" onclick="ft('pending',this)">⬜ Pending</button>
+    <button class="fbtn" onclick="ft('inprog',this)">⏳ Active</button>
+    <button class="fbtn" onclick="ft('locked',this)">🔒 Locked</button>
+    <button class="fbtn" onclick="ft('my_done',this)">🎯 Done</button>
+    <div class="fsep"></div>
+    <button class="fbtn p0a" onclick="ft('p0',this)">🚨 P0</button>
+    <button class="fbtn p1a" onclick="ft('p1',this)">🔥 P1</button>
+    <button class="fbtn p2a" onclick="ft('p2',this)">⚡ P2</button>
+    <button class="fbtn" onclick="ft('p3',this)">○ P3</button>
+    <div class="fsep"></div>
+    <button class="fbtn" onclick="ft('ID-M',this)" style="font-family:'JetBrains Mono',monospace">M</button>
+    <button class="fbtn" onclick="ft('ID-W1',this)" style="font-family:'JetBrains Mono',monospace">W1</button>
+    <button class="fbtn" onclick="ft('ID-W2',this)" style="font-family:'JetBrains Mono',monospace">W2</button>
+    <button class="fbtn" onclick="ft('ID-W3',this)" style="font-family:'JetBrains Mono',monospace">W3</button>
+    <button class="fbtn" onclick="ft('ID-W4',this)" style="font-family:'JetBrains Mono',monospace">W4</button>
+    <button class="fbtn" onclick="ft('ID-W5',this)" style="font-family:'JetBrains Mono',monospace">W5</button>
+  </div>
+  <div class="legend">
+    <span class="sbadge s-done">✅ Done</span> Session done &nbsp;
+    <span class="sbadge s-inp">⏳ Active</span> In progress &nbsp;
+    <span class="sbadge s-lk">🔒 Locked</span> Claude busy &nbsp;
+    <span class="sbadge s-wait">⚠️ Wait</span> Dep pending &nbsp;
+    <span class="sbadge s-blocked">🚫 Blocked</span> Dep nahi hua
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th style="width:32px"><input type="checkbox" id="chk-all" onclick="toggleAllChk(this)" title="Sab select/deselect" style="cursor:pointer"></th>
+        <th>ID</th><th>Title</th><th>P</th><th>Effort</th><th>Worker</th><th>Status</th><th style="min-width:140px">Actions</th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ SESSIONS ══ -->
+<div class="tab-content" id="tab-sessions">
+  <div class="hibox">
+    <strong style="color:var(--accent2)">🔒 Lock System</strong> — Jab Claude ke saath kaam shuru karo, task <strong>LOCK</strong> karo. Doosri session accidentally same task nahi uthaegi. Token khatam ho toh <strong>Resume Prompt</strong> generate karo — pichli progress carry forward hogi.
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">⚡ Token Khatam? Yahi Karo</div>
+      <ol class="step-list">
+        <li><span>Task row mein <strong>🔒 Lock</strong> dabao (agar nahi kiya)</span></li>
+        <li><span>Lock modal mein "Kya hua abhi tak" + "Baaki kya hai" likho</span></li>
+        <li><span><strong>⚡ Resume Prompt</strong> generate + copy karo</span></li>
+        <li><span>Naya Claude kholo → ZIP + Resume prompt paste karo</span></li>
+        <li><span>Kaam pura → <strong>✅ Done+Unlock</strong> karo</span></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Session Start — Sahi Tarika</div>
+      <ol class="step-list">
+        <li><span>Coordinator kholo — locked tasks check karo</span></li>
+        <li><span>Apna module, P0/P1 pending task dhundho</span></li>
+        <li><span>Task row click → <strong>Detail Panel</strong> mein Prompt + Files milenge</span></li>
+        <li><span><strong>🔒 Lock</strong> karo → Claude mein ZIP + prompt paste karo</span></li>
+        <li><span>Kaam khatam → <strong>✅ Done</strong>, <strong>🔓 Unlock</strong> karo</span></li>
+      </ol>
+    </div>
+  </div>
+  <div class="stitle">🔒 Abhi Active Sessions</div>
+  <div id="sessions-list"></div>
+</div>
+
+<!-- ══ PROMPTS ══ -->
+<div class="tab-content" id="tab-prompts">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">🎯 Master Prompt (mohit87)</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">mohit87jain87@gmail.com mein paste karo + relevant ZIP</div>
+      <div class="pbox" id="mp-box"></div>
+      <button class="cbtn" onclick="cp('mp-box')">📋 Copy Master Prompt</button>
+    </div>
+    <div class="card">
+      <div class="card-title">⚙️ Worker Prompt</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Worker: <select class="isel" id="wsel" onchange="uwp()">
+          <option value="ID-W1">W1 — rpsc (MF/SIP/NAV)</option>
+          <option value="ID-W2">W2 — mohit.doit (Crypto)</option>
+          <option value="ID-W3">W3 — divya (Stocks/ESOP)</option>
+          <option value="ID-W4">W4 — coinmaster (Tax/NPS)</option>
+          <option value="ID-W5">W5 — tibbi (UI/AI/Infra)</option>
+        </select>
+      </div>
+      <div class="pbox" id="wp-box"></div>
+      <button class="cbtn" onclick="cp('wp-box')">📋 Copy Worker Prompt</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">🔄 Handoff Template — Worker kaam khatam karne ke baad yeh bharo</div>
+    <div class="pbox" id="hp-box"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button class="cbtn" onclick="cp('hp-box')">📋 Copy Handoff Template</button>
+      <div style="background:color-mix(in srgb,var(--warn) 10%,transparent);border:1px solid color-mix(in srgb,var(--warn) 25%,var(--border));border-radius:var(--radius-sm);padding:6px 12px;font-size:11px;color:var(--warn)">⚠️ Handoff ke baad Master ko ZIP bhejo, task Done mark karao</div>
+    </div>
+  </div>
+
+  <!-- PARALLEL WORK GUIDE -->
+  <div class="card" style="margin-top:12px;border-color:color-mix(in srgb,var(--danger) 30%,var(--border))">
+    <div class="card-title" style="color:var(--danger)">⚠️ Parallel Work — File Overwrite Problem & Solution</div>
+    <div style="font-size:12px;line-height:1.8;color:var(--text)">
+      <div style="margin-bottom:10px;padding:8px 12px;background:color-mix(in srgb,var(--danger) 7%,var(--surface2));border-radius:6px;border-left:3px solid var(--danger)">
+        <strong style="color:var(--danger)">Samasya:</strong> Agar Master + W1 dono ek saath kaam karein aur dono <code style="color:var(--accent)">api/router.php</code> ya same file touch karein — ZIP replace karne par overwrite hoti hai.
+      </div>
+      <strong style="color:var(--accent2)">✅ Sahi Tarika — Parallel Safe Workflow:</strong>
+      <ol style="padding-left:16px;margin-top:6px">
+        <li style="padding:4px 0"><strong>Har worker alag folder mein output de:</strong>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);margin-top:3px;background:var(--surface3);padding:5px 8px;border-radius:4px">
+            worker_w1_t234/ → W1 ki files<br>
+            worker_w2_tc001/ → W2 ki files<br>
+            worker_w3_t431/ → W3 ki files<br>
+            (Folder name: worker_[id]_[taskid])
+          </div>
+        </li>
+        <li style="padding:4px 0"><strong>api/router.php — KABHI ZIP mein mat do:</strong> Worker sirf HANDOFF mein routes note kare. Master alag se merge kare.</li>
+        <li style="padding:4px 0"><strong>Master last mein merge kare:</strong> Sab workers complete ho jayein → phir Master ek-ek folder se files project mein copy kare.</li>
+        <li style="padding:4px 0"><strong>Same file? — Lock system use karo:</strong> Agar W1 aur W5 dono <code style="color:var(--accent)">public/js/app.js</code> chahte hain → pehle ek kare, phir doosra. Lock karo → done → unlock → doosra start kare.</li>
+        <li style="padding:4px 0"><strong>Router notes folder:</strong> Worker routes note kare → Master Router Notes button se generate kare → <code style="color:var(--accent2)">router notes/[taskid]_router.txt</code> save karo → ZIP update karo.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FILE GUIDE ══ -->
+<div class="tab-content" id="tab-files">
+  <div class="mu-box">
+    <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px">🔄 Master File Update — Kab Karna Hai?</div>
+    <div class="mu-row"><div class="mu-icon">📦</div><div><strong style="color:var(--accent2)">Project ZIP (PHP files):</strong> Har completed task ke baad ZIP update karo. Worker handoff deta hai, Master ID mein merge karo.</div></div>
+    <div class="mu-row"><div class="mu-icon">📊</div><div><strong style="color:var(--accent2)">Coordinator HTML (yeh file):</strong> Naye tasks add karne ho toh update karo. Har task ke baad zaroorat nahi — task status localStorage mein rehta hai.</div></div>
+    <div class="mu-row"><div class="mu-icon">🎯</div><div><strong style="color:var(--accent2)">wealthdash_master_v5X.html:</strong> Bade batches complete hone ke baad update karo (10-15 tasks ka group). Chhoti updates ke liye mat chhedo.</div></div>
+    <div class="mu-row" style="border:none"><div class="mu-icon">⚠️</div><div><strong style="color:var(--warn)">Dhyan rakhna:</strong> Master HTML file Workers ko kabhi mat do. Workers sirf apne module ki files lein.</div></div>
+  </div>
+  <div class="stitle">📂 मॉड्यूल अनुसार फ़ाइलें <span style="font-size:10px;font-weight:400;color:var(--muted)">(Module ke hisaab se — Claude ko kaun si files deni hain)</span></div>
+  <div class="mod-tabs" id="mod-tab-btns">
+    <button class="mtab active" onclick="showMod('M',this)"><span style="opacity:.7;font-size:9px">ID-M</span><br>mohit87</button>
+    <button class="mtab" onclick="showMod('W1',this)"><span style="opacity:.7;font-size:9px">ID-W1 · MF/SIP</span><br>rpsc</button>
+    <button class="mtab" onclick="showMod('W2',this)"><span style="opacity:.7;font-size:9px">ID-W2 · Crypto</span><br>mohit.doit</button>
+    <button class="mtab" onclick="showMod('W3',this)"><span style="opacity:.7;font-size:9px">ID-W3 · Stocks</span><br>divya</button>
+    <button class="mtab" onclick="showMod('W4',this)"><span style="opacity:.7;font-size:9px">ID-W4 · Tax/NPS</span><br>coinmaster</button>
+    <button class="mtab" onclick="showMod('W5',this)"><span style="opacity:.7;font-size:9px">ID-W5 · UI/AI</span><br>tibbi</button>
+  </div>
+  <div id="mod-files-display"></div>
+  <div class="stitle" style="margin-top:14px">🚫 Claude ko kabhi mat do</div>
+  <div class="fg-card"><div class="fg-fn">wealthdash_master_v5X.html <span class="fg-badge fb-n">KABHI NAHI — Workers ko</span></div><div class="fg-desc">Yeh sirf Master ID (mohit87) ke liye hai</div></div>
+  <div class="fg-card"><div class="fg-fn">Poori project ZIP (sab files) <span class="fg-badge fb-n">KABHI NAHI</span></div><div class="fg-desc">Sirf module-relevant files ki ZIP do</div></div>
+</div>
+
+<!-- ══ RULES ══ -->
+<div class="tab-content" id="tab-rules">
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">⚠️ Golden Rules</div>
+      <div class="rrow">🔒 <strong>Pehle Lock, Phir Start:</strong> Task lock karo → phir Claude ko prompt do</div>
+      <div class="rrow">⛔ <strong>Dependency Strict:</strong> Blocked task click hi nahi hoga — pehle dependency complete karo</div>
+      <div class="rrow">⚠️ <strong>Ek File — Ek ID:</strong> Agar koi file already kisi ke paas hai, wait karo</div>
+      <div class="rrow">🔁 <strong>Token Alert:</strong> 70-80% tokens → Resume Prompt generate karo</div>
+      <div class="rrow">📁 <strong>Sirf relevant files ZIP karo:</strong> Poori project nahi — module ke hisaab se</div>
+      <div class="rrow">📌 <strong>api/router.php:</strong> Sirf Master merge kare — workers note karein, touch na karein</div>
+      <div class="rrow">✅ <strong>Handoff zarooori:</strong> Kaam ke baad summary hamesha do</div>
+      <div class="rrow">🔥 <strong>P0 → P1 → P2 → P3:</strong> Priority order strictly follow karo</div>
+      <div class="rrow" style="border:none">🗑️ <strong>Delete confirmation:</strong> Task ID type karna padega — accidental delete nahi hoga</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🗂️ ID Module Assignment</div>
+      <div class="rrow"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px">ID-M — mohit87</span><br>Coordination · ZIP merge · Code review · Admin</div>
+      <div class="rrow"><span style="color:var(--accent2);font-family:'JetBrains Mono',monospace;font-size:10px">ID-W1 — rpsc</span><br>MF · SIP · XIRR · NAV · ETF · REITs · Smallcase</div>
+      <div class="rrow"><span style="color:#e6a817;font-family:'JetBrains Mono',monospace;font-size:10px">ID-W2 — mohit.doit</span><br>Crypto · Exchange · DeFi · Cold Wallet</div>
+      <div class="rrow"><span style="color:#e05c5c;font-family:'JetBrains Mono',monospace;font-size:10px">ID-W3 — divya</span><br>Stocks · ESOP · RSU · SGB · Watchlist · ETF</div>
+      <div class="rrow"><span style="color:#5c8ee0;font-family:'JetBrains Mono',monospace;font-size:10px">ID-W4 — coinmaster</span><br>Tax · Reports · LTCG · EPF · NPS · Post Office · Goals</div>
+      <div class="rrow" style="border:none"><span style="color:#a17ce0;font-family:'JetBrains Mono',monospace;font-size:10px">ID-W5 — tibbi</span><br>UI/UX · AI Features · Infra · Performance · Security</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Session Workflow</div>
+    <div class="wflow">
+      <div class="wfs"><div class="wfn">1️⃣</div><div class="wft">Coordinator Kholo</div><div class="wfd">Locked tasks check karo</div></div>
+      <div class="wfs"><div class="wfn">2️⃣</div><div class="wft">Task Click Karo</div><div class="wfd">P0/P1 unblocked task lo</div></div>
+      <div class="wfs"><div class="wfn">3️⃣</div><div class="wft">Prompt + Files</div><div class="wfd">Ek hi jagah milega</div></div>
+      <div class="wfs"><div class="wfn">4️⃣</div><div class="wft">Claude Mein</div><div class="wfd">ZIP + prompt paste karo</div></div>
+      <div class="wfs"><div class="wfn">5️⃣</div><div class="wft">Done → Unlock</div><div class="wfd">✅ Done, ZIP update</div></div>
+    </div>
+  </div>
+</div>
+</div><!-- /wrap -->
+
+<!-- ══ LOCK MODAL ══ -->
+<div class="overlay" id="lock-overlay">
+  <div class="modal lk">
+    <div class="mtitle">🔒 Task Lock Karo</div>
+    <div class="msub" id="lm-sub">Session lock — doosri Claude ID is task ko touch nahi karegi</div>
+    <div class="mfield">
+      <label>Worker ID</label>
+      <select id="lm-worker">
+        <option value="ID-M">ID-M — mohit87 (Master)</option>
+        <option value="ID-W1">ID-W1 — rpsc (MF/SIP)</option>
+        <option value="ID-W2">ID-W2 — mohit.doit (Crypto)</option>
+        <option value="ID-W3">ID-W3 — divya (Stocks)</option>
+        <option value="ID-W4">ID-W4 — coinmaster (Tax/NPS)</option>
+        <option value="ID-W5">ID-W5 — tibbi (UI/Infra)</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Abhi tak kya hua? (token khatam pe resume mein jayega)</label>
+      <textarea id="lm-done" rows="3" placeholder="Files created: api/xyz.php&#10;Routes added: GET /api/xyz&#10;DB: xyz_migration.sql done"></textarea>
+    </div>
+    <div class="mfield">
+      <label>Baaki kya karna hai?</label>
+      <textarea id="lm-remaining" rows="2" placeholder="Frontend UI pending, testing nahi hua..."></textarea>
+    </div>
+    <div class="mfield">
+      <label>Modified/Created Files (line by line)</label>
+      <textarea id="lm-files" rows="2" placeholder="api/mf/holdings.php&#10;templates/pages/mf_holdings.php"></textarea>
+    </div>
+    <div class="mbtn-row">
+      <button class="cbtn" onclick="confirmLock()" style="background:var(--lock);color:#000">🔒 Lock Karo</button>
+      <button class="xbtn" onclick="closeLockModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RESUME MODAL ══ -->
+<div class="overlay" id="resume-overlay">
+  <div class="modal res">
+    <div class="mtitle">⚡ Resume Prompt</div>
+    <div class="msub">Copy karo → Naya Claude kholo → ZIP attach karo → Paste karo → Continue</div>
+    <div class="pbox" id="resume-text" style="max-height:370px"></div>
+    <div class="mbtn-row">
+      <button class="cbtn" onclick="cp('resume-text')">📋 Copy Resume Prompt</button>
+      <button class="xbtn" onclick="closeResume()">✕ Bandh Karo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DEPENDENCY BLOCKED MODAL ══ -->
+<div class="overlay" id="dep-overlay">
+  <div class="modal wrn">
+    <div class="mtitle">🚫 Task Blocked — Dependency Incomplete</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Yeh task pehle complete karo:</div>
+    <div id="dep-msg"></div>
+    <div class="mbtn-row" style="margin-top:14px">
+      <button class="xbtn" onclick="document.getElementById('dep-overlay').classList.remove('open')">Samajh Gaya</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DELETE CONFIRM MODAL ══ -->
+<div class="overlay" id="del-overlay">
+  <div class="modal del">
+    <div class="mtitle">Task Complete — Kya Karna Hai?</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:4px" id="del-task-id-show"></div>
+      <div style="font-size:14px;font-weight:700;line-height:1.5" id="del-task-title"></div>
+    </div>
+
+    <!-- Option 1: Just mark done -->
+    <div style="background:color-mix(in srgb,var(--done) 6%,var(--surface2));border:1px solid color-mix(in srgb,var(--done) 20%,var(--border));border-radius:var(--radius-sm);padding:12px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--done);margin-bottom:4px">✅ Sirf Done Mark Karo</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Task list mein rehti hai — sirf "Done" badge lagta hai. Baad mein reset bhi ho sakta hai.</div>
+      <button class="abtn db" style="width:100%;padding:7px;font-size:12px;font-weight:600" onclick="confirmMarkDone()">✅ Done Mark Karo</button>
+    </div>
+
+    <!-- Option 2: Permanent delete -->
+    <div style="background:color-mix(in srgb,var(--danger) 5%,var(--surface2));border:1px solid color-mix(in srgb,var(--danger) 22%,var(--border));border-radius:var(--radius-sm);padding:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:4px">🗑️ Permanently Delete Karo</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Task list se hamesha ke liye hata do — coordinator chhoti hogi. Wapas nahi aayegi (page reload pe bhi).</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Confirm karne ke liye task ID likho: <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--danger)" id="del-expected-id"></span></div>
+      <input type="text" id="del-confirm-input" placeholder="Task ID yahan likho..." oninput="checkDelConfirm()" style="width:100%;padding:7px 10px;border-radius:var(--radius-xs);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:'JetBrains Mono',monospace;margin-bottom:8px">
+      <button id="del-confirm-btn" onclick="confirmPermDelete()" style="width:100%;padding:7px;font-size:12px;font-weight:700;border-radius:var(--radius-xs);border:none;background:color-mix(in srgb,var(--danger) 25%,var(--surface3));color:var(--muted);cursor:not-allowed;transition:.2s">🗑️ Haan, Permanently Delete Karo</button>
+    </div>
+
+    <div class="mbtn-row" style="margin-top:12px">
+      <button class="xbtn" onclick="closeDelModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MULTI-TASK COMBINED PROMPT MODAL ══ -->
+<div class="overlay" id="multi-overlay">
+  <div class="modal" style="max-width:780px">
+    <div class="mtitle">📋 Combined Task Prompt</div>
+    <div class="msub" id="multi-modal-sub">Ek hi Claude session mein multiple tasks — ek prompt copy karo</div>
+    <div class="pbox" id="multi-prompt-box" style="max-height:420px"></div>
+    <div class="mbtn-row">
+      <button class="cbtn" onclick="cpMulti()">📋 Copy Combined Prompt</button>
+      <button class="xbtn" onclick="document.getElementById('multi-overlay').classList.remove('open')">✕ Bandh Karo</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ROUTER NOTES SAVE MODAL ══ -->
+<div class="overlay" id="router-overlay">
+  <div class="modal" style="border-color:color-mix(in srgb,var(--accent2) 40%,var(--border))">
+    <div class="mtitle">📌 Router Notes Save Karo</div>
+    <div class="msub">Worker ka router note "router notes/" folder mein task number se save karo</div>
+    <div class="mfield">
+      <label>Task ID (folder name ke liye)</label>
+      <input type="text" id="rn-taskid" placeholder="t203, t301, tc001...">
+    </div>
+    <div class="mfield">
+      <label>Worker ID</label>
+      <select id="rn-worker">
+        <option value="ID-W1">ID-W1 — rpsc (MF/SIP)</option>
+        <option value="ID-W2">ID-W2 — mohit.doit (Crypto)</option>
+        <option value="ID-W3">ID-W3 — divya (Stocks)</option>
+        <option value="ID-W4">ID-W4 — coinmaster (Tax/NPS)</option>
+        <option value="ID-W5">ID-W5 — tibbi (UI/AI)</option>
+      </select>
+    </div>
+    <div class="mfield">
+      <label>Routes to Add (copy from worker handoff)</label>
+      <textarea id="rn-routes" rows="4" placeholder="case 'mf_holdings_get':&#10;    require APP_ROOT . '/api/mf/mf_list.php'; exit;&#10;case 'mf_add':&#10;    require APP_ROOT . '/api/mf/mf_add.php'; exit;"></textarea>
+    </div>
+    <div class="mfield">
+      <label>Extra Notes (optional)</label>
+      <textarea id="rn-notes" rows="2" placeholder="Koi aur zaroori info — Master ke liye"></textarea>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--muted);margin-bottom:12px">
+      📁 Save location: <span style="color:var(--accent2);font-family:'JetBrains Mono',monospace">router notes/[task-id]_router.txt</span><br>
+      Master yeh file project ZIP mein daale aur routes <code style="color:var(--accent)">api/router.php</code> mein merge kare.
+    </div>
+    <div id="rn-preview-box" style="display:none">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Preview — Yeh text copy karo aur file mein save karo:</div>
+      <div class="pbox" id="rn-content" style="max-height:200px"></div>
+      <button class="cbtn" style="margin-top:8px" onclick="cpRouter()">📋 Copy Router Note</button>
+    </div>
+    <div class="mbtn-row">
+      <button class="cbtn" style="background:var(--accent2);color:#000" onclick="generateRouterNote()">📌 Generate Note</button>
+      <button class="xbtn" onclick="document.getElementById('router-overlay').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SK='wd_coord_v7',LK='wd_locks_v7';
+
+const IDS={
+  'ID-M':{name:'mohit87',email:'mohit87jain87@gmail.com',mod:'Coordinator · ZIP · Merge · Admin',color:'#7c6fcd',master:true},
+  'ID-W1':{name:'rpsc',email:'rpsc2024programmer@gmail.com',mod:'MF · SIP · XIRR · NAV · ETF',color:'#4fc3a1',master:false},
+  'ID-W2':{name:'mohit.doit',email:'mohitjain.doit1@gmail.com',mod:'Crypto · Exchange · DeFi',color:'#e6a817',master:false},
+  'ID-W3':{name:'divya',email:'divya88jain88@gmail.com',mod:'Stocks · ESOP · RSU · SGB',color:'#e05c5c',master:false},
+  'ID-W4':{name:'coinmaster',email:'coinmastergame1991@gmail.com',mod:'Tax · Reports · LTCG · NPS · PO',color:'#5c8ee0',master:false},
+  'ID-W5':{name:'tibbi',email:'mohittibbi01@gmail.com',mod:'UI/UX · AI · Infra · Performance',color:'#a17ce0',master:false},
+};
+
+// ── V53 = cleared — done tasks hata diye TASKS list se ──
+const V53=new Set(['t211','t479','t480','t504']);
+
+// ── FULL TASK LIST (ALL pending tasks from tasks.md + coordinator) ──
+const TASKS=[
+  // P0 — CRITICAL
+  // P1 — HIGH (MF/SIP/NAV — W1)
+  {id:'t115',t:'REITs & InvITs — Real Estate + Infrastructure trust',p:'p1',e:'2-3days',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t120',t:'Smallcase Portfolio Sync — Basket strategy tracker',p:'p1',e:'2-3hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t144',t:'SIP Step-Up Nudge — Salary hike ke saath SIP badhao',p:'p1',e:'1-2hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t234',t:'SIP vs Lumpsum Calculator — Historical Backtest',p:'p1',e:'2-3hr',a:'ID-W1',needs:['t160'],cat:'MF/SIP'},
+  {id:'t302',t:'Groww Portfolio Import — CSV/API sync',p:'p1',e:'3-4hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t334',t:'Bulk Import — Excel template with 50 fields',p:'p1',e:'3-4hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t392',t:'Groww API Sync — MF + Stocks both',p:'p1',e:'2-3days',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'t490',t:'CSV Importer v3 — Auto-detect any format',p:'p1',e:'3-4hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  {id:'tv11',t:'Benchmark Comparison — Fund vs Index (Nifty 50)',p:'p1',e:'3-4hr',a:'ID-W1',needs:['t160'],cat:'MF/SIP'},
+  {id:'tv12',t:'Mutual Fund Compare Tool — Side-by-Side 5 Funds',p:'p1',e:'3-4hr',a:'ID-W1',needs:[],cat:'MF/SIP'},
+  // P1 — Crypto (W2)
+  {id:'tc001',t:'Live Crypto Prices — CoinGecko WebSocket real-time',p:'p1',e:'3-4hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'t317',t:'Crypto Exchange P&L Import — Binance/WazirX CSV',p:'p1',e:'2-3hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'tc005',t:'Exchange Sync — Binance/WazirX API integration',p:'p1',e:'3-4days',a:'ID-W2',needs:[],cat:'Crypto'},
+  // P1 — Stocks (W3)
+  {id:'t113',t:'SGB — Sovereign Gold Bonds tracker',p:'p1',e:'2-3days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t117',t:'ESOP / RSU — Grant tracking + vesting',p:'p1',e:'3-4days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t301',t:'Zerodha Kite API — Real-time stock holdings sync',p:'p1',e:'4-5hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t391',t:'Zerodha Kite Connect — Full integration',p:'p1',e:'3-4days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t431',t:'Stock Fundamental Data — P/E, P/B, Market Cap (full)',p:'p1',e:'2-3days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t434',t:'Corporate Actions — Bonus, split, dividend tracking',p:'p1',e:'2-3days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t456',t:'US Stock Holdings — NYSE/NASDAQ portfolio tracker',p:'p1',e:'2-3days',a:'ID-W3',needs:[],cat:'Stocks'},
+  // P1 — Tax/NPS/EPF/Reports (W4)
+  {id:'t139',t:'Goal-Based Buckets — Retirement/Education/Emergency',p:'p1',e:'2-3days',a:'ID-W4',needs:[],cat:'Goals'},
+  {id:'t203',t:'PPF Annual Deposit Tracker — Yearly ₹1.5L limit',p:'p1',e:'2-3hr',a:'ID-W4',needs:[],cat:'Post Office'},
+  {id:'t205',t:'NSC Interest — Deemed reinvestment tracker (80C)',p:'p1',e:'1-2hr',a:'ID-W4',needs:[],cat:'Post Office'},
+  {id:'t206',t:'Post Office MIS/SCSS — Monthly payout tracker',p:'p1',e:'1-2hr',a:'ID-W4',needs:[],cat:'Post Office'},
+  {id:'t355',t:'Goal Buckets — Custom bucket strategy UI',p:'p1',e:'2-3days',a:'ID-W4',needs:[],cat:'Goals'},
+  {id:'t380',t:'AI Portfolio Review — Monthly analysis',p:'p1',e:'3-4days',a:'ID-W4',needs:[],cat:'AI'},
+  {id:'t381',t:'AI Chat Assistant — Portfolio Q&A',p:'p1',e:'3-4days',a:'ID-W4',needs:[],cat:'AI'},
+  {id:'t386',t:'2FA — TOTP Google Authenticator',p:'p1',e:'2-3days',a:'ID-W5',needs:[],cat:'Security'},
+  {id:'t467',t:'EPF Balance Tracker — Monthly contribution',p:'p1',e:'2-3days',a:'ID-W4',needs:[],cat:'NPS/EPF'},
+  {id:'t469',t:'EPF Tax Tracker — Taxable contributions alert',p:'p1',e:'1-2hr',a:'ID-W4',needs:[],cat:'NPS/EPF'},
+  {id:'t470',t:'EPF vs NPS vs PPF — Side by side comparison',p:'p1',e:'2-3hr',a:'ID-W4',needs:[],cat:'NPS/EPF'},
+  {id:'tv09',t:'Capital Gains Tax Preview — MF Holdings Live',p:'p1',e:'3-4hr',a:'ID-W4',needs:[],cat:'Tax'},
+  // P1 — Admin/Master (M)
+  {id:'t211',t:'Admin — DB Backup & Restore UI',p:'p1',e:'3-4hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t479',t:'Duplicate Transaction Detector — Smart dedup',p:'p1',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t480',t:'Data Validation Rules — Catch bad data at entry',p:'p1',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t504',t:'WealthDash API — Expose portfolio via REST',p:'p1',e:'2-3days',a:'ID-M',needs:[],cat:'Admin'},
+  // P1 — UI/UX/AI/Infra (W5)
+  {id:'t151',t:'EPFO Passbook Sync — Automated passbook import',p:'p1',e:'2-3days',a:'ID-W5',needs:[],cat:'NPS/EPF'},
+  {id:'t474',t:'SIP vs EMI Balance — Monthly load analysis',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'t498',t:'Investment Calendar 2025-26 — Important dates',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'tg003',t:'Retirement Corpus Calculator — Individual plan',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'Goals'},
+  {id:'tg005',t:'Goals vs Actual Tracking — Monthly on-track check',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'Goals'},
+  {id:'th002',t:'SIP Discipline Score — Streak + consistency',p:'p1',e:'1-2hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'th003',t:'Investment Calendar — All financial events',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'ti001',t:'Personal Finance Profile — Risk, tax slab, goals',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'ti004',t:'Personal Finance Score — Single 0-100 health',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'tj005',t:'Annual Financial Review Wizard — Dec 31 checklist',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'tp001',t:'Redis/APCu Cache Layer — API response caching',p:'p1',e:'3-4hr',a:'ID-W5',needs:[],cat:'Perf'},
+  {id:'tp002',t:'Lazy Loading — Heavy calculations on demand',p:'p1',e:'2-3hr',a:'ID-W5',needs:[],cat:'Perf'},
+  // P2 tasks
+  {id:'t23',t:'Debug file — all pages/APIs check',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t33',t:'FD + Savings — pagination',p:'p2',e:'2hr',a:'ID-W4',needs:[],cat:'FD/Savings'},
+  {id:'t37',t:'ETF — alag module',p:'p2',e:'1-2days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t39',t:'LTCG/STCG stocks report',p:'p2',e:'3-4hr',a:'ID-W3',needs:[],cat:'Tax'},
+  {id:'t40',t:'Crypto holdings + CoinGecko full',p:'p2',e:'1-2days',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'t41',t:'Crypto page — live prices + P&L',p:'p2',e:'2-3hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'t43',t:'Bank accounts tracker',p:'p2',e:'2-3days',a:'ID-M',needs:[],cat:'Finance'},
+  {id:'t46',t:'EPF tracker — monthly contribution',p:'p2',e:'2-3days',a:'ID-W4',needs:[],cat:'NPS/EPF'},
+  {id:'t48',t:'PPF + NPS + EPF — 80C tracker',p:'p2',e:'3-4hr',a:'ID-W4',needs:[],cat:'Tax'},
+  {id:'t50',t:'Multi-user management',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t51',t:'System health dashboard',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t52',t:'Global settings control',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t53',t:'DB Manager tab',p:'p2',e:'3-4hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t56',t:'User — Import/Export all data',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t106',t:'NPS Contribution Auto-detect — from bank statement',p:'p2',e:'2-3days',a:'ID-W4',needs:['t99'],cat:'NPS/EPF'},
+  {id:'t114',t:'Gold Tracker — Physical, Digital, ETF unified',p:'p2',e:'2-3hr',a:'ID-W3',needs:[],cat:'Finance'},
+  {id:'t116',t:'Corporate Bonds / NCDs — Listed aur unlisted',p:'p2',e:'2-3days',a:'ID-W3',needs:[],cat:'Finance'},
+  {id:'t121',t:'International Stocks / LRS tracker',p:'p2',e:'3-4days',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t122',t:'Insurance Portfolio — Term + Health + ULIP',p:'p2',e:'2-3days',a:'ID-W5',needs:[],cat:'Insurance'},
+  {id:'t123',t:'Loan Tracker — Home, Personal, Education',p:'p2',e:'2-3days',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'t136',t:'AIS / TIS Reconciliation — Income Tax portal',p:'p2',e:'2-3hr',a:'ID-W4',needs:[],cat:'Tax'},
+  {id:'t138',t:'Indexation Benefit Calculator — LTCG property',p:'p2',e:'2-3hr',a:'ID-W4',needs:[],cat:'Tax'},
+  {id:'t145',t:'Stock Picker Reality Check — vs Nifty 50',p:'p2',e:'2-3hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t155',t:'Child Education Planner',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Goals'},
+  {id:'t198',t:'NPS Screener — PFM + Asset Class filter',p:'p2',e:'2-3days',a:'ID-W4',needs:['t99'],cat:'NPS/EPF'},
+  {id:'t240',t:'Onboarding Flow — New user guide',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t243',t:'AI Fund Recommendation — Portfolio gap suggest',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t244',t:'AI Portfolio Narrative — Monthly NL summary',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t246',t:'AI Anomaly Detector — Unusual activity flag',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t297',t:'Customizable Dashboard — Drag-drop widgets',p:'p2',e:'4-5hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t300',t:'Portfolio Heatmap — Color-coded performance',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t307',t:'Audit Log — User action history',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t308',t:'System Performance Monitor',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t314',t:'Monthly P&L Statement',p:'p2',e:'2-3hr',a:'ID-W4',needs:[],cat:'Reports'},
+  {id:'t323',t:'ULIP Tracker',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Insurance'},
+  {id:'t329',t:'AI Weekly Digest — Financial news + portfolio',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t330',t:'AI Chatbot — Ask about investments',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t331',t:'AI SIP Optimizer — Smart allocation',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t332',t:'AI Goal Advisor — Smart path to goals',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t333',t:'AI Portfolio Report Card — Monthly grade',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t335',t:'API for External Tools',p:'p2',e:'3-4hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t336',t:'Data Versioning — Undo import',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Admin'},
+  {id:'t340',t:'EPFO UAN Integration',p:'p2',e:'3-4hr',a:'ID-W4',needs:[],cat:'NPS/EPF'},
+  {id:'t358',t:'Goal Notification Engine — Milestone celebrate',p:'p2',e:'1-2hr',a:'ID-W5',needs:[],cat:'Goals'},
+  {id:'t360',t:'Life Events Calendar — Financial milestones',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Goals'},
+  {id:'t371',t:'Biometric Login (WebAuthn)',p:'p2',e:'2-3days',a:'ID-W5',needs:[],cat:'Security'},
+  {id:'t372',t:'Swipe Gestures — Mobile swipe navigation',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t382',t:'AI Fund Research — Natural language search',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t384',t:'AI Anomaly Detector v2',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t385',t:'AI Goal Coach — Personalized nudges',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t387',t:'Session Security — Advanced session management',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Security'},
+  {id:'t389',t:'GDPR-style Data Controls',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Security'},
+  {id:'t404',t:'Smart Alerts v2 — Context-aware notifications',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t411',t:'Automated Test Suite',p:'p2',e:'3-4days',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t412',t:'Performance Tests',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t414',t:'Error Monitoring',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t416',t:'Dev Toolbar',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t418',t:'API Documentation',p:'p2',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t420',t:'Deployment Guide & Docker',p:'p2',e:'2-3days',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t422',t:'Auto Sweep FD — Bank sweep tracker',p:'p2',e:'2-3hr',a:'ID-W4',needs:[],cat:'FD/Savings'},
+  {id:'t432',t:'Portfolio P/E vs Market P/E',p:'p2',e:'2-3hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t435',t:'Watchlist with Price Targets',p:'p2',e:'2-3hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t436',t:'Stock SIP — Regular stock purchase tracker',p:'p2',e:'2-3hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t443',t:'Morning Briefing — Daily market digest 9 AM',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t445',t:'Customizable Overview Cards',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t446',t:'Portfolio Health Heatmap',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t449',t:'Loading Skeletons — Smooth loading states',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t452',t:'Empty States — Zero-state screens',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t454',t:'Onboarding Flow — New user guided setup',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t461',t:'ULIP Tracker full',p:'p2',e:'3-4hr',a:'ID-W5',needs:[],cat:'Insurance'},
+  {id:'t462',t:'Premium Calendar — Due dates + history',p:'p2',e:'1-2hr',a:'ID-W5',needs:[],cat:'Insurance'},
+  {id:'t463',t:'Property Portfolio — Real estate management',p:'p2',e:'2-3days',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'t471',t:'Monthly Budget Tracker — Income vs outflow',p:'p2',e:'3-4days',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'tc003',t:'DeFi & Staking Income tracker',p:'p2',e:'2-3hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'tc004',t:'Portfolio Rebalancing — Crypto',p:'p2',e:'2-3hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'tp004',t:'PHP OPcache — Opcode caching',p:'p2',e:'30min',a:'ID-W5',needs:[],cat:'Perf'},
+  {id:'tp005',t:'Frontend Bundle — Minify CSS/JS production',p:'p2',e:'2-3hr',a:'ID-W5',needs:[],cat:'Perf'},
+  // P3 tasks
+  {id:'t38',t:'Stocks screener — basic filter + sort',p:'p3',e:'3-4hr',a:'ID-W3',needs:[],cat:'Stocks'},
+  {id:'t42',t:'Crypto tax 30% flat calculator',p:'p3',e:'2-3hr',a:'ID-W2',needs:[],cat:'Tax'},
+  {id:'t45',t:'Recurring Deposit (RD) tracker',p:'p3',e:'2-3hr',a:'ID-W4',needs:[],cat:'FD/Savings'},
+  {id:'t49',t:'Leave encashment + LTA tracker',p:'p3',e:'2-3hr',a:'ID-W4',needs:[],cat:'Finance'},
+  {id:'t55',t:'Dashboard widget customizer',p:'p3',e:'3-4hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t58',t:'AI Portfolio Advisor — Full AI assistant',p:'p3',e:'3-5days',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t59',t:'AI Auto categorization',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t60',t:'AI Anomaly detection — base',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t61',t:'AI Goal-based planning',p:'p3',e:'3-4days',a:'ID-W5',needs:[],cat:'AI'},
+  {id:'t89',t:'Keyboard Shortcuts — Full cheatsheet',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t118',t:'RBI Floating Rate Bonds & G-Secs / T-Bills',p:'p3',e:'2-3hr',a:'ID-W3',needs:[],cat:'Finance'},
+  {id:'t119',t:'PMS / AIF tracker',p:'p3',e:'2-3hr',a:'ID-W1',needs:[],cat:'Finance'},
+  {id:'t124',t:'Real Estate Portfolio — Property + rental yield',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'t150',t:'DigiLocker Integration — Documents ek jagah',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t242',t:'Investor Streak & Milestones — Gamification',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t350',t:'Font Size Preference — Accessibility setting',p:'p3',e:'30min',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t352',t:'Unit Tests — PHP + JS',p:'p3',e:'3-4hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t353',t:'Integration Tests',p:'p3',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t354',t:'E2E Tests',p:'p3',e:'2-3hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t373',t:'Widget Mode — Small dashboard cards',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t378',t:'WhatsApp / Email Report Sharing',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'Reports'},
+  {id:'t406',t:'Anonymous Benchmarking — Peer comparison',p:'p3',e:'3-4days',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t415',t:'Load Testing',p:'p3',e:'1-2days',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t419',t:'Code Quality Tools',p:'p3',e:'1-2hr',a:'ID-M',needs:[],cat:'Dev/Test'},
+  {id:'t451',t:'Micro-animations — Subtle movement',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t485',t:'Treemap — Portfolio by value visual',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t488',t:'Yield Curve — FD rates visualization',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t503',t:'Credit Card Optimizer — Points + interest',p:'p3',e:'1-2hr',a:'ID-W5',needs:[],cat:'Finance'},
+  {id:'tc006',t:'Cold Wallet Tracker — Hardware wallet',p:'p3',e:'1-2hr',a:'ID-W2',needs:[],cat:'Crypto'},
+  {id:'th001',t:'Daily Financial Journal — Investment notes',p:'p3',e:'2-3hr',a:'ID-W5',needs:[],cat:'UX'},
+  {id:'t500',t:'WealthDash GODMODE — All features milestone',p:'p3',e:'∞',a:'ID-M',needs:[],cat:'Admin'},
+];
+
+const MOD_FILES={
+  'M':{title:'ID-M — Master / Coordinator',email:'mohit87jain87@gmail.com',
+    provide:[
+      {f:'wealthdash_coordinator_v7.html',d:'Yeh coordinator — tracking ke liye',t:'a'},
+      {f:'api/router.php',d:'All routes — sirf Master merge karta hai',t:'a'},
+      {f:'config/',d:'config.php + database.php + constants.php',t:'a'},
+      {f:'includes/',d:'auth_check.php + helpers.php — core files',t:'a'},
+      {f:'database/01_schema_complete.sql',d:'Full DB schema reference',t:'a'},
+      {f:'router notes/',d:'Workers ke router notes — Master yahan se routes merge karta hai',t:'a'},
+    ],skip:['templates/pages/*','api/mf/*','api/crypto/*','api/stocks/*','wealthdash_master_v*.html']},
+
+  'W1':{title:'ID-W1 — MF / SIP / NAV / ETF',email:'rpsc2024programmer@gmail.com',
+    provide:[
+      {f:'api/mutual_funds/',d:'Sab MF API files — mf_list, mf_add, mf_edit, mf_delete, mf_search, mf_metrics, cas_import, live_nav, mf_nav_history, mf_import_csv_v3, mf_export_xlsx',t:'a'},
+      {f:'api/sip/',d:'sip_tracker.php + sip_nav_fetch.php',t:'a'},
+      {f:'nav_download/',d:'api.php + processor.php + nav_worker.php',t:'a'},
+      {f:'templates/pages/mf_holdings.php',d:'MF Holdings page UI',t:'a'},
+      {f:'templates/pages/mf_screener.php',d:'MF Screener page UI',t:'a'},
+      {f:'templates/pages/mf_transactions.php',d:'MF Transactions page',t:'a'},
+      {f:'public/js/mf.js',d:'MF frontend JS',t:'a'},
+      {f:'api/router.php',d:'Routes reference — sirf NOTE karo, touch mat karo',t:'a'},
+      {f:'database/migrations/ (task se related .sql only)',d:'Sirf is task ki migration — sab nahi',t:'o'},
+    ],skip:['api/crypto/*','api/stocks/*','api/nps/*','api/tax/*','api/epf/*']},
+
+  'W2':{title:'ID-W2 — Crypto / Exchange / DeFi',email:'mohitjain.doit1@gmail.com',
+    provide:[
+      {f:'api/crypto/',d:'Sab crypto files — crypto_holdings, crypto_add, crypto_list, crypto_import, crypto_exchange_sync, crypto_price_stream, vda_tax',t:'a'},
+      {f:'templates/pages/crypto.php',d:'Crypto UI page',t:'a'},
+      {f:'public/js/crypto.js',d:'Crypto frontend JS',t:'a'},
+      {f:'api/router.php',d:'Routes reference — sirf NOTE karo, touch mat karo',t:'a'},
+      {f:'database/migrations/ (task se related .sql only)',d:'Sirf is task ki migration',t:'o'},
+    ],skip:['api/mf/*','api/stocks/*','api/tax/*','api/nps/*']},
+
+  'W3':{title:'ID-W3 — Stocks / ESOP / RSU / SGB / Watchlist',email:'divya88jain88@gmail.com',
+    provide:[
+      {f:'api/stocks/',d:'Sab stocks files — stocks_list, stocks_add, stocks_delete, stocks_search, stocks_price, stocks_refresh_prices, fundamentals, dividends, corporate_actions, alerts, nse_data',t:'a'},
+      {f:'api/esop/esop.php',d:'ESOP/RSU tracker',t:'a'},
+      {f:'api/sgb/sgb.php',d:'SGB holdings',t:'a'},
+      {f:'api/watchlist/watchlist.php',d:'Watchlist API',t:'a'},
+      {f:'templates/pages/stocks.php',d:'Stocks UI page',t:'a'},
+      {f:'templates/pages/esop.php',d:'ESOP UI page',t:'a'},
+      {f:'templates/pages/sgb.php',d:'SGB UI page',t:'a'},
+      {f:'public/js/stocks.js',d:'Stocks frontend JS',t:'a'},
+      {f:'api/router.php',d:'Routes reference — sirf NOTE karo, touch mat karo',t:'a'},
+      {f:'database/migrations/ (task se related .sql only)',d:'Sirf is task ki migration',t:'o'},
+    ],skip:['api/mf/*','api/crypto/*','api/nps/*','api/tax/*']},
+
+  'W4':{title:'ID-W4 — Tax / NPS / EPF / Post Office / Goals / Reports',email:'coinmastergame1991@gmail.com',
+    provide:[
+      {f:'api/nps/',d:'Sab NPS files — nps_list, nps_add, nps_delete, nps_analytics, nps_nav_history, nps_nav_update, nps_screener, nps_statement, nps_sip_tracker',t:'a'},
+      {f:'api/epf/',d:'epf_list.php + eps_pension.php + gratuity.php + retirement_combined.php',t:'a'},
+      {f:'api/tax/capital_gains.php',d:'Capital gains calculator',t:'a'},
+      {f:'api/po_schemes/',d:'po_schemes.php + po_td_mis_kvp.php',t:'a'},
+      {f:'api/ppf/ppf_tracker.php',d:'PPF tracker',t:'a'},
+      {f:'api/goals/',d:'goals_api.php + goal_buckets.php + goals_advanced.php',t:'a'},
+      {f:'api/reports/',d:'net_worth.php + fy_gains.php + tax_planning.php + wealth_statement.php + sip_tracker.php',t:'a'},
+      {f:'templates/pages/nps.php',d:'NPS UI page',t:'a'},
+      {f:'templates/pages/post_office.php',d:'Post Office UI page',t:'a'},
+      {f:'templates/pages/report_tax.php',d:'Tax report page',t:'a'},
+      {f:'templates/pages/report_fy.php',d:'FY report page',t:'a'},
+      {f:'templates/pages/goals.php',d:'Goals page',t:'a'},
+      {f:'api/router.php',d:'Routes reference — sirf NOTE karo, touch mat karo',t:'a'},
+      {f:'database/migrations/ (task se related .sql only)',d:'Sirf is task ki migration',t:'o'},
+    ],skip:['api/mf/*','api/crypto/*','api/stocks/*']},
+
+  'W5':{title:'ID-W5 — UI/UX / AI / Infra / Performance / Security',email:'mohittibbi01@gmail.com',
+    provide:[
+      {f:'public/css/',d:'app.css + number-format.css — CSS variables ZAROORI, naye mat banao',t:'a'},
+      {f:'public/js/app.js',d:'Main frontend JS',t:'a'},
+      {f:'public/js/charts.js',d:'Chart utilities',t:'a'},
+      {f:'templates/layout.php',d:'Base layout',t:'a'},
+      {f:'templates/sidebar.php',d:'Sidebar navigation',t:'a'},
+      {f:'templates/topbar.php',d:'Top bar',t:'a'},
+      {f:'api/ai/',d:'chatbot.php + portfolio_review.php + fund_recommend.php + tax_optimizer.php',t:'a'},
+      {f:'api/dashboard/',d:'unified.php + widgets.php + market_pulse.php',t:'a'},
+      {f:'api/security/',d:'rate_limit.php + encryption.php',t:'a'},
+      {f:'includes/ai_engine.php',d:'AI engine core',t:'a'},
+      {f:'api/router.php',d:'Routes reference — agar API add karna ho sirf NOTE karo',t:'a'},
+    ],skip:['api/mf/*','api/crypto/*','api/stocks/*','api/nps/*','api/tax/*','database/migrations/*']},
+};
+
+// ── STATE ──
+let S={}; try{S=JSON.parse(localStorage.getItem(SK)||'{}');}catch(e){}
+let LOCKS={}; try{LOCKS=JSON.parse(localStorage.getItem(LK)||'{}');}catch(e){}
+let curLock=null,curFilter='all',curDetail=null,curDel=null;
+let selectedTasks=new Set(); // multi-select
+const save=()=>{localStorage.setItem(SK,JSON.stringify(S));localStorage.setItem(LK,JSON.stringify(LOCKS));};
+
+// ── HELPERS ──
+function isDone(id){return V53.has(id)||S[id]?.status==='done';}
+function isBlocked(task){return (task.needs||[]).some(nid=>!isDone(nid));}
+function unmetDeps(task){return (task.needs||[]).filter(nid=>!isDone(nid));}
+
+function setTheme(n,dot){document.body.setAttribute('data-theme',n);document.querySelectorAll('.tdot').forEach(d=>d.classList.remove('active'));dot.classList.add('active');localStorage.setItem('wd_theme',n);}
+function timeAgo(ts){const d=Math.floor((Date.now()-ts)/60000);if(d<1)return'abhi abhi';if(d<60)return d+'m pehle';const h=Math.floor(d/60);if(h<24)return h+'hr pehle';return Math.floor(h/24)+'d pehle';}
+function fmtTime(ts){return new Date(ts).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+
+// ── STATS ──
+function updateStats(){
+  const v53c=TASKS.filter(t=>V53.has(t.id)).length;
+  const myc=TASKS.filter(t=>S[t.id]?.status==='done').length;
+  const lkc=Object.keys(LOCKS).length;
+  const inpc=TASKS.filter(t=>S[t.id]?.status==='inprog').length;
+  const tot=TASKS.length;
+  const doneTot=v53c+myc;
+  const pend=Math.max(0,tot-doneTot-inpc-lkc);
+  document.getElementById('st').textContent=tot;
+  document.getElementById('sd').textContent=doneTot;
+  document.getElementById('si').textContent=lkc+inpc;
+  document.getElementById('sp').textContent=pend;
+  document.getElementById('pb').style.width=Math.round((doneTot/tot)*100)+'%';
+  const li=document.getElementById('lock-pill');
+  document.getElementById('lock-cnt').textContent=lkc;
+  li.style.display=lkc>0?'flex':'none';
+  // Sessions bar
+  const bar=document.getElementById('sessions-bar'),cards=document.getElementById('lock-cards');
+  if(lkc>0){
+    bar.classList.add('has');cards.innerHTML='';
+    Object.entries(LOCKS).forEach(([tid,lock])=>{
+      const task=TASKS.find(t=>t.id===tid);if(!task)return;
+      const inf=IDS[lock.workerId]||{};
+      const el=document.createElement('div');el.className='lcard';
+      el.innerHTML=`<div class="lcard-id" style="color:${inf.color||'var(--lock)'}">${lock.workerId} · ${timeAgo(lock.lockedAt)}</div><div class="lcard-task">${task.id} — ${task.t.substring(0,36)}${task.t.length>36?'…':''}</div><div class="lcard-btns"><button class="abtn gb" onclick="openResume('${tid}')">⚡</button><button class="abtn db" onclick="doneUnlock('${tid}')">✅</button><button class="abtn rb" onclick="unlockTask('${tid}')">🔓</button></div>`;
+      cards.appendChild(el);
+    });
+  } else {bar.classList.remove('has');}
+  // ID grid
+  const g=document.getElementById('id-grid');g.innerHTML='';
+  Object.entries(IDS).forEach(([id,info])=>{
+    const tasks=TASKS.filter(t=>t.a===id);
+    const d=tasks.filter(t=>isDone(t.id)).length;
+    const p=tasks.filter(t=>S[t.id]?.status==='inprog').length;
+    const lk=tasks.filter(t=>LOCKS[t.id]).length;
+    const n=tasks.length-d-p-lk;
+    const el=document.createElement('div');
+    el.className='idc'+(info.master?' master':'');
+    el.onclick=()=>{filterById(id);sw('tasks');};
+    el.innerHTML=`<div class="idc-badge ${info.master?'bm':'bw'}">${id}</div><div class="idc-name" style="color:${info.color}">${info.name}</div><div class="idc-mod">${info.mod}</div><div><span class="tc tc-d">✅${d}</span><span class="tc tc-p">⏳${p}</span>${lk>0?`<span class="tc tc-lk">🔒${lk}</span>`:''}<span class="tc tc-n">○${n}</span></div>`;
+    g.appendChild(el);
+  });
+  updateSessionsTab();
+}
+
+// ── SESSIONS TAB ──
+function updateSessionsTab(){
+  const list=document.getElementById('sessions-list');
+  const lkc=Object.keys(LOCKS).length;
+  if(lkc===0){list.innerHTML='<div style="font-size:12px;color:var(--muted);padding:20px;text-align:center;background:var(--surface2);border-radius:8px;border:1px dashed var(--border)">Koi session active nahi — task lock karo tab yahan dikhega</div>';return;}
+  list.innerHTML='';
+  Object.entries(LOCKS).forEach(([tid,lock])=>{
+    const task=TASKS.find(t=>t.id===tid);if(!task)return;
+    const inf=IDS[lock.workerId]||{};
+    const el=document.createElement('div');el.className='card';el.style.marginBottom='10px';
+    el.innerHTML=`<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div style="flex:1"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="sbadge s-lk">🔒 Locked</span><span class="tid" onclick="openDetail('${tid}')">${task.id}</span><span style="font-size:10px;color:var(--muted)">${timeAgo(lock.lockedAt)}</span></div><div style="font-size:13px;font-weight:700;margin-bottom:4px">${task.t}</div><div style="font-size:11px;color:var(--muted);margin-bottom:10px">Worker: <strong style="color:${inf.color||'var(--accent)'}">${inf.name||lock.workerId}</strong> · Started ${fmtTime(lock.lockedAt)}</div>${lock.notes?`<div style="margin-bottom:8px"><div class="card-title" style="margin-bottom:3px">✅ Kya hua abhi tak</div><div style="font-size:12px;background:var(--surface3);border-radius:6px;padding:8px 10px;line-height:1.6;font-family:'JetBrains Mono',monospace">${lock.notes.replace(/\n/g,'<br>')}</div></div>`:''}${lock.files?`<div><div class="card-title" style="margin-bottom:3px">📁 Files</div><div style="font-size:11px;color:var(--accent2);font-family:'JetBrains Mono',monospace;background:var(--surface3);border-radius:6px;padding:7px 10px;line-height:1.8">${lock.files.replace(/\n/g,'<br>')}</div></div>`:''}</div><div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0"><button class="abtn gb" onclick="openResume('${tid}')">⚡ Resume</button><button class="abtn" onclick="openLockModal('${tid}')">✏️ Notes</button><button class="abtn db" onclick="doneUnlock('${tid}')">✅ Done</button><button class="abtn rb" onclick="unlockTask('${tid}')">🔓 Unlock</button></div></div>`;
+    list.appendChild(el);
+  });
+}
+
+// ── TASK TABLE ──
+function openDetail(tid){
+  const task=TASKS.find(t=>t.id===tid);if(!task)return;
+  curDetail=tid;
+  const inf=IDS[task.a]||{};
+  document.getElementById('dp-tid').textContent=task.id;
+  document.getElementById('dp-title').textContent=task.t;
+  document.getElementById('dp-meta').textContent=`${task.a} (${inf.email||''}) · ${task.p.toUpperCase()} · ${task.e} · ${task.cat||''}`;
+  // blocking
+  const blocked=isBlocked(task);
+  const unmet=unmetDeps(task);
+  const bw=document.getElementById('dp-blocked-wrap');
+  if(blocked){
+    bw.innerHTML=`<div class="dp-blocked"><strong style="color:var(--danger)">🚫 BLOCKED</strong> — Pehle yeh tasks complete karo: ${unmet.map(n=>`<span style="font-family:'JetBrains Mono',monospace;color:var(--warn);font-weight:700">${n}</span>`).join(', ')}</div>`;
+  } else if(unmet.length===0&&task.needs&&task.needs.length>0){
+    bw.innerHTML=`<div style="font-size:11px;color:var(--done);margin-bottom:10px">✅ Saari dependencies complete hain</div>`;
+  } else {bw.innerHTML='';}
+  // prompt
+  document.getElementById('dp-prompt').textContent=buildPrompt(task);
+  // files
+  const mk=task.a.replace('ID-','');
+  const mf=MOD_FILES[mk];
+  const fd=document.getElementById('dp-files');
+  if(mf){
+    let h=mf.provide.map(f=>{const cls=f.t==='a'?'f-always':'f-opt';const lbl=f.t==='a'?'✅':'〇';return`<div class="${cls}" style="margin-bottom:6px">${lbl} <strong>${f.f}</strong><br><span style="font-size:9px;color:var(--muted);padding-left:14px">${f.d}</span></div>`;}).join('');
+    h+=`<div style="margin-top:10px;font-size:10px;color:var(--danger)">🚫 Skip:<br>${mf.skip.map(f=>`<span class="f-skip">${f}</span>`).join('<br>')}</div>`;
+    fd.innerHTML=h;
+  }else{fd.innerHTML='<div style="color:var(--muted);font-size:11px">File guide nahi mila</div>';}
+  // actions
+  const isLocked=!!LOCKS[tid],isV=V53.has(tid),isMyDone=S[tid]?.status==='done',isInprog=S[tid]?.status==='inprog';
+  const ad=document.getElementById('dp-actions');
+  if(isV){ad.innerHTML='<span style="font-size:12px;color:var(--muted)">v53 base mein done hai ✓</span>';}
+  else if(blocked){ad.innerHTML=`<span style="font-size:12px;color:var(--danger)">🚫 Dependency incomplete — unlock nahi hoga</span>`;}
+  else if(isLocked){ad.innerHTML=`<button class="cbtn" onclick="openResume('${tid}')">⚡ Resume Prompt</button><button class="abtn" onclick="openLockModal('${tid}')">✏️ Notes</button><button class="abtn db" onclick="doneUnlock('${tid}')">✅ Done+Unlock</button><button class="abtn rb" onclick="unlockTask('${tid}')">🔓 Unlock Only</button>`;}
+  else if(isMyDone){ad.innerHTML=`<span style="font-size:12px;color:var(--done)">✅ Done marked</span>&nbsp;<button class="abtn rb" onclick="taskReset('${tid}')">↩ Reset</button>&nbsp;<button class="abtn" onclick="openDelModal('${tid}')" style="background:color-mix(in srgb,var(--danger) 10%,var(--surface2));border-color:color-mix(in srgb,var(--danger) 30%,var(--border));color:var(--danger)">🗑️ Permanently Delete</button>`;}
+  else{ad.innerHTML=`<button class="cbtn" onclick="openLockModal('${tid}')">🔒 Lock + Start</button><button class="abtn db" onclick="openDelModal('${tid}')">✅ Done</button>${!isInprog?`<button class="abtn" onclick="taskInprog('${tid}')">▶ Active</button>`:''}<button class="abtn rb" onclick="taskReset('${tid}')">↩ Reset</button><button class="abtn" onclick="openDelModal('${tid}')" style="background:color-mix(in srgb,var(--danger) 10%,var(--surface2));border-color:color-mix(in srgb,var(--danger) 30%,var(--border));color:var(--danger)">🗑️ Delete</button>`;}
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('detail-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function closeDetail(){document.getElementById('detail-panel').classList.remove('open');curDetail=null;}
+
+function buildPrompt(task){
+  const inf=IDS[task.a]||{};
+  const deps=task.needs&&task.needs.length>0?`\nDEPENDENCIES (pehle complete):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${task.needs.map(d=>`  ✅ ${d}`).join('\n')}\n`:'\n';
+  return`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — TASK BRIEFING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Worker  : ${task.a} (${inf.email||''})
+Module  : ${inf.mod||''}
+Project : WealthDash · PHP 8+ · MySQL 8 · Vanilla JS
+Stack   : No framework · CSS variables · REST API
+${deps}TASK:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID      : ${task.id}
+Title   : ${task.t}
+Prio    : ${task.p.toUpperCase()}
+Effort  : ${task.e}
+Category: ${task.cat||''}
+
+RULES (STRICT — Todna mat):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SIRF is task ki files touch karo
+2. api/router.php — TOUCH NAHI karna, routes SIRF Handoff mein note karo (Master merge karega)
+3. Routes clearly likho: case 'action': require 'api/path/file.php'; exit;
+4. Migration file: database/migrations/${task.id}_migration.sql
+4. Har PHP file mein: defined('WEALTHDASH') or die();
+5. Kaam ke baad HANDOFF SUMMARY ZAROORI hai
+6. Test karo pehle — "done" bolne se pehle verify karo
+
+OUTPUT FORMAT:
+━━━━━━━━━━━━━━
+→ Files chahiye — explanation NAHI
+→ Folder + filename ke saath COMPLETE files
+→ ZIP ready — direct copy-paste ke liye
+→ Missing dependencies pehle note karo
+
+PROJECT STRUCTURE:
+━━━━━━━━━━━━━━━━━━
+api/           → REST endpoints (sirf apne module ke)
+templates/     → PHP pages
+includes/      → auth_check.php HAMESHA include karo
+database/      → SQL + migrations
+public/css/    → CSS variables use karo (naye mat banao)
+public/js/     → Module JS files
+
+FILES (is session ke liye):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${(()=>{const mk=task.a.replace('ID-','');const mf=MOD_FILES[mk];if(!mf)return'File list nahi mila';return mf.provide.map(f=>(f.t==='a'?'✅':'〇')+' '+f.f).join('\n');})()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ZIP mein sirf ${task.a} ke relevant files attach karo.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+}
+
+function ft(f,btn){curFilter=f;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');rt();}
+function filterById(id){curFilter=id;document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));rt();}
+
+function rt(){
+  const q=document.getElementById('tsearch').value.toLowerCase().trim();
+  const tbody=document.getElementById('tb');tbody.innerHTML='';
+  const filtered=TASKS.filter(task=>{
+    if(q&&!task.id.toLowerCase().includes(q)&&!task.t.toLowerCase().includes(q)&&!(task.cat||'').toLowerCase().includes(q))return false;
+    const isL=!!LOCKS[task.id],isV=V53.has(task.id),isD=S[task.id]?.status==='done',isI=S[task.id]?.status==='inprog';
+    if(curFilter==='all')return true;
+    if(curFilter==='pending')return!isV&&!isD&&!isI&&!isL;
+    if(curFilter==='inprog')return(isI||isL);
+    if(curFilter==='locked')return isL;
+    if(curFilter==='done_v53')return isV;
+    if(curFilter==='my_done')return isD;
+    if(['p0','p1','p2','p3'].includes(curFilter))return task.p===curFilter;
+    if(['ID-M','ID-W1','ID-W2','ID-W3','ID-W4','ID-W5'].includes(curFilter))return task.a===curFilter;
+    return true;
+  });
+  let lastCat='';
+  filtered.forEach(task=>{
+    // Category divider
+    if(task.cat&&task.cat!==lastCat&&(curFilter==='all'||['ID-M','ID-W1','ID-W2','ID-W3','ID-W4','ID-W5'].includes(curFilter))){
+      lastCat=task.cat;
+      const dr=document.createElement('tr');dr.className='cat-divider';
+      dr.innerHTML=`<td colspan="7">— ${task.cat}</td>`;
+      tbody.appendChild(dr);
+    }
+    const isL=!!LOCKS[task.id],isV=V53.has(task.id),isD=S[task.id]?.status==='done',isI=S[task.id]?.status==='inprog';
+    const lock=LOCKS[task.id],inf=IDS[task.a]||{},c=inf.color||'#888';
+    const blocked=isBlocked(task);
+    const unmet=unmetDeps(task);
+    let statusHtml;
+    if(isL)statusHtml=`<span class="sbadge s-lk">🔒 ${IDS[lock.workerId]?.name||lock.workerId}</span>`;
+    else if(isV)statusHtml='<span class="sbadge s-v53">✅ v53</span>';
+    else if(isD)statusHtml='<span class="sbadge s-done">✅ Done</span>';
+    else if(isI)statusHtml='<span class="sbadge s-inp">⏳ Active</span>';
+    else if(blocked)statusHtml='<span class="sbadge s-blocked">🚫 Blocked</span>';
+    else if(unmet.length>0)statusHtml='<span class="sbadge s-wait">⚠️ Wait</span>';
+    else statusHtml='<span class="sbadge s-pen">Pending</span>';
+    const pdc={p0:'p0d',p1:'p1d',p2:'p2d',p3:'p3d'}[task.p]||'p3d';
+    const tr=document.createElement('tr');
+    if(isV||isD)tr.className='row-done';
+    else if(isL)tr.className='row-locked';
+    else if(blocked)tr.className='row-blocked';
+    // Action buttons — blocked tasks can't be locked
+    let ab;
+    if(isV)ab='<span style="font-size:10px;color:var(--muted)">v53 ✓</span>';
+    else if(isL)ab=`<button class="abtn gb" onclick="openResume('${task.id}')">⚡</button><button class="abtn" onclick="openLockModal('${task.id}')">✏️</button><button class="abtn db" onclick="doneUnlock('${task.id}')">✅</button><button class="abtn rb" onclick="unlockTask('${task.id}')">🔓</button>`;
+    else if(blocked)ab=`<button class="abtn disabled" title="Pehle dependency complete karo" style="color:var(--danger)">🚫 Blocked</button>`;
+    else ab=`<button class="abtn lb" onclick="openLockModal('${task.id}')">🔒</button><button class="abtn db" onclick="openDelModal('${task.id}')">✅ Done</button><button class="abtn rb" onclick="openDelModal('${task.id}')" style="background:color-mix(in srgb,var(--danger) 10%,var(--surface2));border-color:color-mix(in srgb,var(--danger) 30%,var(--border));color:var(--danger)" title="Permanently delete karo">🗑️</button>`;
+    const depH=blocked?`<div class="dep-block">🚫 needs: ${unmet.join(', ')}</div>`:unmet.length>0?`<div class="dep-warn">⚠️ needs: ${unmet.join(', ')}</div>`:'';
+    const titleClick=blocked?`title="Blocked — ${unmet.join(', ')} pehle karo"`:`;cursor:pointer" onclick="openDetail('${task.id}')`;
+    const isChked=selectedTasks.has(task.id);
+    tr.innerHTML=`<td><input type="checkbox" class="task-chk" data-id="${task.id}" ${isChked?'checked':''} onclick="toggleTaskChk('${task.id}',this)" style="cursor:pointer"></td><td><span class="tid" onclick="openDetail('${task.id}')">${task.id}</span></td><td style="max-width:280px;cursor:${blocked?'not-allowed':'pointer'}" onclick="${blocked?'showBlockedWarn(\''+task.id+'\')':'openDetail(\''+task.id+'\')'}"><span>${task.t}</span>${depH}</td><td><span class="pdot ${pdc}"></span>${task.p.toUpperCase()}</td><td><span class="etag">${task.e}</span></td><td><span style="font-size:10px;padding:2px 7px;border-radius:3px;background:${c}18;color:${c};font-weight:600">${inf.name||task.a}</span></td><td>${statusHtml}</td><td style="white-space:nowrap">${ab}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(filtered.length===0){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="7" style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Koi task nahi mila "${q}"</td>`;tbody.appendChild(tr);}
+}
+
+function showBlockedWarn(tid){
+  const task=TASKS.find(t=>t.id===tid);if(!task)return;
+  const unmet=unmetDeps(task);
+  document.getElementById('dep-msg').innerHTML=`<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px">${unmet.map(n=>{const t=TASKS.find(x=>x.id===n);return`<div style="font-family:'JetBrains Mono',monospace;color:var(--warn);padding:4px 0;font-size:12px">⚠️ ${n}${t?' — '+t.t.substring(0,50):''}</div>`;}).join('')}</div>`;
+  document.getElementById('dep-overlay').classList.add('open');
+}
+
+// ── TASK ACTIONS ──
+function taskInprog(id){S[id]={status:'inprog'};save();rt();updateStats();toast('⏳ Active set!');}
+function taskReset(id){if(LOCKS[id])delete LOCKS[id];delete S[id];save();rt();updateStats();if(curDetail===id)openDetail(id);toast('↩ Reset');}
+function doneUnlock(id){delete LOCKS[id];S[id]={status:'done'};save();rt();updateStats();if(curDetail===id)closeDetail();toast('✅ Done+Unlocked!');}
+function unlockTask(id){delete LOCKS[id];save();rt();updateStats();if(curDetail===id)openDetail(id);toast('🔓 Unlocked');}
+
+// ── DELETE — TWO MODES ──
+function openDelModal(tid){
+  const task=TASKS.find(t=>t.id===tid);if(!task)return;
+  if(isBlocked(task)){showBlockedWarn(tid);return;}
+  curDel=tid;
+  document.getElementById('del-task-id-show').textContent=tid+' · '+task.p.toUpperCase()+' · '+(task.a||'');
+  document.getElementById('del-task-title').textContent=task.t;
+  document.getElementById('del-expected-id').textContent=tid;
+  document.getElementById('del-confirm-input').value='';
+  const btn=document.getElementById('del-confirm-btn');
+  btn.style.background='color-mix(in srgb,var(--danger) 25%,var(--surface3))';
+  btn.style.color='var(--muted)';btn.style.cursor='not-allowed';
+  document.getElementById('del-overlay').classList.add('open');
+}
+function closeDelModal(){document.getElementById('del-overlay').classList.remove('open');curDel=null;}
+
+function checkDelConfirm(){
+  const val=document.getElementById('del-confirm-input').value.trim();
+  const btn=document.getElementById('del-confirm-btn');
+  if(val===curDel){
+    btn.style.background='var(--danger)';btn.style.color='#fff';btn.style.cursor='pointer';
+  } else {
+    btn.style.background='color-mix(in srgb,var(--danger) 25%,var(--surface3))';
+    btn.style.color='var(--muted)';btn.style.cursor='not-allowed';
+  }
+}
+
+function confirmMarkDone(){
+  if(!curDel)return;
+  if(LOCKS[curDel])delete LOCKS[curDel];
+  S[curDel]={status:'done'};
+  save();closeDelModal();rt();updateStats();
+  if(curDetail===curDel)closeDetail();
+  toast('✅ Done mark ho gayi');
+}
+
+// Permanently delete — removed from runtime TASKS array + saved in deletedTasks localStorage
+const DK='wd_deleted_v7';
+let DELETED=new Set();try{DELETED=new Set(JSON.parse(localStorage.getItem(DK)||'[]'));}catch(e){}
+
+function confirmPermDelete(){
+  if(!curDel)return;
+  const val=document.getElementById('del-confirm-input').value.trim();
+  if(val!==curDel){toast('Pehle sahi task ID likho!',true);return;}
+  // Remove from runtime TASKS array
+  const idx=TASKS.findIndex(t=>t.id===curDel);
+  if(idx>-1)TASKS.splice(idx,1);
+  // Save in deleted set so page reload pe bhi wapas na aaye
+  DELETED.add(curDel);
+  localStorage.setItem(DK,JSON.stringify([...DELETED]));
+  // Clean up locks/state
+  if(LOCKS[curDel])delete LOCKS[curDel];
+  delete S[curDel];
+  save();
+  // Remove from selected tasks too
+  selectedTasks.delete(curDel);
+  updateMultiBar();
+  closeDelModal();
+  if(curDetail===curDel)closeDetail();
+  rt();updateStats();
+  toast('🗑️ Task permanently delete ho gayi — list chhoti ho gayi!');
+}
+
+// On init — filter out already-deleted tasks
+(function(){
+  const toRemove=[...DELETED];
+  toRemove.forEach(id=>{
+    const idx=TASKS.findIndex(t=>t.id===id);
+    if(idx>-1)TASKS.splice(idx,1);
+  });
+})();
+
+// ── LOCK MODAL ──
+function openLockModal(tid){
+  const task=TASKS.find(t=>t.id===tid);
+  // Block if dependencies not met
+  if(task&&isBlocked(task)){showBlockedWarn(tid);return;}
+  curLock=tid;
+  const lock=LOCKS[tid];
+  document.getElementById('lm-sub').textContent=task?`${task.id} — ${task.t.substring(0,55)}${task.t.length>55?'…':''}`:tid;
+  document.getElementById('lm-done').value=lock?.notes||'';
+  document.getElementById('lm-remaining').value=lock?.remaining||'';
+  document.getElementById('lm-files').value=lock?.files||'';
+  if(lock?.workerId)document.getElementById('lm-worker').value=lock.workerId;
+  else if(task?.a)document.getElementById('lm-worker').value=task.a;
+  document.getElementById('lock-overlay').classList.add('open');
+}
+function closeLockModal(){document.getElementById('lock-overlay').classList.remove('open');curLock=null;}
+function confirmLock(){
+  if(!curLock)return;
+  LOCKS[curLock]={workerId:document.getElementById('lm-worker').value,lockedAt:LOCKS[curLock]?.lockedAt||Date.now(),notes:document.getElementById('lm-done').value.trim(),remaining:document.getElementById('lm-remaining').value.trim(),files:document.getElementById('lm-files').value.trim()};
+  if(!S[curLock]||S[curLock].status!=='done')S[curLock]={status:'inprog'};
+  save();closeLockModal();rt();updateStats();
+  if(curDetail===curLock)openDetail(curLock);
+  toast('🔒 Task locked!');
+}
+
+// ── RESUME MODAL ──
+function openResume(tid){
+  const task=TASKS.find(t=>t.id===tid),lock=LOCKS[tid];
+  if(!task||!lock)return;
+  const inf=IDS[lock.workerId]||{};
+  document.getElementById('resume-text').textContent=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — SESSION RESUME
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Worker  : ${lock.workerId} (${inf.email||''})
+Module  : ${inf.mod||''}
+Project : WealthDash · PHP 8+ · MySQL 8 · Vanilla JS
+
+⚠️ CONTINUATION SESSION — Tokens khatam thi
+Yahan se continue karo — kaam adha hai.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TASK:
+  ID       : ${task.id}
+  Title    : ${task.t}
+  Priority : ${task.p.toUpperCase()}
+  Effort   : ${task.e}
+
+${lock.notes?`PICHLI SESSION — KYA HUA:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${lock.notes}\n\n`:''}${lock.files?`FILES CREATED/MODIFIED:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${lock.files}\n\n`:''}${lock.remaining?`ABHI BAAKI HAI:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${lock.remaining}\n\n`:''}RULES (STRICT):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Sirf is task ki files touch karo
+2. api/router.php — TOUCH NAHI karna, routes Handoff mein note karo
+3. Migration: database/migrations/${task.id}_migration.sql
+4. defined('WEALTHDASH') or die(); — har PHP file
+5. Kaam ke baad HANDOFF SUMMARY do
+
+OUTPUT: Files chahiye — explanation NAHI.
+ZIP attach karo, continue karo.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  document.getElementById('resume-overlay').classList.add('open');
+}
+function closeResume(){document.getElementById('resume-overlay').classList.remove('open');}
+
+// ── FILE GUIDE ──
+function showMod(key,btn){
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  const m=MOD_FILES[key];if(!m)return;
+  const tmap={a:'fb-a',o:'fb-o'},lmap={a:'HAMESHA DO',o:'OPTIONAL'};
+  document.getElementById('mod-files-display').innerHTML=`<div class="fg-card" style="margin-bottom:8px"><div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--accent)">${m.title}</div>${m.provide.map(f=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)"><div class="fg-fn">${f.f} <span class="fg-badge ${tmap[f.t]}">${lmap[f.t]}</span></div><div class="fg-desc">${f.d}</div></div>`).join('')}</div><div class="fg-card" style="background:color-mix(in srgb,var(--danger) 5%,var(--surface2))"><div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:6px">🚫 SKIP karo — module scope se bahar</div>${m.skip.map(f=>`<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding:2px 0">${f}</div>`).join('')}</div>`;
+}
+
+// ── TABS ──
+function sw(n){
+  const tabs=['tasks','sessions','prompts','files','rules'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabs[i]===n));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+n).classList.add('active');
+  if(n==='sessions')updateSessionsTab();
+}
+function cp(id){
+  const t=document.getElementById(id).textContent;
+  navigator.clipboard.writeText(t).then(()=>toast('📋 Clipboard mein copy ho gaya!')).catch(()=>toast('Select karo → Ctrl+C'));
+}
+function toast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');setTimeout(()=>t.classList.remove('show'),2800);}
+
+// ── OVERLAY CLOSE ON BACKDROP ──
+['lock-overlay','resume-overlay','dep-overlay','del-overlay','multi-overlay','router-overlay'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',e=>{if(e.target.id===id){e.target.classList.remove('open');if(id==='lock-overlay')curLock=null;if(id==='del-overlay')curDel=null;}});
+});
+
+// ── MULTI-SELECT ──
+function toggleTaskChk(tid,el){
+  if(el.checked)selectedTasks.add(tid);
+  else selectedTasks.delete(tid);
+  updateMultiBar();
+}
+function toggleAllChk(el){
+  document.querySelectorAll('.task-chk').forEach(c=>{
+    const tid=c.dataset.id;
+    if(el.checked)selectedTasks.add(tid);
+    else selectedTasks.delete(tid);
+    c.checked=el.checked;
+  });
+  updateMultiBar();
+}
+function clearMultiSelect(){
+  selectedTasks.clear();
+  document.querySelectorAll('.task-chk').forEach(c=>c.checked=false);
+  const ca=document.getElementById('chk-all');if(ca)ca.checked=false;
+  updateMultiBar();
+}
+function updateMultiBar(){
+  const bar=document.getElementById('multi-bar');
+  const cnt=selectedTasks.size;
+  document.getElementById('multi-count').textContent=cnt;
+  const ids=[...selectedTasks].slice(0,5).join(', ')+(selectedTasks.size>5?` +${selectedTasks.size-5} more`:'');
+  document.getElementById('multi-ids-preview').textContent=cnt>0?'[ '+ids+' ]':'';
+  bar.style.display=cnt>0?'flex':'none';
+}
+function openMultiPrompt(){
+  if(selectedTasks.size===0){toast('Pehle tasks select karo!',true);return;}
+  const tasks=[...selectedTasks].map(id=>TASKS.find(t=>t.id===id)).filter(Boolean);
+  // Group by worker
+  const byWorker={};
+  tasks.forEach(t=>{if(!byWorker[t.a])byWorker[t.a]=[];byWorker[t.a].push(t);});
+  const workerGroups=Object.keys(byWorker);
+  const isMixed=workerGroups.length>1;
+  let prompt='';
+  if(isMixed){
+    // Mixed workers — generate separate sections
+    prompt=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nWEALTHDASH — COMBINED MULTI-TASK SESSION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ MIXED WORKERS — ${workerGroups.join(' + ')}\nProject : WealthDash · PHP 8+, MySQL 8, Vanilla JS\nStack   : No framework · CSS variables · REST API\n\nTASKS (${tasks.length} total):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    workerGroups.forEach(wid=>{
+      const inf=IDS[wid]||{};
+      prompt+=`\n[${wid} — ${inf.email||''}] (${inf.mod||''})\n`;
+      byWorker[wid].forEach((t,i)=>{
+        prompt+=`  ${i+1}. ${t.id} — ${t.t} [${t.p.toUpperCase()}, ${t.e}]\n`;
+      });
+    });
+    prompt+=`\nRULES (STRICT):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. SIRF apne module ki files touch karo\n2. api/router.php — routes SIRF NOTE karo, merge NAHI\n3. Har task ke liye alag migration file banao\n4. defined('WEALTHDASH') or die(); — har PHP file\n5. Kaam ke baad HANDOFF SUMMARY do\n\nOUTPUT: Har task ke liye alag folder mein files do.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  } else {
+    // Same worker — clean combined prompt
+    const wid=workerGroups[0];
+    const inf=IDS[wid]||{};
+    const mk=wid.replace('ID-','');
+    const mf=MOD_FILES[mk];
+    prompt=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nWEALTHDASH — COMBINED SESSION (${tasks.length} Tasks)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nWorker  : ${wid} (${inf.email||''})\nModule  : ${inf.mod||''}\nProject : WealthDash · PHP 8+ · MySQL 8 · Vanilla JS\nStack   : No framework · CSS variables · REST API\n\nTASKS TO COMPLETE (is session mein sab):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    tasks.forEach((t,i)=>{
+      const deps=t.needs&&t.needs.length>0?` [needs: ${t.needs.join(', ')}]`:'';
+      prompt+=`${i+1}. [${t.id}] ${t.t}\n   Priority: ${t.p.toUpperCase()} · Effort: ${t.e}${deps}\n\n`;
+    });
+    if(mf){
+      prompt+=`FILES (module ke hisaab se):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      mf.provide.forEach(f=>prompt+=`✅ ${f.f}\n   ${f.d}\n`);
+      prompt+=`\n🚫 Skip: ${mf.skip.join(', ')}\n\n`;
+    }
+    prompt+=`RULES (STRICT — Todna mat):\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. SIRF ${wid} module files touch karo\n2. api/router.php — routes SIRF NOTE karo (Master merge karega)\n3. Har task ke liye: database/migrations/<taskid>_migration.sql\n4. defined('WEALTHDASH') or die(); — har PHP file\n5. Kaam ke baad COMBINED HANDOFF SUMMARY do — sab ${tasks.length} tasks ki\n\nOUTPUT FORMAT:\n━━━━━━━━━━━━━━\n→ Files chahiye — explanation NAHI\n→ Folder + filename ke saath COMPLETE files\n→ ZIP ready — direct copy-paste ke liye\n→ Pehle sab tasks pade — phir kaam shuru karo\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nZIP mein sirf ${wid} ke relevant files attach karo.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  }
+  document.getElementById('multi-prompt-box').textContent=prompt;
+  document.getElementById('multi-modal-sub').textContent=`${tasks.length} tasks · ${workerGroups.join(' + ')} · Copy karo → Claude mein paste karo + ZIP attach karo`;
+  document.getElementById('multi-overlay').classList.add('open');
+}
+function cpMulti(){navigator.clipboard.writeText(document.getElementById('multi-prompt-box').textContent).then(()=>toast('📋 Combined prompt copied!')).catch(()=>toast('Select → Ctrl+C'));}
+
+// ── ROUTER NOTES ──
+function generateRouterNote(){
+  const taskid=document.getElementById('rn-taskid').value.trim();
+  const worker=document.getElementById('rn-worker').value;
+  const routes=document.getElementById('rn-routes').value.trim();
+  const notes=document.getElementById('rn-notes').value.trim();
+  if(!taskid){toast('Task ID daalo pehle!',true);return;}
+  if(!routes){toast('Routes daalo!',true);return;}
+  const inf=IDS[worker]||{};
+  const task=TASKS.find(t=>t.id===taskid);
+  const now=new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  const content=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nROUTER NOTE — ${taskid.toUpperCase()}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nWorker  : ${worker} (${inf.email||''})\nTask    : ${taskid}${task?' — '+task.t:''}\nDate    : ${now}\n\nROUTES TO ADD IN api/router.php:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${routes}\n${notes?'\nNOTES:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'+notes+'\n':''}\n[Master: Yeh routes api/router.php mein merge karo]\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFile: router notes/${taskid}_router.txt\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  document.getElementById('rn-content').textContent=content;
+  document.getElementById('rn-preview-box').style.display='block';
+  toast('✅ Router note ready — Copy karo!');
+}
+function cpRouter(){navigator.clipboard.writeText(document.getElementById('rn-content').textContent).then(()=>toast('📋 Router note copied! Save karo: router notes/'+document.getElementById('rn-taskid').value.trim()+'_router.txt')).catch(()=>toast('Select → Ctrl+C'));}
+
+// ── PROMPTS ──
+const MP=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — MASTER COORDINATOR (v53)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID     : ID-M / mohit87jain87@gmail.com
+Role   : Master — Coordination, ZIP merge, Router
+Stack  : PHP 8+, MySQL 8, Vanilla JS, CSS Variables
+Status : v53 synced · Coordinator v7 · Parallel-safe
+
+WORKERS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ID-W1  rpsc2024programmer    → MF, SIP, XIRR, NAV, ETF
+ID-W2  mohitjain.doit1       → Crypto, Exchange, DeFi
+ID-W3  divya88jain88         → Stocks, ESOP, RSU, SGB, ETF
+ID-W4  coinmastergame1991    → Tax, Reports, LTCG, NPS, EPF, Goals
+ID-W5  mohittibbi01          → UI/UX, AI, Infra, Perf, Security
+
+MASTER KE KAAM:
+━━━━━━━━━━━━━━━
+1. Workers ki handoff receive karo
+2. api/router.php mein routes merge karo (workers sirf note karte hain)
+3. PHP project ZIP update karo
+4. Coordinator mein tasks Done mark karo + Unlock karo
+5. Admin, DB Backup, Security tasks handle karo
+6. Code review — P0/P1 tasks ke liye
+
+ROUTER NOTES WORKFLOW:
+━━━━━━━━━━━━━━━━━━━━━━
+→ Worker handoff aata hai → routes note hote hain
+→ Routes "router notes/<taskid>_router.txt" mein save karo
+→ phir Master id ke Claude se api/router.php mein merge karo
+→ Coordinator mein Router Notes button use karo
+
+GOLDEN RULES:
+━━━━━━━━━━━━━
+→ Worker HTML (coordinator) workers ko kabhi mat do
+→ Poori project ZIP workers ko nahi — sirf module files
+→ api/router.php SIRF Master merge kare
+→ Har task ke baad ZIP update karo aur backup lo
+→ router notes/ folder project ZIP mein HAMESHA rakho
+
+OUTPUT: Files chahiye — explanation NAHI.
+ZIP ready honi chahiye — direct copy-paste ke liye.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+const HP=`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — HANDOFF REPORT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Worker     : [ID-WX / email]
+Task ID    : [tXXX]
+Task Title : [full title]
+Status     : COMPLETE / PARTIAL
+
+FILES CREATED:
+  - 
+
+FILES MODIFIED:
+  - 
+
+ROUTES TO ADD IN api/router.php:
+  (Master yeh add karega — sirf note karo)
+  case 'action_name':
+      require APP_ROOT . '/api/path/file.php'; exit;
+
+DB MIGRATION FILE:
+  - database/migrations/tXXX_migration.sql
+  (Included in ZIP? YES / NO)
+
+TESTING DONE:
+  - [ ] API endpoints test kiye
+  - [ ] UI rendering check ki
+  - [ ] Edge cases handle kiye
+
+PENDING / ISSUES:
+  - 
+
+MASTER KE LIYE NOTES:
+  - 
+
+ZIP FILE:
+  - Filename: [worker_tXXX_date.zip]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Master: Coordinator mein Done karo, Unlock karo, ZIP mein merge karo]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+function gwp(wid){
+  const inf=IDS[wid];if(!inf)return'';
+  return`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — WORKER BRIEFING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Tum ho   : ${wid} (${inf.email})
+Module   : ${inf.mod}
+Stack    : PHP 8+, MySQL 8, Vanilla JS
+
+RULES (STRICT — TODNA NAHI):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SIRF apna module touch karo — dusre ki files NAHI
+2. api/router.php TOUCH NAHI karna — routes sirf handoff mein note karo (Master merge karega)
+3. Routes ko HANDOFF SUMMARY mein clearly likho — Master "router notes/" folder mein save karega
+4. Migration: database/migrations/<taskid>_migration.sql
+4. defined('WEALTHDASH') or die(); — har PHP file mein ZAROORI
+5. Kaam ke baad HANDOFF SUMMARY ZAROORI hai
+6. Dependency check karo — blocked task mat uthao
+
+OUTPUT FORMAT:
+━━━━━━━━━━━━━━
+→ Files chahiye — explanation NAHI
+→ Folder + filename ke saath COMPLETE files
+→ ZIP ready — direct copy-paste ke liye
+→ Koi bhi kaam "done" bolne se pehle test karo
+
+STRUCTURE:
+━━━━━━━━━━
+api/        → REST endpoints (sirf apne module ke)
+templates/  → PHP pages
+includes/   → auth_check.php HAMESHA include karo
+database/   → SQL + migrations
+public/css/ → CSS variables use karo (naye mat banao)
+
+IMPORTANT:
+  - coordinator_v7.html workers ko mat do
+  - Poori project ZIP mat do — sirf module files
+  - api/router.php mein touch mat karo
+
+Task briefing alag se copy karke do.
+ZIP mein sirf apne module ke relevant files attach karo.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+}
+
+// ── INIT ──
+document.getElementById('mp-box').textContent=MP;
+document.getElementById('hp-box').textContent=HP;
+function uwp(){document.getElementById('wp-box').textContent=gwp(document.getElementById('wsel').value);}
+uwp();
+showMod('M',document.querySelector('.mtab.active'));
+const savedTheme=localStorage.getItem('wd_theme')||'dark';
+document.body.setAttribute('data-theme',savedTheme);
+document.querySelectorAll('.tdot').forEach(d=>d.classList.toggle('active',d.title===savedTheme));
+document.getElementById('cur-date').textContent=new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+updateStats();rt();
+</script>
+</body>
+</html>

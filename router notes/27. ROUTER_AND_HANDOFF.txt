@@ -1,0 +1,324 @@
+========================================================
+ROUTER NOTES — ID-W5 Session 7 (16 Tasks)
+t358,t360,t371,t372,t382,t384,t385,t387,t389,t404,t443,t445,t446,t449,t452,t454
+========================================================
+
+── t358: Goal Notification Engine ──
+  csrfExempt: 'goal_notifications_list', 'goal_notifications_check'
+  case 'goal_notifications_check':
+  case 'goal_notifications_list':
+  case 'goal_notification_dismiss':
+      require APP_ROOT . '/api/goal_notifications.php'; exit;
+
+── t360: Life Events Calendar ──
+  csrfExempt: 'life_events_list'
+  case 'life_events_list':
+  case 'life_event_add':
+  case 'life_event_update':
+  case 'life_event_delete':
+      require APP_ROOT . '/api/life_events.php'; exit;
+
+── t371: Biometric Login (WebAuthn) ──
+  csrfExempt: 'webauthn_register_options','webauthn_login_options','webauthn_login_verify','webauthn_credentials_list'
+  case 'webauthn_register_options':
+  case 'webauthn_register_verify':
+  case 'webauthn_login_options':
+  case 'webauthn_login_verify':
+  case 'webauthn_credentials_list':
+  case 'webauthn_credential_delete':
+      require APP_ROOT . '/api/webauthn.php'; exit;
+  NOTE: webauthn_login_options/verify must be accessible WITHOUT login
+        (pre-auth routes) — add to public/no-auth route list in router.
+
+── t372: Swipe Gestures ──
+  No API route — pure JS file. Add script tag to layout.php (see below).
+
+── t382: AI Fund Research ──
+  csrfExempt: none (POST + rate limited)
+  case 'ai_fund_research':
+      require APP_ROOT . '/api/ai/fund_research.php'; exit;
+
+── t384: AI Anomaly Detector v2 ──
+  csrfExempt: 'ai_anomaly_v2_list'
+  case 'ai_anomaly_v2_scan':
+  case 'ai_anomaly_v2_list':
+  case 'ai_anomaly_v2_resolve':
+      require APP_ROOT . '/api/ai/anomaly_detector_v2.php'; exit;
+
+── t385: AI Goal Coach ──
+  csrfExempt: 'ai_goal_coach_nudges'
+  case 'ai_goal_coach_nudges':
+  case 'ai_goal_coach_dismiss':
+      require APP_ROOT . '/api/ai/goal_coach.php'; exit;
+
+── t387: Session Security ──
+  csrfExempt: 'sessions_list','session_current','session_touch'
+  case 'session_touch':
+  case 'sessions_list':
+  case 'session_current':
+  case 'session_revoke':
+  case 'session_revoke_all':
+      require APP_ROOT . '/api/security/sessions.php'; exit;
+
+── t389: GDPR Data Controls ──
+  csrfExempt: 'data_export_list','data_export_download','data_delete_status'
+  case 'data_export_request':
+  case 'data_export_list':
+  case 'data_export_download':
+  case 'data_delete_request':
+  case 'data_delete_status':
+  case 'data_delete_cancel':
+      require APP_ROOT . '/api/security/data_controls.php'; exit;
+  NOTE: data_export_download outputs raw file — must be called via direct
+        GET (not apiPost JSON wrapper). Exclude from json_response wrapper
+        if router auto-wraps responses.
+
+── t404: Smart Alerts v2 ──
+  csrfExempt: 'smart_alerts_list','smart_alerts_unread_count','smart_alert_settings_get'
+  case 'smart_alerts_check':
+  case 'smart_alerts_list':
+  case 'smart_alerts_unread_count':
+  case 'smart_alert_dismiss':
+  case 'smart_alert_settings_get':
+  case 'smart_alert_settings_save':
+      require APP_ROOT . '/api/alerts/smart_alerts.php'; exit;
+
+── t443: Morning Briefing ──
+  csrfExempt: 'morning_briefing_get'
+  case 'morning_briefing_get':
+      require APP_ROOT . '/api/dashboard/morning_briefing.php'; exit;
+
+── t445: Customizable Overview Cards ──
+  csrfExempt: 'overview_cards_get','overview_cards_data'
+  case 'overview_cards_get':
+  case 'overview_cards_save':
+  case 'overview_cards_reset':
+  case 'overview_cards_data':
+      require APP_ROOT . '/api/dashboard/overview_cards.php'; exit;
+
+── t446: Portfolio Health Heatmap ──
+  csrfExempt: 'portfolio_health_heatmap'
+  case 'portfolio_health_heatmap':
+      require APP_ROOT . '/api/portfolio/health_heatmap.php'; exit;
+
+── t449: Loading Skeletons ──
+  No API route — pure JS+CSS. Already wired via wd_js_url('skeletons.js') in layout.php.
+
+── t452: Empty States ──
+  No API route — pure JS+CSS. Already wired via wd_js_url('empty-states.js') in layout.php.
+
+── t454: Onboarding Setup Wizard ──
+  csrfExempt: 'setup_wizard_status'
+  case 'setup_wizard_status':
+  case 'setup_wizard_save_step':
+  case 'setup_wizard_complete':
+      require APP_ROOT . '/api/onboarding/setup_wizard.php'; exit;
+
+========================================================
+SIDEBAR NOTES (templates/sidebar.php):
+  'life_events'        => pages/life_events.php
+  'webauthn'           => pages/webauthn.php          (under Security)
+  'sessions'           => pages/security/sessions.php  (under Security)
+  'data_controls'      => pages/security/data_controls.php (under Security)
+  'ai_fund_research'    => pages/ai/fund_research.php
+  'ai_anomaly_v2'       => pages/ai/anomaly_detector_v2.php
+  'ai_goal_coach'       => pages/ai/goal_coach.php
+  'smart_alerts'        => pages/alerts/smart_alerts.php
+  'morning_briefing'    => pages/dashboard/morning_briefing.php
+  'overview_cards'      => pages/dashboard/overview_cards.php (Settings)
+  'portfolio_health'    => pages/portfolio/health_heatmap.php
+
+========================================================
+LAYOUT.PHP CHANGES REQUIRED:
+1. Add swipe gestures script (t372) — before </body>:
+     <script src="<?= wd_js_url('swipe_gestures.js') ?>"></script>
+
+2. Include setup wizard modal (t454) — near GLOBAL MODALS section:
+     <?php include APP_ROOT . '/templates/setup_wizard_modal.php'; ?>
+
+3. skeletons.js and empty-states.js (t449, t452) — ALREADY referenced
+   in layout.php (no change needed, just place the files).
+
+4. Optional CSS includes (t449, t452) — in <head> after app.css:
+     <link rel="stylesheet" href="<?= APP_URL ?>/public/css/skeletons.css">
+     <link rel="stylesheet" href="<?= APP_URL ?>/public/css/empty-states.css">
+
+5. .sidebar.open CSS class — t372 swipe_gestures.js calls openSidebar()/
+   closeSidebar(). If these functions don't exist in app.js, add:
+     function openSidebar(){document.getElementById('sidebar').classList.add('open');document.getElementById('sidebarOverlay').style.display='block';}
+     function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').style.display='none';}
+   And CSS: .sidebar.open{transform:translateX(0);}
+
+========================================================
+PRE-AUTH ROUTES (router.php — outside login check):
+  webauthn_login_options, webauthn_login_verify  (t371 — needed before login)
+
+========================================================
+OVERWRITE RULES:
+  ALL 16 tasks → NEW files, no overwrites of existing files.
+  (t330 chatbot.php was already overwritten in Session 6 — not touched here)
+========================================================
+
+MIGRATION ORDER:
+  1.  t358_migration.sql  → goal_notifications (depends on goals)
+  2.  t360_migration.sql  → life_events
+  3.  t371_migration.sql  → webauthn_credentials
+  4.  t372_migration.sql  → (none — JS only)
+  5.  t382_migration.sql  → (none)
+  6.  t384_migration.sql  → anomaly_log (safe if t246 already created it)
+  7.  t385_migration.sql  → ai_goal_coach_nudges (depends on tg005 goal_checkins)
+  8.  t387_migration.sql  → user_sessions
+  9.  t389_migration.sql  → data_export_requests, account_deletion_requests
+  10. t404_migration.sql  → smart_alerts, smart_alert_settings (depends on t122,t123)
+  11. t443_migration.sql  → morning_briefings (depends on t404)
+  12. t445_migration.sql  → overview_card_prefs (depends on t122,t123,tg005)
+  13. t446_migration.sql  → (none, may need first_purchase_date column)
+  14. t449_migration.sql  → (none — JS/CSS only)
+  15. t452_migration.sql  → (none — JS/CSS only)
+  16. t454_migration.sql  → ALTER user_onboarding + wizard columns (depends on t240)
+
+========================================================
+DEPENDENCY CHAIN (run earlier sessions' migrations first if not done):
+  t358 → goals, goal_checkins (tg005)
+  t385 → goals, goal_checkins (tg005), mf_sips
+  t404 → insurance_policies (t122), loans (t123), mf_holdings, mf_nav_latest
+  t443 → smart_alerts (t404), mf_holdings, mf_sips
+  t445 → insurance_policies (t122), loans (t123), goals, goal_checkins (tg005)
+  t454 → user_onboarding (t240), finance_profiles (ti001), goals
+========================================================
+
+========================================================
+COMBINED HANDOFF SUMMARY — ID-W5 Session 7 (16 Tasks)
+========================================================
+
+✅ t358 — Goal Notification Engine
+   api/goal_notifications.php + migration
+   DB: goal_notifications (milestone 10/25/50/75/90/100% + deadline alerts)
+   Notes: Run goal_notifications_check periodically (cron or on dashboard load).
+          Dedupe via unique key (user_id, goal_id, milestone_pct).
+
+✅ t360 — Life Events Calendar
+   api/life_events.php + pages/life_events.php + migration
+   DB: life_events (milestone/personal/career/family/goal types)
+   Notes: Vertical timeline UI with color-coded dots, upcoming events shown dashed.
+
+✅ t371 — Biometric Login (WebAuthn)
+   api/webauthn.php + pages/webauthn.php + migration
+   DB: webauthn_credentials
+   Notes: Pure PHP WebAuthn (no composer deps). rpId derived from APP_URL host.
+          Signature verification simplified for v1 — production should add
+          full CBOR decode + COSE key verify for attestation_object.
+          Register/login flows use navigator.credentials.create/get.
+
+✅ t372 — Swipe Gestures
+   public/js/swipe_gestures.js (JS only, no API/migration)
+   Notes: Edge-swipe-right opens sidebar, swipe-left closes it.
+          Pull-to-refresh on scroll-top. Card swipe actions via
+          data-swipe-actions="[{label,icon,color,onclick}]" attribute.
+          Add <script> tag to layout.php (see LAYOUT.PHP CHANGES above).
+          Requires openSidebar()/closeSidebar() functions + .sidebar.open CSS.
+
+✅ t382 — AI Fund Research (Natural Language Search)
+   api/ai/fund_research.php + pages/ai/fund_research.php
+   DB: none — searches mf_holdings by fund_name LIKE
+   Notes: Claude AI explains fund categories/comparisons in Hinglish.
+          Shows user's own matching holdings inline. Rule-based fallback
+          without API key (still shows own-holdings match).
+
+✅ t384 — AI Anomaly Detector v2
+   api/ai/anomaly_detector_v2.php + pages/ai/anomaly_detector_v2.php + migration
+   DB: anomaly_log (shared/extends t246's table)
+   Notes: 4 detection types: outlier_amount (Z-score), duplicate_txn,
+          sip_gap (>45 days no SIP execution), large_redemption (>50% of holding).
+          Persists findings with resolve/dismiss workflow + AI summary.
+
+✅ t385 — AI Goal Coach (Personalized Nudges)
+   api/ai/goal_coach.php + pages/ai/goal_coach.php + migration
+   DB: ai_goal_coach_nudges (daily cache per user)
+   Notes: 6 nudge types: checkin (30+ days no update), milestone_close,
+          behind (schedule variance), completed, stepup (April only),
+          setup (no goals). Top 5 shown, prioritized. Daily cache.
+
+✅ t387 — Session Security (Advanced Session Management)
+   api/security/sessions.php + pages/security/sessions.php + migration
+   DB: user_sessions
+   Notes: session_touch() should be called on every authenticated page load
+          (or login) to register/update session. Device parsed from User-Agent.
+          Revoke deletes PHP session file + DB record. IP masked in UI
+          (last octet hidden). Auto-cleanup sessions inactive >30 days.
+
+✅ t389 — GDPR-style Data Controls
+   api/security/data_controls.php + pages/security/data_controls.php + migration
+   DB: data_export_requests, account_deletion_requests
+   Notes: Export generates JSON file in storage/exports/ (MUST be non-web-
+          accessible, served only via data_export_download action).
+          7-day expiry on exports (auto-cleaned on next list call).
+          Account deletion has 14-day grace period, cancellable.
+          ⚠️ Actual data purge after 14 days needs a CRON JOB (not included —
+          add a scheduled task that processes account_deletion_requests
+          where status='pending' AND scheduled_for < NOW()).
+
+✅ t404 — Smart Alerts v2 (Context-Aware Notifications)
+   api/alerts/smart_alerts.php + pages/alerts/smart_alerts.php + migration
+   DB: smart_alerts, smart_alert_settings
+   Notes: Broader than t358 — covers SIP due (3d), insurance premium (30d),
+          loan EMI (5d), portfolio drawdown (>10%), large gains (>20%).
+          Dedup via dedup_key unique constraint. User-configurable toggles
+          per alert type in settings modal. Run smart_alerts_check via cron
+          or dashboard load.
+
+✅ t443 — Morning Briefing (Daily Market Digest)
+   api/dashboard/morning_briefing.php + pages/dashboard/morning_briefing.php + migration
+   DB: morning_briefings (1 per user per day cache)
+   Notes: Combines lightweight Nifty/Sensex fetch (Yahoo Finance, 5s timeout)
+          + portfolio snapshot + AI narrative (Claude or rule-based).
+          Greeting changes by time of day. Shows today's SIPs + unread alerts.
+
+✅ t445 — Customizable Overview Cards
+   api/dashboard/overview_cards.php + pages/dashboard/overview_cards.php + migration
+   DB: overview_card_prefs (max 6 cards, JSON array of card IDs)
+   Notes: 12 available card types (portfolio value, gain, SIP, goals,
+          insurance cover, loan outstanding, net worth, XIRR, etc.)
+          Exposes window.OverviewCards.renderInto('#selector') for embedding
+          in dashboard.php header. XIRR field is simplified (= gain_pct);
+          replace with tp002's lazy_xirr for accurate calc if needed.
+
+✅ t446 — Portfolio Health Heatmap
+   api/portfolio/health_heatmap.php + pages/portfolio/health_heatmap.php + migration
+   DB: none — reads mf_holdings, mf_sips, goals
+   Notes: DIFFERENT from t300 (which heatmaps individual fund returns).
+          This scores 6 DIMENSIONS (0-100): Diversification, Holdings Count,
+          SIP Health, Goal Alignment, Holding Period, Returns. Color-coded
+          tiles + category breakdown table. No mf_funds dependency.
+
+✅ t449 — Loading Skeletons
+   public/js/skeletons.js + public/css/skeletons.css (optional) + migration (none)
+   Notes: Already wired in layout.php via wd_js_url('skeletons.js').
+          API: WDSkeleton.show(selector,type,opts), .hide(), .wrap(selector,type,promise,renderFn).
+          Types: card, stat, table, list, chart, text. Auto-init via
+          data-skeleton="type" attribute on any element.
+
+✅ t452 — Empty States
+   public/js/empty-states.js + public/css/empty-states.css (optional) + migration (none)
+   Notes: Already wired in layout.php via wd_js_url('empty-states.js').
+          API: WDEmpty.render(selector, presetKey, opts), .renderCustom(), .renderIfEmpty().
+          13 presets: mf_holdings, mf_sips, goals, insurance, loans,
+          life_events, notifications, chat_history, anomalies, alerts,
+          search_results, error, offline, generic.
+          Extends existing .empty-state class used across t122/t123/t323 etc.
+
+✅ t454 — Onboarding Flow (New User Guided Setup Wizard)
+   api/onboarding/setup_wizard.php + pages/setup_wizard_modal.php + migration
+   DB: ALTERs user_onboarding (from t240) + wizard_completed, wizard_data columns
+   Notes: COMPLEMENTARY to t240 (not duplicate) — t240 is a dashboard
+          checklist page; t454 is a 4-STEP MODAL shown automatically on
+          first login (name confirm → theme → risk profile → first goal).
+          Include templates/setup_wizard_modal.php in layout.php. Auto-shows
+          via setup_wizard_status check on page load. Skippable.
+          Step 3 writes to finance_profiles.risk_profile; step 4 creates
+          a row in goals table directly.
+
+========================================================
+ALL AI FEATURES (t382,t384,t385,t443) work WITHOUT ANTHROPIC_API_KEY
+via rule-based fallbacks. Set in .env for enhanced AI responses.
+========================================================

@@ -1,0 +1,106 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — ID-M Router Notes (Session 4)
+Worker : mohit87jain87@gmail.com
+Tasks  : t411, t412, t414, t416, t418, t420
+File   : router notes/17. ROUTER_NOTES_IDM_s4.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+[t411 + t412] Test Suite & Performance Tests
+════════════════════════════════════════════════════════════
+
+No router changes needed.
+- debug/runner.php direct access (IS_LOCAL / ROLE_ADMIN guard)
+- debug/tests/*.php included by runner.php
+
+1. $csrfExempt[] mein ADD karo:
+    'test_run_list',
+
+2. switch ($action) mein ADD karo:
+
+    // ── t411 (ID-M): Test Runner ──────────────────────────────
+    case 'test_run_list':
+        require APP_ROOT . '/api/admin/test_runner_api.php'; exit;
+
+NOTE: test_runner_api.php optional hai — sirf test history
+      dekhne ke liye. Actual tests debug/runner.php se chalte hain.
+
+════════════════════════════════════════════════════════════
+[t414] Error Monitoring
+════════════════════════════════════════════════════════════
+
+1. config/config.php mein ADD karo (DB load ke baad):
+    require_once APP_ROOT . '/includes/error_monitor.php';
+    WDErrorMonitor::register();
+
+2. $csrfExempt[] mein ADD karo:
+    'err_list', 'err_types', 'err_trend',
+
+3. switch ($action) mein ADD karo:
+
+    // ── t414 (ID-M): Error Monitoring ────────────────────────
+    case 'err_list':
+    case 'err_resolve':
+    case 'err_unresolve':
+    case 'err_delete':
+    case 'err_purge_resolved':
+    case 'err_types':
+    case 'err_trend':
+    case 'err_capture':
+        require APP_ROOT . '/includes/error_monitor.php'; exit;
+
+════════════════════════════════════════════════════════════
+[t416] Dev Toolbar
+════════════════════════════════════════════════════════════
+
+No router changes needed.
+Add to templates/layout.php before </body>:
+
+    <?php if (IS_LOCAL) include APP_ROOT . '/includes/dev_toolbar.php'; ?>
+
+════════════════════════════════════════════════════════════
+[t418] API Documentation
+════════════════════════════════════════════════════════════
+
+No router changes needed.
+docs/API_REFERENCE.md — static Markdown file.
+
+════════════════════════════════════════════════════════════
+[t420] Deployment Guide & Docker
+════════════════════════════════════════════════════════════
+
+No router changes needed.
+Files: Dockerfile, docker-compose.yml, DEPLOY.md,
+       docker/php.ini, docker/apache.conf
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MIGRATION SEQUENCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. t411_migration.sql  ← test_run_log
+2. t412_migration.sql  ← perf_baselines
+3. t414_migration.sql  ← error_events
+4. t416_migration.sql  ← placeholder (no changes)
+5. t418_migration.sql  ← placeholder (no changes)
+6. t420_migration.sql  ← placeholder (no changes)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE OVERWRITE STATUS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+debug/runner.php                       → NEW FILE (overwrite)
+debug/tests/test_db.php                → NEW FILE (overwrite)
+debug/tests/test_api_responses.php     → NEW FILE (overwrite)
+debug/tests/test_api_files.php         → NEW FILE (overwrite)
+debug/tests/test_cron_health.php       → NEW FILE (overwrite)
+debug/tests/test_perf.php              → NEW FILE (overwrite)
+tests/unit/test_tax.php                → NEW FILE (overwrite)
+tests/integration/test_apis.php        → NEW FILE (overwrite)
+includes/error_monitor.php             → NEW FILE (overwrite)
+includes/dev_toolbar.php               → NEW FILE (overwrite)
+docs/API_REFERENCE.md                  → NEW FILE (overwrite)
+Dockerfile                             → NEW FILE (overwrite)
+docker-compose.yml                     → NEW FILE (overwrite)
+DEPLOY.md                              → NEW FILE (overwrite)
+docker/php.ini                         → NEW FILE (overwrite)
+docker/apache.conf                     → NEW FILE (overwrite)
+All t4xx_migration.sql files           → NEW FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

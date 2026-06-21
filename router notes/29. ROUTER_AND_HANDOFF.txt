@@ -1,0 +1,283 @@
+========================================================
+ROUTER NOTES — ID-W5 Session 9 (18 Tasks)
+t55,t58,t59,t60,t61,t89,t124,t150,t242,t350,t373,t378,t406,t451,t485,t488,t503,th001
+========================================================
+
+── t55: Dashboard Widget Customizer ──
+  csrfExempt: 'widget_layout_get','widget_data_get'
+  case 'widget_layout_get':
+  case 'widget_layout_save':
+  case 'widget_layout_reset':
+  case 'widget_data_get':
+      require APP_ROOT . '/api/dashboard/widget_customizer.php'; exit;
+
+── t58: AI Portfolio Advisor ──
+  csrfExempt: 'ai_advisor_action_plan'
+  case 'ai_advisor_full_review':
+  case 'ai_advisor_ask':
+  case 'ai_advisor_action_plan':
+      require APP_ROOT . '/api/ai/portfolio_advisor.php'; exit;
+
+── t59: AI Auto Categorization ──
+  csrfExempt: 'ai_categorize_transaction','ai_category_rules_list'
+  case 'ai_categorize_transaction':
+  case 'ai_categorize_bulk':
+  case 'ai_category_rules_list':
+  case 'ai_category_rule_add':
+  case 'ai_category_rule_delete':
+      require APP_ROOT . '/api/ai/auto_categorize.php'; exit;
+
+── t60: AI Anomaly Detection Base ──
+  ⚠️ Functionality already covered by t246 + t384. This file is
+  an action-name alias only.
+  case 'ai_anomaly_detect_base':
+      require APP_ROOT . '/api/ai/anomaly_base_redirect.php'; exit;
+
+── t61: AI Goal-based Planning ──
+  csrfExempt: 'ai_goal_plan_list','ai_goal_plan_optimize'
+  case 'ai_goal_plan_create':
+  case 'ai_goal_plan_list':
+  case 'ai_goal_plan_optimize':
+  case 'ai_goal_priority_simulate':
+      require APP_ROOT . '/api/ai/goal_planning.php'; exit;
+
+── t89: Keyboard Shortcuts ──
+  No API route — pure JS file.
+
+── t124: Real Estate / Rental Yield Calculator ──
+  csrfExempt: 'rental_yield_calculate' (stateless calculator)
+  case 'rental_yield_calculate':
+      require APP_ROOT . '/api/property/rental_yield_calculator.php'; exit;
+  NOTE: Core property CRUD already in t463 (api/property/property.php)
+
+── t150: DigiLocker / Documents ──
+  csrfExempt: 'doc_list','doc_categories','digilocker_connect_status'
+  case 'doc_categories':
+  case 'doc_list':
+  case 'doc_upload':
+  case 'doc_delete':
+  case 'digilocker_connect_status':
+  case 'digilocker_disconnect':
+      require APP_ROOT . '/api/documents/digilocker.php'; exit;
+  NOTE: doc_upload uses $_FILES — ensure router doesn't force JSON-only parsing
+
+── t242: Investor Streak & Milestones ──
+  csrfExempt: 'streak_status','milestones_list','badges_list'
+  case 'streak_status':
+  case 'streak_checkin':
+  case 'milestones_list':
+  case 'badges_list':
+      require APP_ROOT . '/api/gamification/streaks.php'; exit;
+
+── t350: Font Size Preference ──
+  csrfExempt: 'font_size_get'
+  case 'font_size_get':
+  case 'font_size_save':
+      require APP_ROOT . '/api/security/font_preference.php'; exit;
+
+── t373: Widget Mode ──
+  csrfExempt: 'widget_mode_render','widget_mode_list'
+  case 'widget_mode_render':
+  case 'widget_mode_list':
+      require APP_ROOT . '/api/dashboard/widget_mode.php'; exit;
+
+── t378: Report Sharing (WhatsApp/Email) ──
+  csrfExempt: 'share_whatsapp_link'
+  case 'share_whatsapp_link':
+  case 'share_email_send':
+  case 'share_pdf_link':
+      require APP_ROOT . '/api/sharing/report_share.php'; exit;
+
+── t406: Anonymous Benchmarking ──
+  csrfExempt: 'benchmark_status'
+  case 'benchmark_opt_in':
+  case 'benchmark_opt_out':
+  case 'benchmark_status':
+  case 'benchmark_compare':
+      require APP_ROOT . '/api/benchmarking/peer_compare.php'; exit;
+
+── t451: Micro-animations ──
+  No API route — pure CSS+JS files.
+
+── t485: Portfolio Treemap ──
+  csrfExempt: 'portfolio_treemap'
+  case 'portfolio_treemap':
+      require APP_ROOT . '/api/portfolio/treemap.php'; exit;
+
+── t488: Yield Curve ──
+  csrfExempt: 'yield_curve_get','yield_curve_compare_banks'
+  case 'yield_curve_get':
+  case 'yield_curve_compare_banks':
+  case 'yield_curve_save_rate':
+      require APP_ROOT . '/api/portfolio/yield_curve.php'; exit;
+
+── t503: Credit Card Optimizer ──
+  csrfExempt: 'cc_list','cc_optimize_spend','cc_interest_calculator'
+  case 'cc_list':
+  case 'cc_add':
+  case 'cc_update':
+  case 'cc_delete':
+  case 'cc_optimize_spend':
+  case 'cc_interest_calculator':
+      require APP_ROOT . '/api/budget/credit_card_optimizer.php'; exit;
+
+── th001: Daily Financial Journal ──
+  csrfExempt: 'journal_list','journal_search','journal_stats','journal_mood_chart'
+  case 'journal_list':
+  case 'journal_add':
+  case 'journal_update':
+  case 'journal_delete':
+  case 'journal_search':
+  case 'journal_stats':
+  case 'journal_mood_chart':
+      require APP_ROOT . '/api/journal/journal.php'; exit;
+
+========================================================
+SIDEBAR NOTES (templates/sidebar.php):
+  'widget_customizer'  => pages/dashboard/widget_customizer.php
+  'ai_portfolio_advisor'=> pages/ai/portfolio_advisor.php
+  'ai_auto_categorize' => pages/ai/auto_categorize.php
+  'ai_goal_planning'    => pages/ai/goal_planning.php
+  'rental_yield_calc'   => pages/property/rental_yield_calculator.php
+  'documents'           => pages/documents/digilocker.php
+  'achievements'        => pages/gamification/streaks.php
+  'widget_mode'         => pages/dashboard/widget_mode.php (no chrome — embeddable)
+  'benchmarking'        => pages/benchmarking/peer_compare.php
+  'portfolio_treemap'   => pages/portfolio/treemap.php
+  'yield_curve'         => pages/portfolio/yield_curve.php
+  'cc_optimizer'        => pages/budget/credit_card_optimizer.php
+  'journal'             => pages/journal/journal.php
+
+========================================================
+LAYOUT.PHP CHANGES REQUIRED:
+1. t89 Keyboard Shortcuts:
+     <script src="<?= wd_js_url('keyboard_shortcuts.js') ?>"></script>
+
+2. t350 Font Size:
+     <script src="<?= wd_js_url('font_size.js') ?>"></script>
+   Include widget in Settings/Accessibility page:
+     <?php include APP_ROOT . '/pages/settings/font_size_widget.php'; ?>
+
+3. t378 Report Sharing — include widget where sharing is needed (e.g. report_fy.php):
+     <?php include APP_ROOT . '/pages/sharing/share_widget.php'; ?>
+   Then trigger with: <button onclick="ShareWidget.open('fy_report')">Share</button>
+
+4. t451 Micro-animations:
+     <link rel="stylesheet" href="<?= APP_URL ?>/public/css/micro_animations.css">
+     <script src="<?= wd_js_url('micro_animations.js') ?>"></script>
+
+========================================================
+OVERWRITE RULES:
+  ALL 18 tasks → NEW files only, no overwrites.
+========================================================
+
+MIGRATION ORDER:
+  1.  t55_migration.sql   → dashboard_widget_layouts
+  2.  t58_migration.sql   → ai_advisor_sessions
+  3.  t59_migration.sql   → category_rules (depends t471)
+  4.  t60_migration.sql   → (none — uses t246/t384 tables)
+  5.  t61_migration.sql   → goal_plan_meta (depends tg005)
+  6.  t89_migration.sql   → (none — JS only)
+  7.  t124_migration.sql  → (none — calculator only, depends t463)
+  8.  t150_migration.sql  → user_documents, digilocker_connections
+  9.  t242_migration.sql  → investor_streaks, daily_checkins, user_badges
+  10. t350_migration.sql  → ALTER users (font_size)
+  11. t373_migration.sql  → (none, depends t242)
+  12. t378_migration.sql  → report_shares, report_share_tokens (depends t52)
+  13. t406_migration.sql  → benchmark_opt_ins, benchmark_snapshots (depends ti001, t471)
+  14. t451_migration.sql  → (none — CSS/JS only)
+  15. t485_migration.sql  → (none)
+  16. t488_migration.sql  → yield_curve_reference (seeded)
+  17. t503_migration.sql  → credit_cards
+  18. th001_migration.sql → journal_entries
+
+========================================================
+COMBINED HANDOFF SUMMARY — ID-W5 Session 9 (18 Tasks)
+========================================================
+
+✅ t55 — Dashboard Widget Customizer
+   19-widget registry, drag-drop layout, per-widget live data fetch.
+   Supersedes t297 with richer registry + size variants (sm/md/lg).
+
+✅ t58 — AI Portfolio Advisor (Full Assistant)
+   Master holistic review combining all portfolio dimensions into one
+   health-scored report + conversational follow-up Q&A. AI + rule-based modes.
+
+✅ t59 — AI Auto Categorization
+   Rule-based keyword matching (12 built-in categories, 50+ merchant
+   keywords) + AI fallback for ambiguous descriptions + custom user rules.
+   Bulk-categorizes uncategorized budget_actuals (t471).
+
+✅ t60 — AI Anomaly Detection Base
+   ⚠️ Functionality fully satisfied by t246 (Session 5) + t384 (Session 7).
+   Provided as thin alias file only — no new logic needed.
+
+✅ t61 — AI Goal-based Planning (Full Multi-Goal Planner)
+   Forward-looking SIP allocator: given monthly surplus, optimally splits
+   across goals by priority weight × urgency (1/months_left). Different
+   from t332 (status check) and t385 (daily nudges).
+
+✅ t89 — Keyboard Shortcuts
+   Gmail-style 2-key sequences (g+d, g+h, etc.) + single-key actions.
+   Press "?" for cheatsheet modal. Auto-disabled while typing in inputs.
+
+✅ t124 — Real Estate / Rental Yield Calculator
+   What-if calculator (not tied to saved properties): gross/net yield,
+   EMI, cash-on-cash return, 10-year projection chart.
+   Core property tracking already in t463 (this session).
+
+✅ t150 — DigiLocker Integration (Documents Vault)
+   Local secure document upload (PDF/JPG/PNG, 5MB max) with 12 standard
+   categories. DigiLocker OAuth placeholder (requires partner registration
+   — marked with TODO). Files stored outside web root.
+
+✅ t242 — Investor Streak & Milestones (Gamification)
+   SIP consecutive-month streak tracking, 6 wealth milestones (₹1L→₹1Cr),
+   14 badges (first_sip, streaks, diversified, lakh_club, etc.) auto-awarded.
+
+✅ t350 — Font Size Preference
+   4 sizes (small/medium/large/xlarge) via CSS custom property scaling.
+   LocalStorage hint for instant apply + server persistence.
+
+✅ t373 — Widget Mode (Compact Cards)
+   Standalone minimal-chrome page for embedding (iframe/extension popup).
+   5 mini-widgets: portfolio, SIP, top goal, market, streak. Auto-refresh 60s.
+
+✅ t378 — WhatsApp / Email Report Sharing
+   WhatsApp: wa.me deep link (no API key needed). Email: PHP mail() using
+   t52's SMTP settings. Reusable share_widget.php modal component.
+
+✅ t406 — Anonymous Benchmarking (Peer Comparison)
+   Privacy-first: opt-in only, NO PII stored, min 5-user cohort before
+   showing aggregates. Compares savings rate, returns, SIP%, diversification
+   by age-bracket + risk-profile cohort.
+
+✅ t451 — Micro-animations
+   Card fade-rise entrance (staggered), button press feedback, number
+   flash-on-change, modal/toast transitions, badge pop-in. Respects
+   prefers-reduced-motion. JS count-up helper for animated numbers.
+
+✅ t485 — Portfolio Treemap
+   Server-side squarified treemap layout algorithm (SVG rendering).
+   Group by category or individual fund. Different from t300 (return-
+   colored) and t446 (health-score) — this is pure VALUE-sized boxes.
+
+✅ t488 — Yield Curve (FD Rates Visualization)
+   7-point reference curve (3M-10Y), auto-detects curve shape (normal/
+   inverted/flat/humped). Plots user's own FDs against reference.
+   Standalone bank-rate comparison calculator (add multiple offers).
+
+✅ t503 — Credit Card Optimizer
+   Card CRUD + utilization tracking. Spend optimizer (which card for
+   category X). Interest cost calculator with debt-trap warning
+   (detects when payment doesn't cover interest).
+
+✅ th001 — Daily Financial Journal
+   Mood-tagged entries (7 moods with emoji), full-text search, tags,
+   related-action linking, journaling streak tracker, mood-over-time
+   data endpoint for charting.
+
+========================================================
+ALL AI FEATURES (t58,t59,t61) work WITHOUT ANTHROPIC_API_KEY via
+rule-based fallbacks. Set ANTHROPIC_API_KEY in .env for full AI.
+========================================================

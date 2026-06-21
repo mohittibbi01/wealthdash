@@ -1,0 +1,3 @@
+portfolio,fund_name,scheme_code,folio,platform,txn_type,txn_date,units,nav,notes
+My Portfolio,Axis Bluechip Fund - Direct Growth,120503,12345678/10,Zerodha,BUY,01-01-2024,100.000,45.2300,Monthly SIP
+My Portfolio,SBI Small Cap Fund - Direct Growth,125497,98765432/10,Groww,BUY,15-02-2024,50.000,120.5600,Lump sum

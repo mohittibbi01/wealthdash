@@ -1,0 +1,29 @@
+/* WealthDash — Number Formatting Styles | Task t347 */
+
+.wd-gain  { color: #16a34a !important; }
+.wd-loss  { color: #dc2626 !important; }
+.wd-neutral { color: #6b7280 !important; }
+
+/* Dark mode */
+[data-theme="dark"] .wd-gain    { color: #4ade80 !important; }
+[data-theme="dark"] .wd-loss    { color: #f87171 !important; }
+[data-theme="dark"] .wd-neutral { color: #9ca3af !important; }
+
+/* Tabular numbers for tables — prevents layout shift */
+.wd-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Compact badge — ₹1.5L style */
+.wd-compact {
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+/* Large headline figures */
+.wd-num-xl {
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

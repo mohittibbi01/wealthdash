@@ -1,0 +1,119 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTHDASH — ID-M Router Notes (Session 3)
+Worker : mohit87jain87@gmail.com
+Tasks  : t307, t308, t335, t336
+File   : router notes/16. ROUTER_NOTES_IDM_s3.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+════════════════════════════════════════════════════════════
+[t307] Audit Log
+════════════════════════════════════════════════════════════
+
+NOTE: router.php mein 'audit_log_list', 'audit_log_stats',
+      'audit_log_export' already exist (line ~905-908).
+      Un 3 cases ka path update karo:
+      OLD: require APP_ROOT . '/api/mutual_funds/audit_log.php';
+      NEW: require APP_ROOT . '/api/admin/audit_log.php';
+
+1. $csrfExempt[] mein ADD karo:
+    'al_list', 'al_stats', 'al_get', 'al_filters',
+    'al_retention_get',
+
+2. switch ($action) mein ADD karo (existing audit cases ke SAATH ya baad):
+
+    // ── t307 (ID-M): Audit Log ────────────────────────────────
+    case 'al_list':
+    case 'al_stats':
+    case 'al_get':
+    case 'al_export':
+    case 'al_purge':
+    case 'al_retention_save':
+    case 'al_retention_get':
+    case 'al_filters':
+        require APP_ROOT . '/api/admin/audit_log.php'; exit;
+
+════════════════════════════════════════════════════════════
+[t308] System Performance Monitor
+════════════════════════════════════════════════════════════
+
+1. $csrfExempt[] mein ADD karo:
+    'perf_live', 'perf_history', 'perf_slow_alerts',
+    'perf_percentiles', 'perf_actions',
+
+2. switch ($action) mein ADD karo:
+
+    // ── t308 (ID-M): Performance Monitor ─────────────────────
+    case 'perf_live':
+    case 'perf_history':
+    case 'perf_slow_alerts':
+    case 'perf_percentiles':
+    case 'perf_purge':
+    case 'perf_actions':
+        require APP_ROOT . '/api/admin/perf_monitor.php'; exit;
+
+════════════════════════════════════════════════════════════
+[t335] External API for Tools
+════════════════════════════════════════════════════════════
+
+NOTE: router.php mein 'api_keys_list' etc. already exist
+      (line ~1165-1170) — ye routes DIFFERENT hain (internal
+      key manager). t335 adds EXTERNAL access.
+
+1. $csrfExempt[] mein ADD karo:
+    'extapi_list', 'extapi_scopes', 'extapi_log',
+
+2. switch ($action) mein ADD karo:
+
+    // ── t335 (ID-M): External API Key Manager ─────────────────
+    case 'extapi_list':
+    case 'extapi_create':
+    case 'extapi_toggle':
+    case 'extapi_delete':
+    case 'extapi_regenerate':
+    case 'extapi_log':
+    case 'extapi_scopes':
+    case 'extapi_verify':
+        require APP_ROOT . '/api/external/api_key_manager.php'; exit;
+
+3. REST Gateway — DIRECT FILE (no router):
+   api/external/rest_gateway.php is accessed directly via URL.
+   .htaccess mein add karo (ya existing rewrite rules ke baad):
+   RewriteRule ^api/external/v1(.*)$ api/external/rest_gateway.php [QSA,L]
+
+════════════════════════════════════════════════════════════
+[t336] Data Versioning — Undo Import
+════════════════════════════════════════════════════════════
+
+1. $csrfExempt[] mein ADD karo:
+    'dv_list', 'dv_get', 'dv_stats',
+
+2. switch ($action) mein ADD karo:
+
+    // ── t336 (ID-M): Data Versioning / Undo Import ────────────
+    case 'dv_list':
+    case 'dv_get':
+    case 'dv_undo':
+    case 'dv_delete':
+    case 'dv_purge':
+    case 'dv_stats':
+        require APP_ROOT . '/api/admin/data_versioning.php'; exit;
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MIGRATION SEQUENCE (run in order):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. database/migrations/t307_migration.sql  ← audit_log ALTER + audit_retention_config
+2. database/migrations/t308_migration.sql  ← perf_request_log + perf_hourly_stats + perf_slow_alerts
+3. database/migrations/t335_migration.sql  ← external_api_keys + external_api_rate + external_api_log
+4. database/migrations/t336_migration.sql  ← import_versions + import_row_changes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE OVERWRITE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+api/admin/audit_log.php         → NEW FILE (overwrite)
+api/admin/perf_monitor.php      → NEW FILE (overwrite)
+api/external/api_key_manager.php→ NEW FILE (overwrite)
+api/external/rest_gateway.php   → NEW FILE (overwrite)
+api/admin/data_versioning.php   → NEW FILE (overwrite)
+All migration .sql files        → NEW FILES
+api/router.php                  → SIRF NOTES (Master merge karega)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

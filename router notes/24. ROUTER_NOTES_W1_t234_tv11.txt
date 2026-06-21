@@ -1,0 +1,58 @@
+════════════════════════════════════════════════════════════════════
+ROUTER NOTES — ID-W1 Session (t234 + tv11)
+Worker: ID-W1 · rpsc2024programmer@gmail.com
+════════════════════════════════════════════════════════════════════
+
+ADD these routes to api/router.php (DO NOT touch existing routes):
+
+── t234: SIP vs Lumpsum Backtest ────────────────────────────────────
+
+In the GET actions whitelist array, add:
+    'sip_lumpsum_backtest',
+    'sip_lumpsum_backtest_rolling',
+    'sip_lumpsum_best_entry',
+    'sip_lumpsum_summary',
+
+In the switch($action) block, add:
+    case 'sip_lumpsum_backtest':
+        $_GET['action'] = 'backtest';
+        require APP_ROOT . '/api/mutual_funds/sip_lumpsum_backtest.php'; exit;
+    case 'sip_lumpsum_backtest_rolling':
+        $_GET['action'] = 'rolling_backtest';
+        require APP_ROOT . '/api/mutual_funds/sip_lumpsum_backtest.php'; exit;
+    case 'sip_lumpsum_best_entry':
+        $_GET['action'] = 'best_entry';
+        require APP_ROOT . '/api/mutual_funds/sip_lumpsum_backtest.php'; exit;
+    case 'sip_lumpsum_summary':
+        $_GET['action'] = 'summary';
+        require APP_ROOT . '/api/mutual_funds/sip_lumpsum_backtest.php'; exit;
+
+── tv11: Benchmark Comparison ────────────────────────────────────────
+(Already exists in router — fund_benchmark.php handles benchmark_compare,
+benchmark_alpha, benchmark_defaults, benchmark_assign, benchmark_bulk_assign)
+
+No new router entries needed for tv11.
+The mf_benchmark.php page calls existing benchmark_compare + benchmark_alpha routes.
+
+════════════════════════════════════════════════════════════════════
+FILES DELIVERED
+════════════════════════════════════════════════════════════════════
+
+api/mutual_funds/sip_lumpsum_backtest.php       ← t234 API (NEW)
+api/mutual_funds/fund_benchmark.php             ← tv11 API (OVERWRITE — already in upload)
+templates/pages/mf_sip_backtest.php             ← t234 Page (NEW)
+templates/pages/mf_benchmark.php                ← tv11 Page (NEW)
+public/js/mf_sip_vs_lumpsum.js                  ← t234 JS (OVERWRITE existing stub)
+public/js/mf_benchmark.js                       ← tv11 JS (NEW)
+database/migrations/t234_migration.sql          ← t234 DB
+database/migrations/tv11_migration.sql          ← tv11 DB
+
+════════════════════════════════════════════════════════════════════
+OVERWRITE POLICY
+════════════════════════════════════════════════════════════════════
+- public/js/mf_sip_vs_lumpsum.js  → OVERWRITE (was empty stub per project list)
+- api/mutual_funds/fund_benchmark.php → DO NOT OVERWRITE if already deployed
+  (tv11 API was in mutual_funds.zip already — page + JS are new additions only)
+- All other files are NEW — safe to copy directly.
+
+════════════════════════════════════════════════════════════════════

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WealthDash — Router Merge Audit · 20 June 2026</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#11151d; --panel2:#161b25; --line:#222937;
+    --text:#e6e9ef; --text-dim:#8993a8; --text-faint:#5c6479;
+    --accent:#ff8a3d; --accent-dim:#ff8a3d33;
+    --ok:#3ddc97; --warn:#ffcc4d; --crit:#ff5c7a; --info:#4dabf7;
+    --mono: 'SF Mono','JetBrains Mono','Consolas',monospace;
+    --sans: 'Inter','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    line-height:1.55; padding:0 0 80px;
+  }
+  ::selection{background:var(--accent-dim)}
+
+  /* ── Top bar ── */
+  .topbar{
+    position:sticky; top:0; z-index:50;
+    background:rgba(11,14,20,0.92); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+    padding:14px 28px; display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap;
+  }
+  .topbar .brand{display:flex; align-items:center; gap:10px}
+  .topbar .dot{width:9px;height:9px;border-radius:50%;background:var(--crit);box-shadow:0 0 10px var(--crit)}
+  .topbar .brand b{font-size:15px; letter-spacing:0.3px}
+  .topbar .brand span{color:var(--text-faint); font-size:12px; font-family:var(--mono)}
+  .topbar .meta{font-family:var(--mono); font-size:12px; color:var(--text-dim)}
+
+  /* ── Hero ── */
+  .hero{
+    max-width:1080px; margin:0 auto; padding:56px 28px 24px;
+  }
+  .hero .eyebrow{
+    font-family:var(--mono); font-size:12px; color:var(--accent);
+    letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px;
+  }
+  .hero h1{
+    font-size:clamp(28px,4vw,42px); font-weight:700; letter-spacing:-0.5px;
+    margin-bottom:18px; max-width:820px;
+  }
+  .hero h1 em{font-style:normal; color:var(--accent)}
+  .hero p.lede{
+    font-size:16px; color:var(--text-dim); max-width:680px; margin-bottom:8px;
+  }
+  .hero .timeline{
+    display:flex; align-items:center; gap:14px; margin-top:28px;
+    font-family:var(--mono); font-size:13px;
+  }
+  .timeline .pt{
+    display:flex; flex-direction:column; gap:3px; padding:10px 16px;
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+  }
+  .timeline .pt .lbl{color:var(--text-faint); font-size:11px}
+  .timeline .pt .val{color:var(--text)}
+  .timeline .pt.bad .val{color:var(--crit)}
+  .timeline .pt.now .val{color:var(--ok)}
+  .timeline .arrow{color:var(--text-faint); font-size:18px}
+
+  /* ── Stat grid ── */
+  .stats{
+    max-width:1080px; margin:36px auto 0; padding:0 28px;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:14px;
+  }
+  @media(max-width:760px){ .stats{grid-template-columns:repeat(2,1fr)} }
+  .stat{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px 18px;
+  }
+  .stat .n{font-family:var(--mono); font-size:30px; font-weight:700; color:var(--accent)}
+  .stat .n.ok{color:var(--ok)}
+  .stat .n.warn{color:var(--warn)}
+  .stat .lbl{font-size:12.5px; color:var(--text-dim); margin-top:6px}
+
+  /* ── Section ── */
+  .section{max-width:1080px; margin:64px auto 0; padding:0 28px}
+  .section-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px; flex-wrap:wrap}
+  .section-head .num{font-family:var(--mono); color:var(--text-faint); font-size:13px}
+  .section-head h2{font-size:22px; font-weight:700}
+  .section-sub{color:var(--text-dim); font-size:14.5px; max-width:720px; margin-bottom:26px}
+
+  /* ── Finding callout ── */
+  .callout{
+    background:linear-gradient(135deg,#1a1410,#161b25);
+    border:1px solid #3d2a1a; border-left:3px solid var(--accent);
+    border-radius:10px; padding:20px 22px; margin-bottom:28px;
+  }
+  .callout .tag{
+    font-family:var(--mono); font-size:11px; color:var(--accent);
+    text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;
+  }
+  .callout p{color:var(--text); font-size:14.5px}
+  .callout p + p{margin-top:8px}
+  .callout code{font-family:var(--mono); background:#000a; padding:1px 6px; border-radius:4px; font-size:13px; color:var(--warn)}
+
+  /* ── Category cards ── */
+  .cat-block{margin-bottom:34px}
+  .cat-title{
+    display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  }
+  .cat-title h3{font-size:15.5px; font-weight:600; color:var(--text)}
+  .cat-title .count{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-faint);
+    background:var(--panel2); border:1px solid var(--line); border-radius:20px;
+    padding:2px 10px;
+  }
+  .task-grid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:10px;
+  }
+  .task-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:9px;
+    padding:13px 15px; position:relative; transition:border-color .15s;
+  }
+  .task-card:hover{border-color:#3a4358}
+  .task-card .row1{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:5px}
+  .task-card .tid{font-family:var(--mono); font-size:12.5px; color:var(--accent); font-weight:600}
+  .task-card .acount{font-family:var(--mono); font-size:11px; color:var(--text-faint)}
+  .task-card .ttitle{font-size:13px; color:var(--text-dim); line-height:1.4}
+  .flag{
+    display:inline-block; margin-top:8px; font-family:var(--mono); font-size:10.5px;
+    padding:2px 8px; border-radius:5px; letter-spacing:0.3px;
+  }
+  .flag.duplicate-build{background:#3d1f1f; color:var(--crit)}
+  .flag.naming-collision{background:#3d3119; color:var(--warn)}
+  .flag.redirect-needed{background:#1a2e3d; color:var(--info)}
+  .flag.file-missing{background:#3d1f1f; color:var(--crit)}
+  .flag.special-routing{background:#1a2e3d; color:var(--info)}
+
+  /* ── REST orphan section ── */
+  .orphan-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px}
+  .orphan-card{
+    background:var(--panel); border:1px solid #3d2a1a; border-radius:9px; padding:13px 15px;
+  }
+  .orphan-card .tid{font-family:var(--mono); font-size:12.5px; color:var(--warn); font-weight:600}
+  .orphan-card .ttitle{font-size:13px; color:var(--text-dim); margin-top:4px}
+  .orphan-card .file{font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-top:6px}
+
+  /* ── Recommendation list ── */
+  .reco{
+    display:flex; gap:16px; padding:18px 0; border-bottom:1px solid var(--line);
+  }
+  .reco:last-child{border-bottom:none}
+  .reco .priority{
+    font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.5px;
+    padding:4px 10px; border-radius:6px; height:fit-content; white-space:nowrap;
+  }
+  .reco .priority.p0{background:#3d1f1f; color:var(--crit)}
+  .reco .priority.p1{background:#3d3119; color:var(--warn)}
+  .reco .priority.p2{background:#1a2e3d; color:var(--info)}
+  .reco .body h4{font-size:14.5px; font-weight:600; margin-bottom:5px}
+  .reco .body p{font-size:13.5px; color:var(--text-dim)}
+  .reco .body code{font-family:var(--mono); background:#000a; padding:1px 6px; border-radius:4px; font-size:12.5px; color:var(--accent)}
+
+  /* ── Code block ── */
+  .codebox{
+    background:#070a0f; border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px; font-family:var(--mono); font-size:12.5px;
+    overflow-x:auto; color:#a8b3c7; line-height:1.7;
+  }
+  .codebox .c1{color:var(--text-faint)}
+  .codebox .c2{color:var(--accent)}
+  .codebox .c3{color:var(--ok)}
+
+  /* ── Footer ── */
+  .footer{
+    max-width:1080px; margin:70px auto 0; padding:24px 28px 0;
+    border-top:1px solid var(--line); color:var(--text-faint); font-size:12.5px;
+    font-family:var(--mono);
+  }
+
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <b>WealthDash</b>
+    <span>/ router merge audit</span>
+  </div>
+  <div class="meta">generated 20 Jun 2026 · zip: wd_20-06-2026</div>
+</div>
+
+<div class="hero">
+  <div class="eyebrow">Router Analysis · api/router.php</div>
+  <h1>router.php पिछले <em>5 हफ्तों</em> से merge नहीं हुआ — 90 tasks wiring के इंतज़ार में</h1>
+  <p class="lede">
+    Backend code पूरा बना हुआ है। हर task की PHP file (एक को छोड़कर) disk पर मौजूद है।
+    Gap सिर्फ इतना है — router.php में case-statement paste नहीं हुआ, इसलिए ये features
+    abhi live नहीं हैं।
+  </p>
+  <div class="timeline">
+    <div class="pt bad">
+      <span class="lbl">router.php last merge</span>
+      <span class="val">14 May 2026</span>
+    </div>
+    <span class="arrow">→</span>
+    <div class="pt">
+      <span class="lbl">router notes (kaam ka record)</span>
+      <span class="val">20 Jun 2026 tak</span>
+    </div>
+    <span class="arrow">→</span>
+    <div class="pt now">
+      <span class="lbl">gap</span>
+      <span class="val">~5–6 hafte</span>
+    </div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">90</div><div class="lbl">Pending tasks (router mein missing)</div></div>
+  <div class="stat"><div class="n">336</div><div class="lbl">Missing action-names (case-statements)</div></div>
+  <div class="stat ok"><div class="n">79/80</div><div class="lbl">Tasks jinki backend file already ban chuki hai</div></div>
+  <div class="stat warn"><div class="n">5</div><div class="lbl">Conflicts / duplicate builds mile</div></div>
+</div>
+
+<!-- ════════ SECTION: KEY FINDING ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">01</span><h2>Sabse zaroori baat</h2></div>
+  <p class="section-sub">router.php ka file-date aur router-notes ka latest entry compare karne par ye gap saaf dikha.</p>
+
+  <div class="callout">
+    <div class="tag">Root cause</div>
+    <p><b>api/router.php</b> file system par <b>14 May 2026</b> ko last save hui thi. Lekin <b>router notes/</b> folder mein 29 files hain jisme sessions <b>20 June 2026 (aaj)</b> tak documented hain — yani roughly <b>5–6 hafton ka kaam</b> kabhi router mein paste hi nahi hua.</p>
+    <p>Maine har task ke documented <code>case 'action_name':</code> ko actual <code>api/router.php</code> ke against check kiya — <b>90 tasks</b> mein se ek bhi case missing nahi hai jiski backend file disk par na ho (sirf t411 exception hai, neeche dekho).</p>
+  </div>
+
+  <div class="callout" style="border-left-color:var(--info)">
+    <div class="tag" style="color:var(--info)">Doosra gap</div>
+    <p><b>templates/sidebar.php</b> mein bhi yahi pattern hai — in 90 tasks mein se koi bhi sidebar navigation mein link nahi hai. Router merge ke saath-saath sidebar entries bhi add karni hongi, warna page banne ke baad bhi user usse pahunch nahi payega.</p>
+  </div>
+</div>
+
+<!-- ════════ SECTION: PENDING TASKS BY CATEGORY ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">02</span><h2>Pending Tasks — Category-wise (80)</h2></div>
+  <p class="section-sub">Ye 80 tasks standard <code>action=xxx</code> switch-case pattern follow karte hain — seedha case-block paste karke merge ho sakte hain. Red/yellow/blue flag wale tasks ko pehle "Conflicts" section padh lena.</p>
+
+  <div id="categoryContainer"></div>
+</div>
+
+<!-- ════════ SECTION: REST-STYLE ORPHANS ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">03</span><h2>10 Orphan Tasks — REST-style, router se incompatible</h2></div>
+  <p class="section-sub">
+    Worker <b>ID-W3</b> ne ye 10 tasks <code>GET /api/gold/{id}</code> jaise REST-path convention mein banaye —
+    jabki poora router <code>?action=xxx</code> query-param pattern use karta hai. Ye seedhe case-block paste se merge nahi honge.
+  </p>
+  <div class="callout">
+    <div class="tag">Pattern mismatch</div>
+    <p>Ye files PHP <b>classes</b> hain (<code>GoldTracker</code>, <code>BondsTracker</code>, etc.) jinke methods <code>getHoldings()</code>, <code>addHolding($id)</code> style mein hain — switch-case se direct nahi judte.</p>
+  </div>
+  <div class="orphan-grid" id="orphanContainer"></div>
+</div>
+
+<!-- ════════ SECTION: CONFLICTS ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">04</span><h2>Conflicts — Merge se pehle decide karna hai</h2></div>
+  <p class="section-sub">5 jagah do alag sessions ne ek hi task do baar bana diya, ya naming collision ho gaya. Disk par dono versions maujood hain.</p>
+
+  <div class="reco">
+    <span class="priority p0">P0</span>
+    <div class="body">
+      <h4>t50 + t52 — Multi-user Management aur Global Settings do baar bane</h4>
+      <p>
+        Purana (Session 4): <code>api/admin/users.php</code> + <code>api/admin/settings.php</code> — simple, audit logging nahi.<br>
+        Naya (ID-M Session 2): <code>api/admin/multi_user.php</code> + <code>api/admin/global_settings.php</code> — audit_log integration, require_auth() ke saath, zyada complete.<br>
+        <b>Recommendation:</b> naya version use karo, purana archive/delete kar do taaki future mein confusion na ho.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p0">P0</span>
+    <div class="body">
+      <h4>t42 — Crypto Tax Calculator do baar bana</h4>
+      <p>
+        Purana (14 May): <code>api/crypto/crypto_tax_calc.php</code> — actions: <code>crypto_tax_calc</code>, <code>crypto_tax_report</code>.<br>
+        Naya (3 Jun): <code>api/crypto/tax_calculator.php</code> — actions: <code>crypto_tax_calculate</code>, <code>crypto_tax_save</code>, etc.<br>
+        File content check karke confirm hua — naya wala hi sahi implementation hai. Merge file isi ko use karti hai.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p1">P1</span>
+    <div class="body">
+      <h4>t330 — AI Chatbot ke action-names t381 se takra rahe hain</h4>
+      <p>
+        <code>ai_chat_history</code> aur <code>ai_chat_sessions</code> dono tasks (t330 aur already-live t381) mein use hue hain.
+        Merge file mein t330 ke naam <code>ai_chatbot_history</code> / <code>ai_chatbot_sessions</code> kar diye hain —
+        <code>pages/ai/chatbot.php</code> ki frontend JS bhi isi hisaab se update karni hogi.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p1">P1</span>
+    <div class="body">
+      <h4>t307 — Audit Log ke 3 case pehle se router mein hain, par galat file pe point karte hain</h4>
+      <p>
+        router.php line ~905-908 par <code>audit_log_list/stats/export</code> already exist karte hain, lekin
+        <code>api/mutual_funds/audit_log.php</code> ko require karte hain — jabki sahi file <code>api/admin/audit_log.php</code> hai.
+        Naye cases add karne ke bajaye in 3 existing lines ko repoint karna hai.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p2">P2</span>
+    <div class="body">
+      <h4>t411 — Test Runner ki backend file abhi tak bani hi nahi</h4>
+      <p>
+        Saare 90 tasks mein sirf yahi ek exception hai jahan <code>api/admin/test_runner_api.php</code>
+        disk par exist nahi karti (note mein ye "optional" maarka hua tha). Pehle file banao, phir merge karo —
+        ya filhal skip kar do, kyunki actual tests <code>debug/runner.php</code> se already chalte hain.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SECTION: RECOMMENDATIONS ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">05</span><h2>Recommendations</h2></div>
+
+  <div class="reco">
+    <span class="priority p0">P0</span>
+    <div class="body">
+      <h4>Pehle ek bulk router-merge session karo</h4>
+      <p>
+        Saath diye gaye <code>router_merge_pending_tasks.php</code> file mein 80 tasks ke saare case-blocks
+        category-wise ready-to-paste hain, including CSRF-exempt additions. Ye ek hi sitting mein 79 tasks live kar sakta hai
+        (t411 chhodke). Migration SQL files <code>database/migrations/</code> mein already maujood hain jahan zaroori hai.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p1">P1</span>
+    <div class="body">
+      <h4>sidebar.php ko bhi saath mein update karo</h4>
+      <p>
+        Sirf router merge karne se features "callable" ho jayenge, par sidebar mein link na hone ki wajah se user unhe dhoond nahi payega.
+        Har router-note file mein "SIDEBAR NOTES" section already diya hai — wahi entries copy-paste kar do.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p1">P1</span>
+    <div class="body">
+      <h4>10 REST-style orphan tasks ke liye alag decision lo</h4>
+      <p>
+        Ya to inhe <code>action=xxx</code> pattern mein rewrite karo (consistency ke liye best), ya router.php ke top par
+        ek chhota REST dispatcher block add karo jo <code>$_SERVER['REQUEST_METHOD']</code> aur URL path dekh kar
+        in classes ko route kare. Pehla option safer hai kyunki baaki poora system ek hi convention follow karta hai.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p2">P2</span>
+    <div class="body">
+      <h4>Duplicate/dead files clean up karo</h4>
+      <p>
+        <code>api/admin/users.php</code>, <code>api/admin/settings.php</code>, <code>api/crypto/crypto_tax_calc.php</code>
+        (purane duplicate versions), aur <code>api/govt_schemes/epf.php</code>, <code>api/integrations/epfo.php</code>
+        (abandoned stubs, sirf "Not yet implemented" return karte hain) — inhe ya to delete karo ya
+        <code>/archive</code> folder mein move kar do.
+      </p>
+    </div>
+  </div>
+
+  <div class="reco">
+    <span class="priority p2">P2</span>
+    <div class="body">
+      <h4>Future sessions ke liye: router merge ko same-session mein hi kar lena</h4>
+      <p>
+        Pattern dikhta hai ki worker apna code complete karke "router notes" file chhod deta hai, par master
+        merge step kabhi nahi hota agle session tak — aur phir wahi backlog hota rehta hai. Ek chhota
+        checklist step add karo: "task complete → turant router.php mein paste karo" — taaki backlog dobara na bane.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SECTION: HOW TO USE MERGE FILE ════════ -->
+<div class="section">
+  <div class="section-head"><span class="num">06</span><h2>Merge file kaise use karein</h2></div>
+  <p class="section-sub">Saath diya gaya <code>router_merge_pending_tasks.php</code> seedha copy-paste ke liye ready hai.</p>
+
+  <div class="codebox">
+<span class="c1">// STEP 1</span> — $csrfExempt[] array mein naye read-only action names add karo
+<span class="c1">// STEP 2</span> — switch ($action) { ... } ke andar, <span class="c2">default:</span> case se PEHLE
+<span class="c1">//          category-wise case-blocks paste karo</span>
+<span class="c1">// STEP 3</span> — database/migrations/*.sql run karo jo applicable hain
+<span class="c1">// STEP 4</span> — templates/sidebar.php mein matching entries add karo
+<span class="c1">// STEP 5</span> — t50/t52/t42/t330/t307/t371/t411 ke special notes file ke top par padho
+  </div>
+</div>
+
+<div class="footer">
+  WealthDash Router Audit · generated from wd_20-06-2026.zip · 29 router-notes files cross-referenced against api/router.php
+</div>
+
+<script>
+const DATA = {"generated": "20 June 2026", "router_file_date": "14 May 2026", "total_pending": 90, "total_standard": 80, "total_restyle": 10, "total_actions": 336, "categories": [{"name": "Admin / Infra (ID-M)", "tasks": [{"id": "t43", "title": "Bank Accounts Tracker", "action_count": 12, "files": ["/api/banks/banks.php"], "flag": null}, {"id": "t50", "title": "Multi-user Management (ID-M v2 — use this, NOT the older admin_* version)", "action_count": 12, "files": ["/api/admin/multi_user.php"], "flag": "duplicate-build"}, {"id": "t51", "title": "System Health Dashboard", "action_count": 5, "files": ["/api/admin/system_health.php"], "flag": null}, {"id": "t52", "title": "Global Settings Control (ID-M v2 — use this, NOT the older admin_* version)", "action_count": 8, "files": ["/api/admin/global_settings.php"], "flag": "duplicate-build"}, {"id": "t53", "title": "DB Manager", "action_count": 12, "files": ["/api/admin/db_manager.php"], "flag": null}, {"id": "t307", "title": "Audit Log (⚠ also UPDATE 3 existing cases — see note)", "action_count": 8, "files": ["/api/admin/audit_log.php", "/api/mutual_funds/audit_log.php"], "flag": "redirect-needed"}, {"id": "t308", "title": "System Performance Monitor", "action_count": 6, "files": ["/api/admin/perf_monitor.php"], "flag": null}, {"id": "t335", "title": "External API for Tools", "action_count": 8, "files": ["/api/external/api_key_manager.php"], "flag": null}, {"id": "t336", "title": "Data Versioning — Undo Import", "action_count": 6, "files": ["/api/admin/data_versioning.php"], "flag": null}, {"id": "t411", "title": "Test Runner (OPTIONAL — backend file not yet built)", "action_count": 1, "files": ["/api/admin/test_runner_api.php"], "flag": "file-missing"}, {"id": "t414", "title": "Error Monitoring", "action_count": 8, "files": ["/includes/error_monitor.php"], "flag": null}, {"id": "t415", "title": "Load Testing", "action_count": 1, "files": [], "flag": null}]}, {"name": "AI Features", "tasks": [{"id": "t58", "title": "AI Portfolio Advisor", "action_count": 3, "files": ["/api/ai/portfolio_advisor.php"], "flag": null}, {"id": "t59", "title": "AI Auto Categorization", "action_count": 5, "files": ["/api/ai/auto_categorize.php"], "flag": null}, {"id": "t60", "title": "AI Anomaly Detection Base", "action_count": 1, "files": ["/api/ai/anomaly_base_redirect.php"], "flag": null}, {"id": "t61", "title": "AI Goal-based Planning", "action_count": 4, "files": ["/api/ai/goal_planning.php"], "flag": null}, {"id": "t243", "title": "AI Fund Recommendation", "action_count": 1, "files": ["/api/ai/fund_recommend.php"], "flag": null}, {"id": "t244", "title": "AI Portfolio Narrative", "action_count": 1, "files": ["/api/ai/portfolio_narrative.php"], "flag": null}, {"id": "t246", "title": "AI Anomaly Detector", "action_count": 1, "files": ["/api/ai/anomaly_detector.php"], "flag": null}, {"id": "t329", "title": "AI Weekly Digest", "action_count": 2, "files": ["/api/ai/weekly_digest.php"], "flag": null}, {"id": "t330", "title": "AI Chatbot (action names renamed — collide with t381)", "action_count": 3, "files": ["/api/ai/chatbot.php"], "flag": "naming-collision"}, {"id": "t331", "title": "AI SIP Optimizer", "action_count": 1, "files": ["/api/ai/sip_optimizer.php"], "flag": null}, {"id": "t332", "title": "AI Goal Advisor", "action_count": 1, "files": ["/api/ai/goal_advisor.php"], "flag": null}, {"id": "t333", "title": "AI Portfolio Report Card", "action_count": 2, "files": ["/api/ai/report_card.php"], "flag": null}, {"id": "t382", "title": "AI Fund Research", "action_count": 1, "files": ["/api/ai/fund_research.php"], "flag": null}, {"id": "t384", "title": "AI Anomaly Detector v2", "action_count": 3, "files": ["/api/ai/anomaly_detector_v2.php"], "flag": null}, {"id": "t385", "title": "AI Goal Coach", "action_count": 2, "files": ["/api/ai/goal_coach.php"], "flag": null}]}, {"name": "Crypto Tools", "tasks": [{"id": "t40", "title": "CoinGecko Full Integration", "action_count": 4, "files": ["/api/crypto/crypto_add.php"], "flag": null}, {"id": "t42", "title": "Crypto Tax 30% Flat Calculator (use Jun-3 version — see note)", "action_count": 4, "files": ["/api/crypto/tax_calculator.php"], "flag": "duplicate-build"}, {"id": "tc003", "title": "DeFi & Staking Income Tracker", "action_count": 6, "files": ["/api/crypto/crypto_defi.php"], "flag": null}, {"id": "tc004", "title": "Portfolio Rebalancing — Crypto", "action_count": 4, "files": ["/api/crypto/crypto_rebalance.php"], "flag": null}, {"id": "tc006", "title": "Cold Wallet Tracker", "action_count": 8, "files": ["/api/crypto/cold_wallet.php"], "flag": null}]}, {"name": "Tax / Retirement / Goals", "tasks": [{"id": "t48", "title": "80C Tracker", "action_count": 6, "files": ["/api/reports/tax_80c_tracker.php"], "flag": null}, {"id": "tg003", "title": "Retirement Calculator", "action_count": 4, "files": ["/api/goal/retirement_calculator.php"], "flag": null}, {"id": "tg005", "title": "Goals vs Actual", "action_count": 3, "files": ["/api/goal/goals_tracker.php"], "flag": null}, {"id": "tv09", "title": "Capital Gains Tax Preview", "action_count": 4, "files": ["/api/tax/cg_live_preview.php"], "flag": null}, {"id": "t358", "title": "Goal Notification Engine", "action_count": 3, "files": ["/api/goal_notifications.php"], "flag": null}, {"id": "t360", "title": "Life Events Calendar", "action_count": 4, "files": ["/api/life_events.php"], "flag": null}]}, {"name": "EPF / Insurance / Property / Loans", "tasks": [{"id": "t46", "title": "EPF Monthly Tracker", "action_count": 8, "files": ["/api/epf/epf_monthly_tracker.php"], "flag": null}, {"id": "t467", "title": "EPF Balance Tracker", "action_count": 9, "files": ["/api/epf/epf_balance_tracker.php"], "flag": null}, {"id": "t469", "title": "EPF Tax Tracker", "action_count": 6, "files": ["/api/epf/epf_tax_tracker.php"], "flag": null}, {"id": "t470", "title": "EPF vs NPS vs PPF Comparison", "action_count": 5, "files": ["/api/reports/epf_nps_ppf_compare.php"], "flag": null}, {"id": "t122", "title": "Insurance Portfolio", "action_count": 2, "files": ["/api/insurance/insurance.php"], "flag": null}, {"id": "t123", "title": "Loan Tracker", "action_count": 5, "files": ["/api/loans/loans.php"], "flag": null}, {"id": "t323", "title": "ULIP Tracker", "action_count": 5, "files": ["/api/insurance/ulip.php"], "flag": null}, {"id": "t461", "title": "ULIP Tracker Full", "action_count": 6, "files": ["/api/insurance/ulip_full.php"], "flag": null}, {"id": "t462", "title": "Premium Calendar", "action_count": 4, "files": ["/api/insurance/premium_calendar.php"], "flag": null}, {"id": "t463", "title": "Property Portfolio", "action_count": 7, "files": ["/api/property/property.php"], "flag": null}, {"id": "t150", "title": "DigiLocker / Documents", "action_count": 6, "files": ["/api/documents/digilocker.php"], "flag": null}, {"id": "t124", "title": "Real Estate / Rental Yield Calculator", "action_count": 1, "files": ["/api/property/rental_yield_calculator.php"], "flag": null}]}, {"name": "Dashboard / UX / Personalization", "tasks": [{"id": "t55", "title": "Dashboard Widget Customizer", "action_count": 4, "files": ["/api/dashboard/widget_customizer.php"], "flag": null}, {"id": "t297", "title": "Customizable Dashboard", "action_count": 3, "files": ["/api/dashboard/dashboard_layout.php"], "flag": null}, {"id": "t350", "title": "Font Size Preference", "action_count": 2, "files": ["/api/security/font_preference.php"], "flag": null}, {"id": "t373", "title": "Widget Mode", "action_count": 2, "files": ["/api/dashboard/widget_mode.php"], "flag": null}, {"id": "t445", "title": "Customizable Overview Cards", "action_count": 4, "files": ["/api/dashboard/overview_cards.php"], "flag": null}, {"id": "t446", "title": "Portfolio Health Heatmap", "action_count": 1, "files": ["/api/portfolio/health_heatmap.php"], "flag": null}, {"id": "t242", "title": "Investor Streak & Milestones", "action_count": 4, "files": ["/api/gamification/streaks.php"], "flag": null}]}, {"name": "Security & Onboarding", "tasks": [{"id": "t371", "title": "Biometric Login (WebAuthn)", "action_count": 6, "files": ["/api/webauthn.php"], "flag": "special-routing"}, {"id": "t387", "title": "Session Security", "action_count": 2, "files": ["/api/security/sessions.php"], "flag": null}, {"id": "t389", "title": "GDPR Data Controls", "action_count": 6, "files": ["/api/security/data_controls.php"], "flag": null}, {"id": "t240", "title": "Onboarding Flow", "action_count": 3, "files": ["/api/onboarding/onboarding.php"], "flag": null}, {"id": "t454", "title": "Onboarding Setup Wizard", "action_count": 3, "files": ["/api/onboarding/setup_wizard.php"], "flag": null}]}, {"name": "Budget & Reports & Sharing", "tasks": [{"id": "t471", "title": "Monthly Budget Tracker", "action_count": 8, "files": ["/api/budget/budget.php"], "flag": null}, {"id": "t378", "title": "Report Sharing (WhatsApp/Email)", "action_count": 3, "files": ["/api/sharing/report_share.php"], "flag": null}, {"id": "t485", "title": "Portfolio Treemap", "action_count": 1, "files": ["/api/portfolio/treemap.php"], "flag": null}, {"id": "t488", "title": "Yield Curve", "action_count": 3, "files": ["/api/portfolio/yield_curve.php"], "flag": null}, {"id": "t406", "title": "Anonymous Benchmarking", "action_count": 3, "files": ["/api/benchmarking/peer_compare.php"], "flag": null}, {"id": "t503", "title": "Credit Card Optimizer", "action_count": 3, "files": ["/api/budget/credit_card_optimizer.php"], "flag": null}, {"id": "th001", "title": "Daily Financial Journal", "action_count": 4, "files": ["/api/journal/journal.php"], "flag": null}, {"id": "t443", "title": "Morning Briefing", "action_count": 1, "files": ["/api/dashboard/morning_briefing.php"], "flag": null}, {"id": "t106", "title": "NPS Bank Statement Import", "action_count": 9, "files": ["/api/nps/nps_import.php"], "flag": null}, {"id": "t155", "title": "Child Education Planner", "action_count": 4, "files": ["/api/goal/education_planner.php"], "flag": null}, {"id": "t234", "title": "SIP vs Lumpsum Backtest", "action_count": 4, "files": ["/api/mutual_funds/sip_lumpsum_backtest.php"], "flag": null}, {"id": "t404", "title": "Smart Alerts v2", "action_count": 6, "files": ["/api/alerts/smart_alerts.php"], "flag": null}]}, {"name": "Tools & Profile", "tasks": [{"id": "tp001", "title": "Cache Manager", "action_count": 3, "files": ["/api/cache/cache_manager.php"], "flag": null}, {"id": "tp002", "title": "Lazy Loader", "action_count": 5, "files": ["/api/tools/lazy_loader.php"], "flag": null}, {"id": "th002", "title": "SIP Discipline Score", "action_count": 2, "files": ["/api/tools/sip_discipline.php"], "flag": null}, {"id": "ti001", "title": "Personal Finance Profile", "action_count": 2, "files": ["/api/profile/finance_profile.php"], "flag": null}, {"id": "ti004", "title": "Personal Finance Score", "action_count": 1, "files": ["/api/profile/finance_score.php"], "flag": null}, {"id": "tj005", "title": "Annual Financial Review", "action_count": 2, "files": ["/api/tools/annual_review.php"], "flag": null}]}], "restyle_tasks": [{"id": "t39", "title": "LTCG/STCG Tax Report (StocksTaxReport)", "file": "api/stocks/tax_report.php"}, {"id": "t114", "title": "Gold Tracker (GoldTracker)", "file": "api/gold/gold.php"}, {"id": "t116", "title": "Corporate Bonds / NCDs (BondsTracker)", "file": "api/bonds/bonds.php"}, {"id": "t121", "title": "International Stocks / LRS (InternationalStocks)", "file": "api/international/international.php"}, {"id": "t145", "title": "Reality Check (StockPickerRealityCheck)", "file": "api/stocks/reality_check.php"}, {"id": "t432", "title": "Portfolio P/E (PortfolioPE)", "file": "api/stocks/portfolio_pe.php"}, {"id": "t435", "title": "Watchlist (WatchlistManager)", "file": "api/watchlist/watchlist.php"}, {"id": "t436", "title": "Stock SIP (StockSIP)", "file": "api/stocks/stock_sip.php"}, {"id": "t38", "title": "Stocks Screener (StocksScreener)", "file": "api/screener/screener.php"}, {"id": "t118", "title": "RBI / G-Secs / T-Bills (RBISecurities)", "file": "api/rbi/rbi_securities.php"}]}
+;
+
+const catContainer = document.getElementById('categoryContainer');
+DATA.categories.forEach(cat => {
+  const block = document.createElement('div');
+  block.className = 'cat-block';
+  block.innerHTML = `
+    <div class="cat-title">
+      <h3>${cat.name}</h3>
+      <span class="count">${cat.tasks.length} tasks</span>
+    </div>
+    <div class="task-grid">
+      ${cat.tasks.map(t => `
+        <div class="task-card">
+          <div class="row1">
+            <span class="tid">${t.id}</span>
+            <span class="acount">${t.action_count} actions</span>
+          </div>
+          <div class="ttitle">${t.title}</div>
+          ${t.flag ? `<span class="flag ${t.flag}">${({'duplicate-build':'⚠ duplicate build','naming-collision':'⚠ name collision','redirect-needed':'↻ redirect needed','file-missing':'✕ file missing','special-routing':'◆ special routing'})[t.flag]}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  catContainer.appendChild(block);
+});
+
+const orphanContainer = document.getElementById('orphanContainer');
+DATA.restyle_tasks.forEach(t => {
+  const card = document.createElement('div');
+  card.className = 'orphan-card';
+  card.innerHTML = `
+    <span class="tid">${t.id}</span>
+    <div class="ttitle">${t.title}</div>
+    <div class="file">${t.file}</div>
+  `;
+  orphanContainer.appendChild(card);
+});
+</script>
+
+</body>
+</html>

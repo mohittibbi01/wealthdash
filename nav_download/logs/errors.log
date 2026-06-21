@@ -1,0 +1,1 @@
+[2026-06-03 19:15:55] [ERROR] Uncaught: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'fund_id' in 'field list' in C:\xampp\htdocs\wealthdash\nav_download\nav_worker.php:145

@@ -1,0 +1,71 @@
+========================================================
+COMBINED HANDOFF SUMMARY — ID-W5 Session 2
+Tasks: t474, t498, tg003, tg005
+Worker: mohittibbi01@gmail.com
+========================================================
+
+✅ t474 — SIP vs EMI Monthly Load Analysis
+   Status: DONE
+   Files:
+     api/tools/sip_emi_balance.php       ← NEW (overwrite if exists)
+     pages/tools/sip_emi_balance.php     ← NEW (overwrite if exists)
+   DB: No new tables — reads mf_sips + loans (existing)
+   Notes:
+     - Frequency-aware monthly equivalent (weekly/fortnightly/quarterly/yearly)
+     - Stacked bar chart (Chart.js CDN)
+     - 12-month rolling projection
+     - Health indicator: ≥60% SIP = Investment-heavy, 40-60% = Balanced, <40% = Debt-heavy
+
+✅ t498 — Investment Calendar 2025-26
+   Status: DONE
+   Files:
+     api/tools/investment_calendar.php   ← NEW (overwrite if exists)
+     pages/tools/investment_calendar.php ← NEW (overwrite if exists)
+   DB: No new tables — reads goals, mf_sips, loans, fixed_deposits, insurance_policies
+   Notes:
+     - Static tax dates: advance tax Q1-Q4, ITR deadlines, 80C/NPS/PPF, LTCG, TDS
+     - Dynamic: SIP dates, FD maturities, EMI dates, insurance premiums, goal targets
+     - Filterable by type, FY selector 2024-25 to 2027-28
+     - Upcoming 60 days quick-list
+
+✅ tg003 — Retirement Corpus Calculator
+   Status: DONE
+   Files:
+     api/goal/retirement_calculator.php     ← NEW
+     pages/goal/retirement_calculator.php   ← NEW
+     database/migrations/tg003_migration.sql
+   DB: 1 new table — retirement_plans (id, user_id, plan_name, inputs JSON, results JSON)
+   Notes:
+     - Pure PHP math: inflation-adjusted corpus, real post-retirement return, PV annuity
+     - FV of existing corpus + FV of monthly SIP
+     - Monthly SIP needed to fill gap
+     - Year-wise chart (projected vs required line)
+     - Save/Load/Delete named plans (upsert by name)
+     - Sliders for all inputs with live debounce recalculate
+
+✅ tg005 — Goals vs Actual Tracking
+   Status: DONE
+   Files:
+     api/goal/goals_tracker.php         ← NEW
+     pages/goal/goals_tracker.php       ← NEW
+     database/migrations/tg005_migration.sql
+   DB: 1 new table — goal_checkins (id, goal_id, user_id, amount, checkin_date, notes)
+       ALTER goals: add start_date, goal_type, priority, notes columns
+       ALTER mf_sips: add goal_id FK column
+   Notes:
+     - Per-goal: amount progress %, time progress %, variance vs expected
+     - Monthly SIP needed + SIP gap (compared to linked SIPs)
+     - Status: on_track / slightly_behind / behind / completed
+     - Manual checkin modal (one per goal per month, upsert)
+     - Checkin history modal per goal
+     - Summary: total goals, on-track count, behind count, total invested vs target
+
+========================================================
+RUN MIGRATIONS IN ORDER:
+  1. tg003_migration.sql
+  2. tg005_migration.sql
+  (t474, t498 — no migrations needed)
+========================================================
+DEPENDENCIES (existing tables assumed):
+  goals, mf_sips, loans, fixed_deposits, insurance_policies, users
+========================================================

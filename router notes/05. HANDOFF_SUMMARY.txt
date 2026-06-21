@@ -1,0 +1,76 @@
+========================================================
+COMBINED HANDOFF SUMMARY — ID-W5
+Session: 4 Tasks | Worker: mohittibbi01@gmail.com
+========================================================
+
+✅ t386 — 2FA TOTP (Google Authenticator)
+   Status: DONE
+   Files:
+     api/auth/2fa.php          ← OVERWRITE existing
+     auth/2fa_login.php        ← NEW (login verification page)
+     pages/security/2fa.php    ← NEW (settings UI)
+     database/migrations/t386_migration.sql
+   DB: ALTER TABLE users — 5 columns added (totp_enabled, totp_secret,
+       totp_secret_pending, totp_backup_codes, totp_setup_at)
+   Notes:
+     - Pure PHP TOTP (no composer dep), SHA1/6-digit/30s
+     - QR via api.qrserver.com (no JS lib needed)
+     - 8 one-time backup codes, hashed with password_hash()
+     - Login flow: set $_SESSION['pending_2fa_userid'] before redirect
+       to auth/2fa_login.php
+     - Router: already has 2fa_* cases — just overwrite the file
+
+✅ t151 — EPFO Passbook Sync
+   Status: DONE
+   Files:
+     api/epfo/passbook.php     ← NEW
+     pages/epfo/passbook.php   ← NEW
+     database/migrations/t151_migration.sql
+   DB: 2 new tables — epfo_accounts, epfo_passbook
+   Notes:
+     - Manual JSON import (user parses PDF outside, pastes JSON array)
+     - Auto dedup on import (account_id + txn_date + type + amount)
+     - Balance auto-recalculated on every import
+     - Types: employee, employer, pension, withdrawal, interest
+     - Router: add epfo_* actions (see ROUTER_NOTES.txt)
+
+✅ t474 — SIP vs EMI Monthly Load Analysis
+   Status: DONE
+   Files:
+     api/tools/sip_emi_balance.php  ← NEW
+     pages/tools/sip_emi_balance.php ← NEW
+   DB: No new tables — reads from existing mf_sips + loans tables
+   Notes:
+     - Frequency-aware SIP monthly equivalent (weekly/fortnightly/quarterly/yearly)
+     - Stacked bar chart (Chart.js CDN, no extra install)
+     - 12-month rolling projection
+     - Health indicator: 60%+ SIP = Investment-heavy, 40-60% = Balanced, <40% = Debt-heavy
+     - Router: add sip_emi_* actions (see ROUTER_NOTES.txt)
+
+✅ t498 — Investment Calendar 2025-26
+   Status: DONE
+   Files:
+     api/tools/investment_calendar.php  ← NEW
+     pages/tools/investment_calendar.php ← NEW
+   DB: No new tables — reads goals, mf_sips, loans, fixed_deposits,
+       insurance_policies (all existing tables)
+   Notes:
+     - Static tax dates: advance tax Q1-Q4, ITR deadlines, 80C/NPS/PPF,
+       LTCG grandfathering, TDS returns, FY start/end
+     - Dynamic: SIP dates, FD maturities, EMI dates, insurance premiums, goal targets
+     - Filterable by type (tax/sip/emi/fd/insurance/review/goal)
+     - FY selector: 2024-25 to 2027-28
+     - "Upcoming 60 days" quick-list at bottom
+     - Router: add inv_calendar_* actions (see ROUTER_NOTES.txt)
+
+========================================================
+DEPENDENCIES (existing tables assumed):
+  mf_sips, loans, fixed_deposits, insurance_policies, goals
+  users (for t386 ALTER)
+  audit_log (for 2FA audit entries)
+========================================================
+RUN MIGRATIONS IN ORDER:
+  1. t386_migration.sql
+  2. t151_migration.sql
+  (t474 and t498 need no migration)
+========================================================

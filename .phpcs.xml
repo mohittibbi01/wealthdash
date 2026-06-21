@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!-- WealthDash — t419: PHP Code Standards -->
+<!-- TODO: configure ruleset -->
+<ruleset name="WealthDash">
+  <description>WealthDash PHP coding standards</description>
+  <rule ref="PSR12"/>
+</ruleset>

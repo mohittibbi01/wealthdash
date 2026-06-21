@@ -1,0 +1,164 @@
+========================================================
+ROUTER NOTES — ID-W5 Session 5 (10 Tasks)
+========================================================
+
+── t122: Insurance Portfolio ──
+  csrfExempt: 'insurance_list', 'insurance_summary', 'insurance_premium_calendar'
+  case 'insurance_list':
+  case 'insurance_add':
+  case 'insurance_update':
+  case 'insurance_delete':
+  case 'insurance_summary':
+  case 'insurance_premium_calendar':
+      require APP_ROOT . '/api/insurance/insurance.php'; exit;
+
+── t123: Loan Tracker ──
+  csrfExempt: 'loans_list', 'loan_summary', 'loan_amortization'
+  case 'loans_list':
+  case 'loan_add':
+  case 'loan_update':
+  case 'loan_delete':
+  case 'loan_summary':
+  case 'loan_amortization':
+      require APP_ROOT . '/api/loans/loans.php'; exit;
+
+── t155: Child Education Planner ──
+  csrfExempt: 'edu_plan_calculate', 'edu_plans_list'
+  case 'edu_plan_calculate':
+  case 'edu_plans_list':
+  case 'edu_plan_save':
+  case 'edu_plan_delete':
+      require APP_ROOT . '/api/goal/education_planner.php'; exit;
+
+── t240: Onboarding Flow ──
+  csrfExempt: 'onboarding_status'
+  case 'onboarding_status':
+  case 'onboarding_complete_step':
+  case 'onboarding_skip':
+      require APP_ROOT . '/api/onboarding/onboarding.php'; exit;
+
+── t243: AI Fund Recommendation ──
+  csrfExempt: (none — rate-limited POST only)
+  case 'ai_fund_recommend':
+      require APP_ROOT . '/api/ai/fund_recommend.php'; exit;
+
+── t244: AI Portfolio Narrative ──
+  case 'ai_portfolio_narrative':
+      require APP_ROOT . '/api/ai/portfolio_narrative.php'; exit;
+
+── t246: AI Anomaly Detector ──
+  case 'ai_anomaly_detect':
+      require APP_ROOT . '/api/ai/anomaly_detector.php'; exit;
+
+── t297: Customizable Dashboard ──
+  csrfExempt: 'dashboard_layout_get'
+  case 'dashboard_layout_get':
+  case 'dashboard_layout_save':
+  case 'dashboard_layout_reset':
+      require APP_ROOT . '/api/dashboard/dashboard_layout.php'; exit;
+
+── t300: Portfolio Heatmap ──
+  csrfExempt: 'portfolio_heatmap'
+  case 'portfolio_heatmap':
+      require APP_ROOT . '/api/portfolio/heatmap.php'; exit;
+
+── t323: ULIP Tracker ──
+  csrfExempt: 'ulip_list', 'ulip_summary'
+  case 'ulip_list':
+  case 'ulip_add':
+  case 'ulip_update':
+  case 'ulip_delete':
+  case 'ulip_summary':
+      require APP_ROOT . '/api/insurance/ulip.php'; exit;
+
+========================================================
+SIDEBAR NOTES (templates/sidebar.php):
+  Insurance section:
+    'insurance'     => APP_ROOT . '/pages/insurance/insurance.php'
+    'ulip'          => APP_ROOT . '/pages/insurance/ulip.php'
+  Loans section:
+    'loans'         => APP_ROOT . '/pages/loans/loans.php'
+  Goals section:
+    'education_planner' => APP_ROOT . '/pages/goal/education_planner.php'
+  Onboarding (new users):
+    'onboarding'    => APP_ROOT . '/pages/onboarding/onboarding.php'
+  AI section:
+    'ai_fund_recommend'    => APP_ROOT . '/pages/ai/fund_recommend.php'
+    'ai_portfolio_narrative'=> APP_ROOT . '/pages/ai/portfolio_narrative.php'
+    'ai_anomaly_detector'  => APP_ROOT . '/pages/ai/anomaly_detector.php'
+  Dashboard:
+    'custom_dashboard'=> APP_ROOT . '/pages/dashboard/custom_dashboard.php'
+  Portfolio:
+    'portfolio_heatmap'=> APP_ROOT . '/pages/portfolio/heatmap.php'
+
+========================================================
+OVERWRITE RULES:
+  t243 api/ai/fund_recommend.php   → OVERWRITE existing (complete rewrite)
+  All other files                   → NEW (no existing conflict)
+========================================================
+MIGRATION ORDER:
+  1. t122_migration.sql  — insurance_policies
+  2. t123_migration.sql  — loans
+  3. t155_migration.sql  — education_plans
+  4. t240_migration.sql  — user_onboarding
+  5. t297_migration.sql  — dashboard_layouts
+  6. t323_migration.sql  — ulip_policies + ulip_fund_values
+  (t243, t244, t246, t300 — no migrations)
+========================================================
+
+========================================================
+COMBINED HANDOFF SUMMARY — ID-W5 Session 5 (10 Tasks)
+========================================================
+
+✅ t122 — Insurance Portfolio (Term + Health + ULIP)
+   api/insurance/insurance.php + pages/insurance/insurance.php + migration
+   DB: insurance_policies table (all policy types)
+   Notes: Add/edit/delete, summary by type, upcoming premiums alert (30 days)
+
+✅ t123 — Loan Tracker (Home, Personal, Education)
+   api/loans/loans.php + pages/loans/loans.php + migration
+   DB: loans table
+   Notes: Auto-calculates EMI if blank, amortization schedule, progress bar
+
+✅ t155 — Child Education Planner
+   api/goal/education_planner.php + pages/goal/education_planner.php + migration
+   DB: education_plans table (JSON inputs+results, upsert by child name)
+   Notes: Education inflation, corpus projection chart, save/load plans
+
+✅ t240 — Onboarding Flow
+   api/onboarding/onboarding.php + pages/onboarding/onboarding.php + migration
+   DB: user_onboarding (completed_steps JSON, skipped flag)
+   Notes: 6 steps, progress bar, skip option, step cards with links
+
+✅ t243 — AI Fund Recommendation
+   api/ai/fund_recommend.php + pages/ai/fund_recommend.php
+   DB: No migration — reads finance_profiles + mf_holdings
+   Notes: Claude API + rule-based fallback, risk-profile allocation gap, doughnut charts
+   ⚠️ OVERWRITE existing api/ai/fund_recommend.php
+
+✅ t244 — AI Portfolio Narrative
+   api/ai/portfolio_narrative.php + pages/ai/portfolio_narrative.php
+   DB: No migration — reads mf_holdings + mf_nav_latest
+   Notes: Monthly NL summary, Claude API + auto-generated fallback, copy button
+
+✅ t246 — AI Anomaly Detector
+   api/ai/anomaly_detector.php + pages/ai/anomaly_detector.php
+   DB: No migration — reads mf_transactions (last 90 days)
+   Notes: Z-score outlier detection + duplicate transaction check + Claude narrative
+
+✅ t297 — Customizable Dashboard
+   api/dashboard/dashboard_layout.php + pages/dashboard/custom_dashboard.php + migration
+   DB: dashboard_layouts (JSON layout per user)
+   Notes: 12 widget types, drag-drop reorder, toggle visibility, widget data lazy-loaded
+
+✅ t300 — Portfolio Heatmap
+   api/portfolio/heatmap.php + pages/portfolio/heatmap.php
+   DB: No migration — reads mf_holdings + mf_nav_latest + mf_nav_history
+   Notes: Period buttons (1D/1W/1M/3M/6M/1Y), treemap-style boxes, weight-proportional sizing
+
+✅ t323 — ULIP Tracker
+   api/insurance/ulip.php + pages/insurance/ulip.php + migration
+   DB: ulip_policies + ulip_fund_values tables
+   Notes: Fund value, premium tracking, gain/loss, lock-in period
+
+========================================================
