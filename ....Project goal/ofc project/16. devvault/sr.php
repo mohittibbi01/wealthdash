@@ -96,20 +96,20 @@ require_once __DIR__ . '/includes/sidebar.php';
   <div class="flash flash-<?=$flash['type']?>"><?=htmlspecialchars($flash['msg'])?></div>
   <?php endif; ?>
 
-  <div class="card">
+  <div class="card card-sm" style="margin-bottom:14px">
     <form method="get">
-      <div class="filter-bar">
-        <div class="fg">
-          <label>Project</label>
-          <select name="project_id" style="min-width:180px">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1.5;min-width:140px;display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Project</label>
+          <select name="project_id">
             <option value="">All Projects</option>
             <?php foreach ($all_projects as $pr): ?>
             <option value="<?=$pr['id']?>" <?=$f_project==$pr['id']?'selected':''?>><?=htmlspecialchars($pr['project_name'])?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="fg">
-          <label>Status</label>
+        <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Status</label>
           <select name="status">
             <option value="">All Statuses</option>
             <?php foreach (array_keys($status_cfg) as $s): ?>
@@ -117,34 +117,45 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="fg"><label>From Date</label><input type="date" name="from_date" value="<?=htmlspecialchars($f_from)?>" style="width:150px"></div>
-        <div class="fg"><label>To Date</label><input type="date" name="to_date" value="<?=htmlspecialchars($f_to)?>" max="<?=date('Y-m-d')?>" style="width:150px"></div>
-        <button type="submit" class="btn btn-accent" style="margin-top:auto">🔍 Filter</button>
-        <a href="sr.php" class="btn btn-ghost" style="margin-top:auto">✕ Clear</a>
-        <?php if (can_edit()): ?>
-        <button type="button" class="btn btn-accent" style="margin-top:auto;margin-left:auto" data-action="open-sr-modal">＋ Add SR</button>
-        <?php endif; ?>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">From</label>
+          <input type="date" name="from_date" value="<?=htmlspecialchars($f_from)?>" style="width:140px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">To</label>
+          <input type="date" name="to_date" value="<?=htmlspecialchars($f_to)?>" max="<?=date('Y-m-d')?>" style="width:140px">
+        </div>
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <button type="submit" class="btn btn-primary btn-sm">🔍 Filter</button>
+          <a href="sr.php" class="btn btn-ghost btn-sm">✕ Clear</a>
+          <?php if (can_edit()): ?>
+          <button type="button" class="btn btn-primary btn-sm" data-action="open-sr-modal">＋ Add SR</button>
+          <?php endif; ?>
+        </div>
       </div>
     </form>
-    <table>
-      <thead><tr>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--sur2)">
         <th>SR No.</th><th>Project</th><th>SR Date</th><th>Purpose</th>
         <th>Raised By</th><th>Status</th><th>Resolution Date</th><th>Remarks</th><th>Actions</th>
       </tr></thead>
       <tbody>
         <?php if (!$srs): ?>
-        <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px;font-family:'Courier New',Consolas,monospace;font-size:11px">No service requests found.</td></tr>
+        <tr><td colspan="9" class="no-data">No service requests found.</td></tr>
         <?php endif; ?>
         <?php foreach ($srs as $sr):
           [$sc,$sn] = $status_cfg[$sr['current_status']] ?? ['#5a7a9a','muted'];
         ?>
         <tr>
           <td style="font-weight:700;color:var(--accent)"><?=htmlspecialchars($sr['sr_number'])?></td>
-          <td><a href="project_form.php?id=<?=$sr['project_id']?>" style="color:var(--blue);text-decoration:none"><?=htmlspecialchars($sr['project_name']??'?')?></a></td>
+          <td><a href="project_form.php?id=<?=$sr['project_id']?>" style="color:var(--info);text-decoration:none;font-weight:500"><?=htmlspecialchars($sr['project_name']??'?')?></a></td>
           <td><?=htmlspecialchars($sr['sr_date'])?></td>
           <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?=htmlspecialchars($sr['purpose'])?>"><?=htmlspecialchars($sr['purpose'])?></td>
           <td><?=htmlspecialchars($sr['raised_by']??'')?></td>
-          <td><span class="badge" style="color:<?=$sc?>;border-color:<?=$sc?>40"><?=$sr['current_status']?></span></td>
+          <td><span class="badge" style="color:<?=$sc?>;border:1px solid <?=$sc?>40;background:<?=$sc?>14"><?=$sr['current_status']?></span></td>
           <td><?=htmlspecialchars($sr['resolution_date']??'-')?></td>
           <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)" title="<?=htmlspecialchars($sr['remarks']??'')?>"><?=htmlspecialchars($sr['remarks']??'')?></td>
           <td style="white-space:nowrap">
@@ -152,11 +163,11 @@ require_once __DIR__ . '/includes/sidebar.php';
             <button class="btn btn-ghost btn-sm" data-action="edit-sr" data-sr='<?=htmlspecialchars(json_encode($sr), ENT_QUOTES)?>'>✏</button>
             <?php endif; ?>
             <?php if (is_admin()): ?>
-            <form method="post" style="display:inline" onsubmit="return confirm('Delete SR #<?=htmlspecialchars($sr['sr_number'])?>?')">
+            <form method="post" style="display:inline">
               <input type="hidden" name="csrf" value="<?=csrf_token()?>">
               <input type="hidden" name="_action" value="delete_sr">
               <input type="hidden" name="sr_id" value="<?=$sr['id']?>">
-              <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+              <button type="submit" class="btn btn-danger btn-sm" data-confirm="Delete this SR?">🗑</button>
             </form>
             <?php endif; ?>
           </td>
@@ -164,7 +175,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <?php endforeach; ?>
       </tbody>
     </table>
-    <div class="tbl-footer">Showing <?=count($srs)?> record(s)</div>
+    <div style="padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">Showing <?=count($srs)?> record(s)</div>
   </div>
 </div>
 

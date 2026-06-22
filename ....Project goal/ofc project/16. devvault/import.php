@@ -98,115 +98,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     }
 }
 
-$accent  = user_pref('accent','#00d4ff');
-$bg      = user_pref('bg_color','');
-$theme   = user_pref('theme','dark');
-$fsize   = user_pref('font_size','14');
-$ffamily = user_pref('font_family','Rajdhani');
+<?php
+$_theme_i = user_pref('theme','teal-dark');
+$_fs_i    = max(11,min(18,(int)user_pref('font_size','14')));
+$_acc_i   = preg_replace('/[^#a-fA-F0-9]/','',user_pref('accent','#00d4aa'));
+if(strlen($_acc_i)<4) $_acc_i='#00d4aa';
+$_cb_i    = user_pref('colorblind','none');
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?=$theme?>">
+<html lang="en" data-theme="<?=htmlspecialchars($_theme_i)?>"<?=$_cb_i!=='none'?' data-colorblind="'.htmlspecialchars($_cb_i).'"':''?> style="font-size:<?=$_fs_i?>px">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault — Import Projects</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --acc:<?=$accent?>;--user-bg:<?=$bg?$bg:'var(--bg)'?>;
-  --bg:#070b14;--sur:#0d1422;--sur2:#111a2e;--bdr:#1e2d4a;
-  --tx:#e8edf5;--mt:#5a7a9a;--ok:#00e676;--err:#ff3d5a;--amb:#ffd740;
-}
-[data-theme="light"]{--bg:#f0f4f8;--sur:#ffffff;--sur2:#e8edf5;--bdr:#c8d4e0;--tx:#0d1422;--mt:#6b7f96;}
-html{font-size:<?=$fsize?>px}
-body{font-family:'<?=$ffamily?>',sans-serif;background:var(--user-bg);color:var(--tx);min-height:100vh}
-.bar{position:sticky;top:0;z-index:200;height:50px;background:color-mix(in srgb,var(--user-bg) 92%,transparent);
-  border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 18px;gap:12px}
-.logo{font-family:'Orbitron',monospace;font-size:14px;font-weight:900;color:var(--acc);letter-spacing:2px;text-shadow:0 0 14px var(--acc)}
-.bar-r{margin-left:auto;display:flex;gap:8px}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:13px;font-weight:700;
-  font-family:inherit;cursor:pointer;border:none;text-decoration:none;transition:all .15s}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--sur2);color:var(--mt);border:1px solid var(--bdr)}
-.btn-ghost:hover{color:var(--tx)}
-.btn-acc{background:var(--acc);color:#000;padding:9px 18px}
-.btn-acc:hover{opacity:.85}
-.wrap{max-width:760px;margin:0 auto;padding:20px 16px}
-h1{font-family:'Orbitron',monospace;font-size:16px;color:var(--acc);margin-bottom:16px;letter-spacing:1.5px}
-.sec{background:var(--sur);border:1px solid var(--bdr);border-radius:12px;padding:18px;margin-bottom:14px}
-.sec h2{font-family:'Share Tech Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--mt);margin-bottom:12px}
-.field{margin-bottom:12px}
-label{display:block;font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt);margin-bottom:5px}
-input,select{background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:9px 12px;color:var(--tx);
-  font-size:13px;font-family:'Share Tech Mono',monospace;outline:none;width:100%;height:40px;font-weight:400}
-select option{background:var(--sur2);font-weight:400}
-input:focus,select:focus{border-color:var(--acc)}
-input[type=file]{padding:0;cursor:pointer;display:flex;align-items:center}
-input[type=file]::file-selector-button{
-  height:40px;padding:0 14px;margin-right:12px;
-  background:var(--sur);border:none;border-right:1px solid var(--bdr);
-  color:var(--mt);font-size:12px;font-family:'Share Tech Mono',monospace;
-  font-weight:500;cursor:pointer;transition:all .15s;border-radius:6px 0 0 6px;letter-spacing:.5px}
-input[type=file]::file-selector-button:hover{background:var(--acc);color:#000}
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:14px}
-.flash-success{background:color-mix(in srgb,var(--ok) 8%,transparent);border:1px solid color-mix(in srgb,var(--ok) 25%,transparent);color:var(--ok)}
-.flash-error{background:color-mix(in srgb,var(--err) 8%,transparent);border:1px solid color-mix(in srgb,var(--err) 25%,transparent);color:var(--err)}
-.hint{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--mt);line-height:1.8;margin-top:8px}
-.hint code{background:var(--sur2);padding:2px 6px;border-radius:4px;color:var(--acc)}
-.radio-row{display:flex;gap:14px;flex-wrap:wrap}
-.radio-opt{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
-.radio-opt input{width:auto}
-</style>
+<link rel="stylesheet" href="assets/theme.css">
+<?php if($_acc_i !== '#00d4aa'): ?>
+<style>:root{--acc:<?=htmlspecialchars($_acc_i)?>;--acc-dim:color-mix(in srgb,<?=htmlspecialchars($_acc_i)?> 13%,transparent)}</style>
+<?php endif; ?>
 </head>
-<body>
-<div class="bar">
-  <span class="logo">DEVVAULT</span>
+<body style="padding:20px">
+
+<!-- Minimal topbar matching project_form -->
+<div style="position:sticky;top:0;z-index:200;height:50px;background:color-mix(in srgb,var(--bg) 94%,transparent);border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 18px;gap:12px;margin:-20px -20px 20px">
+  <a href="index.php" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--acc);text-decoration:none;letter-spacing:2px">🔐 DEVVAULT</a>
   <span style="color:var(--bdr);font-size:18px">|</span>
-  <span style="font-size:14px;font-weight:700">📥 Import Projects</span>
-  <div class="bar-r"><a href="index.php" class="btn btn-ghost">← Back</a></div>
+  <span style="font-size:13px;font-weight:600;color:var(--tx)">📥 Import Projects</span>
+  <a href="index.php" class="btn btn-ghost btn-sm" style="margin-left:auto">← Back</a>
 </div>
 
-<div class="wrap">
+<div style="max-width:680px;margin:0 auto">
 <?php if($result):?>
 <div class="flash flash-<?=$result['type']?>"><?=htmlspecialchars($result['msg'])?></div>
 <?php endif;?>
 
-<div class="sec">
-  <h2>Upload File</h2>
+<div class="card" style="margin-bottom:14px">
+  <div class="card-title">📤 Upload File</div>
   <form method="POST" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="<?=csrf_token()?>">
-    <div class="field">
-      <label>JSON or CSV File</label>
+    <div class="field" style="margin-bottom:12px">
+      <label class="field-label">JSON or CSV File</label>
       <input type="file" name="import_file" accept=".json,.csv,.txt" required>
     </div>
-    <div class="field">
-      <label>If project name already exists</label>
-      <div class="radio-row">
-        <label class="radio-opt"><input type="radio" name="mode" value="add" checked> ➕ Add as new (duplicate)</label>
-        <label class="radio-opt"><input type="radio" name="mode" value="skip_existing"> ⏭ Skip existing</label>
-        <label class="radio-opt"><input type="radio" name="mode" value="update"> 🔄 Update existing</label>
+    <div class="field" style="margin-bottom:14px">
+      <label class="field-label">If project name already exists</label>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="mode" value="add" checked> ➕ Add as new (duplicate)</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="mode" value="skip_existing"> ⏭ Skip existing</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="radio" name="mode" value="update"> 🔄 Update existing</label>
       </div>
     </div>
-    <button type="submit" class="btn btn-acc">📥 Import Now</button>
+    <button type="submit" class="btn btn-primary">📥 Import Now</button>
   </form>
 </div>
 
-<div class="sec">
-  <h2>Format Guide</h2>
-  <div class="hint">
+<div class="card">
+  <div class="card-title">📖 Format Guide</div>
+  <div style="font-size:13px;color:var(--tx2);line-height:1.8">
     <strong style="color:var(--tx)">JSON format</strong> — Export se generated JSON seedha import ho sakta hai:<br>
-    <code>{"projects": [{"project_name": "...", "department_name": "...", ...}]}</code><br><br>
-    <strong style="color:var(--tx)">CSV format</strong> — First row column headers honi chahiye, matching field names jaise:<br>
-    <code>project_name, department_name, technology, current_status, app_ip, db_ip, env_production_url, ...</code><br><br>
-    Required field: <code>project_name</code>. Baaki fields optional hain — jo column nahi milega wo blank rehega.<br>
+    <code style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--sur2);padding:3px 8px;border-radius:5px;color:var(--acc)">{"projects": [{"project_name": "...", "department_name": "...", ...}]}</code><br><br>
+    <strong style="color:var(--tx)">CSV format</strong> — First row column headers honi chahiye:<br>
+    <code style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--sur2);padding:3px 8px;border-radius:5px;color:var(--acc)">project_name, department_name, technology, current_status, app_ip, db_ip, ...</code><br><br>
+    Required field: <code style="font-family:'JetBrains Mono',monospace;color:var(--warn)">project_name</code>. Baaki fields optional hain.<br>
     💡 Pehle <a href="export.php" style="color:var(--acc)">Export</a> se JSON download karo, format dekhne ke liye.
   </div>
 </div>
 </div>
-<script>
-window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
-window.DEVVAULT_LOGOUT = 'logout.php';
-</script>
+
+<script>window.DEVVAULT_CSRF='<?=csrf_token()?>';</script>
 <script src="session_timer.js"></script>
 </body>
 </html>

@@ -175,47 +175,53 @@ require_once __DIR__ . '/includes/sidebar.php';
 ?>
 <div class="dv-content">
 
-<div class="wrap">
-  <div class="page-title">📊 REPORTS</div>
-
-  <div class="tabs">
-    <a href="?tab=financial" class="tab <?=$tab==='financial'?'active':''?>">💰 Financial / Status</a>
-    <a href="?tab=visitors"  class="tab <?=$tab==='visitors'?'active':''?>">📈 Visitor Delta</a>
-    <a href="?tab=migration" class="tab <?=$tab==='migration'?'active':''?>">🔄 Tech Migration</a>
-    <a href="?tab=workorders"class="tab <?=$tab==='workorders'?'active':''?>">📝 Work Order Summary</a>
+<div style="margin-bottom:16px">
+  <div class="dv-tabs">
+    <a href="?tab=financial" class="dv-tab <?=$tab==='financial'?'active':''?>">💰 Financial / Status</a>
+    <a href="?tab=visitors"  class="dv-tab <?=$tab==='visitors'?'active':''?>">📈 Visitor Delta</a>
+    <a href="?tab=migration" class="dv-tab <?=$tab==='migration'?'active':''?>">🔄 Tech Migration</a>
+    <a href="?tab=workorders"class="dv-tab <?=$tab==='workorders'?'active':''?>">📝 Work Order Summary</a>
   </div>
 
 <?php if ($tab === 'financial'): ?>
 <!-- ═══════════ REPORT 1: FINANCIAL ═══════════ -->
-<div class="card">
+<div class="card card-sm" style="margin-bottom:14px">
   <form method="get">
     <input type="hidden" name="tab" value="financial">
-    <div class="filter-bar">
-      <div class="fg"><label>From Date</label><input type="date" name="r1_from" value="<?=htmlspecialchars($r1_from)?>" max="<?=$today?>"></div>
-      <div class="fg"><label>To Date</label><input type="date" name="r1_to" value="<?=htmlspecialchars($r1_to)?>" max="<?=$today?>"></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run Report</button>
-      <?php if ($r1_data): ?>
-      <a href="?tab=financial&r1_from=<?=$r1_from?>&r1_to=<?=$r1_to?>&export_r1=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV Export</a>
-      <button type="button" data-action="print" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
-      <?php endif; ?>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">From Date</label>
+        <input type="date" name="r1_from" value="<?=htmlspecialchars($r1_from)?>" max="<?=$today?>" style="width:150px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">To Date</label>
+        <input type="date" name="r1_to" value="<?=htmlspecialchars($r1_to)?>" max="<?=$today?>" style="width:150px">
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end">
+        <button type="submit" class="btn btn-primary btn-sm">🔍 Run Report</button>
+        <?php if ($r1_data): ?>
+        <a href="?tab=financial&r1_from=<?=$r1_from?>&r1_to=<?=$r1_to?>&export_r1=1" class="btn btn-ghost btn-sm">⬇ CSV</a>
+        <button type="button" data-action="print" class="btn btn-ghost btn-sm">🖨 Print</button>
+        <?php endif; ?>
+      </div>
     </div>
   </form>
 </div>
 
 <?php if ($r1_data): ?>
-<div class="summary-chips">
-  <div class="schip"><div class="num"><?=$r1_summary['total_live']?></div><div class="lbl">Sites Went Live</div></div>
-  <div class="schip"><div class="num">₹<?=number_format($r1_summary['amc_paid'],0)?></div><div class="lbl">Total Paid AMC Value</div></div>
-  <div class="schip"><div class="num"><?=$r1_summary['cnt_paid']?></div><div class="lbl">Paid AMC Sites</div></div>
-  <div class="schip"><div class="num"><?=$r1_summary['cnt_exempt']?></div><div class="lbl">AMC Exemption Sites</div></div>
-  <div class="schip"><div class="num"><?=$r1_summary['cnt_free']?></div><div class="lbl">Free AMC Sites</div></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+  <div class="stat-card" style="min-width:110px"><div class="stat-label">Sites Went Live</div><div class="stat-value" style="color:var(--ok)"><?=$r1_summary['total_live']?></div></div>
+  <div class="stat-card" style="min-width:130px"><div class="stat-label">Paid AMC Value</div><div class="stat-value" style="color:var(--warn);font-size:18px">₹<?=number_format($r1_summary['amc_paid'],0)?></div></div>
+  <div class="stat-card" style="min-width:100px"><div class="stat-label">Paid AMC Sites</div><div class="stat-value" style="color:var(--ok)"><?=$r1_summary['cnt_paid']?></div></div>
+  <div class="stat-card" style="min-width:100px"><div class="stat-label">AMC Exemption</div><div class="stat-value" style="color:var(--info)"><?=$r1_summary['cnt_exempt']?></div></div>
+  <div class="stat-card" style="min-width:100px"><div class="stat-label">Free AMC Sites</div><div class="stat-value" style="color:var(--tx2)"><?=$r1_summary['cnt_free']?></div></div>
 </div>
 <div class="card" style="padding:0;overflow:hidden;">
-  <table>
+  <table class="dv-table">
     <thead>
       <tr>
-        <th>Project Name</th><th>Department</th><th>Technology</th><th>Sub-type</th>
-        <th>Live Date</th><th>Status</th><th>AMC Type</th><th>AMC Amount (₹)</th><th>AMC Period</th>
+        <th>Project</th><th>Department</th><th>Technology</th><th>Sub-type</th>
+        <th>Live Date</th><th>Status</th><th>AMC Type</th><th>AMC (₹)</th><th>Period</th>
       </tr>
     </thead>
     <tbody>
@@ -226,37 +232,37 @@ require_once __DIR__ . '/includes/sidebar.php';
         elseif ($row['amc_end_date'] && $row['amc_end_date'] <= date('Y-m-d',strtotime('+30 days'))) $amc_status = 'expiring';
       ?>
       <tr>
-        <td><a href="project_form.php?id=<?=$row['id']?>" style="color:var(--accent);text-decoration:none;"><?=htmlspecialchars($row['project_name'])?></a></td>
-        <td style="font-size:12px;"><?=htmlspecialchars($row['department_name']??'')?></td>
-        <td style="font-size:12px;"><?=htmlspecialchars($row['technology']??$row['technology_other']??'')?></td>
-        <td style="font-size:11px;color:var(--muted);"><?=htmlspecialchars($row['tech_subtype']??'')?></td>
-        <td><?=htmlspecialchars($row['live_date']??'')?></td>
-        <td style="font-size:12px;"><?=ucfirst(str_replace('_',' ',$row['current_status']??''))?></td>
+        <td><a href="project_form.php?id=<?=$row['id']?>" style="color:var(--acc);text-decoration:none;font-weight:500"><?=htmlspecialchars($row['project_name'])?></a></td>
+        <td class="td-mono"><?=htmlspecialchars($row['department_name']??'')?></td>
+        <td class="td-mono"><?=htmlspecialchars($row['technology']??$row['technology_other']??'')?></td>
+        <td style="font-size:11px;color:var(--tx3)"><?=htmlspecialchars($row['tech_subtype']??'')?></td>
+        <td class="td-mono"><?=htmlspecialchars($row['live_date']??'')?></td>
+        <td><span class="badge"><?=ucfirst(str_replace('_',' ',$row['current_status']??''))?></span></td>
         <td>
           <?php $at=$row['amc_type']??''; if($at): ?>
-          <?php $amc_colors=['Paid'=>'#00e676','Exemption'=>'#40c4ff','Free'=>'#5a7a9a','NA'=>'#5a7a9a'];
-          $amc_c=$amc_colors[$at]??'#5a7a9a'; ?>
-          <span style="background:<?=$amc_c?>22;color:<?=$amc_c?>;font-size:9px;padding:2px 7px;border-radius:20px;font-weight:700;border:1px solid <?=$amc_c?>40;font-family:'Courier New',Consolas,monospace"><?=$at?></span>
+          <?php $amc_colors=['Paid'=>'var(--ok)','Exemption'=>'var(--info)','Free'=>'var(--tx2)','NA'=>'var(--tx3)'];
+          $amc_c=$amc_colors[$at]??'var(--tx2)'; ?>
+          <span class="badge" style="color:<?=$amc_c?>;border-color:<?=$amc_c?>40;background:<?=$amc_c?>14"><?=$at?></span>
           <?php endif; ?>
         </td>
-        <td style="text-align:right;"><?=$row['amc_amount']>0?'₹'.number_format((float)$row['amc_amount'],0):'-'?></td>
-        <td style="font-size:11px;">
+        <td class="td-mono" style="text-align:right"><?=$row['amc_amount']>0?'₹'.number_format((float)$row['amc_amount'],0):'—'?></td>
+        <td style="font-size:11px;color:var(--tx2)">
           <?php if ($row['amc_start_date']): ?>
           <?=htmlspecialchars($row['amc_start_date'])?> – <?=htmlspecialchars($row['amc_end_date']??'')?>
           <?php if ($amc_status === 'expired'): ?>
-          <br><span class="amc-expired">⚠ Expired</span>
+          <br><span style="color:var(--err);font-size:10px">⚠ Expired</span>
           <?php elseif ($amc_status === 'expiring'): ?>
-          <br><span class="amc-expiring">⚡ Expiring soon</span>
+          <br><span style="color:var(--warn);font-size:10px">⚡ Expiring soon</span>
           <?php endif; ?>
-          <?php else: echo '-'; endif; ?>
+          <?php else: echo '—'; endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>
     </tbody>
     <tfoot>
-      <tr>
-        <td colspan="7">Total (<?=$r1_summary['total_live']?> sites)</td>
-        <td style="text-align:right;">₹<?=number_format($r1_summary['amc_paid'],0)?></td>
+      <tr style="font-weight:600;background:var(--sur2)">
+        <td colspan="7" style="padding:9px 13px">Total (<?=$r1_summary['total_live']?> sites)</td>
+        <td style="padding:9px 13px;text-align:right">₹<?=number_format($r1_summary['amc_paid'],0)?></td>
         <td></td>
       </tr>
     </tfoot>
@@ -268,10 +274,10 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <?php elseif ($tab === 'visitors'): ?>
 <!-- ═══════════ REPORT 2: VISITOR DELTA ═══════════ -->
-<div class="card">
+<div class="card card-sm" style="margin-bottom:14px">
   <form method="get">
     <input type="hidden" name="tab" value="visitors">
-    <div class="filter-bar">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
       <div class="fg">
         <label>Project (optional)</label>
         <select name="r2_project" style="min-width:200px;">
@@ -281,12 +287,12 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="fg"><label>From Date (baseline)</label><input type="date" name="r2_from" value="<?=htmlspecialchars($r2_from)?>" max="<?=$today?>"></div>
-      <div class="fg"><label>To Date</label><input type="date" name="r2_to" value="<?=htmlspecialchars($r2_to)?>" max="<?=$today?>"></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run Report</button>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">From Date (baseline)</label><input type="date" name="r2_from" value="<?=htmlspecialchars($r2_from)?>" max="<?=$today?>"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">To Date</label><input type="date" name="r2_to" value="<?=htmlspecialchars($r2_to)?>" max="<?=$today?>"></div>
+      <button type="submit" class="btn btn-primary btn-sm">🔍 Run Report</button>
       <?php if ($r2_data): ?>
-      <a href="?tab=visitors&r2_from=<?=$r2_from?>&r2_to=<?=$r2_to?>&r2_project=<?=$r2_project?>&export_r2=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV</a>
-      <button type="button" data-action="print" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
+      <a href="?tab=visitors&r2_from=<?=$r2_from?>&r2_to=<?=$r2_to?>&r2_project=<?=$r2_project?>&export_r2=1" class="btn btn-ghost btn-sm" style="margin-top:auto;">⬇ CSV</a>
+      <button type="button" data-action="print" class="btn btn-ghost btn-sm">🖨 Print</button>
       <?php endif; ?>
     </div>
   </form>
@@ -341,10 +347,10 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <?php elseif ($tab === 'migration'): ?>
 <!-- ═══════════ REPORT 3: TECH MIGRATION ═══════════ -->
-<div class="card">
+<div class="card card-sm" style="margin-bottom:14px">
   <form method="get">
     <input type="hidden" name="tab" value="migration">
-    <div class="filter-bar">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
       <div class="fg">
         <label>From Technology</label>
         <select name="r3_from_tech">
@@ -363,11 +369,11 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="fg"><label>From Date</label><input type="date" name="r3_from" value="<?=htmlspecialchars($r3_from)?>" max="<?=$today?>"></div>
-      <div class="fg"><label>To Date</label><input type="date" name="r3_to" value="<?=htmlspecialchars($r3_to)?>" max="<?=$today?>"></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Filter</button>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">From Date</label><input type="date" name="r3_from" value="<?=htmlspecialchars($r3_from)?>" max="<?=$today?>"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">To Date</label><input type="date" name="r3_to" value="<?=htmlspecialchars($r3_to)?>" max="<?=$today?>"></div>
+      <button type="submit" class="btn btn-primary btn-sm">🔍 Filter</button>
       <?php if ($r3_data): ?>
-      <a href="?tab=migration&r3_from=<?=$r3_from?>&r3_to=<?=$r3_to?>&r3_from_tech=<?=$r3_from_t?>&r3_to_tech=<?=$r3_to_t?>&export_r3=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV</a>
+      <a href="?tab=migration&r3_from=<?=$r3_from?>&r3_to=<?=$r3_to?>&r3_from_tech=<?=$r3_from_t?>&r3_to_tech=<?=$r3_to_t?>&export_r3=1" class="btn btn-ghost btn-sm" style="margin-top:auto;">⬇ CSV</a>
       <?php endif; ?>
     </div>
   </form>
@@ -381,7 +387,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       $to_counts[$r['to_technology']] = ($to_counts[$r['to_technology']]??0) + 1;
   }
 ?>
-<div class="card">
+<div class="card card-sm" style="margin-bottom:14px">
   <strong style="font-size:13px;">Migration Summary (<?=count($r3_data)?> changes):</strong>
   <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;font-size:12px;">
     <?php foreach ($from_counts as $t => $n): ?>
@@ -400,7 +406,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     <tbody>
       <?php foreach ($r3_data as $row): ?>
       <tr>
-        <td><a href="project_form.php?id=<?=$row['project_id']?>" style="color:var(--accent);text-decoration:none;"><?=htmlspecialchars($row['project_name'])?></a></td>
+        <td><a href="project_form.php?id=<?=$row['project_id']?>" style="color:var(--acc);text-decoration:none;font-weight:500"><?=htmlspecialchars($row['project_name'])?></a></td>
         <td><?=htmlspecialchars($row['from_technology']??'')?></td>
         <td style="font-size:11px;color:var(--muted);"><?=htmlspecialchars($row['from_subtype']??'')?></td>
         <td style="color:#10b981;"><?=htmlspecialchars($row['to_technology'])?></td>
@@ -421,10 +427,10 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <?php elseif ($tab === 'workorders'): ?>
 <!-- ═══════════ REPORT 4: WORK ORDER SUMMARY ═══════════ -->
-<div class="card">
+<div class="card card-sm" style="margin-bottom:14px">
   <form method="get">
     <input type="hidden" name="tab" value="workorders">
-    <div class="filter-bar">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
       <div class="fg">
         <label>Technology Filter</label>
         <select name="r4_tech">
@@ -435,11 +441,11 @@ require_once __DIR__ . '/includes/sidebar.php';
           <option value="ALL" <?=$r4_tech==='ALL'?'selected':''?>>All Technologies</option>
         </select>
       </div>
-      <div class="fg"><label>Created From</label><input type="date" name="r4_from" value="<?=htmlspecialchars($r4_from)?>" max="<?=$today?>"></div>
-      <div class="fg"><label>Created To</label><input type="date" name="r4_to" value="<?=htmlspecialchars($r4_to)?>" max="<?=$today?>"></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run</button>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Created From</label><input type="date" name="r4_from" value="<?=htmlspecialchars($r4_from)?>" max="<?=$today?>"></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Created To</label><input type="date" name="r4_to" value="<?=htmlspecialchars($r4_to)?>" max="<?=$today?>"></div>
+      <button type="submit" class="btn btn-primary btn-sm">🔍 Run</button>
       <?php if ($r4_data): ?>
-      <a href="?tab=workorders&r4_from=<?=$r4_from?>&r4_to=<?=$r4_to?>&r4_tech=<?=$r4_tech?>&export_r4=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV</a>
+      <a href="?tab=workorders&r4_from=<?=$r4_from?>&r4_to=<?=$r4_to?>&r4_tech=<?=$r4_tech?>&export_r4=1" class="btn btn-ghost btn-sm" style="margin-top:auto;">⬇ CSV</a>
       <?php endif; ?>
     </div>
   </form>
@@ -460,7 +466,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         $techs = json_decode($wo['applicable_tech']??'[]',true);
       ?>
       <tr>
-        <td><a href="workorders.php?view=<?=$wo['id']?>" style="color:var(--accent);text-decoration:none;"><?=htmlspecialchars($wo['title'])?></a></td>
+        <td><a href="workorders.php?view=<?=$wo['id']?>" style="color:var(--acc);text-decoration:none;font-weight:500"><?=htmlspecialchars($wo['title'])?></a></td>
         <td style="font-size:12px;"><?=implode(', ',$techs)?></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['priority'])?></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['deadline']??'-')?></td>

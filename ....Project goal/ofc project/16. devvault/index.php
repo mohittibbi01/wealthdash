@@ -194,7 +194,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   </a>
   <a class="stat-card" href="findings.php" style="text-decoration:none;min-width:110px;text-align:center;border-color:<?=$openFindings>0?'rgba(255,83,112,.4)':'var(--bdr)'?>">
     <div class="stat-label">🔍 Findings</div>
-    <div class="stat-value" id="stat-findings" style="color:<?=$openFindings>0?'var(--err)':'var(--ok)'>?>"><?=$openFindings?></div>
+    <div class="stat-value" id="stat-findings" style="color:<?=$openFindings>0?'var(--err)':'var(--ok)'?>"><?=$openFindings?></div>
     <?php if($overdueFindings>0):?><div class="stat-sub" style="color:var(--err)"><?=$overdueFindings?> overdue</div><?php endif;?>
   </a>
   <a class="stat-card" href="sr.php" style="text-decoration:none;min-width:110px;text-align:center">

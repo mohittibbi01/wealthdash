@@ -295,14 +295,14 @@ require_once __DIR__ . '/includes/sidebar.php';
 <?php endif; ?>
 
 <!-- TABS -->
-<div class="tabs">
-  <button class="tab <?= $active_tab === 'users'     ? 'active' : '' ?>" data-tab="users">👥 Users (<?= count($users) ?>)</button>
-  <button class="tab <?= $active_tab === 'add'       ? 'active' : '' ?>" data-tab="add">➕ Add User</button>
-  <button class="tab <?= $active_tab === 'ip'        ? 'active' : '' ?>" data-tab="ip">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
-  <button class="tab <?= $active_tab === 'options'   ? 'active' : '' ?>" data-tab="options">🔧 Dropdown Options</button>
-  <button class="tab <?= $active_tab === 'checklist' ? 'active' : '' ?>" data-tab="checklist">✅ Checklist Items</button>
-  <button class="tab <?= $active_tab === 'logs'      ? 'active' : '' ?>" data-tab="logs">📋 Activity Log</button>
-  <button class="tab <?= $active_tab === 'trash' ? 'active' : '' ?>" data-tab="trash">🗑 Trash <?= count($deleted_projects)>0?'('.count($deleted_projects).')':'' ?></button>
+<div class="dv-tabs">
+  <button class="dv-tab <?= $active_tab === 'users' ? 'active' : '' ?>" data-tab="users">👥 Users (<?= count($users) ?>)</button>
+  <button class="dv-tab <?= $active_tab === 'add'       ? 'active' : '' ?>" data-tab="add">➕ Add User</button>
+  <button class="dv-tab <?= $active_tab === 'ip'        ? 'active' : '' ?>" data-tab="ip">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
+  <button class="dv-tab <?= $active_tab === 'options'   ? 'active' : '' ?>" data-tab="options">🔧 Dropdown Options</button>
+  <button class="dv-tab <?= $active_tab === 'checklist' ? 'active' : '' ?>" data-tab="checklist">✅ Checklist Items</button>
+  <button class="dv-tab <?= $active_tab === 'logs'      ? 'active' : '' ?>" data-tab="logs">📋 Activity Log</button>
+  <button class="dv-tab <?= $active_tab === 'trash' ? 'active' : '' ?>" data-tab="trash">🗑 Trash <?= count($deleted_projects)>0?'('.count($deleted_projects).')':'' ?></button>
 </div>
 
 <!-- ═══ USERS TAB ═══ -->
@@ -837,7 +837,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 <script nonce="<?= csp_nonce() ?>">
 function showTab(name, btn) {
   document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.dv-tab').forEach(t => t.classList.remove('active'));
   const pane = document.getElementById('tab-' + name);
   if (pane) pane.classList.add('active');
   if (btn) btn.classList.add('active');
@@ -846,7 +846,7 @@ function showTab(name, btn) {
 // ── Global event delegation (CSP fix — replaces ALL inline onclick) ───────────
 document.addEventListener('click', function(e) {
   // Tab switching
-  const tabBtn = e.target.closest('.tab[data-tab]');
+  const tabBtn = e.target.closest('.dv-tab[data-tab]');
   if (tabBtn) { showTab(tabBtn.dataset.tab, tabBtn); return; }
 
   // Generic confirm before form submit
@@ -898,7 +898,7 @@ function confirmDelIp(ip, isYou) {
 (function() {
   const tab = new URLSearchParams(window.location.search).get('tab');
   if (tab) {
-    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
+    const btn = document.querySelector(`.dv-tab[data-tab="${tab}"]`);
     if (btn) showTab(tab, btn);
   }
 })();

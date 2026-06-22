@@ -186,7 +186,6 @@ $urlCsv  = 'export.php?format=csv&csrf='  . urlencode($csrf);
 $urlRpt  = 'export.php?format=report&csrf=' . urlencode($csrf);
 
 $err = $_GET['err'] ?? '';
-<?php
 $page_title = 'Export & Backup';
 $nav_active = 'export';
 require_once __DIR__ . '/includes/sidebar.php';

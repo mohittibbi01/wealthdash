@@ -121,19 +121,20 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
   </div>
 
-  <div class="card">
+  <div class="card card-sm" style="margin-bottom:14px">
     <form method="get">
-      <div class="filter-bar">
-        <div class="fg">
-          <label>Project</label>
-          <select name="project_id" style="min-width:180px">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1.5;min-width:130px;display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Project</label>
+          <select name="project_id">
             <option value="">All Projects</option>
             <?php foreach ($all_projects as $pr): ?>
             <option value="<?=$pr['id']?>" <?=$f_project==$pr['id']?'selected':''?>><?=htmlspecialchars($pr['project_name'])?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="fg"><label>Severity</label>
+        <div style="flex:1;min-width:110px;display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Severity</label>
           <select name="severity">
             <option value="">All Severities</option>
             <?php foreach (array_keys($sev_cfg) as $s): ?>
@@ -141,7 +142,8 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="fg"><label>Status</label>
+        <div style="flex:1;min-width:110px;display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Status</label>
           <select name="status">
             <option value="">All Statuses</option>
             <?php foreach (array_keys($sta_cfg) as $s): ?>
@@ -149,16 +151,26 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="fg"><label>From Date</label><input type="date" name="from_date" value="<?=htmlspecialchars($f_from)?>" style="width:145px"></div>
-        <div class="fg"><label>To Date</label><input type="date" name="to_date" value="<?=htmlspecialchars($f_to)?>" max="<?=$today?>" style="width:145px"></div>
-        <button type="submit" class="btn btn-accent" style="margin-top:auto">🔍 Filter</button>
-        <a href="findings.php" class="btn btn-ghost" style="margin-top:auto">✕ Clear</a>
-        <?php if (can_edit()): ?>
-        <button type="button" class="btn btn-accent" style="margin-top:auto;margin-left:auto" data-action="open-finding-modal">＋ Add Finding</button>
-        <?php endif; ?>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">From</label>
+          <input type="date" name="from_date" value="<?=htmlspecialchars($f_from)?>" style="width:135px">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">To</label>
+          <input type="date" name="to_date" value="<?=htmlspecialchars($f_to)?>" max="<?=$today?>" style="width:135px">
+        </div>
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <button type="submit" class="btn btn-primary btn-sm">🔍 Filter</button>
+          <a href="findings.php" class="btn btn-ghost btn-sm">✕ Clear</a>
+          <?php if (can_edit()): ?>
+          <button type="button" class="btn btn-primary btn-sm" data-action="open-finding-modal">＋ Add Finding</button>
+          <?php endif; ?>
+        </div>
       </div>
     </form>
+  </div>
 
+  <div class="card" style="padding:0;overflow:hidden">
     <form method="post" id="bulk-form">
       <input type="hidden" name="csrf" value="<?=csrf_token()?>">
       <input type="hidden" name="_action" value="bulk_close">

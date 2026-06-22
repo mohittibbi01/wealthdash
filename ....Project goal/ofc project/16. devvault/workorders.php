@@ -525,6 +525,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <script src="session_timer.js"></script>
 <script nonce="<?= csp_nonce() ?>">
+window.DEVVAULT_CSRF = '<?= csrf_token() ?>';
 function toggleScope(v){
   document.getElementById('specific-projects-wrap').style.display=v==='specific'?'block':'none';
 }
