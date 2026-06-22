@@ -168,72 +168,12 @@ if ($tab === 'workorders') {
 $all_projects = $db->query("SELECT id, project_name FROM projects ORDER BY project_name")->fetchAll();
 $all_techs    = $db->query("SELECT DISTINCT technology FROM projects WHERE technology IS NOT NULL AND technology != '' ORDER BY technology")->fetchAll();
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="<?=$theme?>">
-<head>
-<meta charset="UTF-8">
-<title>Reports — DevVault Pro</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
-  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;}
-[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
-html{font-size:var(--fs)}
-body{font-family:'<?=$font?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
-  background-size:40px 40px;pointer-events:none;z-index:0}
-[data-theme="light"] body::before{opacity:.3}
-.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
-  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
-[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
-.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;
-  padding:5px 10px;border-radius:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
-.tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
-.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
-.btn-export{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.3)}.btn-export:hover{background:rgba(0,230,118,.22)}
-.btn-sm{padding:4px 9px;font-size:11px}
-.wrap{max-width:1400px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
-.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:16px;flex-wrap:wrap}
-.tab{flex:1;text-align:center;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;border:none;background:none;color:var(--muted);transition:all .15s;min-width:80px;text-decoration:none;display:inline-block}
-.tab.active{background:var(--accent);color:#000}
-.tab:hover:not(.active){background:var(--surface2);color:var(--text)}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
-.card-pad{padding:16px}
-.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:14px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
-.fg{display:flex;flex-direction:column;gap:3px}
-.fg label{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-input,select{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;
-  color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
-input:focus,select:focus{border-color:var(--accent)}
-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Courier New',Consolas,monospace}
-th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:9px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
-tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
-tfoot td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border)}
-.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Courier New',Consolas,monospace}
-.stat-chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.schip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:130px}
-.schip .num{font-size:22px;font-weight:700;font-family:'Courier New',Consolas,monospace;color:var(--accent)}
-.schip .lbl{font-size:9px;color:var(--muted);margin-top:2px;font-family:'Courier New',Consolas,monospace;text-transform:uppercase;letter-spacing:1px}
-.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Courier New',Consolas,monospace;font-size:11px}
-.amc-expired{color:var(--danger);font-size:10px;font-weight:700;font-family:'Courier New',Consolas,monospace}
-.amc-expiring{color:var(--amber);font-size:10px;font-weight:700;font-family:'Courier New',Consolas,monospace}
-.migration-summary{background:var(--surface2);border-radius:8px;padding:12px 16px;font-size:11px;font-family:'Courier New',Consolas,monospace;margin-bottom:12px;line-height:2}
-.progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:4px;height:6px;width:100%}
-.progress-bar{height:6px;border-radius:4px;background:var(--accent);transition:.3s}
-@media print{.topbar,.tabs,.filter-bar,.btn,.no-print{display:none!important;}.wrap{padding:0;}body{background:#fff;color:#000;}}
-</style>
-</head>
-<body>
-<?php $nav_active="reports"; require_once __DIR__ . "/includes/navbar.php"; ?>
+<?php
+$page_title = 'Reports';
+$nav_active = 'reports';
+require_once __DIR__ . '/includes/sidebar.php';
+?>
+<div class="dv-content">
 
 <div class="wrap">
   <div class="page-title">📊 REPORTS</div>
@@ -256,7 +196,7 @@ tfoot td{background:var(--surface2);font-weight:700;border-top:2px solid var(--b
       <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run Report</button>
       <?php if ($r1_data): ?>
       <a href="?tab=financial&r1_from=<?=$r1_from?>&r1_to=<?=$r1_to?>&export_r1=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV Export</a>
-      <button type="button" onclick="window.print()" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
+      <button type="button" data-action="print" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
       <?php endif; ?>
     </div>
   </form>
@@ -346,12 +286,15 @@ tfoot td{background:var(--surface2);font-weight:700;border-top:2px solid var(--b
       <button type="submit" class="btn btn-primary" style="margin-top:auto;">🔍 Run Report</button>
       <?php if ($r2_data): ?>
       <a href="?tab=visitors&r2_from=<?=$r2_from?>&r2_to=<?=$r2_to?>&r2_project=<?=$r2_project?>&export_r2=1" class="btn btn-export" style="margin-top:auto;">⬇ CSV</a>
-      <button type="button" onclick="window.print()" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
+      <button type="button" data-action="print" class="btn btn-ghost" style="margin-top:auto;">🖨 Print</button>
       <?php endif; ?>
     </div>
   </form>
   <p style="font-size:12px;color:var(--muted);margin-top:-8px;">
-    Logic: Baseline = latest entry on/before "From Date". Final = latest entry on/before "To Date". Net Gain = Final − Baseline.
+    <strong style="color:var(--text)">How it works:</strong>
+    <em>Baseline</em> = visitor count from the latest log entry on or before the <strong>From Date</strong>.
+    <em>Final</em> = visitor count from the latest log entry on or before the <strong>To Date</strong>.
+    <em>Net Gain</em> = Final − Baseline (visitors gained in this period).
   </p>
 </div>
 
@@ -551,5 +494,10 @@ tfoot td{background:var(--surface2);font-weight:700;border-top:2px solid var(--b
 
 </div>
 <script src="session_timer.js"></script>
-</body>
-</html>
+<script nonce="<?= csp_nonce() ?>">
+document.addEventListener('click', function(e) {
+  if (e.target.closest('[data-action="print"]')) window.print();
+});
+
+</div><!-- /.dv-content -->
+<?php require_once __DIR__ . '/includes/sidebar_footer.php'; ?>

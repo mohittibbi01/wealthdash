@@ -103,8 +103,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     }
 
     if ($action === 'delete_option') {
-        $oid = intval($_POST['oid'] ?? 0);
-        $db->prepare("DELETE FROM dynamic_options WHERE id=?")->execute([$oid]);
+        $oid  = intval($_POST['oid'] ?? 0);
+        $pw   = $_POST['confirm_pw'] ?? '';
+        $typed = trim($_POST['confirm_name'] ?? '');
+
+        // Verify admin password
+        $row = $db->prepare("SELECT password FROM users WHERE id=?")->execute([$_SESSION['user_id']])->fetchColumn()
+               ?? $db->prepare("SELECT password FROM users WHERE id=?")->execute([$_SESSION['user_id']]);
+        $row = $db->prepare("SELECT password,option_value FROM users u, dynamic_options o WHERE u.id=? AND o.id=?");
+        $row->execute([$_SESSION['user_id'], $oid]);
+        $data = $row->fetch();
+        $admin_pw_row = $db->prepare("SELECT password FROM users WHERE id=?");
+        $admin_pw_row->execute([$_SESSION['user_id']]);
+        $admin_hash = $admin_pw_row->fetchColumn();
+
+        $opt_row = $db->prepare("SELECT option_value,option_group FROM dynamic_options WHERE id=?");
+        $opt_row->execute([$oid]);
+        $opt = $opt_row->fetch();
+
+        $err_del = '';
+        if (!$opt) { $err_del = 'Option not found.'; }
+        elseif (!password_verify($pw, $admin_hash)) { $err_del = 'Galat password — delete cancel.'; }
+        elseif (strtolower($typed) !== strtolower($opt['option_value'])) { $err_del = 'Value name match nahi kiya — delete cancel.'; }
+
+        if ($err_del) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => '⛔ ' . $err_del];
+        } else {
+            $db->prepare("DELETE FROM dynamic_options WHERE id=?")->execute([$oid]);
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => '🗑 Option "' . htmlspecialchars($opt['option_value']) . '" deleted.'];
+        }
     }
 
     if ($action === 'add_checklist_item') {
@@ -256,174 +283,12 @@ $ip_active      = count(array_filter($ipList, fn($r) => $r['is_active']));
 $whitelist_on   = $ip_total > 0; // whitelist is enforced when table is non-empty
 $active_tab     = $_GET['tab'] ?? 'users';
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="<?= $theme ?>">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DevVault Pro — Admin</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --accent:<?= $accent ?>;
-  --fs:<?= $fsize ?>px;
-  --bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
-  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;
-  --success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--purple:#ea80fc;--blue:#40c4ff;
-}
-[data-theme="light"]{
-  --bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;
-  --border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;
-}
-html{font-size:var(--fs)}
-body{font-family:'<?= $ffamily ?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
-  background-size:40px 40px;pointer-events:none;z-index:0}
-[data-theme="light"] body::before{opacity:.3}
-
-/* ── TOPBAR ── */
-.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);
-  border-bottom:1px solid var(--border);backdrop-filter:blur(12px);
-  padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
-[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;
-  letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
-
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;
-  font-size:12px;font-weight:600;font-family:'Segoe UI',Tahoma,Arial,sans-serif;letter-spacing:.4px;
-  cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
-.btn-ghost:hover{color:var(--text);border-color:var(--muted)}
-.btn-accent{background:var(--accent);color:#000}
-.btn-accent:hover{opacity:.85}
-.btn-danger{background:rgba(255,61,90,.12);color:var(--danger);border:1px solid rgba(255,61,90,.25)}
-.btn-danger:hover{background:rgba(255,61,90,.22)}
-.btn-warn{background:rgba(255,215,64,.12);color:var(--amber);border:1px solid rgba(255,215,64,.25)}
-.btn-warn:hover{background:rgba(255,215,64,.22)}
-.btn-success{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.25)}
-.btn-success:hover{background:rgba(0,230,118,.22)}
-.btn-info{background:rgba(64,196,255,.12);color:var(--blue);border:1px solid rgba(64,196,255,.25)}
-.btn-info:hover{background:rgba(64,196,255,.22)}
-
-/* ── CONTENT ── */
-.content{padding:16px 20px;position:relative;z-index:1}
-
-/* ── TABS ── */
-.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);
-  border-radius:10px;padding:4px;margin-bottom:14px;flex-wrap:wrap}
-.tab{flex:1;text-align:center;padding:8px 10px;border-radius:7px;cursor:pointer;
-  font-size:13px;font-weight:700;font-family:'Segoe UI',Tahoma,Arial,sans-serif;border:none;
-  background:none;color:var(--muted);transition:all .15s;min-width:80px}
-.tab.active{background:var(--accent);color:#000}
-.tab:hover:not(.active){background:var(--surface2);color:var(--text)}
-.tab-pane{display:none}
-.tab-pane.active{display:block}
-
-/* ── FLASH ── */
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;
-  font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
-.flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
-
-/* ── LAYOUT ── */
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
-.panel h2{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;
-  letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;
-  border-bottom:1px solid var(--border)}
-
-/* ── TABLES ── */
-.user-table{width:100%;border-collapse:collapse;font-size:12px}
-.user-table th{text-align:left;padding:7px 10px;font-family:'Courier New',Consolas,monospace;
-  font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
-  border-bottom:1px solid var(--border)}
-.user-table td{padding:8px 10px;border-bottom:1px solid rgba(30,45,74,.4);
-  font-family:'Courier New',Consolas,monospace;font-size:11px;vertical-align:middle}
-.user-table tr:last-child td{border-bottom:none}
-.user-table tr:hover td{background:rgba(0,212,255,.02)}
-
-.role-badge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.8px;border:1px solid currentColor}
-.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
-.actions-cell{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
-
-/* ── FORM FIELDS ── */
-.fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
-.field label{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;
-  letter-spacing:1.2px;color:var(--muted)}
-input,select{background:var(--surface2);border:1px solid var(--border);border-radius:7px;
-  padding:8px 10px;color:var(--text);font-size:13px;font-family:'Courier New',Consolas,monospace;
-  outline:none;transition:border-color .2s;width:100%}
-input:focus,select:focus{border-color:var(--accent)}
-select option{background:var(--surface2)}
-
-/* ── LOG ROWS ── */
-.log-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(30,45,74,.35);
-  font-size:11px;font-family:'Courier New',Consolas,monospace;align-items:flex-start}
-.log-row:last-child{border-bottom:none}
-.log-time{color:var(--muted);min-width:110px;flex-shrink:0;font-size:10px}
-.log-user{color:var(--accent);min-width:80px;flex-shrink:0}
-.log-action{flex:1}
-.log-ip{color:var(--border);font-size:10px;margin-left:4px}
-
-/* ── OPTS ── */
-.opt-group{margin-bottom:14px}
-.opt-group h3{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;
-  letter-spacing:1px;color:var(--accent);margin-bottom:7px}
-.opt-pills{display:flex;flex-wrap:wrap;gap:5px}
-.opt-pill{display:inline-flex;align-items:center;gap:5px;background:var(--surface2);
-  border:1px solid var(--border);border-radius:20px;padding:3px 9px;
-  font-size:11px;font-family:'Courier New',Consolas,monospace}
-.opt-pill .rm{background:none;border:none;cursor:pointer;color:var(--danger);
-  font-size:11px;padding:0;line-height:1;transition:opacity .15s}
-.opt-pill .rm:hover{opacity:.7}
-
-/* ── IP WHITELIST SPECIFIC ── */
-.ip-status-banner{border-radius:10px;padding:14px 16px;margin-bottom:14px;
-  font-family:'Courier New',Consolas,monospace;font-size:12px;line-height:1.7}
-.ip-on{background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
-.ip-off{background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.2);color:var(--success)}
-.ip-mine{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);
-  border-radius:8px;padding:10px 14px;margin-bottom:14px;
-  font-family:'Courier New',Consolas,monospace;font-size:12px}
-.ip-mine strong{color:var(--accent);font-size:14px}
-.ip-stat-row{display:flex;gap:10px;margin-bottom:14px}
-.ip-stat{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;text-align:center;font-family:'Courier New',Consolas,monospace}
-.ip-stat .val{font-size:22px;font-weight:700;display:block}
-.ip-stat .lbl{font-size:10px;color:var(--muted);display:block;margin-top:2px}
-
-/* ── ROLE INFO ── */
-.role-info{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;font-family:'Courier New',Consolas,monospace;font-size:11px;
-  margin-top:12px;line-height:1.8}
-.ri{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-.ri:last-child{margin-bottom:0}
-
-/* ── Pagination ──────────────────────────────────────────────────────────── */
-.pagination-bar{display:flex;align-items:center;justify-content:space-between;
-  flex-wrap:wrap;gap:10px;padding:12px 0;margin-top:4px}
-.pag-info{font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)}
-.pag-btns{display:flex;gap:5px;flex-wrap:wrap}
-.pag-btn{display:inline-flex;align-items:center;justify-content:center;
-  min-width:34px;height:30px;padding:0 10px;border-radius:6px;font-size:12px;font-weight:600;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;text-decoration:none;
-  background:var(--surface2);border:1px solid var(--border);color:var(--muted);
-  transition:all .15s;cursor:pointer}
-.pag-btn:hover:not(.disabled):not(.active){background:var(--surface3);color:var(--text)}
-.pag-btn.active{background:var(--accent);color:#000;border-color:var(--accent);cursor:default}
-.pag-btn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
-</style>
-</head>
-<body>
-
-<?php $nav_active="admin"; require_once __DIR__ . "/includes/navbar.php"; ?>
-
-<div class="content">
+<?php
+$page_title = 'Admin';
+$nav_active = 'admin';
+require_once __DIR__ . '/includes/sidebar.php';
+?>
+<div class="dv-content">
 
 <?php if ($flash): ?>
 <div class="flash flash-<?= $flash['type'] ?>"><?= htmlspecialchars($flash['msg']) ?></div>
@@ -431,13 +296,13 @@ select option{background:var(--surface2)}
 
 <!-- TABS -->
 <div class="tabs">
-  <button class="tab <?= $active_tab === 'users'     ? 'active' : '' ?>" onclick="showTab('users',this)">👥 Users (<?= count($users) ?>)</button>
-  <button class="tab <?= $active_tab === 'add'       ? 'active' : '' ?>" onclick="showTab('add',this)">➕ Add User</button>
-  <button class="tab <?= $active_tab === 'ip'        ? 'active' : '' ?>" onclick="showTab('ip',this)">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
-  <button class="tab <?= $active_tab === 'options'   ? 'active' : '' ?>" onclick="showTab('options',this)">🔧 Dropdown Options</button>
-  <button class="tab <?= $active_tab === 'checklist' ? 'active' : '' ?>" onclick="showTab('checklist',this)">✅ Checklist Items</button>
-  <button class="tab <?= $active_tab === 'logs'      ? 'active' : '' ?>" onclick="showTab('logs',this)">📋 Activity Log</button>
-  <button class="tab <?= $active_tab === 'trash' ? 'active' : '' ?>" onclick="showTab('trash',this)">🗑 Trash <?= count($deleted_projects)>0?'('.count($deleted_projects).')':'' ?></button>
+  <button class="tab <?= $active_tab === 'users'     ? 'active' : '' ?>" data-tab="users">👥 Users (<?= count($users) ?>)</button>
+  <button class="tab <?= $active_tab === 'add'       ? 'active' : '' ?>" data-tab="add">➕ Add User</button>
+  <button class="tab <?= $active_tab === 'ip'        ? 'active' : '' ?>" data-tab="ip">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
+  <button class="tab <?= $active_tab === 'options'   ? 'active' : '' ?>" data-tab="options">🔧 Dropdown Options</button>
+  <button class="tab <?= $active_tab === 'checklist' ? 'active' : '' ?>" data-tab="checklist">✅ Checklist Items</button>
+  <button class="tab <?= $active_tab === 'logs'      ? 'active' : '' ?>" data-tab="logs">📋 Activity Log</button>
+  <button class="tab <?= $active_tab === 'trash' ? 'active' : '' ?>" data-tab="trash">🗑 Trash <?= count($deleted_projects)>0?'('.count($deleted_projects).')':'' ?></button>
 </div>
 
 <!-- ═══ USERS TAB ═══ -->
@@ -467,7 +332,7 @@ select option{background:var(--surface2)}
             <input type="hidden" name="action" value="unlock_ip">
             <input type="hidden" name="ip" value="<?= htmlspecialchars($la['ip_address']) ?>">
             <button type="submit" class="btn btn-ghost btn-sm" style="color:#00e676;border-color:#00e676"
-              onclick="return confirm('IP <?= htmlspecialchars($la['ip_address']) ?> ko unlock karo?')">
+              data-confirm="IP <?= htmlspecialchars($la['ip_address']) ?> ko unlock karo?">
               🔓 Unlock
             </button>
           </form>
@@ -534,14 +399,14 @@ select option{background:var(--surface2)}
                 ?>
             </td>
             <td>
-            <button class="btn btn-ghost" onclick="resetPw(<?= $u['id'] ?>,'<?= htmlspecialchars($u['username']) ?>')"
+            <button class="btn btn-ghost" data-action="reset-pw" data-uid="<?= $u['id'] ?>" data-uname="<?= htmlspecialchars($u['username']) ?>"
               style="padding:4px 7px">🔑</button>
             <form method="POST" style="display:inline">
               <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="action" value="delete_user">
               <input type="hidden" name="uid" value="<?= $u['id'] ?>">
               <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                onclick="return confirm('Delete user <?= htmlspecialchars($u['username']) ?>?')">🗑</button>
+                data-confirm="Delete user <?= htmlspecialchars($u['username']) ?>?">🗑</button>
             </form>
           </div>
           <?php else: ?>
@@ -718,7 +583,7 @@ select option{background:var(--surface2)}
                 <input type="hidden" name="action" value="delete_ip">
                 <input type="hidden" name="iid" value="<?= $ipr['id'] ?>">
                 <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                  onclick="return confirmDelIp('<?= htmlspecialchars($ipr['ip_address']) ?>','<?= $ipr['ip_address'] === $client_ip ? 'yes' : 'no' ?>')">🗑</button>
+                  data-confirm-ip="<?= htmlspecialchars($ipr['ip_address']) ?>" data-is-own="<?= $ipr['ip_address'] === $client_ip ? 'yes' : 'no' ?>">🗑</button>
               </form>
             </div>
           </td>
@@ -773,28 +638,40 @@ select option{background:var(--surface2)}
     <div class="panel">
       <h2><?= $lbl ?> Options</h2>
       <div class="opt-pills">
-        <?php foreach ($optsByGroup[$grp] ?? [] as $o): ?>
+        <?php foreach ($optsByGroup[$grp] ?? [] as $o):
+          // T-3: Count usage in projects table
+          $usageCount = 0;
+          $usageCol = ['technology'=>'technology','app_os'=>'app_os','db_technology'=>'db_technology','db_version'=>'db_version','db_os'=>'db_os'];
+          if(isset($usageCol[$grp])){
+            $uc=$db->prepare("SELECT COUNT(*) FROM projects WHERE ".$usageCol[$grp]."=?");
+            $uc->execute([$o['option_value']]);
+            $usageCount=(int)$uc->fetchColumn();
+          }
+        ?>
         <span class="opt-pill">
           <?= htmlspecialchars($o['option_value']) ?>
-          <form method="POST" style="display:inline">
-            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="action" value="delete_option">
-            <input type="hidden" name="oid" value="<?= $o['id'] ?>">
-            <button type="submit" class="rm" onclick="return confirm('Remove this option?')">✕</button>
-          </form>
+          <?php if($usageCount>0):?>
+          <span style="font-size:9px;background:var(--warn-bg);color:var(--warn);padding:0 4px;border-radius:4px;margin-left:2px"><?=$usageCount?>✦</span>
+          <?php endif;?>
+          <button type="button" class="rm"
+            data-action="del-opt-modal"
+            data-oid="<?=$o['id']?>"
+            data-val="<?=htmlspecialchars($o['option_value'])?>"
+            data-usage="<?=$usageCount?>"
+            title="Delete option">✕</button>
         </span>
         <?php endforeach; ?>
         <?php if (empty($optsByGroup[$grp])): ?>
-        <span style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)">No options yet</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx3)">No options yet</span>
         <?php endif; ?>
       </div>
     </div>
     <?php endforeach; ?>
-    <div class="panel" style="grid-column:1/-1">
-      <h2>How Options Work</h2>
-      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);line-height:1.8">
-        💡 Project form mein "Other" select karo aur value type karo — wo automatically yahan save ho jaegi.<br>
-        Agle baar wo dropdown mein dikhegi. Yahan se unwanted options remove kar sakte ho.
+    <div class="card" style="grid-column:1/-1;margin-top:8px">
+      <p style="font-size:12px;color:var(--tx2);line-height:1.7">
+        💡 <strong style="color:var(--tx)">How it works:</strong> Project form mein "Other" select karo aur value type karo — wo automatically yahan save ho jaegi.<br>
+        Yahan se unwanted options remove kar sakte ho. <strong style="color:var(--warn)">⚠ Delete se pehle password confirm karni hogi.</strong><br>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--err)">✦ = Projects using this value (deleting will not affect existing data)</span>
       </p>
     </div>
   </div>
@@ -831,7 +708,7 @@ select option{background:var(--surface2)}
               <input type="hidden" name="action" value="delete_checklist_item">
               <input type="hidden" name="iid" value="<?= $ci['id'] ?>">
               <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                onclick="return confirm('Delete this checklist item? Responses will be removed too.')">🗑</button>
+                data-confirm="Delete this checklist item? Responses will be removed too.">🗑</button>
             </form>
           </td>
         </tr>
@@ -961,9 +838,35 @@ select option{background:var(--surface2)}
 function showTab(name, btn) {
   document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  btn.classList.add('active');
+  const pane = document.getElementById('tab-' + name);
+  if (pane) pane.classList.add('active');
+  if (btn) btn.classList.add('active');
 }
+
+// ── Global event delegation (CSP fix — replaces ALL inline onclick) ───────────
+document.addEventListener('click', function(e) {
+  // Tab switching
+  const tabBtn = e.target.closest('.tab[data-tab]');
+  if (tabBtn) { showTab(tabBtn.dataset.tab, tabBtn); return; }
+
+  // Generic confirm before form submit
+  const confirmBtn = e.target.closest('[data-confirm]');
+  if (confirmBtn && confirmBtn.type === 'submit') {
+    if (!confirm(confirmBtn.dataset.confirm)) e.preventDefault();
+    return;
+  }
+
+  // Reset password
+  const rpBtn = e.target.closest('[data-action="reset-pw"]');
+  if (rpBtn) { resetPw(parseInt(rpBtn.dataset.uid), rpBtn.dataset.uname); return; }
+
+  // Delete IP with ownership warning
+  const delIpBtn = e.target.closest('[data-confirm-ip]');
+  if (delIpBtn && delIpBtn.type === 'submit') {
+    if (!confirmDelIp(delIpBtn.dataset.confirmIp, delIpBtn.dataset.isOwn)) e.preventDefault();
+    return;
+  }
+});
 
 function changeRole(uid, role) {
   if (!confirm(`Change role to "${role}"?`)) {
@@ -995,15 +898,74 @@ function confirmDelIp(ip, isYou) {
 (function() {
   const tab = new URLSearchParams(window.location.search).get('tab');
   if (tab) {
-    const btn = document.querySelector(`.tab[onclick*="'${tab}'"]`);
+    const btn = document.querySelector(`.tab[data-tab="${tab}"]`);
     if (btn) showTab(tab, btn);
   }
 })();
 </script>
 <script nonce="<?= csp_nonce() ?>">
 window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
+
+// ── Delete Option Modal (T-2 & T-3) ──────────────────────────────
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-action="del-opt-modal"]');
+  if (!btn) return;
+  var oid   = btn.dataset.oid;
+  var val   = btn.dataset.val;
+  var usage = parseInt(btn.dataset.usage) || 0;
+
+  document.getElementById('delopt-oid').value   = oid;
+  document.getElementById('delopt-val').value   = '';
+  document.getElementById('delopt-pw').value    = '';
+  document.getElementById('delopt-name-disp').textContent = val;
+  document.getElementById('delopt-usage').textContent =
+    usage > 0 ? '⚠ ' + usage + ' project(s) mein yeh value use ho rahi hai. Delete se existing data affect nahi hoga, lekin dropdown se hat jaayegi.' : '✅ Koi project is value ka use nahi karta.';
+  document.getElementById('delopt-usage').style.color = usage > 0 ? 'var(--warn)' : 'var(--ok)';
+  document.getElementById('del-opt-modal').classList.add('open');
+  document.getElementById('delopt-pw').focus();
+});
+document.getElementById('delopt-cancel').addEventListener('click', function(){
+  document.getElementById('del-opt-modal').classList.remove('open');
+});
+document.getElementById('del-opt-modal').addEventListener('click', function(e){
+  if(e.target === this) this.classList.remove('open');
+});
+
 window.DEVVAULT_LOGOUT = 'logout.php';
 </script>
-<script src="session_timer.js"></script>
-</body>
-</html>
+<!-- ── Delete Option Confirm Modal (T-2 T-3) ──────────────────────── -->
+<div class="modal-backdrop" id="del-opt-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">🗑 Delete Dropdown Option</span>
+      <button class="modal-close" id="delopt-cancel">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:12px">
+      Option <strong id="delopt-name-disp" style="color:var(--err)"></strong> ko permanently delete karna chahte ho?
+    </p>
+    <div id="delopt-usage" style="font-size:12px;padding:8px 12px;border-radius:8px;background:var(--sur2);margin-bottom:14px;line-height:1.5"></div>
+    <form method="POST">
+      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <input type="hidden" name="action" value="delete_option">
+      <input type="hidden" name="oid" id="delopt-oid">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field">
+          <label class="field-label">Option ka naam likhkar confirm karo <span class="req">*</span></label>
+          <input type="text" name="confirm_name" id="delopt-val" placeholder="Exact naam likhein…" required autocomplete="off">
+          <span class="field-hint">Case-insensitive match karega</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Apna Admin Password <span class="req">*</span></label>
+          <input type="password" name="confirm_pw" id="delopt-pw" placeholder="Current password…" required autocomplete="current-password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="delopt-cancel2" data-action="close-delopt">Cancel</button>
+        <button type="submit" class="btn btn-danger">🗑 Haan, Delete Karo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+</div><!-- /.dv-content -->
+<?php require_once __DIR__ . '/includes/sidebar_footer.php'; ?>

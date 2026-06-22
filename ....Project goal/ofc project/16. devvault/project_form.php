@@ -262,153 +262,93 @@ $secColorsLight = [
 ];
 $sc = $theme === 'light' ? $secColorsLight : $secColors;
 ?>
+<?php
+$page_title = ($p ? '✏ Edit' : '＋ Add') . ' Project';
+$nav_active  = 'dashboard';
+$_theme2  = user_pref('theme','teal-dark');
+$_fs2     = max(11,min(18,(int)user_pref('font_size','14')));
+$_acc2    = preg_replace('/[^#a-fA-F0-9]/','',user_pref('accent','#00d4aa'));
+if(strlen($_acc2)<4) $_acc2='#00d4aa';
+$_cb2     = user_pref('colorblind','none');
+?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?=$theme?>">
+<html lang="en" data-theme="<?=htmlspecialchars($_theme2)?>"<?=$_cb2!=='none'?' data-colorblind="'.htmlspecialchars($_cb2).'"':''?> style="font-size:<?=$_fs2?>px">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DevVault — <?=$p?'Edit':'Add'?> Project</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --acc:<?=$accent?>;
-  --user-bg:<?=$bg?:'unset'?>;
-  --bg:#070b14;--sur:#0d1422;--sur2:#111a2e;--bdr:#1e2d4a;
-  --tx:#e8edf5;--mt:#5a7a9a;--ok:#00e676;--err:#ff3d5a;--amb:#ffd740;
-}
-[data-theme="light"]{
-  --bg:#f0f4f8;--sur:#ffffff;--sur2:#e8edf5;--bdr:#c8d4e0;--tx:#0d1422;--mt:#6b7f96;
-}
-html{font-size:<?=$fsize?>px}
-body{font-family:'<?=$ffamily?>',sans-serif;color:var(--tx);min-height:100vh;
-  background:var(--user-bg,var(--bg))}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background-image:linear-gradient(var(--bdr) 1px,transparent 1px),
-  linear-gradient(90deg,var(--bdr) 1px,transparent 1px);
-  background-size:44px 44px;opacity:.13}
-
-/* TOPBAR */
-.bar{position:sticky;top:0;z-index:200;height:50px;
-  background:color-mix(in srgb,var(--bg) 92%,transparent);
-  border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);
-  display:flex;align-items:center;padding:0 18px;gap:12px}
-.logo{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;
-  color:var(--acc);letter-spacing:2px;text-shadow:0 0 14px var(--acc)}
-.bar-r{margin-left:auto;display:flex;gap:8px}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;
-  font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:none;
-  text-decoration:none;transition:all .15s;letter-spacing:.3px}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--sur2);color:var(--mt);border:1px solid var(--bdr)}
-.btn-ghost:hover{color:var(--tx);border-color:var(--mt)}
-.btn-save{background:var(--acc);color:#000;padding:8px 22px;font-size:14px}
-.btn-save:hover{opacity:.85}
-.btn-cancel{background:var(--sur2);color:var(--mt);border:1px solid var(--bdr);padding:8px 16px;font-size:14px}
-.btn-cancel:hover{color:var(--tx)}
-
-/* LAYOUT */
-.wrap{padding:14px 16px 80px;position:relative;z-index:1;max-width:1200px;margin:0 auto}
-
-/* SECTION CARDS — each with unique tint */
-.sec{border-radius:12px;overflow:hidden;margin-bottom:14px;transition:box-shadow .2s}
-.sec:focus-within{box-shadow:0 0 0 2px var(--acc)30}
-.sec-hd{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;user-select:none}
-.sec-hd h2{font-family:'Courier New',Consolas,monospace;font-size:11px;font-weight:700;
-  color:var(--acc);letter-spacing:1.8px;text-transform:uppercase;flex:1}
-.chev{color:var(--mt);font-size:11px;transition:transform .2s}
+<title><?=$p?'Edit':'Add'?> Project — DevVault Pro</title>
+<link rel="stylesheet" href="assets/theme.css">
+<?php if($_acc2 !== '#00d4aa'): ?>
+<style>:root{--acc:<?=htmlspecialchars($_acc2)?>;--acc-dim:color-mix(in srgb,<?=htmlspecialchars($_acc2)?> 13%,transparent)}</style>
+<?php endif; ?>
+<style nonce="<?=csp_nonce()?>">
+/* Project form specific styles */
+.pf-wrap{max-width:960px;margin:0 auto;padding-bottom:70px}
+.sec{border-radius:12px;overflow:hidden;margin-bottom:12px;border:1px solid var(--bdr);background:var(--sur)}
+.sec:focus-within{box-shadow:0 0 0 2px var(--acc-dim)}
+.sec-hd{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;user-select:none;background:var(--sur2)}
+.sec-hd h2{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--acc);letter-spacing:1.8px;text-transform:uppercase;flex:1}
+.chev{color:var(--tx2);font-size:11px;transition:transform .18s}
 .sec-hd.closed .chev{transform:rotate(-90deg)}
 .sec-bd{padding:14px 16px}
 .sec-bd.gone{display:none}
-
-/* ROWS */
 .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px}
 .row:last-child{margin-bottom:0}
-.f{flex:1;min-width:130px;display:flex;flex-direction:column;gap:4px}
-.f.w15{flex:1.5}
-.f.w2{flex:2}
-.f.w3{flex:3}
-
-/* FIELDS */
-label,.lbl{display:block;font-family:'Courier New',Consolas,monospace;font-size:9.5px;
-  text-transform:uppercase;letter-spacing:1.3px;color:var(--mt)}
+.f{flex:1;min-width:120px;display:flex;flex-direction:column;gap:4px}
+.f.w15{flex:1.5}.f.w2{flex:2}.f.w3{flex:3}
+label,.lbl{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx2)}
 .req{color:var(--err)}
-input,select,textarea{
-  background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;
-  padding:7px 10px;color:var(--tx);font-size:13px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;
-  font-weight:500;outline:none;width:100%;transition:border-color .18s,box-shadow .18s}
-input:focus,select:focus,textarea:focus{
-  border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 12%,transparent)}
-input::placeholder,textarea::placeholder{color:var(--mt);font-size:12px}
-select option{background:var(--sur2)}
-textarea{resize:vertical;min-height:70px;line-height:1.5}
-
-/* PASSWORD */
-.pw{position:relative}
-.pw input{padding-right:34px;font-family:'Courier New',Consolas,monospace;letter-spacing:.5px}
-.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  background:none;border:none;cursor:pointer;color:var(--mt);font-size:13px;padding:2px;line-height:1}
+.hint{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--tx3);margin-top:1px}
+.cond{display:none!important}.cond.on{display:flex!important;flex-direction:column;gap:4px}
+.pw{position:relative}.pw input{padding-right:34px;font-family:'JetBrains Mono',monospace;letter-spacing:.5px}
+.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tx2);font-size:13px;padding:2px;line-height:1}
 .pw-eye:hover{color:var(--acc)}
-
-.hint{font-family:'Courier New',Consolas,monospace;font-size:9px;color:var(--mt);margin-top:2px}
-.cond{display:none!important}
-.cond.on{display:flex!important;flex-direction:column;gap:4px}
-
-/* ENV TABLE */
 .etbl{width:100%;border-collapse:collapse;min-width:660px}
-.etbl th{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;
-  letter-spacing:1px;color:var(--mt);padding:5px 7px 8px;text-align:left;border-bottom:1px solid var(--bdr)}
-.etbl td{padding:4px 5px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 60%,transparent);vertical-align:middle}
+.etbl th{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2);padding:6px 8px 8px;text-align:left;border-bottom:1px solid var(--bdr);background:var(--sur2)}
+.etbl td{padding:5px 5px;border-bottom:1px solid color-mix(in srgb,var(--bdr) 50%,transparent);vertical-align:middle}
 .etbl tr:last-child td{border-bottom:none}
 .etbl input{padding:6px 8px;font-size:12px}
-.env-nm{font-family:'Courier New',Consolas,monospace;font-size:11px;font-weight:700;
-  display:flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 8px}
+.env-nm{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap;padding:4px 6px}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
-
-/* STICKY FOOTER — only once at bottom */
-.form-footer{position:fixed;bottom:0;left:0;right:0;z-index:100;
-  background:color-mix(in srgb,var(--bg) 96%,transparent);
-  border-top:1px solid var(--bdr);backdrop-filter:blur(14px);
-  padding:10px 20px;display:flex;justify-content:flex-end;gap:10px}
-
-/* ERR */
-.err{background:color-mix(in srgb,var(--err) 8%,transparent);
-  border:1px solid color-mix(in srgb,var(--err) 30%,transparent);
-  color:var(--err);padding:9px 14px;border-radius:8px;
-  font-size:12px;font-family:'Courier New',Consolas,monospace;margin:10px 0}
-
-@media(max-width:600px){.row{flex-direction:column}.f,.f.w15,.f.w2,.f.w3{min-width:0;flex:1}}
-
-/* NEW: badge pill, checklist, contact rows, doc rows */
-.badge-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;
-  font-weight:700;text-transform:uppercase;letter-spacing:.6px;
-  background:var(--sur2);border:1px solid var(--bdr);color:var(--mt);
-  font-family:'Courier New',Consolas,monospace}
-.btn-xs{padding:4px 10px;font-size:11px;border-radius:6px}
-.contact-row{padding-top:4px}
-.checklist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px 14px}
-.chk-item{display:flex;flex-direction:column;gap:4px;padding:8px 10px;
-  background:var(--sur2);border:1px solid var(--bdr);border-radius:8px}
-.chk-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer}
-.chk-label input[type=checkbox]{width:16px;height:16px;accent-color:var(--acc);cursor:pointer;flex-shrink:0}
-.chk-note{font-size:11px!important;padding:5px 8px!important;background:var(--sur)!important}
+.form-footer{position:fixed;bottom:0;left:0;right:0;z-index:100;background:color-mix(in srgb,var(--bg) 96%,transparent);border-top:1px solid var(--bdr);backdrop-filter:blur(14px);padding:10px 20px;display:flex;justify-content:flex-end;gap:10px}
+.badge-pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:var(--sur2);border:1px solid var(--bdr);color:var(--tx2);font-family:'JetBrains Mono',monospace}
+.btn-xs{padding:3px 9px;font-size:11px;border-radius:6px}
+.checklist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px}
+.chk-item{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:var(--sur2);border:1px solid var(--bdr);border-radius:8px}
+.chk-label{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;cursor:pointer}
+.chk-note{font-size:11px!important;padding:5px 8px!important;background:var(--sur)!important;height:30px!important}
 .doc-row{display:flex;gap:8px;align-items:end;margin-bottom:8px;flex-wrap:wrap}
-.doc-row .f{min-width:120px}
+
+/* Section color tints */
+.sec-proj{border-color:rgba(0,212,170,.3)}.sec-proj .sec-hd{background:rgba(0,212,170,.05)}
+.sec-dept{border-color:rgba(0,230,118,.25)}.sec-dept .sec-hd{background:rgba(0,230,118,.04)}
+.sec-app{border-color:rgba(255,215,64,.25)}.sec-app .sec-hd{background:rgba(255,215,64,.04)}
+.sec-db{border-color:rgba(234,128,252,.25)}.sec-db .sec-hd{background:rgba(234,128,252,.04)}
+.sec-env{border-color:rgba(140,158,255,.25)}.sec-env .sec-hd{background:rgba(140,158,255,.04)}
+.sec-doc{border-color:rgba(255,110,64,.22)}.sec-doc .sec-hd{background:rgba(255,110,64,.04)}
+.sec-chk{border-color:rgba(100,221,23,.22)}.sec-chk .sec-hd{background:rgba(100,221,23,.04)}
+.sec-rem{border-color:rgba(255,61,90,.2)}.sec-rem .sec-hd{background:rgba(255,61,90,.04)}
+
+/* admin-only hint */
+.admin-only-hint{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--err);background:var(--err-bg);border:1px solid color-mix(in srgb,var(--err) 25%,transparent);padding:1px 7px;border-radius:10px;margin-left:6px}
+@media(max-width:600px){.row{flex-direction:column}.f,.f.w15,.f.w2,.f.w3{min-width:0;flex:1}}
 </style>
 </head>
 <body>
 
-<div class="bar">
-  <span class="logo">DEVVAULT</span>
+<!-- Minimal topbar (no full sidebar on form page — keeps focus) -->
+<div style="position:sticky;top:0;z-index:200;height:50px;background:color-mix(in srgb,var(--bg) 94%,transparent);border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 18px;gap:12px">
+  <a href="index.php" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--acc);text-decoration:none;letter-spacing:2px">🔐 DEVVAULT</a>
   <span style="color:var(--bdr);font-size:18px">|</span>
-  <span style="font-size:14px;font-weight:700"><?=$p?'✏ Edit':'＋ Add'?> Project</span>
-  <div class="bar-r">
-    <a href="index.php" class="btn btn-ghost">← Back</a>
-    <span id="session-timer-display" title="Session timer">⏱ 05:00</span>
-    <a href="logout.php" class="btn btn-ghost">⏏ Logout</a>
+  <span style="font-size:13px;font-weight:600;color:var(--tx)"><?=$p?'✏ Edit':'＋ Add'?> Project</span>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <span id="session-timer-display" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">⏱ 05:00</span>
+    <a href="index.php" class="btn btn-ghost btn-sm">← Back</a>
+    <a href="logout.php" class="btn btn-ghost btn-sm" style="color:var(--err)">⏏</a>
   </div>
 </div>
 
-<div class="wrap">
-<?php if($error):?><div class="err">⚠ <?= nl2br(htmlspecialchars($error)) ?></div><?php endif;?>
+<div class="pf-wrap" style="padding:16px 20px 70px">
+<?php if($error):?><div class="flash flash-error">⚠ <?=nl2br(htmlspecialchars($error))?></div><?php endif;?>
 
 <form method="POST" id="pf" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="<?=csrf_token()?>">
@@ -416,8 +356,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      1. PROJECT INFORMATION  (cyan tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['proj']['bg']?>;border:1px solid <?=$sc['proj']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['proj']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['proj']['hd']?>" data-action="toggle-sec">
     <h2>🗂 Project Information</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -432,11 +372,15 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <?php endforeach;?>
         </select>
       </div>
-      <div class="f cond <?=($p['technology']??'')==='Other'?'on':''?>" id="tech-oth">
+      <?php if(is_admin()): ?><div class="f cond <?=($p['technology']??'')==='Other'?'on':''?>" id="tech-oth">
         <label>Specify Technology</label>
         <input type="text" name="technology_other" placeholder="Enter tech name" value="<?=$v('technology_other')?>">
         <span class="hint">Auto-saved to dropdown</span>
-      </div>
+      </div><?php else: ?><div class="f" style="display:none">
+        <label>Specify Technology</label>
+        <input type="text" name="technology_other" placeholder="Enter tech name" value="<?=$v('technology_other')?>">
+        <span class="hint">Auto-saved to dropdown</span>
+      </div><?php endif; ?>
       <div class="f w15" id="tech-subtype-wrap">
         <label>Technology Sub-Type</label>
         <select name="tech_subtype" id="tech_subtype">
@@ -557,8 +501,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      2. DEPARTMENT INFO  (green tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['dept']['bg']?>;border:1px solid <?=$sc['dept']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['dept']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['dept']['hd']?>" data-action="toggle-sec">
     <h2>🏢 Department Info</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -600,7 +544,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <label style="margin-bottom:0">👥 Additional Contact Persons</label>
       </div>
       <div class="f" style="flex:none;margin-left:auto">
-        <button type="button" class="btn btn-ghost btn-xs" onclick="addContactRow()">➕ Add Contact</button>
+        <button type="button" class="btn btn-ghost btn-xs" data-action="add-contact">➕ Add Contact</button>
       </div>
     </div>
     <div id="contacts-wrap">
@@ -615,7 +559,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <div class="f w2"><label>Email</label>
           <input type="email" name="contact_email[]" placeholder="email@gov.in" value="<?=htmlspecialchars($c['email'])?>"></div>
         <div class="f" style="flex:none;align-self:center">
-          <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.contact-row').remove()" style="margin-top:14px">🗑</button>
+          <button type="button" class="btn btn-danger btn-xs" data-action="remove-contact" style="margin-top:14px">🗑</button>
         </div>
       </div>
       <?php endforeach;?>
@@ -626,8 +570,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      3. APP INFRASTRUCTURE  (amber tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['app']['bg']?>;border:1px solid <?=$sc['app']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['app']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['app']['hd']?>" data-action="toggle-sec">
     <h2>🖥 App Infrastructure</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -645,11 +589,15 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <?php endforeach;?>
         </select>
       </div>
-      <div class="f cond <?=($p['app_os']??'')==='Other'?'on':''?>" id="aosos">
+      <?php if(is_admin()): ?><div class="f cond <?=($p['app_os']??'')==='Other'?'on':''?>" id="aosos">
         <label>Specify OS</label>
         <input type="text" name="app_os_other" placeholder="e.g. Win 2022" value="<?=$v('app_os_other')?>">
         <span class="hint">Auto-saved</span>
-      </div>
+      </div><?php else: ?><div class="f" style="display:none">
+        <label>Specify OS</label>
+        <input type="text" name="app_os_other" placeholder="e.g. Win 2022" value="<?=$v('app_os_other')?>">
+        <span class="hint">Auto-saved</span>
+      </div><?php endif; ?>
     </div>
     <!-- Row 2: Core + RAM + Primary + Secondary + Hosting -->
     <div class="row">
@@ -680,8 +628,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      4. DB INFRASTRUCTURE  (purple tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['db']['bg']?>;border:1px solid <?=$sc['db']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['db']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['db']['hd']?>" data-action="toggle-sec">
     <h2>🗄 DB Infrastructure</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -700,11 +648,15 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         </select>
         <span class="hint">e.g. MySQL, MongoDB, NoSQL...</span>
       </div>
-      <div class="f cond <?=($p['db_technology']??'')==='Other'?'on':''?>" id="dbtechoth">
+      <?php if(is_admin()): ?><div class="f cond <?=($p['db_technology']??'')==='Other'?'on':''?>" id="dbtechoth">
         <label>Specify Technology</label>
         <input type="text" name="db_technology_other" placeholder="e.g. Redis, Cassandra" value="<?=$v('db_technology_other')?>">
         <span class="hint">Auto-saved</span>
-      </div>
+      </div><?php else: ?><div class="f" style="display:none">
+        <label>Specify Technology</label>
+        <input type="text" name="db_technology_other" placeholder="e.g. Redis, Cassandra" value="<?=$v('db_technology_other')?>">
+        <span class="hint">Auto-saved</span>
+      </div><?php endif; ?>
     </div>
     <!-- Row 1b: DB Version + Version-Other -->
     <div class="row">
@@ -716,11 +668,15 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <?php endforeach;?>
         </select>
       </div>
-      <div class="f cond <?=($p['db_version']??'')==='Other'?'on':''?>" id="dbvoth">
+      <?php if(is_admin()): ?><div class="f cond <?=($p['db_version']??'')==='Other'?'on':''?>" id="dbvoth">
         <label>Specify Version</label>
         <input type="text" name="db_version_other" placeholder="e.g. MongoDB 6.0" value="<?=$v('db_version_other')?>">
         <span class="hint">Auto-saved</span>
-      </div>
+      </div><?php else: ?><div class="f" style="display:none">
+        <label>Specify Version</label>
+        <input type="text" name="db_version_other" placeholder="e.g. MongoDB 6.0" value="<?=$v('db_version_other')?>">
+        <span class="hint">Auto-saved</span>
+      </div><?php endif; ?>
     </div>
     <!-- Row 2: DB OS + OS-Other + Hosting -->
     <div class="row">
@@ -756,8 +712,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      5. ENVIRONMENT DETAILS  (indigo tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['env']['bg']?>;border:1px solid <?=$sc['env']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['env']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['env']['hd']?>" data-action="toggle-sec">
     <h2>🌐 Environment Details</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd" style="padding:10px 12px;overflow-x:auto">
@@ -786,7 +742,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <td><div class="pw">
           <input type="password" name="env_<?=$env?>_password" id="pw<?=$env?>"
             placeholder="<?=$hasPw?'(keep existing)':'password'?>" autocomplete="new-password">
-          <button type="button" class="pw-eye" onclick="tpw('pw<?=$env?>')">👁</button>
+          <button type="button" class="pw-eye" data-action="tpw" data-target="pw<?=$env?>">👁</button>
         </div></td>
         <td><input type="text" name="env_<?=$env?>_remark" placeholder="remark..." value="<?=$ep('remark')?>"></td>
       </tr>
@@ -799,8 +755,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      6. DOCUMENTS  (orange tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['doc']['bg']?>;border:1px solid <?=$sc['doc']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['doc']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['doc']['hd']?>" data-action="toggle-sec">
     <h2>📎 Documents (SOE / UAT / Audit / Other)</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -826,7 +782,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
           <td style="font-family:'Courier New',Consolas,monospace;font-size:11px"><?=round($d['file_size']/1024,1)?> KB</td>
           <td style="font-family:'Courier New',Consolas,monospace;font-size:11px"><?=date('d M Y',strtotime($d['uploaded_at']))?></td>
           <td>
-            <button type="button" class="btn btn-danger btn-xs" onclick="delDoc(<?=$d['id']?>,'<?=csrf_token()?>')">🗑</button>
+            <button type="button" class="btn btn-danger btn-xs" data-action="del-doc" data-id="<?=$d['id']?>" data-csrf="<?=csrf_token()?>">🗑</button>
           </td>
         </tr>
         <?php endforeach;?>
@@ -840,7 +796,7 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
         <label style="margin-bottom:0">📤 Upload New Documents</label>
       </div>
       <div class="f" style="flex:none;margin-left:auto">
-        <button type="button" class="btn btn-ghost btn-xs" onclick="addDocRow()">➕ Add File</button>
+        <button type="button" class="btn btn-ghost btn-xs" data-action="add-doc">➕ Add File</button>
       </div>
     </div>
     <div id="docs-wrap"></div>
@@ -851,8 +807,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      7. WEBSITE CHECKLIST  (lime tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['chk']['bg']?>;border:1px solid <?=$sc['chk']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['chk']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['chk']['hd']?>" data-action="toggle-sec">
     <h2>✅ Website Compliance Checklist</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -878,8 +834,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 <!-- ═══════════════════════════════════════════════════════
      6. GENERAL REMARKS  (red tint)
 ════════════════════════════════════════════════════════════ -->
-<div class="sec" style="background:<?=$sc['rem']['bg']?>;border:1px solid <?=$sc['rem']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" data-action="toggle-sec">
     <h2>💰 AMC / Financial Details</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -918,8 +874,8 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
   </div>
 </div>
 
-<div class="sec" style="background:<?=$sc['rem']['bg']?>;border:1px solid <?=$sc['rem']['bdr']?>">
-  <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" onclick="tog(this)">
+<div class="sec sec-proj">
+  <div class="sec-hd" style="background:<?=$sc['rem']['hd']?>" data-action="toggle-sec">
     <h2>📝 General Remarks</h2><span class="chev">▾</span>
   </div>
   <div class="sec-bd">
@@ -943,6 +899,20 @@ textarea{resize:vertical;min-height:70px;line-height:1.5}
 </div>
 
 <script nonce="<?= csp_nonce() ?>">
+// ── Event delegation: replaces all inline onclick (CSP fix) ──────────────────
+document.addEventListener('click', function(e) {
+  const t = e.target.closest('[data-action]');
+  if (!t) return;
+  const act = t.dataset.action;
+  if (act === 'toggle-sec') { tog(t); }
+  else if (act === 'add-contact') { addContactRow(); }
+  else if (act === 'remove-contact') { t.closest('.contact-row').remove(); }
+  else if (act === 'add-doc') { addDocRow(); }
+  else if (act === 'remove-doc') { t.closest('.doc-row').remove(); }
+  else if (act === 'tpw') { tpw(t.dataset.target); }
+  else if (act === 'del-doc') { delDoc(t.dataset.id, t.dataset.csrf); }
+});
+
 function tog(hd){hd.classList.toggle('closed');hd.nextElementSibling.classList.toggle('gone')}
 function showCond(sel,id){
   const el=document.getElementById(id);if(!el)return;
@@ -995,7 +965,7 @@ function addContactRow(){
     <div class="f"><label>Contact No.</label><input type="tel" name="contact_contact[]" placeholder="Mobile"></div>
     <div class="f w2"><label>Email</label><input type="email" name="contact_email[]" placeholder="email@gov.in"></div>
     <div class="f" style="flex:none;align-self:center">
-      <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.contact-row').remove()" style="margin-top:14px">🗑</button>
+      <button type="button" class="btn btn-danger btn-xs" data-action="remove-contact" style="margin-top:14px">🗑</button>
     </div>`;
   wrap.appendChild(row);
 }
@@ -1018,7 +988,7 @@ function addDocRow(){
     <div class="f w2"><label>Title</label><input type="text" name="doc_title[]" placeholder="Document title (optional)"></div>
     <div class="f w2"><label>File</label><input type="file" name="doc_file[]"></div>
     <div class="f" style="flex:none;align-self:center">
-      <button type="button" class="btn btn-danger btn-xs" onclick="this.closest('.doc-row').remove()" style="margin-top:14px">🗑</button>
+      <button type="button" class="btn btn-danger btn-xs" data-action="remove-doc" style="margin-top:14px">🗑</button>
     </div>`;
   wrap.appendChild(row);
 }
@@ -1067,6 +1037,40 @@ function updateSubtype(tech) {
 window.DEVVAULT_CSRF   = '<?= csrf_token() ?>';
 window.DEVVAULT_LOGOUT = 'logout.php';
 </script>
+<script src="session_timer.js"></script>
+
+<script nonce="<?=csp_nonce()?>">
+window.DEVVAULT_CSRF='<?=csrf_token()?>';
+
+// ── Event delegation — replaces ALL inline onclicks ───────────────
+document.addEventListener('click',function(e){
+  // Section toggle
+  var th=e.target.closest('[data-action="toggle-sec"]');
+  if(th){th.classList.toggle('closed');var bd=th.nextElementSibling;if(bd)bd.classList.toggle('gone');return;}
+  // Add contact row
+  if(e.target.closest('[data-action="add-contact"]')){addContactRow();return;}
+  // Remove contact row
+  var rc=e.target.closest('[data-action="remove-contact"]');if(rc){rc.closest('.contact-row').remove();return;}
+  // Add doc row
+  if(e.target.closest('[data-action="add-doc"]')){addDocRow();return;}
+  // Remove doc row
+  var rd=e.target.closest('[data-action="remove-doc"]');if(rd){rd.closest('.doc-row').remove();return;}
+  // Toggle PW
+  var tp=e.target.closest('[data-action="tpw"]');if(tp){tpw(tp.dataset.target);return;}
+  // Delete doc
+  var dd=e.target.closest('[data-action="del-doc"]');if(dd){delDoc(parseInt(dd.dataset.id),dd.dataset.csrf);return;}
+  // Confirm submit
+  var cb=e.target.closest('[data-confirm]');if(cb&&cb.type==='submit'){if(!confirm(cb.dataset.confirm))e.preventDefault();return;}
+});
+</script>
+</form>
+</div><!-- /pf-wrap -->
+
+<div class="form-footer">
+  <a href="index.php" class="btn btn-ghost">✕ Cancel</a>
+  <button type="submit" form="pf" class="btn btn-primary btn-lg">💾 Save Project</button>
+</div>
+
 <script src="session_timer.js"></script>
 </body>
 </html>

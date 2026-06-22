@@ -138,8 +138,16 @@ h1{font-family:'Orbitron',monospace;font-size:16px;color:var(--acc);margin-botto
 .field{margin-bottom:12px}
 label{display:block;font-family:'Share Tech Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mt);margin-bottom:5px}
 input,select{background:var(--sur2);border:1px solid var(--bdr);border-radius:7px;padding:9px 12px;color:var(--tx);
-  font-size:13px;font-family:'Share Tech Mono',monospace;outline:none;width:100%}
+  font-size:13px;font-family:'Share Tech Mono',monospace;outline:none;width:100%;height:40px;font-weight:400}
+select option{background:var(--sur2);font-weight:400}
 input:focus,select:focus{border-color:var(--acc)}
+input[type=file]{padding:0;cursor:pointer;display:flex;align-items:center}
+input[type=file]::file-selector-button{
+  height:40px;padding:0 14px;margin-right:12px;
+  background:var(--sur);border:none;border-right:1px solid var(--bdr);
+  color:var(--mt);font-size:12px;font-family:'Share Tech Mono',monospace;
+  font-weight:500;cursor:pointer;transition:all .15s;border-radius:6px 0 0 6px;letter-spacing:.5px}
+input[type=file]::file-selector-button:hover{background:var(--acc);color:#000}
 .flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Share Tech Mono',monospace;margin-bottom:14px}
 .flash-success{background:color-mix(in srgb,var(--ok) 8%,transparent);border:1px solid color-mix(in srgb,var(--ok) 25%,transparent);color:var(--ok)}
 .flash-error{background:color-mix(in srgb,var(--err) 8%,transparent);border:1px solid color-mix(in srgb,var(--err) 25%,transparent);color:var(--err)}

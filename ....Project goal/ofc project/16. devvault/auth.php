@@ -78,6 +78,14 @@ function is_admin(): bool {
     return is_logged_in() && ($_SESSION['role'] ?? '') === 'admin';
 }
 
+function is_member(): bool {
+    return is_logged_in() && ($_SESSION['role'] ?? '') === 'member';
+}
+
+function is_viewer(): bool {
+    return is_logged_in() && ($_SESSION['role'] ?? '') === 'viewer';
+}
+
 function require_login(): void {
     if (!is_logged_in()) {
         header('Location: login.php');
@@ -104,17 +112,27 @@ function require_login(): void {
 
         // ── 90-day password expiry check ──────────────────────────────────────
         if (!isset($_SESSION['pw_expiry_checked'])) {
-            $db = get_db();
-            $pw_row = $db->prepare("SELECT password_changed_at FROM users WHERE id=?");
-            $pw_row->execute([$_SESSION['user_id']]);
-            $pw_data = $pw_row->fetch();
-            if ($pw_data && !empty($pw_data['password_changed_at'])) {
-                $days_old = (time() - strtotime($pw_data['password_changed_at'])) / 86400;
-                if ($days_old >= PASSWORD_EXPIRY_DAYS) {
-                    $_SESSION['force_pw_change'] = 'expired';
-                    header('Location: change_password.php?reason=expired');
-                    exit;
+            try {
+                $db = get_db();
+                // Ensure column exists before querying (safe on existing DBs)
+                $db->exec("ALTER TABLE users ADD COLUMN password_changed_at DATETIME DEFAULT NULL");
+            } catch (Exception $_e) {
+                // Column already exists — this is expected, ignore the error
+            }
+            try {
+                $pw_row = $db->prepare("SELECT password_changed_at FROM users WHERE id=?");
+                $pw_row->execute([$_SESSION['user_id']]);
+                $pw_data = $pw_row->fetch();
+                if ($pw_data && !empty($pw_data['password_changed_at'])) {
+                    $days_old = (time() - strtotime($pw_data['password_changed_at'])) / 86400;
+                    if ($days_old >= PASSWORD_EXPIRY_DAYS) {
+                        $_SESSION['force_pw_change'] = 'expired';
+                        header('Location: change_password.php?reason=expired');
+                        exit;
+                    }
                 }
+            } catch (Exception $_e) {
+                // If column still missing for any reason, skip expiry check silently
             }
             $_SESSION['pw_expiry_checked'] = true;
         }

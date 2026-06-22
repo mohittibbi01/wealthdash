@@ -1177,9 +1177,13 @@ ALTER TABLE goals
   ADD COLUMN IF NOT EXISTS priority    ENUM('low','medium','high') NOT NULL DEFAULT 'medium' AFTER goal_type,
   ADD COLUMN IF NOT EXISTS notes       TEXT         NULL AFTER priority;
 
--- mf_sips: add goal_id FK if not present (optional link)
-ALTER TABLE mf_sips
-  ADD COLUMN IF NOT EXISTS goal_id INT UNSIGNED NULL DEFAULT NULL AFTER portfolio_id,
+-- sip_tracker: add goal_id FK if not present (optional link)
+-- FIX (21 Jun 2026): original migration referenced 'mf_sips' which
+-- doesn't exist in this database — actual table is 'sip_tracker'.
+-- Also removed 'AFTER portfolio_id' since we can't confirm that
+-- column exists in sip_tracker's actual schema; safer to just append.
+ALTER TABLE sip_tracker
+  ADD COLUMN IF NOT EXISTS goal_id INT UNSIGNED NULL DEFAULT NULL,
   ADD KEY IF NOT EXISTS idx_sip_goal (goal_id);
 
 

@@ -90,18 +90,21 @@ if ($action === 'delete_project' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'save_prefs' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf()) { echo json_encode(['error' => 'CSRF']); exit; }
 
-    $accent = substr(preg_replace('/[^#a-fA-F0-9]/', '', $_POST['accent'] ?? '#00d4ff'), 0, 7);
-    $bg     = preg_replace('/[^#a-fA-F0-9]/', '', $_POST['bg'] ?? '');
-    $bg     = $bg ? '#' . ltrim($bg, '#') : '';
-    $theme  = in_array($_POST['theme'] ?? '', ['dark', 'light']) ? $_POST['theme'] : 'dark';
-    $font   = in_array($_POST['font'] ?? '', ['Rajdhani', 'Share Tech Mono', 'Orbitron']) ? $_POST['font'] : 'Rajdhani';
-    $fs     = max(11, min(18, intval($_POST['fs'] ?? 14)));
+    $accent   = substr(preg_replace('/[^#a-fA-F0-9]/', '', $_POST['accent'] ?? '#00d4aa'), 0, 7);
+    $bg       = preg_replace('/[^#a-fA-F0-9]/', '', $_POST['bg'] ?? '');
+    $bg       = $bg ? '#' . ltrim($bg, '#') : '';
+    $validThemes = ['teal-dark','teal-light','purple-dark','orange-dark','high-contrast','dark','light'];
+    $theme    = in_array($_POST['theme'] ?? '', $validThemes) ? $_POST['theme'] : 'teal-dark';
+    $font     = in_array($_POST['font'] ?? '', ['Inter','Rajdhani','Share Tech Mono','Orbitron']) ? $_POST['font'] : 'Inter';
+    $fs       = max(11, min(18, intval($_POST['fs'] ?? 14)));
+    $cb       = in_array($_POST['colorblind'] ?? '', ['none','deuteranopia','protanopia','tritanopia']) ? $_POST['colorblind'] : 'none';
 
     $db = get_db();
     try { $db->exec("ALTER TABLE users ADD COLUMN bg_color TEXT DEFAULT ''"); } catch (Exception $e) {}
+    try { $db->exec("ALTER TABLE users ADD COLUMN colorblind_mode TEXT DEFAULT 'none'"); } catch (Exception $e) {}
 
-    $db->prepare("UPDATE users SET accent_color=?,bg_color=?,theme=?,font_family=?,font_size=? WHERE id=?")
-       ->execute([$accent, $bg, $theme, $font, $fs, $_SESSION['user_id']]);
+    $db->prepare("UPDATE users SET accent_color=?,bg_color=?,theme=?,font_family=?,font_size=?,colorblind_mode=? WHERE id=?")
+       ->execute([$accent, $bg, $theme, $font, $fs, $cb, $_SESSION['user_id']]);
 
     $_SESSION['prefs'] = [
         'accent'      => $accent,
@@ -109,6 +112,7 @@ if ($action === 'save_prefs' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'theme'       => $theme,
         'font_family' => $font,
         'font_size'   => $fs,
+        'colorblind'  => $cb,
     ];
     echo json_encode(['ok' => true]);
     exit;

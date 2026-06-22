@@ -1,0 +1,105 @@
+═══════════════════════════════════════════════════════════════
+          DEVVAULT PRO — COMPLETE TASK PLAN
+═══════════════════════════════════════════════════════════════
+
+PHASE A — Security & Logic (T-1 to T-3)
+─────────────────────────────────────────
+T-1  Lock dropdowns — Admin-only add
+     Files: project_form.php, config.php
+     Remove "Other" free-text input from project form for
+     non-admin users. Admins add new values only via Admin
+     panel → Dropdown Options tab.
+
+T-2  Password confirmation before deleting dropdown option
+     Files: admin.php
+     When admin clicks ✕ to remove a dropdown value, show a
+     modal requiring current password before proceeding.
+     Prevents accidental deletion.
+
+T-3  Show usage count before delete warning
+     Files: admin.php, DB query
+     Before allowing delete, show how many projects use that
+     option value. Admin must type the value name to confirm.
+
+PHASE B — Full UI/UX Redesign (T-4 to T-8)
+────────────────────────────────────────────
+T-4  New global design system
+     Files: NEW → assets/theme.css
+     Shared CSS with variables for 5 color themes:
+       - Default Teal
+       - Purple
+       - Orange
+       - Green
+       - High-Contrast (colorblind safe)
+     Inter/Geist font. Consistent spacing scale.
+
+T-5  Collapsible sidebar navigation
+     Files: includes/navbar.php → includes/sidebar.php (NEW)
+     Replace horizontal navbar with left sidebar.
+     Icons + labels, collapsible to icon-only.
+     Role-based items (viewer/member/admin).
+     Top bar: page title + user chip + notifications only.
+
+T-6  Redesign Dashboard (index.php)
+     Files: index.php
+     Modern card-based stats, better horizontal space use.
+     Project cards with status badges.
+     Tech breakdown as horizontal bar chart.
+     Proper empty state with CTA.
+
+T-7  Redesign Project Form
+     Files: project_form.php
+     Two-column layout, sticky section nav on left.
+     Consistent field heights, proper spacing.
+     File upload as drag-and-drop zone.
+     Progress indicator showing form completion %.
+
+T-8  Redesign remaining pages
+     Files: admin.php, sr.php, reports.php,
+            findings.php, workorders.php
+     Apply new design system to all pages.
+     Admin tabs → proper pill tabs.
+     Consistent table, modal, form styles.
+
+PHASE C — Color & Accessibility (T-9 to T-10)
+───────────────────────────────────────────────
+T-9  Theme switcher UI
+     Files: api.php, includes/sidebar.php
+     5 preset themes as swatches.
+     Light/dark toggle. Font size slider (12–18px).
+     Saved to DB via api.php.
+
+T-10 Colorblind accessibility modes
+     Files: assets/theme.css
+     3 colorblind-safe palettes:
+       - Deuteranopia (no green/red confusion)
+       - Protanopia
+       - High-contrast (WCAG AAA)
+     Status: color + shape/icon always (never color alone).
+     All text: WCAG AA contrast minimum.
+
+PHASE D — Polish (T-11 to T-12)
+─────────────────────────────────
+T-11 Redesign Login page
+     Files: login.php
+     Split layout: branding left, form right.
+     Show/hide password. Matches new design system.
+
+T-12 Final QA
+     Files: all
+     Test as admin, member, viewer roles.
+     Verify no inline onclicks remain.
+     Check mobile layout.
+     Verify colorblind modes.
+     Final zip of all changed files.
+
+═══════════════════════════════════════════════════════════════
+TOTAL FILES TO CHANGE:
+  project_form.php, admin.php, api.php, auth.php,
+  config.php, index.php, sr.php, reports.php,
+  findings.php, workorders.php, login.php,
+  includes/navbar.php (replaced by sidebar)
+NEW FILES:
+  assets/theme.css
+  includes/sidebar.php
+═══════════════════════════════════════════════════════════════

@@ -8,6 +8,7 @@ C:\xampp\htdocs\wealthdash\.htaccess1
 C:\xampp\htdocs\wealthdash\.php-cs-fixer.php
 C:\xampp\htdocs\wealthdash\.phpcs.xml
 C:\xampp\htdocs\wealthdash\api
+C:\xampp\htdocs\wealthdash\archive
 C:\xampp\htdocs\wealthdash\auth
 C:\xampp\htdocs\wealthdash\build
 C:\xampp\htdocs\wealthdash\build.php
@@ -40,9 +41,11 @@ C:\xampp\htdocs\wealthdash\phpstan.neon
 C:\xampp\htdocs\wealthdash\public
 C:\xampp\htdocs\wealthdash\README.md
 C:\xampp\htdocs\wealthdash\router notes
+C:\xampp\htdocs\wealthdash\router_merge_README.md
 C:\xampp\htdocs\wealthdash\tasks.md
 C:\xampp\htdocs\wealthdash\templates
 C:\xampp\htdocs\wealthdash\tests
+C:\xampp\htdocs\wealthdash\wd_router_audit_report.html
 C:\xampp\htdocs\wealthdash\XAMPP_SETUP_GUIDE.md
 C:\xampp\htdocs\wealthdash\zzProjectList.txt
 C:\xampp\htdocs\wealthdash\.github\workflows
@@ -105,6 +108,7 @@ C:\xampp\htdocs\wealthdash\api\realestate
 C:\xampp\htdocs\wealthdash\api\reits
 C:\xampp\htdocs\wealthdash\api\reports
 C:\xampp\htdocs\wealthdash\api\rest
+C:\xampp\htdocs\wealthdash\api\rest_dispatch.php
 C:\xampp\htdocs\wealthdash\api\router.php
 C:\xampp\htdocs\wealthdash\api\savings
 C:\xampp\htdocs\wealthdash\api\screener
@@ -180,7 +184,6 @@ C:\xampp\htdocs\wealthdash\api\cashflow\cashflow.php
 C:\xampp\htdocs\wealthdash\api\community\benchmarking.php
 C:\xampp\htdocs\wealthdash\api\crypto\cold_wallet.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_add.php
-C:\xampp\htdocs\wealthdash\api\crypto\crypto_cold_wallet.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_defi.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_exchange_sync.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_holdings.php
@@ -188,7 +191,6 @@ C:\xampp\htdocs\wealthdash\api\crypto\crypto_import.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_list.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_price_stream.php
 C:\xampp\htdocs\wealthdash\api\crypto\crypto_rebalance.php
-C:\xampp\htdocs\wealthdash\api\crypto\crypto_tax_calc.php
 C:\xampp\htdocs\wealthdash\api\crypto\defi_staking.php
 C:\xampp\htdocs\wealthdash\api\crypto\tax_calculator.php
 C:\xampp\htdocs\wealthdash\api\crypto\vda_tax.php
@@ -233,7 +235,6 @@ C:\xampp\htdocs\wealthdash\api\format\format_helper.php
 C:\xampp\htdocs\wealthdash\api\format\number_format.php
 C:\xampp\htdocs\wealthdash\api\gamification\streaks.php
 C:\xampp\htdocs\wealthdash\api\gold\gold.php
-C:\xampp\htdocs\wealthdash\api\govt_schemes\epf.php
 C:\xampp\htdocs\wealthdash\api\govt_schemes\leave_lta.php
 C:\xampp\htdocs\wealthdash\api\indexes\indexes_fetch.php
 C:\xampp\htdocs\wealthdash\api\insurance\health_tracker.php
@@ -246,7 +247,6 @@ C:\xampp\htdocs\wealthdash\api\integrations\account_aggregator.php
 C:\xampp\htdocs\wealthdash\api\integrations\brokers.php
 C:\xampp\htdocs\wealthdash\api\integrations\cibil.php
 C:\xampp\htdocs\wealthdash\api\integrations\digilocker.php
-C:\xampp\htdocs\wealthdash\api\integrations\epfo.php
 C:\xampp\htdocs\wealthdash\api\integrations\gmail_parser.php
 C:\xampp\htdocs\wealthdash\api\integrations\google_sheets.php
 C:\xampp\htdocs\wealthdash\api\integrations\groww.php
@@ -435,6 +435,11 @@ C:\xampp\htdocs\wealthdash\api\user\data_import.php
 C:\xampp\htdocs\wealthdash\api\user\discipline.php
 C:\xampp\htdocs\wealthdash\api\us_stocks\us_stocks.php
 C:\xampp\htdocs\wealthdash\api\watchlist\watchlist.php
+C:\xampp\htdocs\wealthdash\archive\duplicate_builds_20jun2026
+C:\xampp\htdocs\wealthdash\archive\duplicate_builds_20jun2026\crypto_cold_wallet.php
+C:\xampp\htdocs\wealthdash\archive\duplicate_builds_20jun2026\crypto_tax_calc.php
+C:\xampp\htdocs\wealthdash\archive\duplicate_builds_20jun2026\epf.php
+C:\xampp\htdocs\wealthdash\archive\duplicate_builds_20jun2026\epfo.php
 C:\xampp\htdocs\wealthdash\auth\2fa_login.php
 C:\xampp\htdocs\wealthdash\auth\forgot_password.php
 C:\xampp\htdocs\wealthdash\auth\google_callback.php
@@ -509,8 +514,10 @@ C:\xampp\htdocs\wealthdash\database\42_fix_nav_queue.sql
 C:\xampp\htdocs\wealthdash\database\43_fix_crypto_schema.sql
 C:\xampp\htdocs\wealthdash\database\44_v48_sprint_tables.sql
 C:\xampp\htdocs\wealthdash\database\45_db_indexes.sql
+C:\xampp\htdocs\wealthdash\database\MASTER_PLAN.md
 C:\xampp\htdocs\wealthdash\database\migrate.php
 C:\xampp\htdocs\wealthdash\database\migrations
+C:\xampp\htdocs\wealthdash\database\migrations_20jun2026_combined.sql
 C:\xampp\htdocs\wealthdash\database\README.md
 C:\xampp\htdocs\wealthdash\database\migrations\007_fund_returns.sql
 C:\xampp\htdocs\wealthdash\database\migrations\010_watchlist.sql

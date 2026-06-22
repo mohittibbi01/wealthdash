@@ -201,85 +201,12 @@ function wo_badge(string $s): string {
     return "<span style=\"background:{$c}22;color:{$c};font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;\">$s</span>";
 }
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="<?=$theme?>">
-<head>
-<meta charset="UTF-8">
-<title>Work Orders — DevVault Pro</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--accent:<?=$accent?>;--fs:<?=$fs?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
-  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;--purple:#ea80fc;}
-[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
-html{font-size:var(--fs)}
-body{font-family:'<?=$font?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
-  background-size:40px 40px;pointer-events:none;z-index:0}
-[data-theme="light"] body::before{opacity:.3}
-.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
-  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
-[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
-.tnav{display:flex;gap:2px}.tnav a{color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;
-  padding:5px 10px;border-radius:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
-.tnav a:hover{color:var(--text);background:var(--surface2)}.tnav a.cur{color:var(--accent)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
-.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
-.btn-danger{background:rgba(255,61,90,.12);color:var(--danger);border:1px solid rgba(255,61,90,.3)}.btn-danger:hover{background:rgba(255,61,90,.22)}
-.btn-warn{background:rgba(255,215,64,.12);color:var(--amber);border:1px solid rgba(255,215,64,.3)}.btn-warn:hover{background:rgba(255,215,64,.22)}
-.btn-success{background:rgba(0,230,118,.12);color:var(--success);border:1px solid rgba(0,230,118,.3)}.btn-success:hover{background:rgba(0,230,118,.22)}
-.btn-sm{padding:4px 9px;font-size:11px}
-.wrap{max-width:1400px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
-.card-pad{padding:16px}
-.badge{display:inline-block;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:700;border:1px solid currentColor;letter-spacing:.4px;font-family:'Courier New',Consolas,monospace}
-.flash{padding:10px 14px;border-radius:8px;font-size:12px;font-family:'Courier New',Consolas,monospace;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.flash-success{background:rgba(0,230,118,.08);border:1px solid rgba(0,230,118,.25);color:var(--success)}
-.flash-error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger)}
-table{width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace}
-th{text-align:left;padding:8px 12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:9px 12px;border-bottom:1px solid rgba(30,45,74,.35);vertical-align:middle}
-tr:last-child td{border-bottom:none}tr:hover td{background:rgba(0,212,255,.02)}
-.f{display:flex;flex-direction:column;gap:4px;flex:1}
-.f label{font-family:'Courier New',Consolas,monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;
-  color:var(--text);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
-input:focus,select:focus,textarea:focus{border-color:var(--accent)}
-.row{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}.w2{flex:2}.w3{flex:3}
-.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
-.fg{display:flex;flex-direction:column;gap:3px;min-width:120px}
-.fg label{font-family:'Courier New',Consolas,monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-.modal-backdrop.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:720px;max-width:95vw;max-height:90vh;overflow-y:auto}
-.modal h3{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:700;color:var(--accent);margin-bottom:16px}
-.tbl-footer{padding:8px 12px;font-size:10px;font-family:'Courier New',Consolas,monospace;color:var(--muted);border-top:1px solid var(--border)}
-.no-data{text-align:center;color:var(--muted);padding:36px;font-family:'Courier New',Consolas,monospace;font-size:11px}
-.progress-bar-wrap{background:rgba(255,255,255,0.07);border-radius:4px;height:7px;width:100%}
-.progress-bar{height:7px;border-radius:4px;background:var(--accent);transition:.3s}
-.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
-.meta-item{font-size:12px;font-family:'Courier New',Consolas,monospace}
-.meta-item .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
-.history-item{font-size:11px;font-family:'Courier New',Consolas,monospace;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline}
-.history-item:last-child{border-bottom:none}
-.history-item .ts{white-space:nowrap;font-size:10px;min-width:130px}
-.history-item .act{color:var(--text)}
-.tech-hd{background:var(--surface2);padding:10px 14px;font-size:11px;font-weight:700;font-family:'Courier New',Consolas,monospace;
-  display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
-.checkboxes{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.checkboxes label{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;
-  cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;transition:all .15s}
-.checkboxes label:hover{border-color:var(--muted)}
-.pct-num{font-family:'Courier New',Consolas,monospace;font-size:26px;font-weight:700;color:var(--accent)}
-</style>
-</head>
-<body>
-<?php $nav_active="workorders"; require_once __DIR__ . "/includes/navbar.php"; ?>
+<?php
+$page_title = 'Work Orders';
+$nav_active = 'workorders';
+require_once __DIR__ . '/includes/sidebar.php';
+?>
+<div class="dv-content">
 
 <div class="wrap">
 <?php if ($flash): ?>
@@ -365,7 +292,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
       <input type="hidden" name="_action" value="bulk_done_tech">
       <input type="hidden" name="wo_id" value="<?=$view_id?>">
       <input type="hidden" name="tech" value="WebMyWay">
-      <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Mark ALL <?=$t_pending?> pending <?=$tech_name?> sites as Done?')">
+      <button type="submit" class="btn btn-success btn-sm" data-confirm="Mark ALL <?=$t_pending?> pending <?=$tech_name?> sites as Done?">
         ✓ Mark All <?=$tech_name?> Done (<?=$t_pending?> pending)
       </button>
     </form>
@@ -432,7 +359,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
             <input type="hidden" name="wo_id" value="<?=$view_id?>">
             <input type="hidden" name="project_id" value="<?=$s['project_id']?>">
             <input type="hidden" name="new_status" value="Pending">
-            <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Revert to Pending?')">↩ Undo</button>
+            <button type="submit" class="btn btn-ghost btn-sm" data-confirm="Revert to Pending?">↩ Undo</button>
           </form>
           <?php endif; ?>
         </td>
@@ -470,7 +397,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
   <span class="page-title" style="margin:0;flex:1">📝 WORK ORDERS</span>
   <?php if (can_edit()): ?>
-  <button class="btn btn-primary" onclick="document.getElementById('create-modal').classList.add('open')">＋ New Work Order</button>
+  <button class="btn btn-primary" data-action="open-wo-modal">＋ New Work Order</button>
   <?php endif; ?>
 </div>
 
@@ -588,7 +515,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button type="submit" class="btn btn-primary">✅ Create Work Order</button>
-        <button type="button" class="btn btn-ghost" onclick="document.getElementById('create-modal').classList.remove('open')">Cancel</button>
+        <button type="button" class="btn btn-ghost" data-action="close-wo-modal">Cancel</button>
       </div>
     </form>
   </div>
@@ -601,9 +528,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 function toggleScope(v){
   document.getElementById('specific-projects-wrap').style.display=v==='specific'?'block':'none';
 }
-document.querySelectorAll('#create-modal .modal-backdrop, #create-modal').forEach(el=>{
-  el.addEventListener('click',function(e){if(e.target===document.getElementById('create-modal'))document.getElementById('create-modal').classList.remove('open');});
+// Event delegation — CSP fix
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-action="open-wo-modal"]')){document.getElementById('create-modal').classList.add('open');return;}
+  if(e.target.closest('[data-action="close-wo-modal"]')){document.getElementById('create-modal').classList.remove('open');return;}
+  if(e.target===document.getElementById('create-modal')){document.getElementById('create-modal').classList.remove('open');return;}
+  if(e.target.closest('[data-action="close-delopt"]')){document.getElementById('del-opt-modal')&&document.getElementById('del-opt-modal').classList.remove('open');return;}
+  var dc=e.target.closest('[data-confirm]');
+  if(dc&&dc.type==='submit'){if(!confirm(dc.dataset.confirm))e.preventDefault();return;}
 });
-</script>
-</body>
-</html>
+
+</div><!-- /.dv-content -->
+<?php require_once __DIR__ . '/includes/sidebar_footer.php'; ?>

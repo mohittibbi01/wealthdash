@@ -13,6 +13,9 @@ define('MAX_LOGIN_ATTEMPTS', 5);
 define('LOCKOUT_SECONDS', 900); // 15 minutes
 
 $error   = '';
+$login_csrf = bin2hex(random_bytes(16));
+$_nonce = base64_encode(random_bytes(16));
+$remaining_attempts = MAX_LOGIN_ATTEMPTS;
 $locked  = false;
 $lockout_remaining = 0;
 
@@ -164,131 +167,131 @@ if (!$locked && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
+<?php
+$_theme_l = 'teal-dark';
+$_fs_l    = 14;
+// CSRF for login form
+if(empty($_SESSION['login_csrf'])) $_SESSION['login_csrf'] = bin2hex(random_bytes(32));
+$login_csrf = $_SESSION['login_csrf'];
+// CSP nonce
+if(empty($_SESSION['csp_nonce'])) $_SESSION['csp_nonce'] = base64_encode(random_bytes(16));
+$_nonce = $_SESSION['csp_nonce'];
+// Remaining attempts
+$_att = get_attempt_info($db, $client_ip);
+$remaining_attempts = max(0, MAX_LOGIN_ATTEMPTS - (int)($_att['attempts'] ?? 0));
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?=htmlspecialchars($_theme_l)?>">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DevVault Pro — Login</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--border:#1e2d4a;
-  --text:#e8edf5;--muted:#5a7a9a;--accent:#00d4ff;--accent2:#0066ff;
-  --success:#00e676;--danger:#ff3d5a;
-}
-body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);
-  min-height:100vh;display:flex;align-items:center;justify-content:center;
-  overflow:hidden;position:relative}
-body::before{
-  content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.03) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,212,255,.03) 1px,transparent 1px);
-  background-size:40px 40px;pointer-events:none;
-  animation:gridMove 20s linear infinite}
-@keyframes gridMove{from{background-position:0 0}to{background-position:40px 40px}}
-body::after{
-  content:'';position:fixed;inset:0;
-  background:radial-gradient(ellipse at 30% 50%,rgba(0,102,255,.08) 0%,transparent 60%),
-    radial-gradient(ellipse at 70% 50%,rgba(0,212,255,.06) 0%,transparent 60%);
-  pointer-events:none}
-.wrap{width:100%;max-width:400px;padding:20px;position:relative;z-index:1}
-.logo{text-align:center;margin-bottom:32px}
-.logo-box{
-  width:64px;height:64px;margin:0 auto 14px;
-  background:linear-gradient(135deg,var(--accent2),var(--accent));
-  border-radius:16px;display:flex;align-items:center;justify-content:center;
-  font-size:28px;box-shadow:0 0 40px rgba(0,212,255,.3),0 0 80px rgba(0,102,255,.15);
-  animation:pulse 3s ease-in-out infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(0,212,255,.3),0 0 80px rgba(0,102,255,.15)}
-  50%{box-shadow:0 0 60px rgba(0,212,255,.5),0 0 100px rgba(0,102,255,.25)}}
-.logo h1{font-size:30px;font-weight:700;letter-spacing:2px;
-  background:linear-gradient(135deg,var(--accent),#fff);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.logo p{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--muted);
-  margin-top:4px;letter-spacing:1px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:28px;position:relative;overflow:hidden}
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent,var(--accent),transparent)}
-.error{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);
-  color:var(--danger);padding:10px 14px;border-radius:8px;font-size:13px;
-  margin-bottom:18px;font-family:'Courier New',Consolas,monospace;display:flex;align-items:center;gap:8px}
-.locked-box{background:rgba(255,61,90,.06);border:1px solid rgba(255,61,90,.3);
-  border-radius:10px;padding:16px;margin-bottom:18px;text-align:center}
-.locked-box .lock-icon{font-size:32px;margin-bottom:8px}
-.locked-box p{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--danger);line-height:1.8}
-.locked-box .countdown{font-size:18px;font-weight:700;color:var(--danger);margin-top:6px}
-.field{margin-bottom:16px}
-.field label{display:block;font-size:12px;font-weight:600;text-transform:uppercase;
-  letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;font-family:'Courier New',Consolas,monospace}
-.field input{width:100%;background:var(--surface2);border:1px solid var(--border);
-  border-radius:8px;padding:11px 14px;color:var(--text);font-size:15px;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-weight:500;outline:none;
-  transition:border-color .2s,box-shadow .2s}
-.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
-.field input::placeholder{color:var(--muted)}
-.field input:disabled{opacity:.5;cursor:not-allowed}
-.btn-login{width:100%;background:linear-gradient(135deg,var(--accent2),var(--accent));
-  color:#000;border:none;border-radius:8px;padding:13px;font-size:16px;font-weight:700;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;letter-spacing:1px;
-  transition:opacity .2s,transform .15s;margin-top:6px;text-transform:uppercase}
-.btn-login:hover:not(:disabled){opacity:.88;transform:translateY(-1px)}
-.btn-login:active:not(:disabled){transform:translateY(0)}
-.btn-login:disabled{opacity:.4;cursor:not-allowed;background:#333}
-.hint{text-align:center;margin-top:16px;font-family:'Courier New',Consolas,monospace;
-  font-size:11px;color:var(--muted)}
+<link rel="stylesheet" href="assets/theme.css">
+<style nonce="<?= $_nonce ?? '' ?>">
+/* Login page specific */
+.login-body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);position:relative;overflow:hidden}
+.login-body::before{content:'';position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(ellipse at 20% 50%,color-mix(in srgb,var(--acc) 6%,transparent) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,color-mix(in srgb,var(--pur,#c792ea) 5%,transparent) 0%,transparent 55%);z-index:0}
+.login-card{position:relative;z-index:1;width:100%;max-width:400px;background:var(--sur);border:1px solid var(--bdr);border-radius:20px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo-icon{width:60px;height:60px;background:var(--acc-dim);border:2px solid var(--acc);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:14px;box-shadow:0 0 24px var(--acc-dim)}
+.login-title{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--tx);letter-spacing:2px;margin-bottom:4px}
+.login-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);letter-spacing:1.5px;text-transform:uppercase}
+.login-field{margin-bottom:16px}
+.login-field label{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.3px;color:var(--tx2);margin-bottom:6px}
+.login-field input{width:100%;height:44px;font-size:14px;padding:0 14px;background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;color:var(--tx);font-family:'Inter',system-ui,sans-serif;outline:none;transition:all .15s}
+.login-field input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim)}
+.login-field input::placeholder{color:var(--tx3)}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:42px}
+.pw-eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--tx3);font-size:15px;padding:4px;transition:color .14s}
+.pw-eye-btn:hover{color:var(--acc)}
+.login-btn{width:100%;height:46px;background:var(--acc);color:var(--acc-text);border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:'Inter',system-ui,sans-serif;cursor:pointer;transition:all .15s;letter-spacing:.5px;margin-top:8px}
+.login-btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.login-btn:active{transform:scale(.98)}
+.login-err{background:var(--err-bg);border:1px solid color-mix(in srgb,var(--err) 30%,transparent);color:var(--err);padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:16px;line-height:1.5;display:flex;align-items:flex-start;gap:8px}
+.login-warn{background:var(--warn-bg);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);color:var(--warn);padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:16px;line-height:1.5}
+.login-foot{text-align:center;margin-top:20px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);letter-spacing:.5px}
+.lockout-bar{height:4px;background:var(--bdr);border-radius:2px;margin-top:8px;overflow:hidden}
+.lockout-fill{height:100%;background:var(--err);border-radius:2px;transition:width 1s linear}
 </style>
 </head>
-<body>
-<div class="wrap">
-  <div class="logo">
-    <div class="logo-box">🔐</div>
-    <h1>DEVVAULT PRO</h1>
-    <p>// CREDENTIAL & PROJECT MANAGER v<?= defined('APP_VERSION') ? APP_VERSION : '3.0.0' ?></p>
+<body class="login-body">
+
+<div class="login-card">
+  <div class="login-logo">
+    <div class="login-logo-icon">🔐</div>
+    <div class="login-title">DEVVAULT PRO</div>
+    <div class="login-sub">// Credential &amp; Project Manager</div>
   </div>
-  <div class="card">
-    <?php if ($locked): ?>
-      <div class="locked-box">
-        <div class="lock-icon">🔒</div>
-        <p><?= htmlspecialchars($error) ?></p>
-        <div class="countdown" id="lockdown-timer"></div>
+
+  <?php if ($locked): ?>
+  <div class="login-err">
+    <span>🔒</span>
+    <div>
+      Account <?=$lockout_remaining?> seconds ke liye locked hai.<br>
+      <small>IP: <?=htmlspecialchars($client_ip)?></small>
+      <div class="lockout-bar"><div class="lockout-fill" id="lk-bar" style="width:<?=min(100,round($lockout_remaining/9))?>%"></div></div>
+    </div>
+  </div>
+  <?php elseif ($error): ?>
+  <div class="login-err"><span>⚠</span><div><?=htmlspecialchars($error)?></div></div>
+  <?php endif; ?>
+
+  <?php if ($remaining_attempts > 0 && $remaining_attempts <= 3 && !$locked): ?>
+  <div class="login-warn">⚠ <?=$remaining_attempts?> attempt<?=$remaining_attempts!==1?'s':''?> baaki — phir IP lock ho jaayegi.</div>
+  <?php endif; ?>
+
+  <?php if (!$locked): ?>
+  <form method="POST" id="lf" autocomplete="off">
+    <input type="hidden" name="csrf" value="<?= $login_csrf ?>">
+
+    <div class="login-field">
+      <label for="u">Username</label>
+      <input type="text" name="username" id="u" placeholder="enter username" autofocus autocomplete="username" value="<?=htmlspecialchars($_POST['username']??'')?>">
+    </div>
+
+    <div class="login-field">
+      <label for="pw">Password</label>
+      <div class="pw-wrap">
+        <input type="password" name="password" id="pw" placeholder="••••••••" autocomplete="current-password">
+        <button type="button" class="pw-eye-btn" id="pw-eye" title="Show/hide password">👁</button>
       </div>
-      <button class="btn-login" disabled>Access Locked</button>
-    <?php else: ?>
-      <?php if ($error): ?>
-        <div class="error">⚠ <?= htmlspecialchars($error) ?></div>
-      <?php endif; ?>
-      <form method="POST">
-        <div class="field">
-          <label>Username</label>
-          <input type="text" name="username" placeholder="enter username" autofocus
-                 autocomplete="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" name="password" placeholder="••••••••" autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn-login">→ Sign In</button>
-      </form>
-    <?php endif; ?>
+    </div>
+
+    <button type="submit" class="login-btn" id="sign-btn">→ SIGN IN</button>
+  </form>
+  <?php else: ?>
+  <div style="text-align:center;padding:12px 0">
+    <a href="login.php" class="btn btn-ghost" style="display:inline-flex">🔄 Refresh</a>
   </div>
-  <div class="hint">DevVault Pro — Authorized users only</div>
+  <?php endif; ?>
+
+  <div class="login-foot">DevVault Pro — Authorized users only</div>
 </div>
-<?php if ($locked && $lockout_remaining > 0): ?>
-<script>
+
+<script nonce="<?= $_nonce ?? '' ?>">
+// Show/hide password
+document.getElementById('pw-eye').addEventListener('click',function(){
+  var i=document.getElementById('pw');
+  i.type=i.type==='password'?'text':'password';
+  this.textContent=i.type==='password'?'👁':'🙈';
+});
+// Submit loading state
+var lf=document.getElementById('lf');
+if(lf) lf.addEventListener('submit',function(){
+  var b=document.getElementById('sign-btn');
+  if(b){b.textContent='⏳ Signing in…';b.disabled=true;}
+});
+<?php if($locked && $lockout_remaining > 0): ?>
+// Lockout countdown
 (function(){
-  var secs = <?= (int)$lockout_remaining ?>;
-  var el   = document.getElementById('lockdown-timer');
-  function tick(){
-    if(secs <= 0){ location.reload(); return; }
-    var m = Math.floor(secs/60), s = secs % 60;
-    el.textContent = m + ':' + (s < 10 ? '0' : '') + s + ' remaining';
-    secs--; setTimeout(tick, 1000);
-  }
-  tick();
+  var rem=<?=$lockout_remaining?>;
+  var bar=document.getElementById('lk-bar');
+  var iv=setInterval(function(){
+    rem--;if(rem<=0){clearInterval(iv);location.reload();}
+    if(bar)bar.style.width=Math.min(100,Math.round(rem/9))+'%';
+  },1000);
 })();
-</script>
 <?php endif; ?>
+</script>
 </body>
 </html>

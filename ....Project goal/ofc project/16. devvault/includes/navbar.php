@@ -40,7 +40,9 @@ $_nav_total_alerts = $_nav_alerts + $_nav_locked;
     <a href="findings.php"    class="dv-link <?= $nav_active==='findings'   ?'dv-cur':'' ?>">🔍 Findings</a>
     <a href="workorders.php"  class="dv-link <?= $nav_active==='workorders' ?'dv-cur':'' ?>">📝 Work Orders</a>
     <a href="reports.php"     class="dv-link <?= $nav_active==='reports'    ?'dv-cur':'' ?>">📊 Reports</a>
+    <?php if (!is_viewer()): ?>
     <a href="export.php"      class="dv-link <?= $nav_active==='export'     ?'dv-cur':'' ?>">📤 Export</a>
+    <?php endif; ?>
     <?php if (is_admin()): ?>
     <a href="admin.php"       class="dv-link <?= $nav_active==='admin'      ?'dv-cur':'' ?>">⚙ Admin</a>
     <?php endif; ?>
@@ -67,7 +69,7 @@ $_nav_total_alerts = $_nav_alerts + $_nav_locked;
     </span>
 
     <!-- Theme toggle -->
-    <button class="dv-theme-btn" onclick="dvToggleTheme()" title="Toggle dark/light">🌙</button>
+    <button class="dv-theme-btn" id="dv-theme-btn" title="Toggle dark/light">🌙</button>
 
     <!-- Logout -->
     <a href="logout.php" class="dv-logout">⏏</a>
@@ -173,15 +175,14 @@ $_nav_total_alerts = $_nav_alerts + $_nav_locked;
 
 /* Theme toggle JS */
 </style>
-<script>
+<script nonce="<?= csp_nonce() ?>">
 function dvToggleTheme(){
   var html=document.documentElement;
   var cur=html.getAttribute('data-theme')||'dark';
   var next=cur==='dark'?'light':'dark';
   html.setAttribute('data-theme',next);
-  var btn=document.querySelector('.dv-theme-btn');
+  var btn=document.getElementById('dv-theme-btn');
   if(btn) btn.textContent=next==='dark'?'🌙':'☀';
-  // Save to server
   var csrf=window.DEVVAULT_CSRF||'';
   if(!csrf) return;
   var fd=new FormData();
@@ -192,10 +193,11 @@ function dvToggleTheme(){
   fetch('api.php',{method:'POST',body:fd}).catch(function(){});
 }
 document.addEventListener('DOMContentLoaded',function(){
-  var btn=document.querySelector('.dv-theme-btn');
+  var btn=document.getElementById('dv-theme-btn');
   if(btn){
     var t=document.documentElement.getAttribute('data-theme')||'dark';
     btn.textContent=t==='dark'?'🌙':'☀';
+    btn.addEventListener('click', dvToggleTheme);
   }
 });
 </script>

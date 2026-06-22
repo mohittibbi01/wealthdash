@@ -134,7 +134,7 @@ tr:nth-child(even){background:rgba(255,255,255,.02)}
 <body>
 <div class="wrap">
   <div class="no-print" style="display:flex;gap:10px;margin-bottom:20px">
-    <button class="btn btn-accent" onclick="window.print()">🖨 Print / Save PDF</button>
+    <button class="btn btn-accent" data-action="print">🖨 Print / Save PDF</button>
     <a href="export.php" class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border)">← Back</a>
   </div>
   <h1>DevVault Pro — Project Report (<?= date('d M Y') ?>)</h1>
@@ -186,131 +186,125 @@ $urlCsv  = 'export.php?format=csv&csrf='  . urlencode($csrf);
 $urlRpt  = 'export.php?format=report&csrf=' . urlencode($csrf);
 
 $err = $_GET['err'] ?? '';
+<?php
+$page_title = 'Export & Backup';
+$nav_active = 'export';
+require_once __DIR__ . '/includes/sidebar.php';
 ?>
-<!DOCTYPE html>
-<html lang="en" data-theme="<?= htmlspecialchars($theme) ?>">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DevVault Pro — Export & Backup</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--accent:<?= $accent ?>;--fs:<?= $fsize ?>px;--bg:#070b14;--surface:#0d1422;--surface2:#111a2e;--surface3:#16213e;
-  --border:#1e2d4a;--text:#e8edf5;--muted:#5a7a9a;--success:#00e676;--danger:#ff3d5a;--amber:#ffd740;--blue:#40c4ff;}
-[data-theme="light"]{--bg:#f0f4f8;--surface:#fff;--surface2:#e8edf5;--surface3:#dde3ed;--border:#c8d4e0;--text:#0d1422;--muted:#5a7a9a;}
-html{font-size:var(--fs)}
-body{font-family:'<?= htmlspecialchars($ffamily) ?>',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px);
-  background-size:40px 40px;pointer-events:none;z-index:0}
-[data-theme="light"] body::before{opacity:.3}
-.topbar{position:sticky;top:0;z-index:100;background:rgba(7,11,20,.95);border-bottom:1px solid var(--border);
-  backdrop-filter:blur(12px);padding:0 20px;height:52px;display:flex;align-items:center;gap:10px}
-[data-theme="light"] .topbar{background:rgba(240,244,248,.95)}
-.logo-txt{font-family:'Courier New',Consolas,monospace;font-size:14px;font-weight:900;letter-spacing:2px;color:var(--accent);text-shadow:0 0 16px var(--accent)}
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;
-  font-family:'Segoe UI',Tahoma,Arial,sans-serif;cursor:pointer;border:none;text-decoration:none;transition:all .15s;white-space:nowrap}
-.btn:active{transform:scale(.97)}
-.btn-ghost{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text)}
-.btn-accent{background:var(--accent);color:#000}.btn-accent:hover{opacity:.85}
-.btn-sm{padding:4px 9px;font-size:11px}
-.wrap{max-width:700px;margin:0 auto;padding:20px;position:relative;z-index:1}
-.page-title{font-family:'Courier New',Consolas,monospace;font-size:16px;font-weight:700;color:var(--accent);text-shadow:0 0 12px var(--accent);margin-bottom:16px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
-.card h2{font-family:'Courier New',Consolas,monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;
-  color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
-.info-row{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid rgba(30,45,74,.4);font-size:13px}
-.info-row:last-child{border-bottom:none}
-.info-row .k{color:var(--muted);font-family:'Courier New',Consolas,monospace;font-size:11px}
-.info-row .v{font-family:'Courier New',Consolas,monospace;font-weight:600}
-.exp-opt{display:flex;align-items:center;gap:16px;padding:14px 16px;background:var(--surface2);
-  border-bottom:1px solid var(--border);text-decoration:none;color:var(--text);transition:all .2s}
-.exp-opt:last-child{border-bottom:none}
-.exp-opt:hover{background:var(--surface3);padding-left:20px}
-.exp-icon{font-size:28px;flex-shrink:0}
-.exp-info h3{font-size:14px;font-weight:700;margin-bottom:3px}
-.exp-info p{font-size:11px;font-family:'Courier New',Consolas,monospace;color:var(--muted)}
-.badge{margin-left:auto;font-size:9px;font-family:'Courier New',Consolas,monospace;padding:3px 9px;border-radius:20px;font-weight:700;flex-shrink:0;border:1px solid currentColor}
-.badge-g{background:rgba(0,230,118,.10);color:var(--success)}
-.badge-a{background:rgba(255,215,64,.10);color:var(--amber)}
-.badge-b{background:rgba(0,212,255,.10);color:var(--accent)}
-.portable-steps{font-family:'Courier New',Consolas,monospace;font-size:12px;color:var(--muted);line-height:2;padding:14px 16px}
-.portable-steps strong{color:var(--text)}
-.err-bar{background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger);
-  padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:14px;font-family:'Courier New',Consolas,monospace}
-</style>
-</head>
-<body>
-<?php $nav_active="export"; require_once __DIR__ . "/includes/navbar.php"; ?>
-<div class="wrap">
-  <div class="page-title">📤 EXPORT & BACKUP</div>
+<div class="dv-content">
 
-  <?php if ($err === 'noperm'): ?>
-  <div class="err-bar">⛔ Access denied. Export requires Member or Admin role.</div>
-  <?php endif; ?>
+<?php if ($err === 'noperm'): ?>
+<div class="flash flash-error">⛔ Access denied. Export requires Member or Admin role.</div>
+<?php endif; ?>
 
-  <div class="card">
-    <h2>Current Data</h2>
-    <div class="info-row"><span class="k">Total Projects</span><span class="v"><?= (int)$total ?></span></div>
-    <div class="info-row"><span class="k">Last Auto-Backup</span><span class="v"><?= htmlspecialchars($lastBackup) ?></span></div>
-    <div class="info-row"><span class="k">Backup Files Kept</span><span class="v"><?= intval($backupCount) ?> / 7 daily</span></div>
-    <div class="info-row"><span class="k">Backup Location</span><span class="v">data/backups/vault_YYYYMMDD.db</span></div>
-    <div class="info-row" style="font-size:11px;color:var(--muted)"><span class="k">Schedule</span><span class="v">Windows Task Scheduler: php backup.php daily</span></div>
-    <div class="info-row"><span class="k">Exported By</span><span class="v"><?= htmlspecialchars($_SESSION['username']) ?></span></div>
+<?php
+// Handle manual backup trigger
+$backup_result = '';
+if (isset($_POST['action']) && $_POST['action'] === 'manual_backup' && is_admin()) {
+    if (verify_csrf()) {
+        $backup_dir = __DIR__ . '/data/backups';
+        $db_path    = __DIR__ . '/data/vault.db';
+        if (!is_dir($backup_dir)) mkdir($backup_dir, 0755, true);
+        $ts   = date('Ymd_His');
+        $dest = $backup_dir . "/vault_{$ts}.db";
+        try {
+            $sq = new SQLite3($db_path);
+            if (version_compare(SQLite3::version()['versionString'], '3.27.0', '>=')) {
+                $sq->exec("VACUUM INTO '" . str_replace("'","''",$dest) . "'");
+                $sq->close();
+            } else { $sq->close(); copy($db_path, $dest); }
+            // Rotate: keep max 30
+            $files = glob($backup_dir . '/vault_*.db');
+            if ($files) {
+                sort($files);
+                while (count($files) > 30) { unlink(array_shift($files)); }
+            }
+            file_put_contents($backup_dir.'/.last_backup', date('Y-m-d H:i:s'));
+            $backup_result = 'ok:Backup created: vault_'.$ts.'.db ('.round(filesize($dest)/1024,1).' KB). Total: '.count(glob($backup_dir.'/vault_*.db')).'/30';
+        } catch (Exception $e) { $backup_result = 'err:'.$e->getMessage(); }
+    }
+}
+if ($backup_result) {
+    [$br_t,$br_m] = explode(':',$backup_result,2);
+    echo '<div class="flash flash-'.($br_t==='ok'?'success':'error').'">'.($br_t==='ok'?'✅':'❌').' '.htmlspecialchars($br_m).'</div>';
+}
+?>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-title">💾 Backup Status</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+    <div style="background:var(--sur2);border-radius:8px;padding:10px 14px">
+      <div style="font-size:10px;color:var(--tx2);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Projects</div>
+      <div style="font-size:22px;font-weight:700;color:var(--acc);font-family:'JetBrains Mono',monospace"><?=(int)$total?></div>
+    </div>
+    <div style="background:var(--sur2);border-radius:8px;padding:10px 14px">
+      <div style="font-size:10px;color:var(--tx2);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Backups Stored</div>
+      <div style="font-size:22px;font-weight:700;color:var(--ok);font-family:'JetBrains Mono',monospace"><?=intval($backupCount)?> <span style="font-size:13px;color:var(--tx2)">/ 30</span></div>
+    </div>
   </div>
-
-  <div class="card">
-    <h2>Download Options</h2>
-    <?php if (can_edit()): ?>
-    <a class="exp-opt" href="<?= htmlspecialchars($urlJson) ?>">
-      <span class="exp-icon">📄</span>
-      <div class="exp-info">
-        <h3>JSON Export</h3>
-        <p>Full backup — all fields, best for restore</p>
-      </div>
-      <span class="badge badge-g">Recommended</span>
-    </a>
-    <a class="exp-opt" href="<?= htmlspecialchars($urlCsv) ?>">
-      <span class="exp-icon">📊</span>
-      <div class="exp-info">
-        <h3>CSV / Excel Export</h3>
-        <p>Excel-compatible — UTF-8 BOM included</p>
-      </div>
-      <span class="badge badge-a">Excel Ready</span>
-    </a>
-    <a class="exp-opt" href="<?= htmlspecialchars($urlRpt) ?>" target="_blank">
-      <span class="exp-icon">🖨</span>
-      <div class="exp-info">
-        <h3>Printable Report</h3>
-        <p>HTML report — print ya PDF save karo</p>
-      </div>
-      <span class="badge badge-b">Printable</span>
-    </a>
-    <?php if (!is_admin()): ?>
-    <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--amber);
-      margin-top:10px;padding:10px;background:rgba(255,215,64,.05);border-radius:6px;
-      border:1px solid rgba(255,215,64,.15)">
-      ⚠ Non-admin: passwords exports mein hidden honge
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="font-size:11px;color:var(--tx2)">📅 Last backup: <strong style="color:var(--tx)"><?=htmlspecialchars($lastBackup)?></strong></div>
+      <div style="font-size:11px;color:var(--tx3);margin-top:2px">📁 Location: <span style="font-family:'JetBrains Mono',monospace">data/backups/vault_YYYYMMDD_HHiiss.db</span></div>
+      <div style="font-size:11px;color:var(--tx3)">🔄 Auto: Windows Task Scheduler — <span style="font-family:'JetBrains Mono',monospace">php backup.php</span> daily · Max 30 files (circular)</div>
     </div>
-    <?php endif; ?>
-    <?php else: ?>
-    <div style="background:rgba(255,61,90,.08);border:1px solid rgba(255,61,90,.25);color:var(--danger);
-      padding:10px;border-radius:8px;font-family:'Courier New',Consolas,monospace;font-size:11px">
-      ⛔ Viewer role: Export access denied. Contact admin.
-    </div>
-    <?php endif; ?>
-  </div>
-
-  <div class="card">
-    <h2>Portable Backup Guide</h2>
-    <div class="portable-steps">
-      <div>1. Puri <strong>devvault2/</strong> folder copy karo (USB ya Drive)</div>
-      <div>2. Naye PC pe paste karo</div>
-      <div>3. <strong>data/vault.db</strong> — sab kuch yahan hai</div>
-      <div>4. <strong>php -S 0.0.0.0:8080</strong> run karo</div>
-      <div style="color:var(--success);margin-top:8px">✅ Done — koi data loss nahi, koi install nahi</div>
-    </div>
+    <?php if(is_admin()):?>
+    <form method="POST" style="display:inline">
+      <input type="hidden" name="action" value="manual_backup">
+      <input type="hidden" name="csrf" value="<?=csrf_token()?>">
+      <button type="submit" class="btn btn-primary" data-confirm="Create manual backup now?">💾 Manual Backup Now</button>
+    </form>
+    <?php endif;?>
   </div>
 </div>
-<script src="session_timer.js"></script>
-</body>
-</html>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-title">📤 Export Options</div>
+  <?php if (can_edit()): ?>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <a href="<?=htmlspecialchars($urlJson)?>" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;text-decoration:none;color:var(--tx);transition:all .14s" onmouseover="this.style.borderColor='var(--acc)'" onmouseout="this.style.borderColor='var(--bdr)'">
+      <span style="font-size:28px;flex-shrink:0">📄</span>
+      <div style="flex:1"><div style="font-weight:600;margin-bottom:2px">JSON Export</div><div style="font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace">Full backup — all fields, best for restore</div></div>
+      <span class="badge badge-member">Recommended</span>
+    </a>
+    <a href="<?=htmlspecialchars($urlCsv)?>" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;text-decoration:none;color:var(--tx);transition:all .14s" onmouseover="this.style.borderColor='var(--warn)'" onmouseout="this.style.borderColor='var(--bdr)'">
+      <span style="font-size:28px;flex-shrink:0">📊</span>
+      <div style="flex:1"><div style="font-weight:600;margin-bottom:2px">CSV / Excel Export</div><div style="font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace">Excel-compatible — UTF-8 BOM included</div></div>
+      <span class="badge badge-redev">Excel Ready</span>
+    </a>
+    <a href="<?=htmlspecialchars($urlRpt)?>" target="_blank" style="display:flex;align-items:center;gap:14px;padding:13px 16px;background:var(--sur2);border:1px solid var(--bdr);border-radius:10px;text-decoration:none;color:var(--tx);transition:all .14s" onmouseover="this.style.borderColor='var(--info)'" onmouseout="this.style.borderColor='var(--bdr)'">
+      <span style="font-size:28px;flex-shrink:0">🖨</span>
+      <div style="flex:1"><div style="font-weight:600;margin-bottom:2px">Printable Report</div><div style="font-size:11px;color:var(--tx2);font-family:'JetBrains Mono',monospace">HTML report — print ya PDF save karo</div></div>
+      <span class="badge badge-dev">Printable</span>
+    </a>
+  </div>
+  <?php if (!is_admin()): ?>
+  <div class="flash flash-warn" style="margin-top:10px;margin-bottom:0">⚠ Non-admin: passwords exports mein hidden honge</div>
+  <?php endif; ?>
+  <?php else: ?>
+  <div class="flash flash-error">⛔ Viewer role: Export access denied. Contact admin.</div>
+  <?php endif; ?>
+</div>
+
+<div class="card">
+  <div class="card-title">📱 Portable Backup Guide</div>
+  <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)">
+    <div>1. Puri <strong style="color:var(--tx);font-family:'JetBrains Mono',monospace">devvault/</strong> folder copy karo (USB ya Google Drive)</div>
+    <div>2. Naye PC pe paste karo</div>
+    <div>3. <strong style="color:var(--tx);font-family:'JetBrains Mono',monospace">data/vault.db</strong> — sab kuch yahan hai</div>
+    <div>4. <strong style="color:var(--tx);font-family:'JetBrains Mono',monospace">php -S 0.0.0.0:8080</strong> run karo XAMPP se</div>
+    <div style="color:var(--ok);margin-top:4px;font-weight:600">✅ Done — koi data loss nahi, koi install nahi</div>
+  </div>
+</div>
+
+<script nonce="<?=csp_nonce()?>">
+window.DEVVAULT_CSRF='<?=csrf_token()?>';
+document.addEventListener('click',function(e){
+  var b=e.target.closest('[data-confirm]');
+  if(b&&b.type==='submit'){if(!confirm(b.dataset.confirm))e.preventDefault();}
+  var pr=e.target.closest('[data-action="print"]');if(pr){window.print();return;}
+});
+</script>
+
+</div><!-- /.dv-content -->
+<?php require_once __DIR__ . '/includes/sidebar_footer.php'; ?>
