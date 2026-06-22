@@ -1,0 +1,213 @@
+/* ============================================================
+   GA-55A SYSTEM — FILE: assets/css/05_forms.css
+   Forms, inputs, dropdowns — with validation states
+   Same validation style form aur CSV dono me
+   ============================================================ */
+
+/* ── Form layout ── */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-md);
+}
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--sp-md);
+}
+.col-span-2 { grid-column: span 2; }
+.col-span-3 { grid-column: span 3; }
+
+/* ── Form group ── */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* ── Label ── */
+.form-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--clr-text-main);
+}
+.form-label .required {
+    color: var(--clr-error);
+    margin-left: 2px;
+}
+
+/* ── Input / Select / Textarea ── */
+.form-control {
+    padding: 7px 10px;
+    border: 1px solid var(--clr-border-dark);
+    border-radius: var(--br-sm);
+    font-size: var(--fs-sm);
+    color: var(--clr-text-main);
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+}
+.form-control:focus {
+    outline: none;
+    border-color: var(--clr-accent);
+    box-shadow: 0 0 0 3px rgba(45,122,82,0.12);
+}
+.form-control::placeholder { color: #aabcaa; }
+
+/* Number fields — right align */
+.form-control.num {
+    text-align: right;
+    font-family: var(--font-mono);
+}
+
+/* ── Validation states — SAME on form and CSV table ── */
+.form-control.is-valid {
+    border-color: var(--clr-success);
+    background: #f8fdf9;
+}
+.form-control.is-invalid {
+    border-color: var(--clr-error);
+    background: var(--clr-error-bg);
+}
+.form-control.is-invalid:focus {
+    box-shadow: 0 0 0 3px rgba(156,32,32,0.12);
+}
+
+.field-error {
+    font-size: 10px;
+    color: var(--clr-error);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.field-error i { font-size: 12px; }
+
+.field-hint {
+    font-size: 10px;
+    color: var(--clr-text-muted);
+}
+
+/* ── Select dropdown ── */
+select.form-control {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a9a7a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+    cursor: pointer;
+}
+
+/* ── Textarea ── */
+textarea.form-control {
+    resize: vertical;
+    min-height: 70px;
+}
+
+/* ── Form section heading ── */
+.form-section {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--clr-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 10px 0 4px;
+    border-bottom: 1px solid var(--clr-primary-border);
+    margin-bottom: var(--sp-sm);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Amount section ── */
+.amount-section {
+    background: var(--clr-primary-light);
+    border: 1px solid var(--clr-primary-border);
+    border-radius: var(--br-md);
+    padding: var(--sp-md);
+    margin-top: var(--sp-md);
+}
+.amount-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: var(--fs-sm);
+}
+.amount-row.total {
+    border-top: 1px solid var(--clr-primary-border);
+    margin-top: 6px;
+    padding-top: 8px;
+    font-weight: 700;
+    font-size: var(--fs-base);
+    color: var(--clr-primary-dark);
+}
+.amount-row.net {
+    background: var(--clr-accent);
+    color: #fff;
+    border-radius: var(--br-sm);
+    padding: 8px 12px;
+    margin-top: 6px;
+    font-weight: 700;
+    font-size: var(--fs-md);
+}
+.amount-label { color: var(--clr-text-muted); }
+.amount-val {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+/* ── Form actions bar ── */
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: var(--sp-md);
+    border-top: 1px solid var(--clr-border);
+    margin-top: var(--sp-lg);
+}
+
+/* ── CSV error table cell highlight ── */
+td.cell-error {
+    background: var(--clr-error-bg) !important;
+    color: var(--clr-error) !important;
+    font-weight: 600;
+    position: relative;
+}
+td.cell-error::after {
+    content: attr(data-err);
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: var(--clr-error);
+    color: #fff;
+    font-size: 9px;
+    padding: 3px 7px;
+    border-radius: var(--br-sm);
+    white-space: nowrap;
+    z-index: 10;
+    display: none;
+    pointer-events: none;
+}
+td.cell-error:hover::after { display: block; }
+
+td.cell-ok {
+    background: #f8fdf9;
+}
+
+/* ── File upload area ── */
+.file-drop {
+    border: 2px dashed var(--clr-primary-border);
+    border-radius: var(--br-md);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: #fafcfa;
+}
+.file-drop:hover, .file-drop.dragover {
+    border-color: var(--clr-accent);
+    background: var(--clr-primary-light);
+}
+.file-drop i { font-size: 36px; color: var(--clr-text-muted); margin-bottom: 8px; }
+.file-drop p { font-size: var(--fs-sm); color: var(--clr-text-muted); }
+.file-drop span { font-size: var(--fs-xs); color: var(--clr-text-muted); }
