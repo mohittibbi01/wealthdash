@@ -347,72 +347,65 @@ require_once __DIR__ . '/includes/sidebar.php';
 <div class="tab-pane <?= $active_tab === 'users' ? 'active' : '' ?>" id="tab-users">
 
   <?php if (!empty($locked_accounts)): ?>
-  <div style="background:#200808;border:1px solid #4a1010;border-radius:10px;padding:16px 20px;margin-bottom:18px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <span style="font-size:18px">🔒</span>
-      <h3 style="color:#fca5a5;font-size:14px;font-weight:700">Locked Accounts — <?= count($locked_accounts) ?> IP(s) Currently Locked</h3>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <tr style="color:#5a7a9a;font-family:'Courier New',Consolas,monospace;font-size:11px">
-        <th style="text-align:left;padding:6px 10px">IP Address</th>
-        <th style="text-align:left;padding:6px 10px">Failed Attempts</th>
-        <th style="text-align:left;padding:6px 10px">Last Attempt</th>
-        <th style="text-align:left;padding:6px 10px">Action</th>
-      </tr>
+  <div class="flash flash-error" style="margin-bottom:12px">
+    <div>
+      <strong>🔒 <?= count($locked_accounts) ?> IP(s) Currently Locked</strong>
       <?php foreach ($locked_accounts as $la): ?>
-      <tr style="border-top:1px solid rgba(74,16,16,.5)">
-        <td style="padding:8px 10px;color:#fca5a5;font-family:'Courier New',Consolas,monospace"><?= htmlspecialchars($la['ip_address']) ?></td>
-        <td style="padding:8px 10px;color:#ff3d5a;font-weight:700"><?= intval($la['attempts']) ?></td>
-        <td style="padding:8px 10px;color:#5a7a9a;font-family:'Courier New',Consolas,monospace;font-size:11px"><?= htmlspecialchars($la['last_attempt_at']) ?></td>
-        <td style="padding:8px 10px">
-          <form method="POST" style="display:inline">
-            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-            <input type="hidden" name="action" value="unlock_ip">
-            <input type="hidden" name="ip" value="<?= htmlspecialchars($la['ip_address']) ?>">
-            <button type="submit" class="btn btn-ghost btn-sm" style="color:#00e676;border-color:#00e676"
-              data-confirm="IP <?= htmlspecialchars($la['ip_address']) ?> ko unlock karo?">
-              🔓 Unlock
-            </button>
-          </form>
-        </td>
-      </tr>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;font-size:12px">
+        <span style="font-family:'JetBrains Mono',monospace"><?= htmlspecialchars($la['ip_address']) ?></span>
+        <span style="color:var(--err);font-weight:700"><?= intval($la['attempts']) ?> attempts</span>
+        <span style="color:var(--tx3);font-family:'JetBrains Mono',monospace;font-size:11px"><?= htmlspecialchars($la['last_attempt_at']) ?></span>
+        <form method="POST" style="display:inline">
+          <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="unlock_ip">
+          <input type="hidden" name="ip" value="<?= htmlspecialchars($la['ip_address']) ?>">
+          <button type="submit" class="btn btn-success btn-sm" data-confirm="IP <?= htmlspecialchars($la['ip_address']) ?> ko unlock karo?">🔓 Unlock</button>
+        </form>
+      </div>
       <?php endforeach; ?>
-    </table>
+    </div>
   </div>
   <?php endif; ?>
-  <div class="card" style="margin-bottom:14px">
-    <h2>Team Members</h2>
+
+  <div class="card" style="padding:0;overflow:hidden">
     <table class="admin-table">
-      <tr>
+      <thead><tr>
         <th>#</th><th>Status</th><th>Username</th><th>Role</th>
-        <th>Projects</th><th>Joined</th><th>PW Age</th><th>Actions</th>
-      </tr>
+        <th style="text-align:center">Projects</th><th>Joined</th><th>PW Age</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
       <?php foreach ($users as $u):
         $isActive = (int)($u['is_active'] ?? 1);
         $rclr = $roleColors[$u['role']] ?? '#8b949e';
       ?>
       <tr style="<?= !$isActive ? 'opacity:.5' : '' ?>">
-        <td><?= $u['id'] ?></td>
+        <td class="td-mono"><?= $u['id'] ?></td>
         <td>
-          <span class="status-dot" style="background:<?= $isActive ? 'var(--success)' : 'var(--danger)' ?>"
-            title="<?= $isActive ? 'Active' : 'Inactive' ?>"></span>
+          <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?= $isActive ? 'var(--ok)' : 'var(--err)' ?>" title="<?= $isActive ? 'Active' : 'Inactive' ?>"></span>
         </td>
-        <td style="font-weight:700;color:var(--tx);font-size:12px"><?= htmlspecialchars($u['username']) ?></td>
+        <td style="font-weight:700;font-size:13px"><?= htmlspecialchars($u['username']) ?></td>
         <td>
-          <span class="badge" style="color:<?= $rclr ?>;border-color:<?= $rclr ?>40">
+          <span class="badge" style="color:<?= $rclr ?>;border-color:<?= $rclr ?>40;background:<?= $rclr ?>14">
             <?= $roleLabel[$u['role']] ?? $u['role'] ?>
           </span>
         </td>
-        <td style="text-align:center"><?= $u['pc'] ?></td>
-        <td style="color:var(--tx2)"><?= date('d M y', strtotime($u['created_at'])) ?></td>
+        <td style="text-align:center;font-family:'JetBrains Mono',monospace"><?= $u['pc'] ?></td>
+        <td class="td-mono"><?= date('d M y', strtotime($u['created_at'])) ?></td>
+        <td class="td-mono">
+          <?php
+            $pw_date = $u['password_changed_at'] ?? null;
+            if ($pw_date) {
+              $age_days = (int)round((time() - strtotime($pw_date)) / 86400);
+              $age_col  = $age_days >= PASSWORD_EXPIRY_DAYS ? 'var(--err)' : ($age_days >= 80 ? 'var(--warn)' : 'var(--ok)');
+              echo "<span style='color:{$age_col};font-weight:700'>{$age_days}d</span>";
+            } else { echo '<span style="color:var(--tx3)">N/A</span>'; }
+          ?>
+        </td>
         <td>
           <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-          <div class="actions-cell">
-            <select class="role-sel" data-uid="<?= $u['id'] ?>"
-              style="background:var(--sur2);border:1px solid var(--bdr);border-radius:5px;
-                padding:3px 6px;color:var(--tx);font-size:10px;font-family:'Courier New',Consolas,monospace;
-                outline:none;cursor:pointer;width:auto"
-              onchange="changeRole(<?= $u['id'] ?>,this.value)">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select data-uid="<?= $u['id'] ?>" data-action="change-role"
+              style="background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:4px 8px;color:var(--tx);font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;cursor:pointer;height:30px">
               <option value="admin"  <?= $u['role'] === 'admin'  ? 'selected' : '' ?>>Admin</option>
               <option value="member" <?= $u['role'] === 'member' ? 'selected' : '' ?>>Member</option>
               <option value="viewer" <?= $u['role'] === 'viewer' ? 'selected' : '' ?>>Viewer</option>
@@ -421,82 +414,79 @@ require_once __DIR__ . '/includes/sidebar.php';
               <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="action" value="toggle_active">
               <input type="hidden" name="uid" value="<?= $u['id'] ?>">
-              <button type="submit" class="btn <?= $isActive ? 'btn-warn' : 'btn-success' ?>" style="padding:4px 8px">
+              <button type="submit" class="btn <?= $isActive ? 'btn-danger' : 'btn-success' ?> btn-sm">
                 <?= $isActive ? '⛔ Deactivate' : '✅ Activate' ?>
               </button>
             </form>
-            </td>
-            <td style="font-family:'Courier New',Consolas,monospace;font-size:11px">
-                <?php
-                  $pw_date = $u['password_changed_at'] ?? null;
-                  if ($pw_date) {
-                      $age_days = (int)round((time() - strtotime($pw_date)) / 86400);
-                      $age_col  = $age_days >= PASSWORD_EXPIRY_DAYS ? '#ff3d5a' : ($age_days >= 80 ? '#ffd740' : '#7ee787');
-                      echo "<span style='color:{$age_col};font-weight:700'>{$age_days}d</span>";
-                  } else { echo '<span style="color:#5a7a9a">N/A</span>'; }
-                ?>
-            </td>
-            <td>
-            <button class="btn btn-ghost" data-action="reset-pw" data-uid="<?= $u['id'] ?>" data-uname="<?= htmlspecialchars($u['username']) ?>"
-              style="padding:4px 7px">🔑</button>
+            <button class="btn btn-ghost btn-sm" data-action="reset-pw" data-uid="<?= $u['id'] ?>" data-uname="<?= htmlspecialchars($u['username']) ?>">🔑</button>
             <form method="POST" style="display:inline">
               <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="action" value="delete_user">
               <input type="hidden" name="uid" value="<?= $u['id'] ?>">
-              <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                data-confirm="Delete user <?= htmlspecialchars($u['username']) ?>?">🗑</button>
+              <button type="submit" class="btn btn-danger btn-sm" data-confirm="Delete user <?= htmlspecialchars($u['username']) ?>?">🗑</button>
             </form>
           </div>
           <?php else: ?>
-          <span style="font-size:10px;color:var(--tx2);font-family:'Courier New',Consolas,monospace">(you)</span>
+          <span style="font-size:11px;color:var(--tx3);font-family:'JetBrains Mono',monospace">(you)</span>
           <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>
+      </tbody>
     </table>
-    <div class="role-info" style="margin-top:14px">
-      <div class="ri"><span class="badge" style="color:<?= $roleColors['admin'] ?>;border-color:<?= $roleColors['admin'] ?>40">Admin</span> — Full access: add, edit, delete projects + manage users</div>
-      <div class="ri"><span class="badge" style="color:<?= $roleColors['member'] ?>;border-color:<?= $roleColors['member'] ?>40">Member</span> — Add & edit projects, view all data, export</div>
-      <div class="ri"><span class="badge" style="color:<?= $roleColors['viewer'] ?>;border-color:<?= $roleColors['viewer'] ?>40">Viewer</span> — View only: cannot add, edit, or delete anything</div>
-    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12px">
+    <span><span class="badge" style="color:<?= $roleColors['admin'] ?>;border-color:<?= $roleColors['admin'] ?>40;background:<?= $roleColors['admin'] ?>14">Admin</span> — Full access: add, edit, delete projects + manage users</span>
+    <span><span class="badge" style="color:<?= $roleColors['member'] ?>;border-color:<?= $roleColors['member'] ?>40;background:<?= $roleColors['member'] ?>14">Member</span> — Add & edit projects, view all data, export</span>
+    <span><span class="badge" style="color:<?= $roleColors['viewer'] ?>;border-color:<?= $roleColors['viewer'] ?>40;background:<?= $roleColors['viewer'] ?>14">Viewer</span> — View only: cannot add, edit, or delete anything</span>
   </div>
 </div>
 
 <!-- ═══ ADD USER TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'add' ? 'active' : '' ?>" id="tab-add">
-  <div class="two-col">
-    <div class="card" style="margin-bottom:14px">
-      <h2>Add New User</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+    <div class="card">
+      <div class="card-title">➕ Add New User</div>
       <form method="POST">
         <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="add_user">
-        <div class="fg2">
-          <div class="field"><label>Username</label>
+        <!-- Row 1: Username + Password -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Username</label>
             <input type="text" name="username" placeholder="e.g. john_dev" required>
           </div>
-          <div class="field"><label>Password</label>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Password</label>
             <input type="password" name="password" placeholder="Min 8 chars" required>
           </div>
         </div>
-        <div class="field"><label>Role</label>
-          <select name="role">
-            <option value="member">Member — add + edit projects</option>
-            <option value="viewer">Viewer — view only (read-only)</option>
-            <option value="admin">Admin — full access + users</option>
-          </select>
+        <!-- Row 2: Role + Button -->
+        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Role</label>
+            <select name="role">
+              <option value="member">Member — add + edit projects</option>
+              <option value="viewer">Viewer — view only (read-only)</option>
+              <option value="admin">Admin — full access + users</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">➕ Add User</button>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">➕ Add User</button>
       </form>
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <h2>Role Permissions</h2>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace">
-        <tr style="border-bottom:1px solid var(--border)">
-          <th style="text-align:left;padding:6px 8px;color:var(--tx2);font-size:9px;text-transform:uppercase;letter-spacing:1px">Permission</th>
-          <th style="padding:6px 8px;color:<?= $roleColors['viewer'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Viewer</th>
-          <th style="padding:6px 8px;color:<?= $roleColors['member'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Member</th>
-          <th style="padding:6px 8px;color:<?= $roleColors['admin'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Admin</th>
-        </tr>
+
+    <div class="card">
+      <div class="card-title">🔐 Role Permissions</div>
+      <table class="admin-table">
+        <thead><tr>
+          <th>Permission</th>
+          <th style="text-align:center;color:<?= $roleColors['viewer'] ?>">Viewer</th>
+          <th style="text-align:center;color:<?= $roleColors['member'] ?>">Member</th>
+          <th style="text-align:center;color:<?= $roleColors['admin'] ?>">Admin</th>
+        </tr></thead>
+        <tbody>
         <?php foreach ([
           'View Projects'   => [1,1,1],
           'Search & Filter' => [1,1,1],
@@ -509,13 +499,14 @@ require_once __DIR__ . '/includes/sidebar.php';
           'IP Whitelist'    => [0,0,1],
           'Admin Panel'     => [0,0,1],
         ] as $perm => [$v,$m,$a]): ?>
-        <tr style="border-bottom:1px solid rgba(30,45,74,.4)">
-          <td style="padding:6px 8px;color:var(--tx)"><?= $perm ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $v ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $m ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $a ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
+        <tr>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px"><?= $perm ?></td>
+          <td style="text-align:center"><?= $v ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
+          <td style="text-align:center"><?= $m ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
+          <td style="text-align:center"><?= $a ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
         </tr>
         <?php endforeach; ?>
+        </tbody>
       </table>
     </div>
   </div>
@@ -524,147 +515,126 @@ require_once __DIR__ . '/includes/sidebar.php';
 <!-- ═══ IP WHITELIST TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'ip' ? 'active' : '' ?>" id="tab-ip">
 
-  <!-- Status banner -->
-  <?php if ($ip_total === 0): ?>
-  <div class="ip-status-banner ip-off">
-    <strong>🟢 Whitelist Inactive</strong> — Table is empty. All IPs can currently access the system.<br>
-    Add at least one IP to enable whitelist enforcement. <strong>Add your own IP first before enabling!</strong>
-  </div>
-  <?php else: ?>
-  <div class="ip-status-banner ip-on">
-    <strong>🔴 Whitelist Active</strong> — Only <?= $ip_active ?> enabled IP(s) can access this system. All other IPs will see the blocked page.
-  </div>
-  <?php endif; ?>
-
-  <!-- Stats -->
-  <div class="ip-stat-row">
-    <div class="ip-stat">
-      <span class="val" style="color:var(--acc)"><?= $ip_total ?></span>
-      <span class="lbl">Total IPs</span>
-    </div>
-    <div class="ip-stat">
-      <span class="val" style="color:var(--ok)"><?= $ip_active ?></span>
-      <span class="lbl">Enabled</span>
-    </div>
-    <div class="ip-stat">
-      <span class="val" style="color:var(--err)"><?= $ip_total - $ip_active ?></span>
-      <span class="lbl">Disabled</span>
+  <!-- Row 1: Status + Stats in one card -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="flex:2;min-width:220px">
+        <?php if ($ip_total === 0): ?>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ok)">
+          🟢 <span>Whitelist Inactive — All IPs allowed (safe default for fresh setup)</span>
+        </div>
+        <?php else: ?>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--err)">
+          🔴 <span>Whitelist Active — Only <?= $ip_active ?> enabled IP(s) can access. Others see blocked page.</span>
+        </div>
+        <?php endif; ?>
+      </div>
+      <div style="display:flex;gap:20px;flex-shrink:0">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--acc)"><?= $ip_total ?></div><div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px">Total</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--ok)"><?= $ip_active ?></div><div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px">Enabled</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--err)"><?= $ip_total - $ip_active ?></div><div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px">Disabled</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- Current IP quick-add -->
-  <div class="ip-mine">
-    <span style="color:var(--tx2);font-size:11px">YOUR CURRENT IP</span><br>
-    <strong><?= htmlspecialchars($client_ip) ?></strong>
+  <!-- Row 2: Your current IP + quick add -->
+  <div class="card" style="margin-bottom:12px">
     <?php
       $already = false;
       foreach ($ipList as $ipr) { if ($ipr['ip_address'] === $client_ip) { $already = true; break; } }
     ?>
-    <?php if ($already): ?>
-      <span style="color:var(--ok);font-size:11px;margin-left:10px">✓ Already in whitelist</span>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2);white-space:nowrap">Your Current IP</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--acc)"><?= htmlspecialchars($client_ip) ?></div>
+      <?php if ($already): ?>
+        <span class="badge badge-member">✓ Already in whitelist</span>
+      <?php else: ?>
+        <form method="POST" style="display:flex;gap:8px;align-items:center;flex:1;min-width:200px">
+          <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="add_current_ip">
+          <input type="text" name="current_ip_label" placeholder="Label (e.g. My PC)" style="max-width:180px">
+          <button type="submit" class="btn btn-success btn-sm" style="white-space:nowrap">+ Add My IP</button>
+        </form>
+      <?php endif; ?>
+    </div>
+  </div>
+
+  <!-- Row 3: Add IP Manually (inline) -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">🛡 Add IP Manually</div>
+    <form method="POST" action="admin.php">
+      <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="add_ip">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">IP Address (IPv4 or IPv6)</label>
+          <input type="text" name="ip_address" placeholder="e.g. 192.168.1.45" required>
+        </div>
+        <div style="flex:1.5;min-width:180px;display:flex;flex-direction:column;gap:4px">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Label / Description</label>
+          <input type="text" name="ip_label" placeholder="e.g. Cabin 3 PC, Server Room">
+        </div>
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap">🛡 Add to Whitelist</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- IP List table -->
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--bdr);font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx2)">Whitelisted IPs (<?= $ip_total ?>)</div>
+    <?php if ($ipList): ?>
+    <table class="admin-table">
+      <thead><tr>
+        <th>#</th><th>IP Address</th><th>Label</th><th>Added By</th><th>Added On</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($ipList as $ipr): ?>
+      <tr style="<?= !$ipr['is_active'] ? 'opacity:.5' : '' ?>">
+        <td class="td-mono"><?= $ipr['id'] ?></td>
+        <td style="font-weight:700;color:<?= $ipr['ip_address'] === $client_ip ? 'var(--acc)' : 'var(--tx)' ?>;font-family:'JetBrains Mono',monospace;font-size:12px">
+          <?= htmlspecialchars($ipr['ip_address']) ?>
+          <?php if ($ipr['ip_address'] === $client_ip): ?>
+          <span style="font-size:9px;color:var(--acc);margin-left:4px">(you)</span>
+          <?php endif; ?>
+        </td>
+        <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['label'] ?? '') ?></td>
+        <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['added_by_name'] ?? 'system') ?></td>
+        <td class="td-mono"><?= date('d M y H:i', strtotime($ipr['added_at'])) ?></td>
+        <td><span class="badge" style="color:<?= $ipr['is_active'] ? 'var(--ok)' : 'var(--err)' ?>;border-color:<?= $ipr['is_active'] ? 'var(--ok)' : 'var(--err)' ?>40;background:<?= $ipr['is_active'] ? 'var(--ok-bg)' : 'var(--err-bg)' ?>"><?= $ipr['is_active'] ? 'Active' : 'Disabled' ?></span></td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <form method="POST" style="display:inline">
+              <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="toggle_ip">
+              <input type="hidden" name="iid" value="<?= $ipr['id'] ?>">
+              <button type="submit" class="btn <?= $ipr['is_active'] ? 'btn-danger' : 'btn-success' ?> btn-sm"><?= $ipr['is_active'] ? '⛔ Disable' : '✅ Enable' ?></button>
+            </form>
+            <form method="POST" style="display:inline">
+              <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="action" value="delete_ip">
+              <input type="hidden" name="iid" value="<?= $ipr['id'] ?>">
+              <button type="submit" class="btn btn-danger btn-sm" data-confirm-ip="<?= htmlspecialchars($ipr['ip_address']) ?>" data-is-own="<?= $ipr['ip_address'] === $client_ip ? 'yes' : 'no' ?>">🗑</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
     <?php else: ?>
-      <form method="POST" style="display:inline-flex;gap:8px;align-items:center;margin-left:12px">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="action" value="add_current_ip">
-        <input type="text" name="current_ip_label" placeholder="Label (e.g. My PC)"
-          style="width:160px;padding:4px 8px;font-size:11px">
-        <button type="submit" class="btn btn-success btn-sm" style="padding:4px 10px">+ Add My IP</button>
-      </form>
+    <div class="no-data">No IPs added yet. Use the form above to add your IP first.</div>
     <?php endif; ?>
   </div>
 
-  <div class="two-col">
-    <!-- IP List -->
-    <div class="card" style="margin-bottom:14px" style="grid-column:1/-1">
-      <h2>Whitelisted IPs (<?= $ip_total ?>)</h2>
-      <?php if ($ipList): ?>
-      <table class="admin-table">
-        <tr>
-          <th>#</th>
-          <th>IP Address</th>
-          <th>Label</th>
-          <th>Added By</th>
-          <th>Added On</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-        <?php foreach ($ipList as $ipr): ?>
-        <tr style="<?= !$ipr['is_active'] ? 'opacity:.5' : '' ?>">
-          <td><?= $ipr['id'] ?></td>
-          <td style="font-weight:700;color:<?= $ipr['ip_address'] === $client_ip ? 'var(--accent)' : 'var(--text)' ?>;font-size:12px">
-            <?= htmlspecialchars($ipr['ip_address']) ?>
-            <?php if ($ipr['ip_address'] === $client_ip): ?>
-              <span style="font-size:9px;color:var(--acc);margin-left:4px">(you)</span>
-            <?php endif; ?>
-          </td>
-          <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['label'] ?? '') ?></td>
-          <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['added_by_name'] ?? 'system') ?></td>
-          <td style="color:var(--tx2)"><?= date('d M y H:i', strtotime($ipr['added_at'])) ?></td>
-          <td>
-            <span class="status-dot" style="background:<?= $ipr['is_active'] ? 'var(--success)' : 'var(--danger)' ?>"></span>
-            <span style="font-size:10px;color:var(--tx2);margin-left:4px"><?= $ipr['is_active'] ? 'Active' : 'Disabled' ?></span>
-          </td>
-          <td>
-            <div class="actions-cell">
-              <!-- Toggle enable/disable -->
-              <form method="POST" style="display:inline">
-                <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-                <input type="hidden" name="action" value="toggle_ip">
-                <input type="hidden" name="iid" value="<?= $ipr['id'] ?>">
-                <button type="submit" class="btn <?= $ipr['is_active'] ? 'btn-warn' : 'btn-success' ?>" style="padding:4px 8px">
-                  <?= $ipr['is_active'] ? '⛔ Disable' : '✅ Enable' ?>
-                </button>
-              </form>
-              <!-- Delete -->
-              <form method="POST" style="display:inline">
-                <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-                <input type="hidden" name="action" value="delete_ip">
-                <input type="hidden" name="iid" value="<?= $ipr['id'] ?>">
-                <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                  data-confirm-ip="<?= htmlspecialchars($ipr['ip_address']) ?>" data-is-own="<?= $ipr['ip_address'] === $client_ip ? 'yes' : 'no' ?>">🗑</button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-      </table>
-      <?php else: ?>
-      <p style="color:var(--tx2);font-family:'Courier New',Consolas,monospace;font-size:12px;padding:12px 0">
-        No IPs added yet. Add your own IP first using the quick-add above.
-      </p>
-      <?php endif; ?>
-    </div>
-
-    <!-- Add new IP manually -->
-    <div class="card" style="margin-bottom:14px">
-      <h2>Add IP Manually</h2>
-      <form method="POST" action="admin.php">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="action" value="add_ip">
-        <div class="field">
-          <label>IP Address (IPv4 or IPv6)</label>
-          <input type="text" name="ip_address" placeholder="e.g. 192.168.1.45" required>
-        </div>
-        <div class="field">
-          <label>Label / Description</label>
-          <input type="text" name="ip_label" placeholder="e.g. Cabin 3 PC, Server Room">
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">
-          🛡 Add to Whitelist
-        </button>
-      </form>
-    </div>
-
-    <!-- Instructions -->
-    <div class="card" style="margin-bottom:14px">
-      <h2>How IP Whitelist Works</h2>
-      <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--tx2);line-height:1.9">
-        <p style="margin-bottom:8px">📌 <strong style="color:var(--tx)">When list is EMPTY</strong> — All IPs allowed (safe default for fresh setup)</p>
-        <p style="margin-bottom:8px">🔴 <strong style="color:var(--tx)">When list has entries</strong> — ONLY listed active IPs can access. Others see blocked page.</p>
-        <p style="margin-bottom:8px">⚠️ <strong style="color:var(--warn)">Important:</strong> Always add your own IP before adding others. If you accidentally lock yourself out, delete/rename the ip_whitelist table in vault.db directly.</p>
-        <p style="margin-bottom:8px">🔄 <strong style="color:var(--tx)">Disable vs Delete</strong> — Disable temporarily blocks an IP without removing it. Delete removes permanently.</p>
-        <p>🏠 <strong style="color:var(--tx)">Localhost</strong> — 127.0.0.1 and ::1 are always allowed regardless of whitelist.</p>
-      </div>
+  <!-- Info card -->
+  <div class="card">
+    <div class="card-title">ℹ How IP Whitelist Works</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:var(--tx2);line-height:1.7">
+      <div>📌 <strong style="color:var(--tx)">Empty list</strong> — All IPs allowed (safe default)</div>
+      <div>🔴 <strong style="color:var(--tx)">With entries</strong> — ONLY listed active IPs can access</div>
+      <div>🔄 <strong style="color:var(--tx)">Disable vs Delete</strong> — Disable temporarily, Delete permanently</div>
+      <div>🏠 <strong style="color:var(--tx)">Localhost</strong> — 127.0.0.1 and ::1 always allowed</div>
+      <div style="grid-column:1/-1">⚠️ <strong style="color:var(--warn)">Always add your own IP first</strong> before adding others. Locked out? Delete ip_whitelist table in vault.db directly.</div>
     </div>
   </div>
 </div>
@@ -717,45 +687,50 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <!-- ═══ CHECKLIST TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'checklist' ? 'active' : '' ?>" id="tab-checklist">
-  <div class="two-col">
-    <div class="card" style="margin-bottom:14px">
-      <h2>Add Checklist Item</h2>
-      <form method="POST">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="action" value="add_checklist_item">
-        <div class="field"><label>Item Name</label>
-          <input type="text" name="item_name" placeholder="e.g. Sitemap Available" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">➕ Add Item</button>
-      </form>
-      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--tx2);margin-top:12px;line-height:1.8">
+
+  <!-- Add item: textbox + button in one row -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">✅ Add Checklist Item</div>
+    <form method="POST">
+      <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="add_checklist_item">
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="text" name="item_name" placeholder="e.g. Sitemap Available" required style="flex:1">
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap">➕ Add Item</button>
+      </div>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx3);margin-top:8px">
         💡 Yeh items har project ke "Website Compliance Checklist" mein dikhenge — jaise logos, photos, accessibility, etc.
       </p>
+    </form>
+  </div>
+
+  <!-- Current items table -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--bdr);font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx2)">
+      Current Checklist Items (<?= count($checklistItems) ?>)
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <h2>Current Checklist Items (<?= count($checklistItems) ?>)</h2>
-      <table class="admin-table">
-        <tr><th>#</th><th>Item Name</th><th>Action</th></tr>
-        <?php foreach ($checklistItems as $ci): ?>
-        <tr>
-          <td><?= $ci['id'] ?></td>
-          <td style="color:var(--tx);font-size:12px"><?= htmlspecialchars($ci['item_name']) ?></td>
-          <td>
-            <form method="POST" style="display:inline">
-              <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-              <input type="hidden" name="action" value="delete_checklist_item">
-              <input type="hidden" name="iid" value="<?= $ci['id'] ?>">
-              <button type="submit" class="btn btn-danger" style="padding:4px 7px"
-                data-confirm="Delete this checklist item? Responses will be removed too.">🗑</button>
-            </form>
-          </td>
-        </tr>
-        <?php endforeach; ?>
-        <?php if (!$checklistItems): ?>
-        <tr><td colspan="3" style="text-align:center;color:var(--tx2);padding:14px">No items yet</td></tr>
-        <?php endif; ?>
-      </table>
-    </div>
+    <table class="admin-table">
+      <thead><tr><th style="width:50px">#</th><th>Item Name</th><th style="width:80px;text-align:center">Action</th></tr></thead>
+      <tbody>
+      <?php foreach ($checklistItems as $ci): ?>
+      <tr>
+        <td class="td-mono"><?= $ci['id'] ?></td>
+        <td style="font-size:13px"><?= htmlspecialchars($ci['item_name']) ?></td>
+        <td style="text-align:center">
+          <form method="POST" style="display:inline">
+            <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+            <input type="hidden" name="action" value="delete_checklist_item">
+            <input type="hidden" name="iid" value="<?= $ci['id'] ?>">
+            <button type="submit" class="btn btn-danger btn-sm" data-confirm="Delete this checklist item? Responses will be removed too.">🗑</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      <?php if (!$checklistItems): ?>
+      <tr><td colspan="3" class="no-data">No items yet</td></tr>
+      <?php endif; ?>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -906,7 +881,12 @@ document.addEventListener('click', function(e) {
   }
 });
 
-function changeRole(uid, role) {
+// Role select change via event delegation
+document.addEventListener('change', function(e) {
+  var sel = e.target.closest('select[data-action="change-role"]');
+  if (sel) changeRole(parseInt(sel.dataset.uid), sel.value);
+});
+
   if (!confirm(`Change role to "${role}"?`)) {
     document.querySelectorAll('.role-sel').forEach(s => { if (parseInt(s.dataset.uid) === uid) s.value = s.dataset.orig || s.value });
     return;
