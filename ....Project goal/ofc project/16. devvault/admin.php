@@ -288,6 +288,44 @@ $page_title = 'Admin';
 $nav_active = 'admin';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
+<style nonce="<?= csp_nonce() ?>">
+/* Admin-specific styles */
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* Users table */
+.admin-table{width:100%;border-collapse:collapse;font-size:13px}
+.admin-table th{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--tx2);padding:9px 14px;border-bottom:2px solid var(--bdr);background:var(--sur2);text-align:left;white-space:nowrap}
+.admin-table td{padding:10px 14px;border-bottom:1px solid var(--bdr);vertical-align:middle;color:var(--tx)}
+.admin-table tr:last-child td{border-bottom:none}
+.admin-table tbody tr:hover{background:color-mix(in srgb,var(--acc) 4%,var(--sur))}
+
+/* Opt pills */
+.opt-pills{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.opt-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:var(--sur2);border:1px solid var(--bdr);border-radius:20px;font-size:12px;font-weight:500;color:var(--tx);transition:border-color .14s}
+.opt-pill:hover{border-color:var(--acc)}
+.rm{background:none;border:none;cursor:pointer;color:var(--tx3);font-size:13px;line-height:1;padding:0 2px;transition:color .14s;display:inline-flex;align-items:center}
+.rm:hover{color:var(--err)}
+
+/* Form sections */
+.admin-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field-group{display:flex;flex-direction:column;gap:4px}
+.field-group label{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--tx2)}
+
+/* IP list */
+.ip-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--bdr)}
+.ip-row:last-child{border-bottom:none}
+
+/* Log entries */
+.log-entry{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid color-mix(in srgb,var(--bdr) 60%,transparent);font-size:12.5px}
+.log-entry:last-child{border-bottom:none}
+.log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* Role permissions table */
+.perm-table{width:100%;border-collapse:collapse;font-size:12px}
+.perm-table th,.perm-table td{padding:7px 12px;border-bottom:1px solid var(--bdr);text-align:center}
+.perm-table th:first-child,.perm-table td:first-child{text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px}
+.perm-table th{background:var(--sur2);font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx2)}
+</style>
 <div class="dv-content">
 
 <?php if ($flash): ?>
@@ -342,9 +380,9 @@ require_once __DIR__ . '/includes/sidebar.php';
     </table>
   </div>
   <?php endif; ?>
-  <div class="panel">
+  <div class="card" style="margin-bottom:14px">
     <h2>Team Members</h2>
-    <table class="user-table">
+    <table class="admin-table">
       <tr>
         <th>#</th><th>Status</th><th>Username</th><th>Role</th>
         <th>Projects</th><th>Joined</th><th>PW Age</th><th>Actions</th>
@@ -359,20 +397,20 @@ require_once __DIR__ . '/includes/sidebar.php';
           <span class="status-dot" style="background:<?= $isActive ? 'var(--success)' : 'var(--danger)' ?>"
             title="<?= $isActive ? 'Active' : 'Inactive' ?>"></span>
         </td>
-        <td style="font-weight:700;color:var(--text);font-size:12px"><?= htmlspecialchars($u['username']) ?></td>
+        <td style="font-weight:700;color:var(--tx);font-size:12px"><?= htmlspecialchars($u['username']) ?></td>
         <td>
-          <span class="role-badge" style="color:<?= $rclr ?>;border-color:<?= $rclr ?>40">
+          <span class="badge" style="color:<?= $rclr ?>;border-color:<?= $rclr ?>40">
             <?= $roleLabel[$u['role']] ?? $u['role'] ?>
           </span>
         </td>
         <td style="text-align:center"><?= $u['pc'] ?></td>
-        <td style="color:var(--muted)"><?= date('d M y', strtotime($u['created_at'])) ?></td>
+        <td style="color:var(--tx2)"><?= date('d M y', strtotime($u['created_at'])) ?></td>
         <td>
           <?php if ($u['id'] !== $_SESSION['user_id']): ?>
           <div class="actions-cell">
             <select class="role-sel" data-uid="<?= $u['id'] ?>"
-              style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                padding:3px 6px;color:var(--text);font-size:10px;font-family:'Courier New',Consolas,monospace;
+              style="background:var(--sur2);border:1px solid var(--bdr);border-radius:5px;
+                padding:3px 6px;color:var(--tx);font-size:10px;font-family:'Courier New',Consolas,monospace;
                 outline:none;cursor:pointer;width:auto"
               onchange="changeRole(<?= $u['id'] ?>,this.value)">
               <option value="admin"  <?= $u['role'] === 'admin'  ? 'selected' : '' ?>>Admin</option>
@@ -410,16 +448,16 @@ require_once __DIR__ . '/includes/sidebar.php';
             </form>
           </div>
           <?php else: ?>
-          <span style="font-size:10px;color:var(--muted);font-family:'Courier New',Consolas,monospace">(you)</span>
+          <span style="font-size:10px;color:var(--tx2);font-family:'Courier New',Consolas,monospace">(you)</span>
           <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>
     </table>
     <div class="role-info" style="margin-top:14px">
-      <div class="ri"><span class="role-badge" style="color:<?= $roleColors['admin'] ?>;border-color:<?= $roleColors['admin'] ?>40">Admin</span> — Full access: add, edit, delete projects + manage users</div>
-      <div class="ri"><span class="role-badge" style="color:<?= $roleColors['member'] ?>;border-color:<?= $roleColors['member'] ?>40">Member</span> — Add & edit projects, view all data, export</div>
-      <div class="ri"><span class="role-badge" style="color:<?= $roleColors['viewer'] ?>;border-color:<?= $roleColors['viewer'] ?>40">Viewer</span> — View only: cannot add, edit, or delete anything</div>
+      <div class="ri"><span class="badge" style="color:<?= $roleColors['admin'] ?>;border-color:<?= $roleColors['admin'] ?>40">Admin</span> — Full access: add, edit, delete projects + manage users</div>
+      <div class="ri"><span class="badge" style="color:<?= $roleColors['member'] ?>;border-color:<?= $roleColors['member'] ?>40">Member</span> — Add & edit projects, view all data, export</div>
+      <div class="ri"><span class="badge" style="color:<?= $roleColors['viewer'] ?>;border-color:<?= $roleColors['viewer'] ?>40">Viewer</span> — View only: cannot add, edit, or delete anything</div>
     </div>
   </div>
 </div>
@@ -427,7 +465,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 <!-- ═══ ADD USER TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'add' ? 'active' : '' ?>" id="tab-add">
   <div class="two-col">
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>Add New User</h2>
       <form method="POST">
         <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
@@ -447,14 +485,14 @@ require_once __DIR__ . '/includes/sidebar.php';
             <option value="admin">Admin — full access + users</option>
           </select>
         </div>
-        <button type="submit" class="btn btn-accent" style="width:100%;justify-content:center;padding:9px">➕ Add User</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">➕ Add User</button>
       </form>
     </div>
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>Role Permissions</h2>
       <table style="width:100%;border-collapse:collapse;font-size:11px;font-family:'Courier New',Consolas,monospace">
         <tr style="border-bottom:1px solid var(--border)">
-          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1px">Permission</th>
+          <th style="text-align:left;padding:6px 8px;color:var(--tx2);font-size:9px;text-transform:uppercase;letter-spacing:1px">Permission</th>
           <th style="padding:6px 8px;color:<?= $roleColors['viewer'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Viewer</th>
           <th style="padding:6px 8px;color:<?= $roleColors['member'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Member</th>
           <th style="padding:6px 8px;color:<?= $roleColors['admin'] ?>;font-size:9px;text-transform:uppercase;letter-spacing:1px">Admin</th>
@@ -472,10 +510,10 @@ require_once __DIR__ . '/includes/sidebar.php';
           'Admin Panel'     => [0,0,1],
         ] as $perm => [$v,$m,$a]): ?>
         <tr style="border-bottom:1px solid rgba(30,45,74,.4)">
-          <td style="padding:6px 8px;color:var(--text)"><?= $perm ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $v ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $m ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
-          <td style="text-align:center;padding:6px 8px"><?= $a ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
+          <td style="padding:6px 8px;color:var(--tx)"><?= $perm ?></td>
+          <td style="text-align:center;padding:6px 8px"><?= $v ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
+          <td style="text-align:center;padding:6px 8px"><?= $m ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
+          <td style="text-align:center;padding:6px 8px"><?= $a ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--border)">–</span>' ?></td>
         </tr>
         <?php endforeach; ?>
       </table>
@@ -501,46 +539,46 @@ require_once __DIR__ . '/includes/sidebar.php';
   <!-- Stats -->
   <div class="ip-stat-row">
     <div class="ip-stat">
-      <span class="val" style="color:var(--accent)"><?= $ip_total ?></span>
+      <span class="val" style="color:var(--acc)"><?= $ip_total ?></span>
       <span class="lbl">Total IPs</span>
     </div>
     <div class="ip-stat">
-      <span class="val" style="color:var(--success)"><?= $ip_active ?></span>
+      <span class="val" style="color:var(--ok)"><?= $ip_active ?></span>
       <span class="lbl">Enabled</span>
     </div>
     <div class="ip-stat">
-      <span class="val" style="color:var(--danger)"><?= $ip_total - $ip_active ?></span>
+      <span class="val" style="color:var(--err)"><?= $ip_total - $ip_active ?></span>
       <span class="lbl">Disabled</span>
     </div>
   </div>
 
   <!-- Current IP quick-add -->
   <div class="ip-mine">
-    <span style="color:var(--muted);font-size:11px">YOUR CURRENT IP</span><br>
+    <span style="color:var(--tx2);font-size:11px">YOUR CURRENT IP</span><br>
     <strong><?= htmlspecialchars($client_ip) ?></strong>
     <?php
       $already = false;
       foreach ($ipList as $ipr) { if ($ipr['ip_address'] === $client_ip) { $already = true; break; } }
     ?>
     <?php if ($already): ?>
-      <span style="color:var(--success);font-size:11px;margin-left:10px">✓ Already in whitelist</span>
+      <span style="color:var(--ok);font-size:11px;margin-left:10px">✓ Already in whitelist</span>
     <?php else: ?>
       <form method="POST" style="display:inline-flex;gap:8px;align-items:center;margin-left:12px">
         <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
         <input type="hidden" name="action" value="add_current_ip">
         <input type="text" name="current_ip_label" placeholder="Label (e.g. My PC)"
           style="width:160px;padding:4px 8px;font-size:11px">
-        <button type="submit" class="btn btn-success" style="padding:4px 10px">+ Add My IP</button>
+        <button type="submit" class="btn btn-success btn-sm" style="padding:4px 10px">+ Add My IP</button>
       </form>
     <?php endif; ?>
   </div>
 
   <div class="two-col">
     <!-- IP List -->
-    <div class="panel" style="grid-column:1/-1">
+    <div class="card" style="margin-bottom:14px" style="grid-column:1/-1">
       <h2>Whitelisted IPs (<?= $ip_total ?>)</h2>
       <?php if ($ipList): ?>
-      <table class="user-table">
+      <table class="admin-table">
         <tr>
           <th>#</th>
           <th>IP Address</th>
@@ -556,15 +594,15 @@ require_once __DIR__ . '/includes/sidebar.php';
           <td style="font-weight:700;color:<?= $ipr['ip_address'] === $client_ip ? 'var(--accent)' : 'var(--text)' ?>;font-size:12px">
             <?= htmlspecialchars($ipr['ip_address']) ?>
             <?php if ($ipr['ip_address'] === $client_ip): ?>
-              <span style="font-size:9px;color:var(--accent);margin-left:4px">(you)</span>
+              <span style="font-size:9px;color:var(--acc);margin-left:4px">(you)</span>
             <?php endif; ?>
           </td>
-          <td style="color:var(--muted)"><?= htmlspecialchars($ipr['label'] ?? '') ?></td>
-          <td style="color:var(--muted)"><?= htmlspecialchars($ipr['added_by_name'] ?? 'system') ?></td>
-          <td style="color:var(--muted)"><?= date('d M y H:i', strtotime($ipr['added_at'])) ?></td>
+          <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['label'] ?? '') ?></td>
+          <td style="color:var(--tx2)"><?= htmlspecialchars($ipr['added_by_name'] ?? 'system') ?></td>
+          <td style="color:var(--tx2)"><?= date('d M y H:i', strtotime($ipr['added_at'])) ?></td>
           <td>
             <span class="status-dot" style="background:<?= $ipr['is_active'] ? 'var(--success)' : 'var(--danger)' ?>"></span>
-            <span style="font-size:10px;color:var(--muted);margin-left:4px"><?= $ipr['is_active'] ? 'Active' : 'Disabled' ?></span>
+            <span style="font-size:10px;color:var(--tx2);margin-left:4px"><?= $ipr['is_active'] ? 'Active' : 'Disabled' ?></span>
           </td>
           <td>
             <div class="actions-cell">
@@ -591,14 +629,14 @@ require_once __DIR__ . '/includes/sidebar.php';
         <?php endforeach; ?>
       </table>
       <?php else: ?>
-      <p style="color:var(--muted);font-family:'Courier New',Consolas,monospace;font-size:12px;padding:12px 0">
+      <p style="color:var(--tx2);font-family:'Courier New',Consolas,monospace;font-size:12px;padding:12px 0">
         No IPs added yet. Add your own IP first using the quick-add above.
       </p>
       <?php endif; ?>
     </div>
 
     <!-- Add new IP manually -->
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>Add IP Manually</h2>
       <form method="POST" action="admin.php">
         <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
@@ -611,21 +649,21 @@ require_once __DIR__ . '/includes/sidebar.php';
           <label>Label / Description</label>
           <input type="text" name="ip_label" placeholder="e.g. Cabin 3 PC, Server Room">
         </div>
-        <button type="submit" class="btn btn-accent" style="width:100%;justify-content:center;padding:9px">
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">
           🛡 Add to Whitelist
         </button>
       </form>
     </div>
 
     <!-- Instructions -->
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>How IP Whitelist Works</h2>
-      <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);line-height:1.9">
-        <p style="margin-bottom:8px">📌 <strong style="color:var(--text)">When list is EMPTY</strong> — All IPs allowed (safe default for fresh setup)</p>
-        <p style="margin-bottom:8px">🔴 <strong style="color:var(--text)">When list has entries</strong> — ONLY listed active IPs can access. Others see blocked page.</p>
-        <p style="margin-bottom:8px">⚠️ <strong style="color:var(--amber)">Important:</strong> Always add your own IP before adding others. If you accidentally lock yourself out, delete/rename the ip_whitelist table in vault.db directly.</p>
-        <p style="margin-bottom:8px">🔄 <strong style="color:var(--text)">Disable vs Delete</strong> — Disable temporarily blocks an IP without removing it. Delete removes permanently.</p>
-        <p>🏠 <strong style="color:var(--text)">Localhost</strong> — 127.0.0.1 and ::1 are always allowed regardless of whitelist.</p>
+      <div style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--tx2);line-height:1.9">
+        <p style="margin-bottom:8px">📌 <strong style="color:var(--tx)">When list is EMPTY</strong> — All IPs allowed (safe default for fresh setup)</p>
+        <p style="margin-bottom:8px">🔴 <strong style="color:var(--tx)">When list has entries</strong> — ONLY listed active IPs can access. Others see blocked page.</p>
+        <p style="margin-bottom:8px">⚠️ <strong style="color:var(--warn)">Important:</strong> Always add your own IP before adding others. If you accidentally lock yourself out, delete/rename the ip_whitelist table in vault.db directly.</p>
+        <p style="margin-bottom:8px">🔄 <strong style="color:var(--tx)">Disable vs Delete</strong> — Disable temporarily blocks an IP without removing it. Delete removes permanently.</p>
+        <p>🏠 <strong style="color:var(--tx)">Localhost</strong> — 127.0.0.1 and ::1 are always allowed regardless of whitelist.</p>
       </div>
     </div>
   </div>
@@ -635,7 +673,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 <div class="tab-pane <?= $active_tab === 'options' ? 'active' : '' ?>" id="tab-options">
   <div class="two-col">
     <?php foreach ($groupLabels as $grp => $lbl): ?>
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2><?= $lbl ?> Options</h2>
       <div class="opt-pills">
         <?php foreach ($optsByGroup[$grp] ?? [] as $o):
@@ -680,7 +718,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 <!-- ═══ CHECKLIST TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'checklist' ? 'active' : '' ?>" id="tab-checklist">
   <div class="two-col">
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>Add Checklist Item</h2>
       <form method="POST">
         <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
@@ -688,20 +726,20 @@ require_once __DIR__ . '/includes/sidebar.php';
         <div class="field"><label>Item Name</label>
           <input type="text" name="item_name" placeholder="e.g. Sitemap Available" required>
         </div>
-        <button type="submit" class="btn btn-accent" style="width:100%;justify-content:center;padding:9px">➕ Add Item</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;justify-content:center;padding:9px">➕ Add Item</button>
       </form>
-      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted);margin-top:12px;line-height:1.8">
+      <p style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--tx2);margin-top:12px;line-height:1.8">
         💡 Yeh items har project ke "Website Compliance Checklist" mein dikhenge — jaise logos, photos, accessibility, etc.
       </p>
     </div>
-    <div class="panel">
+    <div class="card" style="margin-bottom:14px">
       <h2>Current Checklist Items (<?= count($checklistItems) ?>)</h2>
-      <table class="user-table">
+      <table class="admin-table">
         <tr><th>#</th><th>Item Name</th><th>Action</th></tr>
         <?php foreach ($checklistItems as $ci): ?>
         <tr>
           <td><?= $ci['id'] ?></td>
-          <td style="color:var(--text);font-size:12px"><?= htmlspecialchars($ci['item_name']) ?></td>
+          <td style="color:var(--tx);font-size:12px"><?= htmlspecialchars($ci['item_name']) ?></td>
           <td>
             <form method="POST" style="display:inline">
               <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
@@ -714,7 +752,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </tr>
         <?php endforeach; ?>
         <?php if (!$checklistItems): ?>
-        <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:14px">No items yet</td></tr>
+        <tr><td colspan="3" style="text-align:center;color:var(--tx2);padding:14px">No items yet</td></tr>
         <?php endif; ?>
       </table>
     </div>
@@ -723,7 +761,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <!-- ═══ LOGS TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'logs' ? 'active' : '' ?>" id="tab-logs">
-  <div class="panel">
+  <div class="card" style="margin-bottom:14px">
     <h2>Activity Log — <?= intval($log_total) ?> Total &nbsp;·&nbsp; Page <?= intval($log_page) ?>/<?= intval($log_pages) ?></h2>
     <?php
     $icons = ['login'=>'🟢','logout'=>'🔴','add_project'=>'➕','edit_project'=>'✏',
@@ -737,13 +775,13 @@ require_once __DIR__ . '/includes/sidebar.php';
       <span class="log-user"><?= htmlspecialchars($l['username'] ?? 'system') ?></span>
       <span class="log-action">
         <?= $icon ?> <?= htmlspecialchars($l['action']) ?>
-        <?php if ($l['detail']): ?><span style="color:var(--muted)"> — <?= htmlspecialchars($l['detail']) ?></span><?php endif; ?>
+        <?php if ($l['detail']): ?><span style="color:var(--tx2)"> — <?= htmlspecialchars($l['detail']) ?></span><?php endif; ?>
         <?php if ($l['ip_address']): ?><span class="log-ip">[<?= htmlspecialchars($l['ip_address']) ?>]</span><?php endif; ?>
       </span>
     </div>
     <?php endforeach; ?>
     <?php if (!$logs): ?>
-    <p style="color:var(--muted);font-size:11px;font-family:'Courier New',Consolas,monospace">No activity yet.</p>
+    <p style="color:var(--tx2);font-size:11px;font-family:'Courier New',Consolas,monospace">No activity yet.</p>
     <?php endif; ?>
 
     <?php if($log_pages > 1): ?>
@@ -777,13 +815,13 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <!-- ═══ TRASH TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'trash' ? 'active' : '' ?>" id="tab-trash">
-  <h2 style="font-size:14px;color:var(--muted);margin-bottom:16px;font-family:'Courier New',Consolas,monospace">
+  <h2 style="font-size:14px;color:var(--tx2);margin-bottom:16px;font-family:'Courier New',Consolas,monospace">
     🗑 DELETED PROJECTS — <?= count($deleted_projects) ?> items
   </h2>
   <?php if (empty($deleted_projects)): ?>
-  <p style="color:var(--muted);font-size:13px;font-family:'Courier New',Consolas,monospace">Trash is empty.</p>
+  <p style="color:var(--tx2);font-size:13px;font-family:'Courier New',Consolas,monospace">Trash is empty.</p>
   <?php else: ?>
-  <table class="user-table">
+  <table class="admin-table">
     <tr>
       <th>Project Name</th><th>Department</th><th>Status</th>
       <th>Deleted At</th><th>Deleted By</th><th>Actions</th>
@@ -792,8 +830,8 @@ require_once __DIR__ . '/includes/sidebar.php';
     <tr>
       <td><?= htmlspecialchars($dp['project_name']) ?></td>
       <td><?= htmlspecialchars($dp['department_name'] ?? '') ?></td>
-      <td style="font-size:11px;color:var(--muted)"><?= htmlspecialchars($dp['current_status'] ?? '') ?></td>
-      <td style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--muted)">
+      <td style="font-size:11px;color:var(--tx2)"><?= htmlspecialchars($dp['current_status'] ?? '') ?></td>
+      <td style="font-family:'Courier New',Consolas,monospace;font-size:11px;color:var(--tx2)">
         <?= htmlspecialchars($dp['deleted_at'] ?? '') ?>
       </td>
       <td style="font-size:12px"><?= htmlspecialchars($dp['deleted_by_name'] ?? 'N/A') ?></td>

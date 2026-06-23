@@ -106,6 +106,20 @@
       .then(function(){TP.style.display='none';})
       .catch(function(){TP.style.display='none';});
   });
+// ── Global confirm handler for all data-confirm buttons ──────────────────────
+document.addEventListener('click', function(e) {
+  var dc = e.target.closest('[data-confirm]');
+  if (dc && dc.type === 'submit') {
+    if (!confirm(dc.dataset.confirm)) e.preventDefault();
+  }
+});
+
+// ── Global modal dispatcher ───────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('[data-action]').forEach(function(btn) {
+    btn.style.pointerEvents = 'auto';
+  });
+});
 })();
 </script>
 </body></html>

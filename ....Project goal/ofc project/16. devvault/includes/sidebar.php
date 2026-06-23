@@ -48,10 +48,28 @@ if(strlen($_acc)<4) $_acc='#00d4aa';
 
   <nav class="dv-sb-nav">
     <?php if(!is_viewer() && can_edit()): ?>
-    <a href="project_form.php" class="dv-sb-link btn-primary" style="margin:0 2px 8px;border-radius:8px;justify-content:center;padding:8px 10px">
+    <a href="project_form.php" class="dv-sb-link btn-primary" style="margin:0 2px 4px;border-radius:8px;justify-content:center;padding:8px 10px">
       <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       <span class="sb-label" style="font-weight:700">Add Project</span>
     </a>
+    <?php if($nav_active==='sr'): ?>
+    <button type="button" class="dv-sb-link" data-action="open-sr-modal" style="margin:0 2px 8px;border-radius:8px;justify-content:center;padding:7px 10px;border:1px dashed var(--acc);color:var(--acc)">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="sb-label" style="font-weight:600">Add SR</span>
+    </button>
+    <?php elseif($nav_active==='findings'): ?>
+    <button type="button" class="dv-sb-link" data-action="open-finding-modal" style="margin:0 2px 8px;border-radius:8px;justify-content:center;padding:7px 10px;border:1px dashed var(--acc);color:var(--acc)">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="sb-label" style="font-weight:600">Add Finding</span>
+    </button>
+    <?php elseif($nav_active==='workorders'): ?>
+    <button type="button" class="dv-sb-link" data-action="open-wo-modal" style="margin:0 2px 8px;border-radius:8px;justify-content:center;padding:7px 10px;border:1px dashed var(--acc);color:var(--acc)">
+      <svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="sb-label" style="font-weight:600">New Work Order</span>
+    </button>
+    <?php else: ?>
+    <div style="margin-bottom:8px"></div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <div class="dv-sb-group">Main</div>

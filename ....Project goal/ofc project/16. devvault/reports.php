@@ -278,7 +278,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   <form method="get">
     <input type="hidden" name="tab" value="visitors">
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div class="fg">
+      <div style="display:flex;flex-direction:column;gap:3px">
         <label>Project (optional)</label>
         <select name="r2_project" style="min-width:200px;">
           <option value="">All Projects</option>
@@ -296,8 +296,8 @@ require_once __DIR__ . '/includes/sidebar.php';
       <?php endif; ?>
     </div>
   </form>
-  <p style="font-size:12px;color:var(--muted);margin-top:-8px;">
-    <strong style="color:var(--text)">How it works:</strong>
+  <p style="font-size:12px;color:var(--tx2);margin-top:-8px;">
+    <strong style="color:var(--tx)">How it works:</strong>
     <em>Baseline</em> = visitor count from the latest log entry on or before the <strong>From Date</strong>.
     <em>Final</em> = visitor count from the latest log entry on or before the <strong>To Date</strong>.
     <em>Net Gain</em> = Final − Baseline (visitors gained in this period).
@@ -306,7 +306,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <?php if ($r2_data): ?>
 <div class="card" style="padding:0;overflow:hidden;">
-  <table>
+  <table class="dv-table">
     <thead>
       <tr>
         <th>Project</th><th>Baseline Count</th><th>Baseline Date</th>
@@ -351,7 +351,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   <form method="get">
     <input type="hidden" name="tab" value="migration">
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div class="fg">
+      <div style="display:flex;flex-direction:column;gap:3px">
         <label>From Technology</label>
         <select name="r3_from_tech">
           <option value="">Any</option>
@@ -360,7 +360,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php endforeach; ?>
         </select>
       </div>
-      <div class="fg">
+      <div style="display:flex;flex-direction:column;gap:3px">
         <label>To Technology</label>
         <select name="r3_to_tech">
           <option value="">Any</option>
@@ -391,15 +391,15 @@ require_once __DIR__ . '/includes/sidebar.php';
   <strong style="font-size:13px;">Migration Summary (<?=count($r3_data)?> changes):</strong>
   <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;font-size:12px;">
     <?php foreach ($from_counts as $t => $n): ?>
-    <span style="color:var(--muted);">Migrated away from <strong style="color:var(--text);"><?=htmlspecialchars($t)?></strong>: <?=$n?></span>
+    <span style="color:var(--tx2);">Migrated away from <strong style="color:var(--tx);"><?=htmlspecialchars($t)?></strong>: <?=$n?></span>
     <?php endforeach; ?>
     <?php foreach ($to_counts as $t => $n): ?>
-    <span style="color:var(--muted);">Migrated to <strong style="color:#10b981;"><?=htmlspecialchars($t)?></strong>: <?=$n?></span>
+    <span style="color:var(--tx2);">Migrated to <strong style="color:#10b981;"><?=htmlspecialchars($t)?></strong>: <?=$n?></span>
     <?php endforeach; ?>
   </div>
 </div>
 <div class="card" style="padding:0;overflow:hidden;">
-  <table>
+  <table class="dv-table">
     <thead>
       <tr><th>Project</th><th>From</th><th>From Sub-type</th><th>To</th><th>To Sub-type</th><th>Date</th><th>Reason</th><th>Changed By</th></tr>
     </thead>
@@ -408,12 +408,12 @@ require_once __DIR__ . '/includes/sidebar.php';
       <tr>
         <td><a href="project_form.php?id=<?=$row['project_id']?>" style="color:var(--acc);text-decoration:none;font-weight:500"><?=htmlspecialchars($row['project_name'])?></a></td>
         <td><?=htmlspecialchars($row['from_technology']??'')?></td>
-        <td style="font-size:11px;color:var(--muted);"><?=htmlspecialchars($row['from_subtype']??'')?></td>
+        <td style="font-size:11px;color:var(--tx2);"><?=htmlspecialchars($row['from_subtype']??'')?></td>
         <td style="color:#10b981;"><?=htmlspecialchars($row['to_technology'])?></td>
-        <td style="font-size:11px;color:var(--muted);"><?=htmlspecialchars($row['to_subtype']??'')?></td>
+        <td style="font-size:11px;color:var(--tx2);"><?=htmlspecialchars($row['to_subtype']??'')?></td>
         <td><?=htmlspecialchars($row['change_date'])?></td>
-        <td style="font-size:12px;color:var(--muted);"><?=htmlspecialchars($row['reason']??'')?></td>
-        <td style="font-size:12px;color:var(--muted);"><?=htmlspecialchars($row['changer']??'')?></td>
+        <td style="font-size:12px;color:var(--tx2);"><?=htmlspecialchars($row['reason']??'')?></td>
+        <td style="font-size:12px;color:var(--tx2);"><?=htmlspecialchars($row['changer']??'')?></td>
       </tr>
       <?php endforeach; ?>
     </tbody>
@@ -431,7 +431,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   <form method="get">
     <input type="hidden" name="tab" value="workorders">
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div class="fg">
+      <div style="display:flex;flex-direction:column;gap:3px">
         <label>Technology Filter</label>
         <select name="r4_tech">
           <option value="">All</option>
@@ -453,7 +453,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <?php if ($r4_data): ?>
 <div class="card" style="padding:0;overflow:hidden;">
-  <table>
+  <table class="dv-table">
     <thead>
       <tr>
         <th>Work Order Title</th><th>Applicable Tech</th><th>Priority</th><th>Deadline</th>
@@ -470,7 +470,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <td style="font-size:12px;"><?=implode(', ',$techs)?></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['priority'])?></td>
         <td style="font-size:12px;"><?=htmlspecialchars($wo['deadline']??'-')?></td>
-        <td style="font-size:11px;color:var(--muted);"><?=substr($wo['created_at'],0,10)?></td>
+        <td style="font-size:11px;color:var(--tx2);"><?=substr($wo['created_at'],0,10)?></td>
         <td style="text-align:center;"><?=$wo['total_sites']?></td>
         <td style="text-align:center;color:#10b981;font-weight:600;"><?=$wo['done_sites']?></td>
         <td style="text-align:center;color:<?=$wo['total_sites']-$wo['done_sites']>0?'#f59e0b':'#6b7280'?>;"><?=$wo['total_sites']-$wo['done_sites']?></td>

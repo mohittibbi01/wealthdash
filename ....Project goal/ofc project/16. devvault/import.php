@@ -98,7 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     }
 }
 
-<?php
 $_theme_i = user_pref('theme','teal-dark');
 $_fs_i    = max(11,min(18,(int)user_pref('font_size','14')));
 $_acc_i   = preg_replace('/[^#a-fA-F0-9]/','',user_pref('accent','#00d4aa'));

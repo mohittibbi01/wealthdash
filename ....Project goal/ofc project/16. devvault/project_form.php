@@ -335,19 +335,12 @@ label,.lbl{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;
 </head>
 <body>
 
-<!-- Minimal topbar (no full sidebar on form page — keeps focus) -->
-<div style="position:sticky;top:0;z-index:200;height:50px;background:color-mix(in srgb,var(--bg) 94%,transparent);border-bottom:1px solid var(--bdr);backdrop-filter:blur(14px);display:flex;align-items:center;padding:0 18px;gap:12px">
-  <a href="index.php" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--acc);text-decoration:none;letter-spacing:2px">🔐 DEVVAULT</a>
-  <span style="color:var(--bdr);font-size:18px">|</span>
-  <span style="font-size:13px;font-weight:600;color:var(--tx)"><?=$p?'✏ Edit':'＋ Add'?> Project</span>
-  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-    <span id="session-timer-display" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx2)">⏱ 05:00</span>
-    <a href="index.php" class="btn btn-ghost btn-sm">← Back</a>
-    <a href="logout.php" class="btn btn-ghost btn-sm" style="color:var(--err)">⏏</a>
-  </div>
-</div>
-
-<div class="pf-wrap" style="padding:16px 20px 70px">
+<?php
+$page_title = ($p ? '✏ Edit' : '＋ Add') . ' Project';
+$nav_active  = 'dashboard';
+require_once __DIR__ . '/includes/sidebar.php';
+?>
+<div class="dv-content" style="padding-bottom:70px">
 <?php if($error):?><div class="flash flash-error">⚠ <?=nl2br(htmlspecialchars($error))?></div><?php endif;?>
 
 <form method="POST" id="pf" enctype="multipart/form-data">
@@ -890,13 +883,6 @@ label,.lbl{display:block;font-family:'JetBrains Mono',monospace;font-size:9.5px;
 
 <input type="hidden" name="tech_change_reason" id="tech_change_reason_input" value="">
 </form>
-</div><!-- /wrap -->
-
-<!-- SINGLE sticky footer -->
-<div class="form-footer">
-  <a href="index.php" class="btn btn-cancel">✕ Cancel</a>
-  <button type="submit" form="pf" class="btn btn-save">💾 Save Project</button>
-</div>
 
 <script nonce="<?= csp_nonce() ?>">
 // ── Event delegation: replaces all inline onclick (CSP fix) ──────────────────
@@ -1062,15 +1048,20 @@ document.addEventListener('click',function(e){
   // Confirm submit
   var cb=e.target.closest('[data-confirm]');if(cb&&cb.type==='submit'){if(!confirm(cb.dataset.confirm))e.preventDefault();return;}
 });
+window.DEVVAULT_CSRF='<?=csrf_token()?>';
 </script>
 </form>
-</div><!-- /pf-wrap -->
+</div><!-- /.dv-content -->
 
-<div class="form-footer">
+<div class="form-footer" style="left:228px;transition:left .2s" id="pf-footer">
   <a href="index.php" class="btn btn-ghost">✕ Cancel</a>
   <button type="submit" form="pf" class="btn btn-primary btn-lg">💾 Save Project</button>
 </div>
+<script nonce="<?=csp_nonce()?>">
+// Adjust form-footer left when sidebar collapses
+var _pff=document.getElementById('pf-footer');
+var _sbo=document.getElementById('sb-toggle');
+if(_sbo&&_pff){_sbo.addEventListener('click',function(){setTimeout(function(){_pff.style.left=document.getElementById('dv-sidebar').classList.contains('collapsed')?'58px':'228px';},250);});}
+</script>
 
-<script src="session_timer.js"></script>
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/sidebar_footer.php'; ?>
