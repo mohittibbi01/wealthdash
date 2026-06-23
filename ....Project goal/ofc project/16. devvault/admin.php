@@ -75,10 +75,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verify_csrf()) {
     }
 
     if ($action === 'change_role') {
-        $uid  = intval($_POST['uid'] ?? 0);
-        $role = in_array($_POST['role'] ?? '', ['admin', 'member', 'viewer']) ? $_POST['role'] : 'member';
-        if ($uid !== $_SESSION['user_id'])
+        $uid      = intval($_POST['uid'] ?? 0);
+        $role     = in_array($_POST['role'] ?? '', ['admin', 'member', 'viewer']) ? $_POST['role'] : 'member';
+        $admin_pw = $_POST['admin_pw'] ?? '';
+
+        // Verify admin password before role change
+        $admin_hash = $db->prepare("SELECT password FROM users WHERE id=?");
+        $admin_hash->execute([$_SESSION['user_id']]);
+        $hash = $admin_hash->fetchColumn();
+
+        if (!password_verify($admin_pw, $hash)) {
+            $_SESSION['flash'] = ['type' => 'error', 'msg' => '⛔ Galat password — role change cancel.'];
+        } elseif ($uid !== $_SESSION['user_id']) {
             $db->prepare("UPDATE users SET role=? WHERE id=?")->execute([$role, $uid]);
+            $_SESSION['flash'] = ['type' => 'success', 'msg' => '✅ Role updated to ' . ucfirst($role) . '.'];
+        }
     }
 
     if ($action === 'toggle_active') {
@@ -832,14 +843,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 </div><!-- /content -->
 
-<!-- Hidden forms -->
-<form method="POST" id="role-form" style="display:none">
-  <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-  <input type="hidden" name="action" value="change_role">
-  <input type="hidden" name="uid" id="rf-uid">
-  <input type="hidden" name="role" id="rf-role">
-</form>
-
+<!-- Hidden forms for reset-pw -->
 <form method="POST" id="reset-form" style="display:none">
   <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
   <input type="hidden" name="action" value="reset_pw">
@@ -884,18 +888,52 @@ document.addEventListener('click', function(e) {
 // Role select change via event delegation
 document.addEventListener('change', function(e) {
   var sel = e.target.closest('select[data-action="change-role"]');
-  if (sel) changeRole(parseInt(sel.dataset.uid), sel.value);
+  if (sel) {
+    // Show confirm modal instead of direct submit
+    var uid  = parseInt(sel.dataset.uid);
+    var role = sel.value;
+    var orig = sel.dataset.orig || sel.value;
+    // Revert immediately — only submit after password confirm
+    sel.value = orig;
+    openRoleConfirm(uid, role, orig, sel);
+  }
 });
 
-  if (!confirm(`Change role to "${role}"?`)) {
-    document.querySelectorAll('.role-sel').forEach(s => { if (parseInt(s.dataset.uid) === uid) s.value = s.dataset.orig || s.value });
-    return;
-  }
-  document.getElementById('rf-uid').value = uid;
-  document.getElementById('rf-role').value = role;
-  document.getElementById('role-form').submit();
+function openRoleConfirm(uid, newRole, origRole, selEl) {
+  document.getElementById('rcm-uid').value  = uid;
+  document.getElementById('rcm-role').value = newRole;
+  document.getElementById('rcm-pw').value   = '';
+  document.getElementById('rcm-newrole').textContent = newRole.charAt(0).toUpperCase() + newRole.slice(1);
+  document.getElementById('rcm-cancel').onclick = function() {
+    if (selEl) selEl.value = origRole;
+    document.getElementById('role-confirm-modal').classList.remove('open');
+  };
+  document.getElementById('role-confirm-modal').classList.add('open');
+  setTimeout(function(){ document.getElementById('rcm-pw').focus(); }, 100);
 }
-document.querySelectorAll('.role-sel').forEach(s => s.dataset.orig = s.value);
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Store original role values on all role selects
+  document.querySelectorAll('select[data-action="change-role"]').forEach(function(s) {
+    s.dataset.orig = s.value;
+  });
+  // Role confirm modal submit
+  var rcForm = document.getElementById('role-confirm-form');
+  if (rcForm) rcForm.addEventListener('submit', function(e) {
+    var pw = document.getElementById('rcm-pw').value;
+    if (!pw) { e.preventDefault(); alert('Password required!'); return; }
+    document.getElementById('role-confirm-modal').classList.remove('open');
+  });
+  // Close on backdrop click
+  var rcModal = document.getElementById('role-confirm-modal');
+  if (rcModal) rcModal.addEventListener('click', function(e) {
+    if (e.target === rcModal) rcModal.classList.remove('open');
+  });
+});
+
+function changeRole(uid, role) {
+  // Legacy — now handled by openRoleConfirm
+}
 
 function resetPw(uid, name) {
   const pw = prompt(`New password for "${name}" (min 8 chars):`);
@@ -980,6 +1018,32 @@ window.DEVVAULT_LOGOUT = 'logout.php';
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" id="delopt-cancel2" data-action="close-delopt">Cancel</button>
         <button type="submit" class="btn btn-danger">🗑 Haan, Delete Karo</button>
+      </div>
+    </form>
+  </div>
+</div>
+<!-- ── Role Change Confirm Modal ──────────────────────────────────────────── -->
+<div class="modal-backdrop" id="role-confirm-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title">🔐 Confirm Role Change</span>
+      <button class="modal-close" id="rcm-cancel">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">
+      User ka role change karke <strong id="rcm-newrole" style="color:var(--acc)"></strong> karna chahte ho?<br>
+      Confirm karne ke liye apna admin password daalen:
+    </p>
+    <form method="POST" id="role-confirm-form">
+      <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="change_role">
+      <input type="hidden" name="uid" id="rcm-uid">
+      <input type="hidden" name="role" id="rcm-role">
+      <div style="margin-bottom:14px">
+        <input type="password" id="rcm-pw" name="admin_pw" placeholder="Your admin password…" required autocomplete="current-password">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="rcm-cancel2" onclick="document.getElementById('role-confirm-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">✅ Confirm Change</button>
       </div>
     </form>
   </div>
