@@ -293,6 +293,7 @@ $ip_total       = count($ipList);
 $ip_active      = count(array_filter($ipList, fn($r) => $r['is_active']));
 $whitelist_on   = $ip_total > 0; // whitelist is enforced when table is non-empty
 $active_tab     = $_GET['tab'] ?? 'users';
+if ($active_tab === 'add') $active_tab = 'users'; // merged into users tab
 ?>
 <?php
 $page_title = 'Admin';
@@ -345,17 +346,26 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <!-- TABS -->
 <div class="dv-tabs">
-  <button class="dv-tab <?= $active_tab === 'users' ? 'active' : '' ?>" data-tab="users">👥 Users (<?= count($users) ?>)</button>
-  <button class="dv-tab <?= $active_tab === 'add'       ? 'active' : '' ?>" data-tab="add">➕ Add User</button>
-  <button class="dv-tab <?= $active_tab === 'ip'        ? 'active' : '' ?>" data-tab="ip">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
+  <button class="dv-tab <?= in_array($active_tab, ['users','add']) ? 'active' : '' ?>" data-tab="users">👥 Users (<?= count($users) ?>)</button>
+  <button class="dv-tab <?= $active_tab === 'ip'        ? 'active' : '' ?>\" data-tab="ip">🛡 IP Whitelist <?= $ip_total > 0 ? "($ip_active/$ip_total)" : '' ?></button>
   <button class="dv-tab <?= $active_tab === 'options'   ? 'active' : '' ?>" data-tab="options">🔧 Dropdown Options</button>
   <button class="dv-tab <?= $active_tab === 'checklist' ? 'active' : '' ?>" data-tab="checklist">✅ Checklist Items</button>
   <button class="dv-tab <?= $active_tab === 'logs'      ? 'active' : '' ?>" data-tab="logs">📋 Activity Log</button>
   <button class="dv-tab <?= $active_tab === 'trash' ? 'active' : '' ?>" data-tab="trash">🗑 Trash <?= count($deleted_projects)>0?'('.count($deleted_projects).')':'' ?></button>
 </div>
 
-<!-- ═══ USERS TAB ═══ -->
-<div class="tab-pane <?= $active_tab === 'users' ? 'active' : '' ?>" id="tab-users">
+<!-- ═══ USERS TAB (merged with Add User) ═══ -->
+<div class="tab-pane <?= in_array($active_tab, ['users','add']) ? 'active' : '' ?>" id="tab-users">
+
+<?php
+// Stats for summary
+$cnt_active   = count(array_filter($users, fn($u) => (int)($u['is_active']??1) === 1));
+$cnt_inactive = count($users) - $cnt_active;
+$cnt_admin    = count(array_filter($users, fn($u) => $u['role']==='admin'));
+$cnt_member   = count(array_filter($users, fn($u) => $u['role']==='member'));
+$cnt_viewer   = count(array_filter($users, fn($u) => $u['role']==='viewer'));
+$cnt_total    = count($users);
+?>
 
   <?php if (!empty($locked_accounts)): ?>
   <div class="flash flash-error" style="margin-bottom:12px">
@@ -365,7 +375,6 @@ require_once __DIR__ . '/includes/sidebar.php';
       <div style="display:flex;align-items:center;gap:10px;margin-top:6px;font-size:12px">
         <span style="font-family:'JetBrains Mono',monospace"><?= htmlspecialchars($la['ip_address']) ?></span>
         <span style="color:var(--err);font-weight:700"><?= intval($la['attempts']) ?> attempts</span>
-        <span style="color:var(--tx3);font-family:'JetBrains Mono',monospace;font-size:11px"><?= htmlspecialchars($la['last_attempt_at']) ?></span>
         <form method="POST" style="display:inline">
           <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
           <input type="hidden" name="action" value="unlock_ip">
@@ -378,11 +387,114 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
   <?php endif; ?>
 
+  <!-- ── ROW 1: Stats + Transposed Permissions ──────────────────────── -->
+  <div style="display:grid;grid-template-columns:auto 1fr;gap:12px;margin-bottom:12px;align-items:start">
+
+    <!-- Stats card (same style as IP Whitelist) -->
+    <div class="card" style="min-width:260px">
+      <div style="display:flex;gap:0;border:1px solid var(--bdr);border-radius:10px;overflow:hidden;margin-bottom:12px">
+        <div style="flex:1;text-align:center;padding:12px 8px;border-right:1px solid var(--bdr)">
+          <div style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--acc)"><?= $cnt_total ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;margin-top:2px">Total</div>
+        </div>
+        <div style="flex:1;text-align:center;padding:12px 8px;border-right:1px solid var(--bdr)">
+          <div style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--ok)"><?= $cnt_active ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;margin-top:2px">Active</div>
+        </div>
+        <div style="flex:1;text-align:center;padding:12px 8px">
+          <div style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--err)"><?= $cnt_inactive ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.8px;margin-top:2px">Inactive</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="text-align:center;background:var(--sur2);border-radius:8px;padding:8px 4px">
+          <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:<?= $roleColors['admin'] ?>"><?= $cnt_admin ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px">Admin</div>
+        </div>
+        <div style="text-align:center;background:var(--sur2);border-radius:8px;padding:8px 4px">
+          <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:<?= $roleColors['member'] ?>"><?= $cnt_member ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px">Member</div>
+        </div>
+        <div style="text-align:center;background:var(--sur2);border-radius:8px;padding:8px 4px">
+          <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:<?= $roleColors['viewer'] ?>"><?= $cnt_viewer ?></div>
+          <div style="font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.6px">Viewer</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transposed permissions: Roles as rows, Permissions as columns -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <?php
+      $perms = ['View Projects','Search & Filter','View Passwords','Export Data','Add Project','Edit Project','Delete Project','Manage Users','IP Whitelist','Admin Panel'];
+      $rolePerms = [
+        'viewer' => [1,1,1,0,0,0,0,0,0,0],
+        'member' => [1,1,1,1,1,1,0,0,0,0],
+        'admin'  => [1,1,1,1,1,1,1,1,1,1],
+      ];
+      ?>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="background:var(--sur2)">
+            <th style="padding:8px 12px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2);border-bottom:2px solid var(--bdr);white-space:nowrap;min-width:80px">Role</th>
+            <?php foreach ($perms as $p): ?>
+            <th style="padding:8px 6px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx2);border-bottom:2px solid var(--bdr);white-space:nowrap"><?= str_replace(' ','<br>',$p) ?></th>
+            <?php endforeach; ?>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach (['viewer','member','admin'] as $role):
+            $rclr = $roleColors[$role];
+          ?>
+          <tr style="border-bottom:1px solid var(--bdr)">
+            <td style="padding:8px 12px">
+              <span class="badge" style="color:<?= $rclr ?>;border-color:<?= $rclr ?>40;background:<?= $rclr ?>14;white-space:nowrap"><?= ucfirst($role) ?></span>
+            </td>
+            <?php foreach ($rolePerms[$role] as $has): ?>
+            <td style="text-align:center;padding:8px 4px">
+              <?= $has ? '<span style="color:var(--ok);font-weight:700;font-size:14px">✓</span>' : '<span style="color:var(--bdr);font-size:14px">–</span>' ?>
+            </td>
+            <?php endforeach; ?>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── ROW 2: Add New User (all in one row) ──────────────────────── -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">➕ Add New User</div>
+    <form method="POST">
+      <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+      <input type="hidden" name="action" value="add_user">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:nowrap">
+        <div style="flex:1.2;display:flex;flex-direction:column;gap:4px;min-width:0">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Username</label>
+          <input type="text" name="username" placeholder="e.g. john_dev" required style="height:36px">
+        </div>
+        <div style="flex:1.2;display:flex;flex-direction:column;gap:4px;min-width:0">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Password</label>
+          <input type="password" name="password" placeholder="Min 8 chars" required style="height:36px">
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Role</label>
+          <select name="role" style="height:36px">
+            <option value="member">Member</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="height:36px;white-space:nowrap;flex-shrink:0">➕ Add User</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── ROW 3: Users Table ─────────────────────────────────────────── -->
   <div class="card" style="padding:0;overflow:hidden">
     <table class="admin-table">
       <thead><tr>
-        <th>#</th><th>Status</th><th>Username</th><th>Role</th>
-        <th style="text-align:center">Projects</th><th>Joined</th><th>PW Age</th><th>Actions</th>
+        <th>#</th><th>●</th><th>Username</th><th>Role</th>
+        <th style="text-align:center">Proj.</th><th>Joined</th><th>PW Age</th><th>Actions</th>
       </tr></thead>
       <tbody>
       <?php foreach ($users as $u):
@@ -390,8 +502,8 @@ require_once __DIR__ . '/includes/sidebar.php';
         $rclr = $roleColors[$u['role']] ?? '#8b949e';
       ?>
       <tr style="<?= !$isActive ? 'opacity:.5' : '' ?>">
-        <td class="td-mono"><?= $u['id'] ?></td>
-        <td>
+        <td class="td-mono" style="width:40px"><?= $u['id'] ?></td>
+        <td style="width:24px">
           <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:<?= $isActive ? 'var(--ok)' : 'var(--err)' ?>" title="<?= $isActive ? 'Active' : 'Inactive' ?>"></span>
         </td>
         <td style="font-weight:700;font-size:13px"><?= htmlspecialchars($u['username']) ?></td>
@@ -412,21 +524,22 @@ require_once __DIR__ . '/includes/sidebar.php';
             } else { echo '<span style="color:var(--tx3)">N/A</span>'; }
           ?>
         </td>
-        <td>
+        <td style="white-space:nowrap">
           <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;gap:5px;align-items:center">
+            <!-- Role select — compact width -->
             <select data-uid="<?= $u['id'] ?>" data-action="change-role"
-              style="background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:4px 8px;color:var(--tx);font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;cursor:pointer;height:30px">
-              <option value="admin"  <?= $u['role'] === 'admin'  ? 'selected' : '' ?>>Admin</option>
-              <option value="member" <?= $u['role'] === 'member' ? 'selected' : '' ?>>Member</option>
-              <option value="viewer" <?= $u['role'] === 'viewer' ? 'selected' : '' ?>>Viewer</option>
+              style="background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;padding:3px 6px;color:var(--tx);font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;cursor:pointer;height:28px;width:76px">
+              <option value="admin"  <?= $u['role']==='admin'  ? 'selected':'' ?>>Admin</option>
+              <option value="member" <?= $u['role']==='member' ? 'selected':'' ?>>Member</option>
+              <option value="viewer" <?= $u['role']==='viewer' ? 'selected':'' ?>>Viewer</option>
             </select>
             <form method="POST" style="display:inline">
               <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
               <input type="hidden" name="action" value="toggle_active">
               <input type="hidden" name="uid" value="<?= $u['id'] ?>">
               <button type="submit" class="btn <?= $isActive ? 'btn-danger' : 'btn-success' ?> btn-sm">
-                <?= $isActive ? '⛔ Deactivate' : '✅ Activate' ?>
+                <?= $isActive ? '⛔' : '✅' ?>
               </button>
             </form>
             <button class="btn btn-ghost btn-sm" data-action="reset-pw" data-uid="<?= $u['id'] ?>" data-uname="<?= htmlspecialchars($u['username']) ?>">🔑</button>
@@ -446,82 +559,10 @@ require_once __DIR__ . '/includes/sidebar.php';
       </tbody>
     </table>
   </div>
-
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:12px">
-    <span><span class="badge" style="color:<?= $roleColors['admin'] ?>;border-color:<?= $roleColors['admin'] ?>40;background:<?= $roleColors['admin'] ?>14">Admin</span> — Full access: add, edit, delete projects + manage users</span>
-    <span><span class="badge" style="color:<?= $roleColors['member'] ?>;border-color:<?= $roleColors['member'] ?>40;background:<?= $roleColors['member'] ?>14">Member</span> — Add & edit projects, view all data, export</span>
-    <span><span class="badge" style="color:<?= $roleColors['viewer'] ?>;border-color:<?= $roleColors['viewer'] ?>40;background:<?= $roleColors['viewer'] ?>14">Viewer</span> — View only: cannot add, edit, or delete anything</span>
-  </div>
 </div>
 
-<!-- ═══ ADD USER TAB ═══ -->
-<div class="tab-pane <?= $active_tab === 'add' ? 'active' : '' ?>" id="tab-add">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
-    <div class="card">
-      <div class="card-title">➕ Add New User</div>
-      <form method="POST">
-        <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-        <input type="hidden" name="action" value="add_user">
-        <!-- Row 1: Username + Password -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Username</label>
-            <input type="text" name="username" placeholder="e.g. john_dev" required>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Password</label>
-            <input type="password" name="password" placeholder="Min 8 chars" required>
-          </div>
-        </div>
-        <!-- Row 2: Role + Button -->
-        <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:flex-end">
-          <div style="display:flex;flex-direction:column;gap:4px">
-            <label style="font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--tx2)">Role</label>
-            <select name="role">
-              <option value="member">Member — add + edit projects</option>
-              <option value="viewer">Viewer — view only (read-only)</option>
-              <option value="admin">Admin — full access + users</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-primary">➕ Add User</button>
-        </div>
-      </form>
-    </div>
-
-    <div class="card">
-      <div class="card-title">🔐 Role Permissions</div>
-      <table class="admin-table">
-        <thead><tr>
-          <th>Permission</th>
-          <th style="text-align:center;color:<?= $roleColors['viewer'] ?>">Viewer</th>
-          <th style="text-align:center;color:<?= $roleColors['member'] ?>">Member</th>
-          <th style="text-align:center;color:<?= $roleColors['admin'] ?>">Admin</th>
-        </tr></thead>
-        <tbody>
-        <?php foreach ([
-          'View Projects'   => [1,1,1],
-          'Search & Filter' => [1,1,1],
-          'View Passwords'  => [1,1,1],
-          'Export Data'     => [0,1,1],
-          'Add Project'     => [0,1,1],
-          'Edit Project'    => [0,1,1],
-          'Delete Project'  => [0,0,1],
-          'Manage Users'    => [0,0,1],
-          'IP Whitelist'    => [0,0,1],
-          'Admin Panel'     => [0,0,1],
-        ] as $perm => [$v,$m,$a]): ?>
-        <tr>
-          <td style="font-family:'JetBrains Mono',monospace;font-size:11px"><?= $perm ?></td>
-          <td style="text-align:center"><?= $v ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
-          <td style="text-align:center"><?= $m ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
-          <td style="text-align:center"><?= $a ? '<span style="color:var(--ok);font-weight:700">✓</span>' : '<span style="color:var(--bdr)">–</span>' ?></td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
+<!-- ═══ (empty hidden tab-add for backward compat with URL ?tab=add) ═══ -->
+<div class="tab-pane" id="tab-add" style="display:none"></div>
 
 <!-- ═══ IP WHITELIST TAB ═══ -->
 <div class="tab-pane <?= $active_tab === 'ip' ? 'active' : '' ?>" id="tab-ip">
